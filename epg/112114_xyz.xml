@@ -51123,6 +51123,9 @@
 	<programme channel="newtv超级综艺" start="20260625033200 +0800" stop="20260625051500 +0800">
 		<title lang="zh">影视留声机</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260625051500 +0800" stop="20260625064500 +0800">
+		<title lang="zh">中央广播电视总台主持人大赛 新闻主播季</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -51143,6 +51146,9 @@
 	</programme>
 	<programme channel="newtv超级电影" start="20260625034100 +0800" stop="20260625050900 +0800">
 		<title lang="zh">冰川鲨鱼</title>
+	</programme>
+	<programme channel="newtv超级电影" start="20260625050900 +0800" stop="20260625063800 +0800">
+		<title lang="zh">坦克战</title>
 	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
@@ -51167,6 +51173,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260625043300 +0800" stop="20260625051900 +0800">
 		<title lang="zh">18_白云飘飘的年代</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260625051900 +0800" stop="20260625060400 +0800">
+		<title lang="zh">19_白云飘飘的年代</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
