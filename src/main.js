@@ -743,8 +743,18 @@ function selectActiveSource(index) {
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) embedIframe.src = source.url;
 
-    // Shield is hidden because sandbox blocks popups anyway
-    if (shield) shield.style.display = 'none';
+    // Shield logic: block stray popup-triggering clicks, drop on intent
+    if (shield) {
+      shield.style.display = 'block';
+      clearTimeout(shieldTimer);
+      shield.onclick = () => {
+        shield.style.display = 'none';
+        clearTimeout(shieldTimer);
+        shieldTimer = setTimeout(() => {
+          if (shield) shield.style.display = 'block';
+        }, 5000);
+      };
+    }
   }
 
   const statusText = document.getElementById('sources-status');
