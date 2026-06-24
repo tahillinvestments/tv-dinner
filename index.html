@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-Bu5M6Llo.js"></script>
+  <script type="module" crossorigin src="/assets/index-qR3TbYHv.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-83ouZG7D.css">
 </head>
 <body class="dark-theme">
@@ -282,14 +282,18 @@
             </div>
 
             <!-- Embed Player -->
-            <div class="embed-player-wrapper" id="embed-player-wrapper" style="display:none">
+            <div class="embed-player-wrapper" id="embed-player-wrapper" style="display:none; position:relative;">
+              <!-- Popup blocker shield: intercepts stray clicks; lifted only on intentional interaction -->
+              <div id="embed-shield"
+                style="position:absolute;inset:0;z-index:10;cursor:pointer;border-radius:10px;"
+                title="Click to interact with player"
+              ></div>
               <iframe
                 id="embed-iframe"
                 allowfullscreen
-                allow="fullscreen; autoplay; encrypted-media"
+                allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
                 referrerpolicy="no-referrer"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
-                style="width:100%;aspect-ratio:16/9;border:none;border-radius:10px;background:#000;"
+                style="width:100%;aspect-ratio:16/9;border:none;border-radius:10px;background:#000;display:block;"
               ></iframe>
             </div>
 
