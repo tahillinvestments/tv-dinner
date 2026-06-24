@@ -492,8 +492,12 @@ async function openDetailsView(mediaItem) {
 
   // Load dynamic lists clean up
   document.getElementById('sources-list').innerHTML = '';
-  document.getElementById('sources-status').textContent = 'Select an option to resolve streams...';
-  
+  document.getElementById('sources-status').textContent = 'Select a server below to start streaming.';
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const embedIframe = document.getElementById('embed-iframe');
+  if (embedWrapper) embedWrapper.style.display = 'none';
+  if (embedIframe) embedIframe.src = '';
+
   createIcons(iconConfig);
 
   // Close any ongoing active streams connection
@@ -598,112 +602,95 @@ async function loadTVEpisodes(tvId, seasonNumber) {
   }
 }
 
-// Start aggregating stream links from Vyla Stream API
+// Embed providers — all accept TMDB IDs directly
+const EMBED_PROVIDERS = [
+  {
+    name: 'Server 1',
+    movie: (id) => `https://www.2embed.cc/embed/${id}`,
+    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+  },
+  {
+    name: 'Server 2',
+    movie: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`,
+    tv: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
+  },
+  {
+    name: 'Server 3',
+    movie: (id) => `https://vidsrc.xyz/embed/movie?tmdb=${id}`,
+    tv: (id, s, e) => `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}`,
+  },
+  {
+    name: 'Server 4',
+    movie: (id) => `https://embed.su/embed/movie/${id}`,
+    tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'Server 5',
+    movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`,
+  },
+];
+
+// Start streaming via iframe embed providers
 function startStreamResolution({ type, id, season, episode }) {
   closeActiveSse();
-  
+
   const listContainer = document.getElementById('sources-list');
   const statusText = document.getElementById('sources-status');
-  
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const embedIframe = document.getElementById('embed-iframe');
+
   listContainer.innerHTML = '';
   state.resolvedSources = [];
   state.activeSourceIndex = -1;
+  embedWrapper.style.display = 'none';
+  embedIframe.src = '';
 
-  player.showBuffering(true);
-  statusText.textContent = 'Connecting to stream server...';
+  statusText.textContent = 'Choose a server to start streaming:';
 
-  state.activeStreamSse = getStreamSources(
-    { type, id, season, episode },
-    {
-      onWaking: () => {
-        statusText.textContent = 'Stream server is waking up, please wait...';
-      },
-      onMeta: (data) => {
-        console.log('Received Stream Meta:', data);
-        // Subtitles or info could be processed here
-      },
-      onSource: (source) => {
-        console.log('Resolved Source:', source);
-        if (!source.url) return;
+  EMBED_PROVIDERS.forEach((provider, index) => {
+    const embedUrl = type === 'tv'
+      ? provider.tv(id, season, episode)
+      : provider.movie(id);
 
-        // Save resolved sources list
-        state.resolvedSources.push(source);
-        const sourceIndex = state.resolvedSources.length - 1;
+    state.resolvedSources.push({ name: provider.name, url: embedUrl });
 
-        // Update status text
-        statusText.textContent = `Found ${state.resolvedSources.length} sources...`;
+    const btn = document.createElement('button');
+    btn.className = `source-item-btn ${index === 0 ? 'active' : ''}`;
+    btn.innerHTML = `
+      <span>${provider.name}</span>
+      <span class="source-item-badge">Embed</span>
+    `;
+    btn.addEventListener('click', () => selectActiveSource(index));
+    listContainer.appendChild(btn);
+  });
 
-        // Render source button in grid
-        const btn = document.createElement('button');
-        btn.className = `source-item-btn ${sourceIndex === 0 ? 'active' : ''}`;
-        
-        // Identify quality or server type
-        const quality = source.url.includes('1080') ? '1080p' : (source.url.includes('720') ? '720p' : 'Auto');
-        
-        btn.innerHTML = `
-          <span>${source.name || `Source ${sourceIndex + 1}`}</span>
-          <span class="source-item-badge">${quality}</span>
-        `;
-
-        btn.addEventListener('click', () => {
-          selectActiveSource(sourceIndex);
-        });
-
-        listContainer.appendChild(btn);
-
-        // If this is the first source found, trigger auto-play!
-        if (sourceIndex === 0) {
-          selectActiveSource(0);
-        }
-      },
-      onDone: () => {
-        if (state.resolvedSources.length === 0) {
-          statusText.textContent = 'No streams found for this media.';
-          player.showBuffering(false);
-          player.showError("No playable streams could be found.");
-        } else {
-          statusText.textContent = `Search complete. ${state.resolvedSources.length} sources ready.`;
-        }
-      },
-      onError: () => {
-        if (state.resolvedSources.length === 0) {
-          statusText.textContent = 'Failed to load streams.';
-          player.showBuffering(false);
-          player.showError("Failed to fetch stream sources from host API.");
-        }
-      }
-    }
-  );
+  // Auto-load first server
+  selectActiveSource(0);
 }
 
-// Select source and play in HTML5 Video Tag player
+
+// Select source and load in iframe embed player
 function selectActiveSource(index) {
   if (index < 0 || index >= state.resolvedSources.length) return;
-  
+
   state.activeSourceIndex = index;
   const source = state.resolvedSources[index];
 
-  // Update UI buttons active state highlight
+  // Update UI button active state
   const buttons = document.querySelectorAll('.source-item-btn');
   buttons.forEach((btn, idx) => {
-    if (idx === index) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
+    btn.classList.toggle('active', idx === index);
   });
 
-  // Highlight title on custom player overlay
-  const titleText = state.selectedMedia.title || state.selectedMedia.name || 'Stream';
-  const subtitleInfo = state.selectedMedia.media_type === 'tv' 
-    ? ` - S${document.getElementById('season-select').value} E${document.querySelector('.episode-btn.active')?.textContent || ''}`
-    : '';
-  
-  // Play the channel URL inside custom overlay player
-  player.playChannel({
-    name: `${titleText}${subtitleInfo} (${source.name})`,
-    url: source.url
-  });
+  // Load in iframe
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const embedIframe = document.getElementById('embed-iframe');
+  embedWrapper.style.display = 'block';
+  embedIframe.src = source.url;
+
+  const statusText = document.getElementById('sources-status');
+  statusText.textContent = `Playing via ${source.name}. If it doesn't load, try another server.`;
 }
 
 // Close ongoing EventSource client stream resolver
