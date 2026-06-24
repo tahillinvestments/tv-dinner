@@ -23,7 +23,7 @@ const state = {
 };
 
 // Constants
-const ENGLISH_PLAYLIST_URL = 'https://iptv-org.github.io/iptv/languages/eng.m3u';
+const ENGLISH_PLAYLIST_URL = 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/languages/eng.m3u';
 const MAX_RECENTS = 20;
 
 // Initialize components
