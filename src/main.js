@@ -606,28 +606,28 @@ async function loadTVEpisodes(tvId, seasonNumber) {
 const EMBED_PROVIDERS = [
   {
     name: 'Server 1',
-    movie: (id) => `https://www.2embed.cc/embed/${id}`,
-    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
-  },
-  {
-    name: 'Server 2',
-    movie: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`,
-    tv: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
-  },
-  {
-    name: 'Server 3',
     movie: (id) => `https://vidsrc.xyz/embed/movie?tmdb=${id}`,
     tv: (id, s, e) => `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}`,
   },
   {
-    name: 'Server 4',
+    name: 'Server 2',
     movie: (id) => `https://embed.su/embed/movie/${id}`,
     tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'Server 5',
+    name: 'Server 3',
     movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
     tv: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'Server 4',
+    movie: (id) => `https://www.2embed.cc/embed/${id}`,
+    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+  },
+  {
+    name: 'Server 5',
+    movie: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`,
+    tv: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
   },
 ];
 
@@ -671,6 +671,8 @@ function startStreamResolution({ type, id, season, episode }) {
 
 
 // Select source and load in iframe embed player
+let shieldTimer = null;
+
 function selectActiveSource(index) {
   if (index < 0 || index >= state.resolvedSources.length) return;
 
@@ -686,11 +688,29 @@ function selectActiveSource(index) {
   // Load in iframe
   const embedWrapper = document.getElementById('embed-player-wrapper');
   const embedIframe = document.getElementById('embed-iframe');
+  const shield = document.getElementById('embed-shield');
+
   embedWrapper.style.display = 'block';
   embedIframe.src = source.url;
 
+  // Reset shield (popup blocker)
+  if (shield) {
+    shield.style.display = 'block';
+    clearTimeout(shieldTimer);
+
+    // When user intentionally clicks the player area, drop shield briefly so controls work
+    shield.onclick = () => {
+      shield.style.display = 'none';
+      clearTimeout(shieldTimer);
+      // Reinstate after 5s to block background ad popups again
+      shieldTimer = setTimeout(() => {
+        if (shield) shield.style.display = 'block';
+      }, 5000);
+    };
+  }
+
   const statusText = document.getElementById('sources-status');
-  statusText.textContent = `Playing via ${source.name}. If it doesn't load, try another server.`;
+  statusText.textContent = `Playing via ${source.name}. Click the player to interact. Try another server if it doesn't load.`;
 }
 
 // Close ongoing EventSource client stream resolver
