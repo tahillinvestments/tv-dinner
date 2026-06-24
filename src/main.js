@@ -663,10 +663,12 @@ function selectActiveSource(index) {
   const embedIframe = document.getElementById('embed-iframe');
   const embedWrapper = document.getElementById('embed-player-wrapper');
   const videoEl = document.getElementById('video-player');
+  const playerWrapper = document.querySelector('.player-wrapper');
   const shield = document.getElementById('embed-shield');
 
   if (videoEl) videoEl.style.display = 'none';
   if (embedWrapper) embedWrapper.style.display = 'block';
+  if (playerWrapper) playerWrapper.classList.add('embed-active');
   if (embedIframe) embedIframe.src = source.url;
 
   // Shield logic: block stray popup-triggering clicks, drop on intent
@@ -709,9 +711,12 @@ function closeDetailsView() {
   const embedIframe = document.getElementById('embed-iframe');
   const embedWrapper = document.getElementById('embed-player-wrapper');
   const videoEl = document.getElementById('video-player');
+  const playerWrapper = document.querySelector('.player-wrapper');
+
   if (embedIframe) embedIframe.src = '';
   if (embedWrapper) embedWrapper.style.display = 'none';
   if (videoEl) videoEl.style.display = '';
+  if (playerWrapper) playerWrapper.classList.remove('embed-active');
 
   // Hide details panel & reveal catalog grid
   document.getElementById('details-section').classList.add('hidden');
