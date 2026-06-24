@@ -51135,6 +51135,9 @@
 	<programme channel="newtv超级体育" start="20260625013000 +0800" stop="20260625053000 +0800">
 		<title lang="zh">2026世界杯-小组赛B组第三轮(瑞士-加拿大)</title>
 	</programme>
+	<programme channel="newtv超级体育" start="20260625053000 +0800" stop="20260625083000 +0800">
+		<title lang="zh">2026世界杯-小组赛C组第三轮(苏格兰-巴西)</title>
+	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
 	</channel>
