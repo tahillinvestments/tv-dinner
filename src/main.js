@@ -394,16 +394,18 @@ function renderMoviesCatalog() {
     ? `Matching results for "${state.searchQuery}"`
     : "Popular movies & television shows today";
 
-  const results = state.searchQuery ? state.moviesSearchResults : [];
+  // Always use moviesSearchResults — populated by either trending or search
+  const results = state.moviesSearchResults;
 
   if (results.length === 0) {
     if (state.searchQuery) {
+      // Search returned no results
       emptyState.classList.remove('hidden');
       document.getElementById('filtered-count').textContent = '0 results';
       return;
     }
-    
-    // If empty query, show placeholder layout with instructions
+
+    // No results and no query — show placeholder
     emptyState.classList.add('hidden');
     document.getElementById('filtered-count').textContent = 'Catalog ready';
     container.innerHTML = `
