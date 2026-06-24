@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-Clu7PnsZ.js"></script>
+  <script type="module" crossorigin src="/assets/index-Bu5M6Llo.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-83ouZG7D.css">
 </head>
 <body class="dark-theme">
@@ -281,11 +281,23 @@
               </div>
             </div>
 
+            <!-- Embed Player -->
+            <div class="embed-player-wrapper" id="embed-player-wrapper" style="display:none">
+              <iframe
+                id="embed-iframe"
+                allowfullscreen
+                allow="fullscreen; autoplay; encrypted-media"
+                referrerpolicy="no-referrer"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+                style="width:100%;aspect-ratio:16/9;border:none;border-radius:10px;background:#000;"
+              ></iframe>
+            </div>
+
             <!-- Sources Panel -->
             <div class="sources-panel">
               <div class="sources-header-status">
                 <span class="selector-label">Streaming Sources:</span>
-                <span id="sources-status" class="sources-status-text">Select an episode or click play to resolve...</span>
+                <span id="sources-status" class="sources-status-text">Select a server below to start streaming.</span>
               </div>
               <div id="sources-list" class="sources-list-grid">
                 <!-- Dynamically populated source buttons -->

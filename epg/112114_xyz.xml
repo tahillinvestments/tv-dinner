@@ -51753,6 +51753,9 @@
 	<programme channel="newtv金牌综艺" start="20260625045900 +0800" stop="20260625054400 +0800">
 		<title lang="zh">17_雾都魅影</title>
 	</programme>
+	<programme channel="newtv金牌综艺" start="20260625054400 +0800" stop="20260625062400 +0800">
+		<title lang="zh">芪缘固阳有机黄芪片-渠道（右）</title>
+	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
 	</channel>
