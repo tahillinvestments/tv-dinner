@@ -1,0 +1,53 @@
+name: Auto Update IPTV Playlists & Build Player
+
+on:
+  schedule:
+    - cron: "0 */2 * * *" # Runs every 2 hours
+  push:
+    branches:
+      - main # Runs on pushes to main
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Vite Player
+        run: npm run build
+
+      - name: Build Playlist Scraper
+        run: npm run sources:build
+
+      - name: Run Playlist Scraper
+        run: npm run sources:run
+
+      - name: Merge Scraped Lists into Web Distribution
+        run: |
+          mkdir -p dist/m3u
+          # Copy raw generated files to root of distribution for backwards compatibility
+          cp -r m3u/* dist/
+          # Copy to /m3u/ folder as well
+          cp -r m3u/* dist/m3u/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          enable_jekyll: false

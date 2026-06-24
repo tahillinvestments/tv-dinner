@@ -23,7 +23,9 @@ const state = {
 };
 
 // Constants
-const PLAYLIST_URL = 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/index.m3u';
+const PLAYLIST_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? '/o_all.m3u'
+  : 'https://tahillinvestments.github.io/tv-dinner/o_all.m3u';
 const MAX_RECENTS = 20;
 
 // Initialize components

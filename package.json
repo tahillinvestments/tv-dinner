@@ -6,13 +6,38 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sources:build": "tsup",
+    "sources:run": "node ./dist-updater/index.js",
+    "sources:serve": "node ./dist-updater/serve.js",
+    "sources:matrix": "node ./dist-updater/matrix.js",
+    "sources:dev": "cross-env NODE_ENV=development tsup --watch"
   },
   "dependencies": {
+    "dotenv": "^16.4.5",
     "hls.js": "^1.5.8",
-    "lucide": "^0.395.0"
+    "koa": "^2.15.3",
+    "koa-router": "^12.0.1",
+    "koa-static": "^5.0.0",
+    "lucide": "^0.395.0",
+    "markdown-it": "^14.1.0",
+    "opencc-js": "^1.0.5"
   },
   "devDependencies": {
+    "@rollup/wasm-node": "4.20.0",
+    "@types/koa": "^2.15.0",
+    "@types/koa-router": "^7.4.8",
+    "@types/koa-static": "^4.0.4",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.2.0",
+    "@types/opencc-js": "^1.0.3",
+    "cross-env": "^7.0.3",
+    "nodemon": "^3.1.4",
+    "tsup": "^8.2.4",
+    "typescript": "^5.5.4",
     "vite": "^5.2.11"
+  },
+  "resolutions": {
+    "rollup": "npm:@rollup/wasm-node"
   }
 }
