@@ -118,6 +118,7 @@
               allowfullscreen
               allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
               referrerpolicy="no-referrer"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
               style="width:100%;height:100%;border:none;background:#000;"
             ></iframe>
           </div>
@@ -162,9 +163,16 @@
           <div id="video-controls" class="video-controls-bar">
             <!-- Channel Info and Live Tag -->
             <div class="controls-status-row">
-              <span class="live-pulse-dot"></span>
-              <span class="live-badge">LIVE</span>
+              <span class="live-pulse-dot" id="live-indicator-dot"></span>
+              <span class="live-badge" id="live-indicator-text">LIVE</span>
               <span id="player-channel-title" class="controls-channel-title"></span>
+            </div>
+
+            <!-- Seek Slider / Time display for VOD (Movies & TV) -->
+            <div id="seek-container" class="seek-container" style="display: none;">
+              <span id="current-time" class="time-display">0:00</span>
+              <input type="range" id="seek-slider" min="0" max="100" value="0" class="seek-slider">
+              <span id="duration-time" class="time-display">0:00</span>
             </div>
 
             <!-- Controls Row -->
@@ -256,25 +264,28 @@
           </div>
         </div>
 
-        <!-- TV Seasons/Episodes Selector -->
-        <div id="tv-selectors" class="tv-selectors-container hidden">
-          <div class="season-select-wrapper">
-            <label for="season-select" class="selector-label">Season:</label>
-            <select id="season-select" class="season-select"></select>
+        <!-- Scrollable details body -->
+        <div class="details-body custom-scrollbar">
+          <!-- TV Seasons/Episodes Selector -->
+          <div id="tv-selectors" class="tv-selectors-container hidden">
+            <div class="season-select-wrapper">
+              <label for="season-select" class="selector-label">Season:</label>
+              <select id="season-select" class="season-select"></select>
+            </div>
+            <div class="episodes-container">
+              <span class="selector-label">Episode:</span>
+              <div id="episodes-grid" class="episodes-grid custom-scrollbar"></div>
+            </div>
           </div>
-          <div class="episodes-container">
-            <span class="selector-label">Episode:</span>
-            <div id="episodes-grid" class="episodes-grid custom-scrollbar"></div>
-          </div>
-        </div>
 
-        <!-- Streaming server picker -->
-        <div class="sources-panel">
-          <div class="sources-header-status">
-            <span class="selector-label">Server:</span>
-            <span id="sources-status" class="sources-status-text">Choose a server to stream.</span>
+          <!-- Streaming server picker -->
+          <div class="sources-panel">
+            <div class="sources-header-status">
+              <span class="selector-label">Server:</span>
+              <span id="sources-status" class="sources-status-text">Choose a server to stream.</span>
+            </div>
+            <div id="sources-list" class="sources-list-grid"></div>
           </div>
-          <div id="sources-list" class="sources-list-grid"></div>
         </div>
       </section>
     </div>

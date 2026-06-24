@@ -605,7 +605,7 @@ const EMBED_PROVIDERS = [
   },
 ];
 
-// Start streaming via iframe embed providers
+// Start streaming via iframe embed providers or direct stream if available
 function startStreamResolution({ type, id, season, episode }) {
   closeActiveSse();
 
@@ -620,31 +620,85 @@ function startStreamResolution({ type, id, season, episode }) {
   embedWrapper.style.display = 'none';
   embedIframe.src = '';
 
-  statusText.textContent = 'Choose a server to start streaming:';
+  statusText.textContent = 'Resolving streams...';
 
+  // Populate embed providers as default fallbacks
   EMBED_PROVIDERS.forEach((provider, index) => {
     const embedUrl = type === 'tv'
       ? provider.tv(id, season, episode)
       : provider.movie(id);
 
-    state.resolvedSources.push({ name: provider.name, url: embedUrl });
+    state.resolvedSources.push({ name: provider.name, url: embedUrl, type: 'embed' });
+  });
 
+  renderSourcesUI();
+
+  // Trigger background loading of direct stream sources using Vyla API
+  state.activeStreamSse = getStreamSources(
+    { type, id, season, episode },
+    {
+      onWaking: () => {
+        statusText.textContent = 'Streaming server is waking up, resolving direct streams...';
+      },
+      onMeta: (meta) => {
+        console.log('[Vyla] Meta resolved:', meta);
+      },
+      onSource: (source) => {
+        console.log('[Vyla] Direct source resolved:', source);
+        if (source && source.url) {
+          // Prepend direct streams to the start of resolved sources
+          const directSource = {
+            name: source.name || 'Direct HD Server',
+            url: source.url,
+            type: 'stream'
+          };
+          
+          state.resolvedSources.unshift(directSource);
+          renderSourcesUI();
+          
+          // Auto-load direct stream if we haven't selected anything or we're on an embed fallback
+          if (state.activeSourceIndex === -1 || state.resolvedSources[state.activeSourceIndex]?.type === 'embed') {
+            selectActiveSource(0);
+          }
+        }
+      },
+      onDone: () => {
+        if (state.resolvedSources.some(s => s.type === 'stream')) {
+          statusText.textContent = 'Direct streams ready. Choose a server to play.';
+        } else {
+          statusText.textContent = 'No direct streams found. Streaming via embed. Switch servers if it doesn\'t load.';
+        }
+      },
+      onError: (err) => {
+        console.error('[Vyla] SSE resolution error:', err);
+        statusText.textContent = 'Failed to find direct streams. Using embed servers.';
+      }
+    }
+  );
+
+  // Auto-play the first fallback embed server immediately
+  selectActiveSource(0);
+}
+
+// Render the list of source selector buttons
+function renderSourcesUI() {
+  const listContainer = document.getElementById('sources-list');
+  if (!listContainer) return;
+  listContainer.innerHTML = '';
+
+  state.resolvedSources.forEach((source, index) => {
     const btn = document.createElement('button');
-    btn.className = `source-item-btn ${index === 0 ? 'active' : ''}`;
+    btn.className = `source-item-btn ${index === state.activeSourceIndex ? 'active' : ''}`;
     btn.innerHTML = `
-      <span>${provider.name}</span>
-      <span class="source-item-badge">Embed</span>
+      <span>${source.name}</span>
+      <span class="source-item-badge">${source.type === 'stream' ? 'Direct HD' : 'Embed'}</span>
     `;
     btn.addEventListener('click', () => selectActiveSource(index));
     listContainer.appendChild(btn);
   });
-
-  // Auto-load first server
-  selectActiveSource(0);
 }
 
-
-// Select source and load in the shared iframe player
+// Select source and load in the shared player
 let shieldTimer = null;
 
 function selectActiveSource(index) {
@@ -654,38 +708,53 @@ function selectActiveSource(index) {
   const source = state.resolvedSources[index];
 
   // Update UI button active state
-  const buttons = document.querySelectorAll('.source-item-btn');
-  buttons.forEach((btn, idx) => {
-    btn.classList.toggle('active', idx === index);
-  });
+  renderSourcesUI();
 
-  // Load URL into the shared player iframe
   const embedIframe = document.getElementById('embed-iframe');
   const embedWrapper = document.getElementById('embed-player-wrapper');
   const videoEl = document.getElementById('video-player');
   const playerWrapper = document.querySelector('.player-wrapper');
   const shield = document.getElementById('embed-shield');
 
-  if (videoEl) videoEl.style.display = 'none';
-  if (embedWrapper) embedWrapper.style.display = 'block';
-  if (playerWrapper) playerWrapper.classList.add('embed-active');
-  if (embedIframe) embedIframe.src = source.url;
+  // Stop playing current stream
+  if (videoEl) {
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    videoEl.load();
+  }
 
-  // Shield logic: block stray popup-triggering clicks, drop on intent
-  if (shield) {
-    shield.style.display = 'block';
-    clearTimeout(shieldTimer);
-    shield.onclick = () => {
-      shield.style.display = 'none';
-      clearTimeout(shieldTimer);
-      shieldTimer = setTimeout(() => {
-        if (shield) shield.style.display = 'block';
-      }, 5000);
-    };
+  if (source.type === 'stream') {
+    // Play direct stream in custom player
+    if (embedIframe) embedIframe.src = '';
+    if (embedWrapper) embedWrapper.style.display = 'none';
+    if (videoEl) videoEl.style.display = '';
+    if (playerWrapper) playerWrapper.classList.remove('embed-active');
+    if (shield) shield.style.display = 'none';
+
+    // Play stream URL
+    player.playChannel({
+      url: source.url,
+      name: state.selectedMedia ? (state.selectedMedia.title || state.selectedMedia.name) : 'Movie/TV Video'
+    });
+  } else {
+    // Play iframe embed
+    if (videoEl) videoEl.style.display = 'none';
+    if (embedWrapper) embedWrapper.style.display = 'block';
+    if (playerWrapper) playerWrapper.classList.add('embed-active');
+    if (embedIframe) embedIframe.src = source.url;
+
+    // Shield is hidden because sandbox blocks popups anyway
+    if (shield) shield.style.display = 'none';
   }
 
   const statusText = document.getElementById('sources-status');
-  if (statusText) statusText.textContent = `Streaming via ${source.name}. Click player to interact. Switch servers if it doesn't load.`;
+  if (statusText) {
+    if (source.type === 'stream') {
+      statusText.textContent = `Streaming direct source via ${source.name}. Use player controls below.`;
+    } else {
+      statusText.textContent = `Streaming embed via ${source.name}. Interact directly with the video frame.`;
+    }
+  }
 }
 
 // Close ongoing EventSource client stream resolver
@@ -715,8 +784,23 @@ function closeDetailsView() {
 
   if (embedIframe) embedIframe.src = '';
   if (embedWrapper) embedWrapper.style.display = 'none';
-  if (videoEl) videoEl.style.display = '';
   if (playerWrapper) playerWrapper.classList.remove('embed-active');
+
+  // Stop video element playback and reset it
+  if (videoEl) {
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    videoEl.load();
+    videoEl.style.display = '';
+  }
+
+  // Restore live indicator/controls
+  const liveDot = document.getElementById('live-indicator-dot');
+  const liveText = document.getElementById('live-indicator-text');
+  const seekContainer = document.getElementById('seek-container');
+  if (liveDot) liveDot.style.display = '';
+  if (liveText) liveText.style.display = '';
+  if (seekContainer) seekContainer.style.display = 'none';
 
   // Hide details panel & reveal catalog grid
   document.getElementById('details-section').classList.add('hidden');

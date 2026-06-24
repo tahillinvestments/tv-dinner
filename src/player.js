@@ -26,6 +26,12 @@ export class IPTVPlayer {
     this.reloadBtn = document.getElementById('reload-btn');
     this.retryBtn = document.getElementById('retry-stream-btn');
 
+    // Seek VOD Controls
+    this.seekContainer = document.getElementById('seek-container');
+    this.seekSlider = document.getElementById('seek-slider');
+    this.currentTimeLabel = document.getElementById('current-time');
+    this.durationTimeLabel = document.getElementById('duration-time');
+
     // States
     this.isMuted = false;
     this.volume = 1;
@@ -48,6 +54,23 @@ export class IPTVPlayer {
     // Fullscreen
     this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
     this.video.addEventListener('dblclick', () => this.toggleFullscreen());
+
+    // Seeking
+    if (this.seekSlider) {
+      this.seekSlider.addEventListener('input', (e) => {
+        if (!this.video.duration) return;
+        const seekTime = (e.target.value / 100) * this.video.duration;
+        if (this.currentTimeLabel) {
+          this.currentTimeLabel.textContent = this.formatTime(seekTime);
+        }
+      });
+
+      this.seekSlider.addEventListener('change', (e) => {
+        if (!this.video.duration) return;
+        const seekTime = (e.target.value / 100) * this.video.duration;
+        this.video.currentTime = seekTime;
+      });
+    }
 
     // PiP
     if (this.pipBtn) {
@@ -79,6 +102,11 @@ export class IPTVPlayer {
       if (this.currentUrl) this.showLoading(true);
     });
     this.video.addEventListener('error', (e) => this.handleNativeError(e));
+
+    // Video events for updating progress
+    this.video.addEventListener('timeupdate', () => this.updateProgress());
+    this.video.addEventListener('durationchange', () => this.updateDuration());
+    this.video.addEventListener('loadedmetadata', () => this.updateDuration());
   }
 
   showToast(message, duration = 3000) {
@@ -211,6 +239,52 @@ export class IPTVPlayer {
     }
   }
 
+  formatTime(seconds) {
+    if (isNaN(seconds) || seconds === Infinity) return "0:00";
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  updateProgress() {
+    if (!this.video.duration || isNaN(this.video.duration) || this.video.duration === Infinity) return;
+    const progress = (this.video.currentTime / this.video.duration) * 100;
+    if (this.seekSlider) {
+      this.seekSlider.value = progress;
+    }
+    if (this.currentTimeLabel) {
+      this.currentTimeLabel.textContent = this.formatTime(this.video.currentTime);
+    }
+  }
+
+  updateDuration() {
+    const duration = this.video.duration;
+    const liveDot = document.getElementById('live-indicator-dot');
+    const liveText = document.getElementById('live-indicator-text');
+    
+    if (duration && isFinite(duration) && duration > 0) {
+      if (this.seekContainer) {
+        this.seekContainer.style.display = 'flex';
+      }
+      if (this.durationTimeLabel) {
+        this.durationTimeLabel.textContent = this.formatTime(duration);
+      }
+      if (liveDot) liveDot.style.display = 'none';
+      if (liveText) liveText.style.display = 'none';
+    } else {
+      if (this.seekContainer) {
+        this.seekContainer.style.display = 'none';
+      }
+      if (liveDot) liveDot.style.display = '';
+      if (liveText) liveText.style.display = '';
+    }
+  }
+
   toggleMute() {
     this.isMuted = !this.isMuted;
     this.video.muted = this.isMuted;
@@ -290,12 +364,12 @@ export class IPTVPlayer {
   toggleAspectRatio() {
     if (this.aspectRatio === 'fit') {
       this.aspectRatio = 'stretch';
-      this.video.className = "w-full h-full video-stretch pointer-events-none";
+      this.video.className = "w-full h-full video-stretch";
       this.aspectLabel.textContent = "STRETCH";
       this.showToast("Aspect Ratio: Stretch to fill");
     } else {
       this.aspectRatio = 'fit';
-      this.video.className = "w-full h-full video-fit pointer-events-none";
+      this.video.className = "w-full h-full video-fit";
       this.aspectLabel.textContent = "FIT";
       this.showToast("Aspect Ratio: Fit screen");
     }
