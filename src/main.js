@@ -661,8 +661,12 @@ function selectActiveSource(index) {
 
   // Load URL into the shared player iframe
   const embedIframe = document.getElementById('embed-iframe');
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const videoEl = document.getElementById('video-player');
   const shield = document.getElementById('embed-shield');
 
+  if (videoEl) videoEl.style.display = 'none';
+  if (embedWrapper) embedWrapper.style.display = 'block';
   if (embedIframe) embedIframe.src = source.url;
 
   // Shield logic: block stray popup-triggering clicks, drop on intent
