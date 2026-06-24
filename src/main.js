@@ -110,6 +110,26 @@ function renderCategories() {
           <span class="truncate">${category}</span>
         </div>
       `;
+      // Add click handlers for the catalog buttons
+      btn.addEventListener('click', () => {
+        if (category === 'Trending catalog') {
+          // Load trending movies/TV and render
+          state.searchQuery = '';
+          state.moviesSearchResults = [];
+          // Fetch trending data
+          getTrending().then(data => {
+            state.moviesSearchResults = data.results || [];
+            renderMoviesCatalog();
+          }).catch(err => {
+            console.error('Failed to fetch trending data:', err);
+            player.showToast('Failed to load trending catalog');
+          });
+        } else if (category === 'Search Catalog') {
+          // Focus the search input for movies mode
+          const searchInput = document.getElementById('search-input');
+          if (searchInput) searchInput.focus();
+        }
+      });
       container.appendChild(btn);
     });
     createIcons(iconConfig);
@@ -241,7 +261,14 @@ function setupModeToggle() {
       state.moviesSearchResults = [];
       
       renderCategories();
-      renderMoviesCatalog();
+      // Automatically load trending catalog when switching to movies mode
+      getTrending().then(data => {
+        state.moviesSearchResults = data.results || [];
+        renderMoviesCatalog();
+      }).catch(err => {
+        console.error('Failed to fetch trending data on mode switch:', err);
+        player.showToast('Failed to load trending catalog');
+      });
     }
   };
 
