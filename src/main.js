@@ -23,7 +23,7 @@ const state = {
 };
 
 // Constants
-const ENGLISH_PLAYLIST_URL = 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/languages/eng.m3u';
+const PLAYLIST_URL = 'https://cdn.jsdelivr.net/gh/iptv-org/iptv@gh-pages/index.m3u';
 const MAX_RECENTS = 20;
 
 // Initialize components
@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load playlist
   try {
     const channelCountEl = document.getElementById('channel-count');
-    state.channels = await fetchAndParseM3U(ENGLISH_PLAYLIST_URL);
+    state.channels = await fetchAndParseM3U(PLAYLIST_URL);
     
     // Extract unique categories (groups)
     const groups = new Set();
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.categories = ['All Channels', 'Favorites', 'Recents', ...Array.from(groups).sort()];
     
     // Update loading text
-    channelCountEl.textContent = `${state.channels.length} English Channels`;
+    channelCountEl.textContent = `${state.channels.length} Global Channels`;
     
     renderCategories();
     applyFilterAndRender();
