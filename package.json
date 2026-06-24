@@ -1,0 +1,18 @@
+{
+  "name": "joyful-iptv-player",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "hls.js": "^1.5.8",
+    "lucide": "^0.395.0"
+  },
+  "devDependencies": {
+    "vite": "^5.2.11"
+  }
+}
