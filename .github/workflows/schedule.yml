@@ -44,6 +44,8 @@ jobs:
           cp -r m3u/* dist/
           # Copy to /m3u/ folder as well
           cp -r m3u/* dist/m3u/
+          # Copy vercel.json to dist so it is committed on the gh-pages branch
+          cp vercel.json dist/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
