@@ -760,9 +760,9 @@ function selectActiveSource(index) {
   const statusText = document.getElementById('sources-status');
   if (statusText) {
     if (source.type === 'stream') {
-      statusText.textContent = `Streaming direct source via ${source.name}. Use player controls below.`;
+      statusText.textContent = `Streaming direct source via ${source.name}. Use player controls below (100% ad-free).`;
     } else {
-      statusText.textContent = `Streaming embed via ${source.name}. Interact directly with the video frame.`;
+      statusText.textContent = `Streaming fallback embed via ${source.name}. Click frame to play. (Warning: Clicks may trigger popups; use an ad-blocker for best results).`;
     }
   }
 }
