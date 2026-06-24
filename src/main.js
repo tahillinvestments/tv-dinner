@@ -1,7 +1,7 @@
 import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft } from 'lucide';
 import { fetchAndParseM3U } from './parser';
 import { IPTVPlayer } from './player';
-import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl } from './tmdb';
+import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending } from './tmdb';
 import { getStreamSources } from './streamApi';
 import './style.css';
 
