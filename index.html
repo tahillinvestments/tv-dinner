@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WORLD LIVE - IPTV Stream Player</title>
+  <meta name="description" content="A premium, fully responsive IPTV player featuring live English television streams, smart categories, and custom controls.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="/assets/index-CMg7zpgR.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BcCdNaLz.css">
+</head>
+<body class="dark-theme">
+  
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <button id="sidebar-toggle" class="icon-btn lg-hidden" aria-label="Toggle Sidebar">
+        <i data-lucide="menu"></i>
+      </button>
+      <div class="app-branding">
+        <div class="logo-badge">
+          <i data-lucide="tv"></i>
+        </div>
+        <div class="branding-text">
+          <h1>WORLD LIVE</h1>
+          <p>IPTV Stream Player</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Input (Desktop) -->
+    <div class="search-wrapper md-visible">
+      <i data-lucide="search" class="search-icon"></i>
+      <input type="text" id="search-input" class="search-input" placeholder="Search channel by name...">
+    </div>
+
+    <!-- Right Stats Panel -->
+    <div class="header-right">
+      <div class="status-indicator">
+        <span class="live-dot-container">
+          <span class="live-ping"></span>
+          <span class="live-dot"></span>
+        </span>
+        <span id="channel-count">Loading channels...</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Search Bar -->
+  <div class="mobile-search-bar md-hidden">
+    <div class="search-wrapper">
+      <i data-lucide="search" class="search-icon"></i>
+      <input type="text" id="search-input-mobile" class="search-input" placeholder="Search channels...">
+    </div>
+  </div>
+
+  <!-- App Body Layout -->
+  <main class="app-body">
+    
+    <!-- Sidebar -->
+    <aside id="app-sidebar" class="sidebar sidebar-closed">
+      <div class="sidebar-header lg-hidden">
+        <span class="sidebar-title">CATEGORIES</span>
+        <button id="sidebar-close" class="icon-btn" aria-label="Close Sidebar">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav custom-scrollbar" id="categories-container">
+        <!-- Categories list populated dynamically -->
+        <div class="sidebar-skeleton">
+          <div class="skeleton-item"></div>
+          <div class="skeleton-item"></div>
+          <div class="skeleton-item"></div>
+          <div class="skeleton-item"></div>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span>v1.0.0 (Global Index)</span>
+        <a href="https://github.com/iptv-org/iptv" target="_blank" class="footer-link">
+          iptv-org <i data-lucide="external-link"></i>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Overlay back-drop for sidebar on mobile -->
+    <div id="sidebar-overlay" class="overlay hidden"></div>
+
+    <!-- Main View Panel -->
+    <div class="main-content">
+      
+      <!-- Video Player Container -->
+      <section id="player-section" class="player-container">
+        <div class="player-wrapper group">
+          
+          <!-- HLS Video Tag -->
+          <video id="video-player" playsinline></video>
+          
+          <!-- Poster splash display before playing -->
+          <div id="player-poster" class="player-overlay poster-overlay">
+            <div class="poster-play-badge">
+              <i data-lucide="play"></i>
+            </div>
+            <h3>No Stream Active</h3>
+            <p>Select any channel from the list below to start streaming immediately.</p>
+          </div>
+
+          <!-- Buffering Spinner -->
+          <div id="player-loading" class="player-overlay loading-overlay hidden">
+            <div class="spinner-container">
+              <div class="spinner-track"></div>
+              <div class="spinner-head"></div>
+            </div>
+            <span>Buffering Live Stream...</span>
+          </div>
+
+          <!-- Toast Message Notification -->
+          <div id="player-toast" class="player-toast opacity-0">
+            <i data-lucide="info"></i>
+            <span id="toast-message">Notification message</span>
+          </div>
+
+          <!-- Error Alert Overlay -->
+          <div id="player-error" class="player-overlay error-overlay hidden">
+            <div class="error-badge">
+              <i data-lucide="alert-triangle"></i>
+            </div>
+            <h3>Stream Connection Failed</h3>
+            <p id="error-details">This stream is currently offline or unreachable.</p>
+            <button id="retry-stream-btn" class="btn btn-primary">
+              <i data-lucide="refresh-cw"></i> Retry Connection
+            </button>
+          </div>
+
+          <!-- Custom Player Controls Bar (visible on hover) -->
+          <div id="video-controls" class="video-controls-bar">
+            <!-- Channel Info and Live Tag -->
+            <div class="controls-status-row">
+              <span class="live-pulse-dot"></span>
+              <span class="live-badge">LIVE</span>
+              <span id="player-channel-title" class="controls-channel-title"></span>
+            </div>
+
+            <!-- Controls Row -->
+            <div class="controls-actions-row">
+              <!-- Left side: Playback & Volume -->
+              <div class="actions-left">
+                <button id="play-pause-btn" class="control-btn" aria-label="Play/Pause">
+                  <i data-lucide="pause"></i>
+                </button>
+                
+                <button id="reload-btn" class="control-btn" title="Reload stream">
+                  <i data-lucide="refresh-cw"></i>
+                </button>
+
+                <div class="volume-container">
+                  <button id="mute-btn" class="control-btn" aria-label="Mute/Unmute">
+                    <i data-lucide="volume-2"></i>
+                  </button>
+                  <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="volume-slider">
+                </div>
+              </div>
+
+              <!-- Right side: Stream layout customization -->
+              <div class="actions-right">
+                <button id="aspect-ratio-btn" class="control-btn ratio-btn" title="Aspect Ratio Fit/Fill">
+                  <i data-lucide="monitor"></i> <span id="aspect-label">FIT</span>
+                </button>
+
+                <button id="pip-btn" class="control-btn" title="Picture in Picture">
+                  <i data-lucide="square-stack"></i>
+                </button>
+
+                <button id="fullscreen-btn" class="control-btn" aria-label="Fullscreen">
+                  <i data-lucide="maximize"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Channels List Container -->
+      <section class="channels-section">
+        <!-- List Filter Header -->
+        <div class="channels-header">
+          <div class="header-info">
+            <h2 id="current-category-name">All Channels</h2>
+            <p id="channel-list-info">Showing matching results</p>
+          </div>
+          
+          <div class="header-actions">
+            <span id="filtered-count" class="badge">0 channels</span>
+          </div>
+        </div>
+
+        <!-- Scrollable Channels Grid -->
+        <div class="channels-grid-container custom-scrollbar">
+          <div id="channels-grid" class="channels-grid">
+            <!-- Skeleton Loading Cards -->
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+          
+          <!-- Empty Search State -->
+          <div id="no-channels-found" class="empty-state hidden">
+            <div class="empty-state-icon">
+              <i data-lucide="search"></i>
+            </div>
+            <h3>No channels match search</h3>
+            <p>Double check your spelling or choose another category from the sidebar.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+</body>
+</html>
