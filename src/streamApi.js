@@ -2,60 +2,107 @@
 const BASE_URL = 'https://missourimonster-vyla.hf.space/api';
 
 /**
- * Connects to Vyla stream-api Server-Sent Events (SSE) to fetch verified streaming links in real-time.
- * 
- * @param {string} type - 'movie' or 'tv'
- * @param {Object} params - { id, season, episode }
- * @param {Function} onMeta - Callback for 'meta' event (subtitles, metadata)
- * @param {Function} onSource - Callback for 'source' event (stream sources resolved)
- * @param {Function} onDone - Callback when done/connection closes
- * @param {Function} onError - Callback for errors
- * @returns {EventSource} - The active EventSource object (which can be closed manually to cancel)
+ * Polls the Vyla endpoint until the HuggingFace Space wakes up (status 200),
+ * then opens an SSE EventSource to stream results.
+ *
+ * @param {Object} mediaParams - { type, id, season, episode }
+ * @param {Object} callbacks - { onMeta, onSource, onDone, onError, onWaking }
+ * @returns {{ cancel: Function }} - Call cancel() to abort polling + SSE
  */
-export function getStreamSources({ type, id, season, episode }, { onMeta, onSource, onDone, onError }) {
+export function getStreamSources(
+  { type, id, season, episode },
+  { onMeta, onSource, onDone, onError, onWaking }
+) {
   const queryParams = new URLSearchParams({ id });
-  
+
   if (type === 'tv') {
     queryParams.append('season', season);
     queryParams.append('episode', episode);
   }
-  
-  const sseUrl = `${BASE_URL}/${type === 'tv' ? 'tv' : 'movie'}?${queryParams.toString()}`;
-  console.log(`Connecting to Vyla Stream SSE: ${sseUrl}`);
-  
-  const eventSource = new EventSource(sseUrl);
-  
-  eventSource.addEventListener('meta', (event) => {
+
+  const endpoint = type === 'tv' ? 'tv' : 'movie';
+  const sseUrl = `${BASE_URL}/${endpoint}?${queryParams.toString()}`;
+
+  let cancelled = false;
+  let eventSource = null;
+  let pollTimer = null;
+
+  async function wake() {
+    if (cancelled) return;
+
     try {
-      const data = JSON.parse(event.data);
-      if (onMeta) onMeta(data);
+      const res = await fetch(sseUrl, { headers: { Accept: 'text/event-stream' } });
+
+      if (cancelled) return;
+
+      if (res.status === 200 && res.headers.get('content-type')?.includes('text/event-stream')) {
+        // Space is fully awake — open EventSource
+        connect();
+      } else if (res.status === 200) {
+        // Space awake but wrong content type on this fetch — try EventSource
+        connect();
+      } else {
+        // Still loading (206 or other) — notify caller and retry
+        if (onWaking) onWaking();
+        pollTimer = setTimeout(wake, 2000);
+      }
     } catch (err) {
-      console.error('Failed to parse meta SSE payload:', err);
+      if (cancelled) return;
+      if (onWaking) onWaking();
+      pollTimer = setTimeout(wake, 3000);
     }
-  });
-  
-  eventSource.addEventListener('source', (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (onSource) onSource(data);
-    } catch (err) {
-      console.error('Failed to parse source SSE payload:', err);
+  }
+
+  function connect() {
+    if (cancelled) return;
+    console.log(`[Vyla] Connecting SSE: ${sseUrl}`);
+
+    eventSource = new EventSource(sseUrl);
+
+    eventSource.addEventListener('meta', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (onMeta) onMeta(data);
+      } catch (err) {
+        console.error('[Vyla] Failed to parse meta event:', err);
+      }
+    });
+
+    eventSource.addEventListener('source', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (onSource) onSource(data);
+      } catch (err) {
+        console.error('[Vyla] Failed to parse source event:', err);
+      }
+    });
+
+    eventSource.addEventListener('done', () => {
+      console.log('[Vyla] Stream search complete.');
+      eventSource.close();
+      if (onDone) onDone();
+    });
+
+    eventSource.addEventListener('error', (err) => {
+      console.error('[Vyla] EventSource error:', err);
+      eventSource.close();
+      if (onError) onError(err);
+    });
+  }
+
+  // Kick off
+  wake();
+
+  return {
+    cancel() {
+      cancelled = true;
+      clearTimeout(pollTimer);
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
     }
-  });
-  
-  eventSource.addEventListener('done', () => {
-    console.log('Vyla Stream API completed search.');
-    eventSource.close();
-    if (onDone) onDone();
-  });
-  
-  eventSource.addEventListener('error', (err) => {
-    console.error('Vyla Stream API EventSource error:', err);
-    eventSource.close();
-    if (onError) onError(err);
-  });
-  
-  return eventSource;
+  };
 }
 
 /**

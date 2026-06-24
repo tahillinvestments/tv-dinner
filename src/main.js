@@ -610,10 +610,14 @@ function startStreamResolution({ type, id, season, episode }) {
   state.activeSourceIndex = -1;
 
   player.showBuffering(true);
+  statusText.textContent = 'Connecting to stream server...';
 
   state.activeStreamSse = getStreamSources(
     { type, id, season, episode },
     {
+      onWaking: () => {
+        statusText.textContent = 'Stream server is waking up, please wait...';
+      },
       onMeta: (data) => {
         console.log('Received Stream Meta:', data);
         // Subtitles or info could be processed here
@@ -705,8 +709,12 @@ function selectActiveSource(index) {
 // Close ongoing EventSource client stream resolver
 function closeActiveSse() {
   if (state.activeStreamSse) {
-    console.log('Closing active stream EventSource connection');
-    state.activeStreamSse.close();
+    console.log('Closing active stream connection');
+    if (typeof state.activeStreamSse.cancel === 'function') {
+      state.activeStreamSse.cancel();
+    } else if (typeof state.activeStreamSse.close === 'function') {
+      state.activeStreamSse.close();
+    }
     state.activeStreamSse = null;
   }
 }
