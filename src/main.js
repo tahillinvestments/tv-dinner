@@ -100,39 +100,47 @@ function renderCategories() {
 
   if (state.currentMode === 'movies') {
     // Show static guides/filters for movies mode
-    const categories = ['Trending catalog', 'Search Catalog'];
-    categories.forEach(category => {
+    const categories = [
+      { label: 'Trending Movies', icon: 'monitor', filter: 'movie' },
+      { label: 'Trending Series', icon: 'tv', filter: 'tv' },
+      { label: 'Search Catalog', icon: 'search', filter: 'search' },
+    ];
+    categories.forEach(cat => {
       const btn = document.createElement('button');
-      btn.className = `category-btn flex items-center justify-between w-full px-3 py-2 text-xs rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 border border-transparent transition-all text-left active`;
+      btn.className = 'category-btn flex items-center justify-between w-full px-3 py-2 text-xs rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 border border-transparent transition-all text-left';
       btn.innerHTML = `
         <div class="flex items-center gap-2.5 truncate">
-          <i data-lucide="monitor" class="w-4 h-4 opacity-75 shrink-0"></i>
-          <span class="truncate">${category}</span>
+          <i data-lucide="${cat.icon}" class="w-4 h-4 opacity-75 shrink-0"></i>
+          <span class="truncate">${cat.label}</span>
         </div>
       `;
-      // Add click handlers for the catalog buttons
       btn.addEventListener('click', () => {
-        if (category === 'Trending catalog') {
-          // Load trending movies/TV and render
-          state.searchQuery = '';
-          state.moviesSearchResults = [];
-          // Fetch trending data
-          getTrending().then(data => {
-            state.moviesSearchResults = data.results || [];
-            renderMoviesCatalog();
-          }).catch(err => {
-            console.error('Failed to fetch trending data:', err);
-            player.showToast('Failed to load trending catalog');
-          });
-        } else if (category === 'Search Catalog') {
-          // Focus the search input for movies mode
+        // Mark active
+        container.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        closeDetailsView();
+        if (cat.filter === 'search') {
           const searchInput = document.getElementById('search-input');
           if (searchInput) searchInput.focus();
+        } else {
+          state.searchQuery = '';
+          state.moviesSearchResults = [];
+          getTrending().then(data => {
+            state.moviesSearchResults = (data.results || []).filter(r => r.media_type === cat.filter);
+            renderMoviesCatalog(cat.label);
+          }).catch(err => {
+            console.error('Trending fetch error:', err);
+            player.showToast('Failed to load ' + cat.label);
+          });
         }
       });
       container.appendChild(btn);
     });
     createIcons(iconConfig);
+    // Auto-trigger first tab (Trending Movies)
+    if (container.querySelector('.category-btn')) {
+      container.querySelector('.category-btn').click();
+    }
     return;
   }
 
@@ -261,14 +269,6 @@ function setupModeToggle() {
       state.moviesSearchResults = [];
       
       renderCategories();
-      // Automatically load trending catalog when switching to movies mode
-      getTrending().then(data => {
-        state.moviesSearchResults = data.results || [];
-        renderMoviesCatalog();
-      }).catch(err => {
-        console.error('Failed to fetch trending data on mode switch:', err);
-        player.showToast('Failed to load trending catalog');
-      });
     }
   };
 
@@ -383,16 +383,16 @@ async function performMoviesSearch(query) {
 }
 
 // Render Movies and TV Shows grid catalog list
-function renderMoviesCatalog() {
+function renderMoviesCatalog(categoryLabel) {
   const container = document.getElementById('channels-grid');
   const emptyState = document.getElementById('no-channels-found');
   container.innerHTML = '';
-  
-  // Update header text titles
-  document.getElementById('current-category-name').textContent = state.searchQuery ? "Search Results" : "Trending Catalog";
-  document.getElementById('channel-list-info').textContent = state.searchQuery 
+
+  const label = categoryLabel || (state.searchQuery ? 'Search Results' : 'Trending Movies');
+  document.getElementById('current-category-name').textContent = label;
+  document.getElementById('channel-list-info').textContent = state.searchQuery
     ? `Matching results for "${state.searchQuery}"`
-    : "Popular movies & television shows today";
+    : 'Popular movies & television shows today';
 
   // Always use moviesSearchResults — populated by either trending or search
   const results = state.moviesSearchResults;
@@ -471,62 +471,48 @@ function setupDetailsView() {
 // Open detailed info for selected Movie / TV Show
 async function openDetailsView(mediaItem) {
   state.selectedMedia = mediaItem;
-  
-  // Hide main channels catalog grid & show details view section panel
+
+  // Hide catalog grid, show info panel below player
   document.getElementById('channels-grid').parentElement.parentElement.classList.add('hidden');
   document.getElementById('details-section').classList.remove('hidden');
+
+  // Show iframe in the shared player area, hide video tag
+  const videoEl = document.getElementById('video-player');
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const embedIframe = document.getElementById('embed-iframe');
+  videoEl.style.display = 'none';
+  embedWrapper.style.display = 'block';
+  embedIframe.src = ''; // will be set by selectActiveSource
 
   // Set initial placeholders
   const title = mediaItem.title || mediaItem.name || 'Loading...';
   document.getElementById('details-title').textContent = title;
-  document.getElementById('details-tagline').textContent = '';
-  document.getElementById('details-overview').textContent = mediaItem.overview || 'No description available.';
   document.getElementById('details-year').textContent = (mediaItem.release_date || mediaItem.first_air_date || 'N/A').split('-')[0];
-  document.getElementById('details-rating').innerHTML = `<i data-lucide="star" class="w-3 h-3 fill-current text-amber-400"></i> ${mediaItem.vote_average ? mediaItem.vote_average.toFixed(1) : 'N/A'}`;
+  document.getElementById('details-rating').innerHTML = `⭐ ${mediaItem.vote_average ? mediaItem.vote_average.toFixed(1) : 'N/A'}`;
   document.getElementById('details-runtime').textContent = '';
-  document.getElementById('details-genres').innerHTML = '';
   document.getElementById('tv-selectors').classList.add('hidden');
-  
-  const posterImg = document.getElementById('details-poster');
-  posterImg.src = getTMDBImageUrl(mediaItem.poster_path, 'w342') || 'https://via.placeholder.com/342x513/090e1a/475569?text=No+Poster';
 
-  // Load dynamic lists clean up
+  // Reset sources
   document.getElementById('sources-list').innerHTML = '';
-  document.getElementById('sources-status').textContent = 'Select a server below to start streaming.';
-  const embedWrapper = document.getElementById('embed-player-wrapper');
-  const embedIframe = document.getElementById('embed-iframe');
-  if (embedWrapper) embedWrapper.style.display = 'none';
-  if (embedIframe) embedIframe.src = '';
+  document.getElementById('sources-status').textContent = 'Choose a server to stream.';
+  closeActiveSse();
 
   createIcons(iconConfig);
-
-  // Close any ongoing active streams connection
-  closeActiveSse();
 
   // Load detailed information via API
   const isTV = mediaItem.media_type === 'tv';
   try {
     if (isTV) {
       const details = await getTVShowDetails(mediaItem.id);
-      document.getElementById('details-tagline').textContent = details.tagline || '';
       document.getElementById('details-runtime').textContent = `${details.number_of_seasons} Seasons`;
-      
-      // Populate genres
-      details.genres.forEach(g => {
-        const badge = document.createElement('span');
-        badge.className = "genre-badge";
-        badge.textContent = g.name;
-        document.getElementById('details-genres').appendChild(badge);
-      });
 
       // Show TV selectors
       document.getElementById('tv-selectors').classList.remove('hidden');
-      
+
       // Populate seasons dropdown list
       const seasonSelect = document.getElementById('season-select');
       seasonSelect.innerHTML = '';
       details.seasons.forEach(season => {
-        // Skip specials season 0 unless it is requested
         if (season.season_number === 0 && details.seasons.length > 1) return;
         const opt = document.createElement('option');
         opt.value = season.season_number;
@@ -536,27 +522,15 @@ async function openDetailsView(mediaItem) {
 
       // Load episodes for the first season
       if (details.seasons.length > 0) {
-        const firstSeasonNum = details.seasons[0].season_number === 0 && details.seasons.length > 1 
-          ? details.seasons[1].season_number 
+        const firstSeasonNum = details.seasons[0].season_number === 0 && details.seasons.length > 1
+          ? details.seasons[1].season_number
           : details.seasons[0].season_number;
         seasonSelect.value = firstSeasonNum;
         loadTVEpisodes(mediaItem.id, firstSeasonNum);
       }
     } else {
       const details = await getMovieDetails(mediaItem.id);
-      document.getElementById('details-tagline').textContent = details.tagline || '';
       document.getElementById('details-runtime').textContent = `${details.runtime || 'N/A'} min`;
-      
-      // Genres
-      details.genres.forEach(g => {
-        const badge = document.createElement('span');
-        badge.className = "genre-badge";
-        badge.textContent = g.name;
-        document.getElementById('details-genres').appendChild(badge);
-      });
-
-      // Setup sources panel direct trigger for movie
-      document.getElementById('sources-status').textContent = 'Searching for streaming sources...';
       startStreamResolution({ type: 'movie', id: mediaItem.id });
     }
   } catch (err) {
@@ -670,7 +644,7 @@ function startStreamResolution({ type, id, season, episode }) {
 }
 
 
-// Select source and load in iframe embed player
+// Select source and load in the shared iframe player
 let shieldTimer = null;
 
 function selectActiveSource(index) {
@@ -685,24 +659,19 @@ function selectActiveSource(index) {
     btn.classList.toggle('active', idx === index);
   });
 
-  // Load in iframe
-  const embedWrapper = document.getElementById('embed-player-wrapper');
+  // Load URL into the shared player iframe
   const embedIframe = document.getElementById('embed-iframe');
   const shield = document.getElementById('embed-shield');
 
-  embedWrapper.style.display = 'block';
-  embedIframe.src = source.url;
+  if (embedIframe) embedIframe.src = source.url;
 
-  // Reset shield (popup blocker)
+  // Shield logic: block stray popup-triggering clicks, drop on intent
   if (shield) {
     shield.style.display = 'block';
     clearTimeout(shieldTimer);
-
-    // When user intentionally clicks the player area, drop shield briefly so controls work
     shield.onclick = () => {
       shield.style.display = 'none';
       clearTimeout(shieldTimer);
-      // Reinstate after 5s to block background ad popups again
       shieldTimer = setTimeout(() => {
         if (shield) shield.style.display = 'block';
       }, 5000);
@@ -710,7 +679,7 @@ function selectActiveSource(index) {
   }
 
   const statusText = document.getElementById('sources-status');
-  statusText.textContent = `Playing via ${source.name}. Click the player to interact. Try another server if it doesn't load.`;
+  if (statusText) statusText.textContent = `Streaming via ${source.name}. Click player to interact. Switch servers if it doesn't load.`;
 }
 
 // Close ongoing EventSource client stream resolver
@@ -731,8 +700,16 @@ function closeDetailsView() {
   closeActiveSse();
   state.selectedMedia = null;
   state.resolvedSources = [];
-  
-  // Hide details view & reveal catalogs grid list
+
+  // Stop and hide iframe, restore video player
+  const embedIframe = document.getElementById('embed-iframe');
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const videoEl = document.getElementById('video-player');
+  if (embedIframe) embedIframe.src = '';
+  if (embedWrapper) embedWrapper.style.display = 'none';
+  if (videoEl) videoEl.style.display = '';
+
+  // Hide details panel & reveal catalog grid
   document.getElementById('details-section').classList.add('hidden');
   document.getElementById('channels-grid').parentElement.parentElement.classList.remove('hidden');
 }

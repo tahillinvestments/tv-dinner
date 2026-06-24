@@ -105,9 +105,22 @@
       <!-- Video Player Container -->
       <section id="player-section" class="player-container">
         <div class="player-wrapper group">
-          
-          <!-- HLS Video Tag -->
-          <video id="video-player" playsinline></video>
+
+          <!-- HLS Video Tag (Live TV) -->
+          <video id="video-player" playsinline style="width:100%;height:100%;"></video>
+
+          <!-- Embed iframe (Movies & TV) -->
+          <div id="embed-player-wrapper" style="display:none;position:absolute;inset:0;z-index:5;">
+            <!-- Popup blocker shield -->
+            <div id="embed-shield" style="position:absolute;inset:0;z-index:10;cursor:pointer;"></div>
+            <iframe
+              id="embed-iframe"
+              allowfullscreen
+              allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
+              referrerpolicy="no-referrer"
+              style="width:100%;height:100%;border:none;background:#000;"
+            ></iframe>
+          </div>
           
           <!-- Poster splash display before playing -->
           <div id="player-poster" class="player-overlay poster-overlay">
@@ -228,84 +241,40 @@
         </div>
       </section>
 
-      <!-- Details View Panel for Movies & TV Shows -->
+      <!-- Movie / TV Info Panel (shown below player when a title is selected) -->
       <section id="details-section" class="details-section hidden">
+        <!-- Compact info bar -->
         <div class="details-header-bar">
           <button id="details-back-btn" class="btn btn-secondary text-xs flex items-center gap-1.5">
             <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back to Catalog
           </button>
+          <div class="details-inline-meta">
+            <span id="details-title" class="details-inline-title">Title</span>
+            <span id="details-year" class="details-meta-pill">—</span>
+            <span id="details-rating" class="details-meta-pill"></span>
+            <span id="details-runtime" class="details-meta-pill"></span>
+          </div>
         </div>
 
-        <div class="details-grid-layout custom-scrollbar">
-          <!-- Left: Poster Column -->
-          <div class="details-poster-col">
-            <div class="details-poster-wrapper">
-              <img id="details-poster" src="" alt="Media Poster" class="details-poster-img">
-            </div>
-            <div class="details-meta-pill-container mt-4">
-              <span id="details-year" class="details-meta-pill">2026</span>
-              <span id="details-rating" class="details-meta-pill"><i data-lucide="star" class="w-3 h-3 fill-current text-amber-400"></i> 8.5</span>
-              <span id="details-runtime" class="details-meta-pill">120 min</span>
-            </div>
+        <!-- TV Seasons/Episodes Selector -->
+        <div id="tv-selectors" class="tv-selectors-container hidden">
+          <div class="season-select-wrapper">
+            <label for="season-select" class="selector-label">Season:</label>
+            <select id="season-select" class="season-select"></select>
           </div>
-
-          <!-- Right: Info & Navigation Column -->
-          <div class="details-info-col">
-            <h2 id="details-title" class="details-title">Movie or TV Show Title</h2>
-            <p id="details-tagline" class="details-tagline">This is the tagline of the media</p>
-            
-            <div class="details-genres" id="details-genres">
-              <!-- Dynamically populated genres -->
-            </div>
-
-            <p id="details-overview" class="details-overview">
-              Detailed synopsis goes here. Explain what the movie or TV show is about in full detail.
-            </p>
-
-            <!-- TV Seasons/Episodes Selector (Hidden for movies) -->
-            <div id="tv-selectors" class="tv-selectors-container hidden">
-              <div class="season-select-wrapper">
-                <label for="season-select" class="selector-label">Season:</label>
-                <select id="season-select" class="season-select">
-                  <!-- Dynamically populated seasons -->
-                </select>
-              </div>
-              
-              <div class="episodes-container">
-                <span class="selector-label">Episodes:</span>
-                <div id="episodes-grid" class="episodes-grid custom-scrollbar">
-                  <!-- Dynamically populated episodes -->
-                </div>
-              </div>
-            </div>
-
-            <!-- Embed Player -->
-            <div class="embed-player-wrapper" id="embed-player-wrapper" style="display:none; position:relative;">
-              <!-- Popup blocker shield: intercepts stray clicks; lifted only on intentional interaction -->
-              <div id="embed-shield"
-                style="position:absolute;inset:0;z-index:10;cursor:pointer;border-radius:10px;"
-                title="Click to interact with player"
-              ></div>
-              <iframe
-                id="embed-iframe"
-                allowfullscreen
-                allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
-                referrerpolicy="no-referrer"
-                style="width:100%;aspect-ratio:16/9;border:none;border-radius:10px;background:#000;display:block;"
-              ></iframe>
-            </div>
-
-            <!-- Sources Panel -->
-            <div class="sources-panel">
-              <div class="sources-header-status">
-                <span class="selector-label">Streaming Sources:</span>
-                <span id="sources-status" class="sources-status-text">Select a server below to start streaming.</span>
-              </div>
-              <div id="sources-list" class="sources-list-grid">
-                <!-- Dynamically populated source buttons -->
-              </div>
-            </div>
+          <div class="episodes-container">
+            <span class="selector-label">Episode:</span>
+            <div id="episodes-grid" class="episodes-grid custom-scrollbar"></div>
           </div>
+        </div>
+
+        <!-- Streaming server picker -->
+        <div class="sources-panel">
+          <div class="sources-header-status">
+            <span class="selector-label">Server:</span>
+            <span id="sources-status" class="sources-status-text">Choose a server to stream.</span>
+          </div>
+          <div id="sources-list" class="sources-list-grid"></div>
         </div>
       </section>
     </div>
