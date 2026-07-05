@@ -104,9 +104,85 @@ export class IPTVPlayer {
     this.video.addEventListener('error', (e) => this.handleNativeError(e));
 
     // Video events for updating progress
-    this.video.addEventListener('timeupdate', () => this.updateProgress());
+    this.video.addEventListener('timeupdate', () => {
+      this.updateProgress();
+      this.savePlaybackPosition();
+    });
     this.video.addEventListener('durationchange', () => this.updateDuration());
     this.video.addEventListener('loadedmetadata', () => this.updateDuration());
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Don't trigger if user is typing in inputs or select fields
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT') {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === ' ' || key === 'k') { // Space or K for Play/Pause
+        e.preventDefault();
+        this.togglePlay();
+      } else if (key === 'f') { // F for Fullscreen
+        e.preventDefault();
+        this.toggleFullscreen();
+      } else if (key === 'm') { // M for Mute
+        e.preventDefault();
+        this.toggleMute();
+      } else if (key === 'arrowright') { // Arrow Right to seek +10s
+        e.preventDefault();
+        if (this.video.duration && isFinite(this.video.duration)) {
+          this.video.currentTime = Math.min(this.video.duration, this.video.currentTime + 10);
+          this.showToast("Seeked +10s");
+        }
+      } else if (key === 'arrowleft') { // Arrow Left to seek -10s
+        e.preventDefault();
+        if (this.video.duration && isFinite(this.video.duration)) {
+          this.video.currentTime = Math.max(0, this.video.currentTime - 10);
+          this.showToast("Seeked -10s");
+        }
+      } else if (key === 'arrowup') { // Arrow Up to increase volume
+        e.preventDefault();
+        const newVolume = Math.min(1, this.volume + 0.05);
+        this.setVolume(newVolume);
+        this.showToast(`Volume: ${Math.round(newVolume * 100)}%`);
+      } else if (key === 'arrowdown') { // Arrow Down to decrease volume
+        e.preventDefault();
+        const newVolume = Math.max(0, this.volume - 0.05);
+        this.setVolume(newVolume);
+        this.showToast(`Volume: ${Math.round(newVolume * 100)}%`);
+      }
+    });
+  }
+
+  // Periodic VOD playback position saver
+  savePlaybackPosition() {
+    if (!this.currentUrl || !this.video.duration || isNaN(this.video.duration) || this.video.duration === Infinity) return;
+    
+    // Only save progress for VOD assets (has finite duration > 0)
+    if (this.video.duration > 0) {
+      const now = Date.now();
+      // Throttled position writing to localStorage (every 5 seconds)
+      if (!this.lastSaveTime || now - this.lastSaveTime > 5000) {
+        this.lastSaveTime = now;
+        
+        const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+        const keys = Object.keys(resumeData);
+        if (keys.length > 100) {
+          delete resumeData[keys[0]]; // remove oldest record
+        }
+        
+        // If user watched more than 95% of video, reset it; otherwise save if played > 10s
+        if (this.video.currentTime / this.video.duration > 0.95) {
+          delete resumeData[this.currentUrl];
+        } else if (this.video.currentTime > 10) {
+          resumeData[this.currentUrl] = {
+            position: this.video.currentTime,
+            timestamp: now
+          };
+        }
+        localStorage.setItem('vod_resume_positions', JSON.stringify(resumeData));
+      }
+    }
   }
 
   showToast(message, duration = 3000) {
@@ -157,6 +233,10 @@ export class IPTVPlayer {
     // Destroy existing HLS instance
     this.destroyHls();
 
+    // Check for saved resume position
+    const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+    const saved = resumeData[this.currentUrl];
+
     // Check HLS compatibility
     if (Hls.isSupported()) {
       this.hls = new Hls({
@@ -169,6 +249,10 @@ export class IPTVPlayer {
       this.hls.attachMedia(this.video);
       
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (saved && saved.position > 0) {
+          this.video.currentTime = saved.position;
+          this.showToast(`Resumed from ${this.formatTime(saved.position)}`);
+        }
         this.video.play().catch(e => {
           console.warn("Autoplay blocked by browser policy, waiting for user interaction.", e);
           this.updatePlayPauseUI(true); // show play icon
@@ -196,6 +280,14 @@ export class IPTVPlayer {
     } else if (this.video.canPlayType('application/vnd.apple.mpegurl')) {
       // Native Safari/iOS support
       this.video.src = this.currentUrl;
+      
+      this.video.addEventListener('loadedmetadata', () => {
+        if (saved && saved.position > 0) {
+          this.video.currentTime = saved.position;
+          this.showToast(`Resumed from ${this.formatTime(saved.position)}`);
+        }
+      }, { once: true });
+
       this.video.play().catch(e => {
         console.warn("Native HLS autoplay blocked", e);
         this.updatePlayPauseUI(true);

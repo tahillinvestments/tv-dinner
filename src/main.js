@@ -14,7 +14,7 @@ const iconConfig = {
 
 // Global State
 const state = {
-  currentMode: 'live', // 'live' or 'movies'
+  currentMode: 'movies', // 'live' or 'movies' as default
   channels: [],
   filteredChannels: [],
   categories: [],
@@ -32,10 +32,20 @@ const state = {
   activeSourceIndex: -1
 };
 
-// Constants
-const PLAYLIST_URL = window.location.hostname.endsWith('github.io')
-  ? 'https://tahillinvestments.github.io/tv-dinner/o_all.m3u'
-  : './o_all.m3u';
+// Helper to construct dynamic IPTV playlist URL from localStorage or credentials
+function getPlaylistUrl() {
+  const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
+  const username = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
+  const password = localStorage.getItem('iptv_password') || '4WM9WVsjG';
+  
+  if (portalUrl && username && password) {
+    return `${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
+  }
+  return window.location.hostname.endsWith('github.io')
+    ? 'https://tahillinvestments.github.io/tv-dinner/o_all.m3u'
+    : './o_all.m3u';
+}
+
 const MAX_RECENTS = 20;
 
 // Initialize components
@@ -56,10 +66,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupSettingsModal();
   setupDetailsView();
 
-  // Load playlist (Live TV mode data)
+  // Render initial categories based on default mode (Movies & TV)
+  renderCategories();
+
+  // Load playlist (Live TV mode data) in background
+  loadIPTVPlaylist();
+});
+
+// Load IPTV Playlist in the background
+async function loadIPTVPlaylist() {
   try {
-    const channelCountEl = document.getElementById('channel-count');
-    state.channels = await fetchAndParseM3U(PLAYLIST_URL);
+    const playlistUrl = getPlaylistUrl();
+    console.log("[IPTV] Loading playlist from:", playlistUrl);
+    
+    state.channels = await fetchAndParseM3U(playlistUrl);
     
     // Extract unique categories (groups)
     const groups = new Set();
@@ -69,29 +89,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     state.categories = ['All Channels', 'Favorites', 'Recents', ...Array.from(groups).sort()];
     
-    // Update loading text
-    channelCountEl.textContent = `${state.channels.length} Global Channels`;
-    
-    renderCategories();
-    applyFilterAndRender();
+    const channelCountEl = document.getElementById('channel-count');
+    if (state.currentMode === 'live') {
+      channelCountEl.textContent = `${state.channels.length} Global Channels`;
+      renderCategories();
+      applyFilterAndRender();
+    }
   } catch (error) {
     console.error("Failed to load IPTV playlist:", error);
-    const grid = document.getElementById('channels-grid');
-    grid.innerHTML = `
-      <div class="col-span-full py-12 text-center">
-        <div class="w-12 h-12 mx-auto rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-3">
-          <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+    if (state.currentMode === 'live') {
+      const grid = document.getElementById('channels-grid');
+      grid.innerHTML = `
+        <div class="col-span-full py-12 text-center">
+          <div class="w-12 h-12 mx-auto rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-3">
+            <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+          </div>
+          <h3 class="text-sm font-semibold text-slate-200">Failed to load channels</h3>
+          <p class="text-xs text-slate-500 mt-1">Make sure you are connected to the internet. We couldn't download the channel playlist.</p>
+          <button id="reload-playlist-btn" class="mt-4 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Retry Connection
+          </button>
         </div>
-        <h3 class="text-sm font-semibold text-slate-200">Failed to load channels</h3>
-        <p class="text-xs text-slate-500 mt-1">Make sure you are connected to the internet. We couldn't download the channel playlist.</p>
-        <button onclick="window.location.reload()" class="mt-4 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors">
-          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Reload Application
-        </button>
-      </div>
-    `;
-    createIcons(iconConfig);
+      `;
+      createIcons(iconConfig);
+      
+      const retryBtn = document.getElementById('reload-playlist-btn');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+          retryBtn.disabled = true;
+          retryBtn.textContent = 'Retrying...';
+          loadIPTVPlaylist();
+        });
+      }
+    }
   }
-});
+}
 
 // Setup sidebar layout categories list
 function renderCategories() {
@@ -284,9 +316,26 @@ function setupSettingsModal() {
   const cancelBtn = document.getElementById('settings-cancel-btn');
   const saveBtn = document.getElementById('settings-save-btn');
   const keyInput = document.getElementById('settings-tmdb-key');
+  const sandboxInput = document.getElementById('settings-strict-sandbox');
+  
+  // IPTV fields
+  const iptvPortalInput = document.getElementById('settings-iptv-portal');
+  const iptvUsernameInput = document.getElementById('settings-iptv-username');
+  const iptvPasswordInput = document.getElementById('settings-iptv-password');
+  const iptvEpgInput = document.getElementById('settings-iptv-epg');
 
   const openModal = () => {
     keyInput.value = localStorage.getItem('tmdb_api_key') || '';
+    if (sandboxInput) {
+      sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
+    }
+    
+    // Load IPTV values or defaults
+    if (iptvPortalInput) iptvPortalInput.value = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
+    if (iptvUsernameInput) iptvUsernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
+    if (iptvPasswordInput) iptvPasswordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
+    if (iptvEpgInput) iptvEpgInput.value = localStorage.getItem('iptv_epg') || 'http://portal5458.com:8080/xmltv.php?username=SGmUC7q2U&password=4WM9WVsjG';
+    
     modal.classList.remove('hidden');
   };
 
@@ -298,12 +347,37 @@ function setupSettingsModal() {
     const key = keyInput.value.trim();
     if (key) {
       localStorage.setItem('tmdb_api_key', key);
-      player.showToast("Settings Saved Successfully");
     } else {
       localStorage.removeItem('tmdb_api_key');
-      player.showToast("Default fallback API key activated");
     }
+
+    if (sandboxInput) {
+      localStorage.setItem('strict_sandbox', sandboxInput.checked ? 'true' : 'false');
+    }
+
+    // Save IPTV values
+    const oldPortal = localStorage.getItem('iptv_portal_url');
+    const oldUsername = localStorage.getItem('iptv_username');
+    const oldPassword = localStorage.getItem('iptv_password');
+    
+    const newPortal = iptvPortalInput ? iptvPortalInput.value.trim() : '';
+    const newUsername = iptvUsernameInput ? iptvUsernameInput.value.trim() : '';
+    const newPassword = iptvPasswordInput ? iptvPasswordInput.value.trim() : '';
+    const newEpg = iptvEpgInput ? iptvEpgInput.value.trim() : '';
+    
+    localStorage.setItem('iptv_portal_url', newPortal);
+    localStorage.setItem('iptv_username', newUsername);
+    localStorage.setItem('iptv_password', newPassword);
+    localStorage.setItem('iptv_epg', newEpg);
+
+    player.showToast("Settings Saved Successfully");
     closeModal();
+    
+    // If IPTV credentials changed, reload playlist in background
+    if (newPortal !== oldPortal || newUsername !== oldUsername || newPassword !== oldPassword) {
+      console.log("[IPTV] Credentials changed, reloading playlist...");
+      loadIPTVPlaylist();
+    }
     
     // Refresh search results if in movies mode
     if (state.currentMode === 'movies' && state.searchQuery) {
@@ -577,7 +651,23 @@ async function loadTVEpisodes(tvId, seasonNumber) {
 }
 
 // Embed providers — all accept TMDB IDs directly
+// VixSrc, Videasy & Vidking are listed first as primary servers (clean UI, reliable streams)
 const EMBED_PROVIDERS = [
+  {
+    name: 'VixSrc (Primary)',
+    movie: (id) => `https://vixsrc.to/movie/${id}`,
+    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'Videasy (Primary)',
+    movie: (id) => `https://player.videasy.net/movie/${id}`,
+    tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'Vidking (Primary)',
+    movie: (id) => `https://www.vidking.net/embed/movie/${id}`,
+    tv: (id, s, e) => `https://www.vidking.net/embed/tv/${id}/${s}/${e}`,
+  },
   {
     name: 'Server 1',
     movie: (id) => `https://vidsrc.xyz/embed/movie?tmdb=${id}`,
@@ -741,7 +831,17 @@ function selectActiveSource(index) {
     if (videoEl) videoEl.style.display = 'none';
     if (embedWrapper) embedWrapper.style.display = 'block';
     if (playerWrapper) playerWrapper.classList.add('embed-active');
-    if (embedIframe) embedIframe.src = source.url;
+    if (embedIframe) {
+      // Sandbox is opt-in (default OFF) — many providers like Videasy actively detect
+      // and block sandboxed iframes, so we only enable it if the user explicitly turns it on.
+      const useStrict = localStorage.getItem('strict_sandbox') === 'true';
+      if (useStrict) {
+        embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+      } else {
+        embedIframe.removeAttribute('sandbox');
+      }
+      embedIframe.src = source.url;
+    }
 
     // Shield logic: block stray popup-triggering clicks, drop on intent
     if (shield) {

@@ -28,10 +28,10 @@
       </div>
       <!-- Mode Toggle Switch -->
       <div class="mode-toggle-container">
-        <button id="btn-mode-live" class="mode-toggle-btn active">
+        <button id="btn-mode-live" class="mode-toggle-btn">
           <i data-lucide="tv"></i> <span>Live TV</span>
         </button>
-        <button id="btn-mode-movies" class="mode-toggle-btn">
+        <button id="btn-mode-movies" class="mode-toggle-btn active">
           <i data-lucide="monitor"></i> <span>Movies & TV</span>
         </button>
       </div>
@@ -40,7 +40,7 @@
     <!-- Search Input (Desktop) -->
     <div class="search-wrapper md-visible">
       <i data-lucide="search" class="search-icon"></i>
-      <input type="text" id="search-input" class="search-input" placeholder="Search channel by name...">
+      <input type="text" id="search-input" class="search-input" placeholder="Search movies & TV shows...">
     </div>
 
     <!-- Right Stats Panel -->
@@ -62,7 +62,7 @@
   <div class="mobile-search-bar md-hidden">
     <div class="search-wrapper">
       <i data-lucide="search" class="search-icon"></i>
-      <input type="text" id="search-input-mobile" class="search-input" placeholder="Search channels...">
+      <input type="text" id="search-input-mobile" class="search-input" placeholder="Search movies/shows...">
     </div>
   </div>
 
@@ -307,8 +307,34 @@
           <label for="settings-tmdb-key" class="input-label">TMDB v3 API Key</label>
           <input type="text" id="settings-tmdb-key" class="settings-input-field" placeholder="Enter your TMDB API Key...">
         </div>
+        <div class="input-group" style="margin-top: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
+          <input type="checkbox" id="settings-strict-sandbox" style="width: auto; cursor: pointer; height: 1.25rem; min-height: 1.25rem;">
+          <label for="settings-strict-sandbox" class="input-label" style="margin-bottom: 0; cursor: pointer; font-size: 0.85rem; user-select: none;">
+            Strict Iframe Sandbox (Block Embed Ads & Popups)
+          </label>
+        </div>
         <div class="text-[10px] text-slate-500 mt-2">
           Don't have a key? Get a free API key at <a href="https://www.themoviedb.org/" target="_blank" class="text-indigo-400 hover:underline">themoviedb.org</a> by creating an account.
+        </div>
+        
+        <hr class="border-slate-800 my-4">
+        
+        <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3">IPTV Credentials</h4>
+        <div class="input-group mb-3">
+          <label for="settings-iptv-portal" class="input-label">Portal URL</label>
+          <input type="text" id="settings-iptv-portal" class="settings-input-field" placeholder="e.g. http://portal5458.com:8080">
+        </div>
+        <div class="input-group mb-3">
+          <label for="settings-iptv-username" class="input-label">Username</label>
+          <input type="text" id="settings-iptv-username" class="settings-input-field" placeholder="Enter Username...">
+        </div>
+        <div class="input-group mb-3">
+          <label for="settings-iptv-password" class="input-label">Password</label>
+          <input type="password" id="settings-iptv-password" class="settings-input-field" placeholder="Enter Password...">
+        </div>
+        <div class="input-group">
+          <label for="settings-iptv-epg" class="input-label">EPG URL (XMLTV)</label>
+          <input type="text" id="settings-iptv-epg" class="settings-input-field" placeholder="EPG XMLTV URL (optional)">
         </div>
       </div>
       <div class="modal-footer">
