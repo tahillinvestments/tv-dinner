@@ -375,5 +375,6 @@
 | 369 | 黑龙江卫视 (2160p) | IPv4 直链 | <http://118.81.195.79:9003/hls/31/index.m3u8> |
 | 370 | CGTN Spanish (720p) | IPv4 直链 | <http://45.165.82.19/test/index.m3u8> |
 | 371 | CND Film Middle School Channel | live-play.zxstv.com.cn | <http://live-play.zxstv.com.cn/zhongxuesheng/zhongxuesheng.m3u8> |
+| 372 | Shaanxi Satelital TV | stream.snrtv.com | <http://stream.snrtv.com/sxbc-star-cdxWY0.m3u8> |
 
-Updated at **Sun Jul 12 2026 22:34:28 GMT+0000 (Coordinated Universal Time)**
+Updated at **Mon Jul 13 2026 01:16:57 GMT+0000 (Coordinated Universal Time)**
