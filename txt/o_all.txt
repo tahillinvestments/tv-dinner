@@ -78,6 +78,7 @@ Cine_terror,https://jmp2.uk/plu-5d8d180092e97a5e107638d3.m3u8
 Ciné_Thrillers_by_Pluto_TV,https://jmp2.uk/plu-60c3472a51a2050008dad272.m3u8
 Ciné_Western_by_Pluto_TV,https://jmp2.uk/plu-65cca3e2ec452d0008af3a65.m3u8
 Cine+_(1080p),http://176.122.125.10:8080/CinePlusHD/index.m3u8
+Cine+_Hit_(1080p),http://176.122.125.10:8080/CinePlusHitHD/index.m3u8
 Cine.Ar_(576p),http://200.91.32.158:8080/cinear/index.m3u8
 Cinecanal_Mexico_(720p),http://177.245.131.133:8080/CINECANAL/index.m3u8
 Cinecanal_Pacific_(1080p),http://138.121.15.230:9002/CINECANAL/index.m3u8
