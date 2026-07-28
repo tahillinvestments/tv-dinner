@@ -48,6 +48,36 @@ function getPlaylistUrl() {
 
 const MAX_RECENTS = 20;
 
+// Embed providers — curated to working sources only (as of 2026)
+// Primary servers tried first; fallbacks used when primary fails
+const EMBED_PROVIDERS = [
+  {
+    name: 'VixSrc',
+    movie: (id) => `https://vixsrc.to/movie/${id}`,
+    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'Videasy',
+    movie: (id) => `https://player.videasy.net/movie/${id}`,
+    tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'VidSrc',
+    movie: (id) => `https://vidsrc.me/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.me/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'SuperEmbed',
+    movie: (id) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1`,
+    tv: (id, s, e) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
+  },
+  {
+    name: 'NontonGo',
+    movie: (id) => `https://www.nontongo.win/embed/movie/${id}`,
+    tv: (id, s, e) => `https://www.nontongo.win/embed/tv/${id}/${s}/${e}`,
+  },
+];
+
 // Initialize components
 let player;
 let searchDebounceTimer;
@@ -246,6 +276,7 @@ function renderCardRow(items, container) {
   items.forEach(item => {
     const title = item.title || item.name || 'Untitled';
     const isTV = item.media_type === 'tv';
+    const mediaItem = { ...item, media_type: isTV ? 'tv' : 'movie' };
     const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
     const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
     const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
@@ -264,7 +295,7 @@ function renderCardRow(items, container) {
         </div>
       </div>
     `;
-    card.addEventListener('click', () => openDetailsView(item));
+    card.addEventListener('click', () => openDetailsView(mediaItem));
     container.appendChild(card);
   });
   createIcons(iconConfig);
@@ -400,7 +431,7 @@ function renderLibraryScreen() {
         </div>
       </div>
     `;
-    card.addEventListener('click', () => openDetailsView(item));
+    card.addEventListener('click', () => openDetailsView(mediaItem));
     grid.appendChild(card);
   });
   createIcons(iconConfig);
@@ -554,39 +585,52 @@ async function openDetailsView(mediaItem) {
   const isTV = mediaItem.media_type === 'tv';
   try {
     if (isTV) {
-      const details = await getTVShowDetails(mediaItem.id);
-      document.getElementById('details-runtime').textContent = `${details.number_of_seasons} Seasons`;
+      try {
+        const details = await getTVShowDetails(mediaItem.id);
+        document.getElementById('details-runtime').textContent = `${details?.number_of_seasons || 1} Seasons`;
 
-      // Show TV selectors
-      document.getElementById('tv-selectors').classList.remove('hidden');
+        // Show TV selectors
+        document.getElementById('tv-selectors').classList.remove('hidden');
 
-      // Populate seasons dropdown list
-      const seasonSelect = document.getElementById('season-select');
-      seasonSelect.innerHTML = '';
-      details.seasons.forEach(season => {
-        if (season.season_number === 0 && details.seasons.length > 1) return;
-        const opt = document.createElement('option');
-        opt.value = season.season_number;
-        opt.textContent = season.name || `Season ${season.season_number}`;
-        seasonSelect.appendChild(opt);
-      });
+        // Populate seasons dropdown list
+        const seasonSelect = document.getElementById('season-select');
+        seasonSelect.innerHTML = '';
+        (details?.seasons || []).forEach(season => {
+          if (season.season_number === 0 && details.seasons.length > 1) return;
+          const opt = document.createElement('option');
+          opt.value = season.season_number;
+          opt.textContent = season.name || `Season ${season.season_number}`;
+          seasonSelect.appendChild(opt);
+        });
 
-      // Load episodes for the first season
-      if (details.seasons.length > 0) {
-        const firstSeasonNum = details.seasons[0].season_number === 0 && details.seasons.length > 1
-          ? details.seasons[1].season_number
-          : details.seasons[0].season_number;
-        seasonSelect.value = firstSeasonNum;
-        loadTVEpisodes(mediaItem.id, firstSeasonNum);
+        // Load episodes for the first season
+        if (details?.seasons && details.seasons.length > 0) {
+          const firstSeasonNum = details.seasons[0].season_number === 0 && details.seasons.length > 1
+            ? details.seasons[1].season_number
+            : details.seasons[0].season_number;
+          seasonSelect.value = firstSeasonNum;
+          loadTVEpisodes(mediaItem.id, firstSeasonNum);
+        } else {
+          startStreamResolution({ type: 'tv', id: mediaItem.id, season: 1, episode: 1 });
+        }
+      } catch (e) {
+        console.warn("Failed to load TV details:", e);
+        startStreamResolution({ type: 'tv', id: mediaItem.id, season: 1, episode: 1 });
       }
     } else {
-      const details = await getMovieDetails(mediaItem.id);
-      document.getElementById('details-runtime').textContent = `${details.runtime || 'N/A'} min`;
       startStreamResolution({ type: 'movie', id: mediaItem.id });
+      try {
+        const details = await getMovieDetails(mediaItem.id);
+        document.getElementById('details-runtime').textContent = `${details?.runtime || 'N/A'} min`;
+      } catch (e) {
+        console.warn("Failed to load movie runtime details:", e);
+      }
     }
   } catch (err) {
     console.error("Failed to load TMDB details:", err);
-    player.showToast("Failed to retrieve detailed metadata");
+    if (!isTV) {
+      startStreamResolution({ type: 'movie', id: mediaItem.id });
+    }
   }
 }
 
@@ -599,9 +643,10 @@ async function loadTVEpisodes(tvId, seasonNumber) {
     const data = await getTVSeasonDetails(tvId, seasonNumber);
     grid.innerHTML = '';
     
-    (data.episodes || []).forEach(ep => {
+    const episodes = data.episodes || [];
+    episodes.forEach((ep, idx) => {
       const btn = document.createElement('button');
-      btn.className = "episode-btn";
+      btn.className = `episode-btn ${idx === 0 ? 'active' : ''}`;
       btn.textContent = ep.episode_number;
       btn.title = ep.name || `Episode ${ep.episode_number}`;
       
@@ -621,58 +666,25 @@ async function loadTVEpisodes(tvId, seasonNumber) {
 
       grid.appendChild(btn);
     });
+
+    if (episodes.length > 0) {
+      startStreamResolution({
+        type: 'tv',
+        id: tvId,
+        season: seasonNumber,
+        episode: episodes[0].episode_number
+      });
+    }
   } catch (err) {
     console.error("Failed to load TV episodes:", err);
     grid.innerHTML = '<span class="text-xs text-red-400">Failed to load episodes.</span>';
   }
 }
 
-// Embed providers list
-const EMBED_PROVIDERS = [
-  {
-    name: 'VixSrc (Primary)',
-    movie: (id) => `https://vixsrc.to/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vixsrc.to/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'Videasy (Primary)',
-    movie: (id) => `https://player.videasy.net/movie/${id}`,
-    tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'Vidking (Primary)',
-    movie: (id) => `https://www.vidking.net/embed/movie/${id}`,
-    tv: (id, s, e) => `https://www.vidking.net/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'Server 1',
-    movie: (id) => `https://vidsrc.xyz/embed/movie?tmdb=${id}`,
-    tv: (id, s, e) => `https://vidsrc.xyz/embed/tv?tmdb=${id}&season=${s}&episode=${e}`,
-  },
-  {
-    name: 'Server 2',
-    movie: (id) => `https://embed.su/embed/movie/${id}`,
-    tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'Server 3',
-    movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'Server 4',
-    movie: (id) => `https://www.2embed.cc/embed/${id}`,
-    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
-  },
-  {
-    name: 'Server 5',
-    movie: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`,
-    tv: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
-  },
-];
+
 
 // Start streaming resolution queries
-function startStreamResolution({ type, id, season, episode }) {
+function startStreamResolution({ type, id, season = 1, episode = 1 }) {
   closeActiveSse();
 
   const listContainer = document.getElementById('sources-list');
@@ -965,7 +977,8 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
     });
   }
 
-  // Convert streams to M3U format
+  // Convert streams to M3U format — stream URL goes through local proxy so:
+  // a) CORS is bypassed, b) VLC user-agent is spoofed, c) CDN redirects are followed
   let m3uLines = ['#EXTM3U'];
   if (Array.isArray(streams)) {
     streams.forEach(stream => {
@@ -973,7 +986,9 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
       const streamId = stream.stream_id;
       const logo = stream.stream_icon || '';
       const categoryName = catMap[stream.category_id] || 'General';
-      const streamUrl = `${portalUrl}/live/${username}/${password}/${streamId}.ts`;
+      // Route through the local CORS+VLC-UA proxy so HLS.js can load segments
+      const rawStreamUrl = `${portalUrl}/live/${username}/${password}/${streamId}.m3u8`;
+      const streamUrl = `/api/proxy?url=${encodeURIComponent(rawStreamUrl)}`;
 
       m3uLines.push(`#EXTINF:-1 tvg-id="" tvg-name="${streamName}" tvg-logo="${logo}" group-title="${categoryName}",${streamName}`);
       m3uLines.push(streamUrl);

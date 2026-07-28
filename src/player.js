@@ -98,6 +98,13 @@ export class IPTVPlayer {
       this.showLoading(false);
       this.showError(false);
     });
+    this.video.addEventListener('canplay', () => {
+      this.showLoading(false);
+      this.showError(false);
+    });
+    this.video.addEventListener('canplaythrough', () => {
+      this.showLoading(false);
+    });
     this.video.addEventListener('loadstart', () => {
       if (this.currentUrl) this.showLoading(true);
     });
