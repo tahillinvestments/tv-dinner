@@ -52,8 +52,60 @@ export class IPTVPlayer {
     });
 
     // Fullscreen
-    this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+    if (this.fullscreenBtn) {
+      this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+    }
     this.video.addEventListener('dblclick', () => this.toggleFullscreen());
+
+    const container = this.video ? this.video.parentElement : null;
+    if (container) {
+      container.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.video-controls-bar')) return;
+        this.toggleFullscreen();
+      });
+    }
+
+    const updateFullscreenState = () => {
+      const isFS = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement ||
+        (container && container.classList.contains('is-pseudo-fullscreen'))
+      );
+
+      this.updateFullscreenUI(isFS);
+    };
+
+    document.addEventListener('fullscreenchange', updateFullscreenState);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenState);
+    document.addEventListener('mozfullscreenchange', updateFullscreenState);
+    document.addEventListener('MSFullscreenChange', updateFullscreenState);
+
+    // Mouse movement, gamepad focus & touch controls auto-hide timer
+    let controlsHideTimeout = null;
+    const showControls = () => {
+      if (!container) return;
+      container.classList.add('controls-active');
+      if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
+      controlsHideTimeout = setTimeout(() => {
+        if (this.video && !this.video.paused && document.activeElement !== this.fullscreenBtn && document.activeElement !== this.playPauseBtn) {
+          container.classList.remove('controls-active');
+        }
+      }, 4000);
+    };
+
+    if (container) {
+      container.addEventListener('mousemove', showControls);
+      container.addEventListener('touchstart', showControls, { passive: true });
+      container.addEventListener('focusin', showControls);
+      container.addEventListener('keydown', showControls);
+      container.addEventListener('mouseleave', () => {
+        if (this.video && !this.video.paused) {
+          container.classList.remove('controls-active');
+        }
+      });
+    }
 
     // Seeking
     if (this.seekSlider) {
@@ -426,16 +478,83 @@ export class IPTVPlayer {
   }
 
   toggleFullscreen() {
-    if (!document.fullscreenElement) {
-      const container = this.video.parentElement;
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (this.video.webkitEnterFullscreen) {
-        // iOS Safari native fullscreen fallback
-        this.video.webkitEnterFullscreen();
+    const container = this.video ? (this.video.parentElement || document.getElementById('player-section')) : null;
+    if (!container) return;
+
+    const nativeFS = !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+    );
+
+    const isPseudo = container.classList.contains('is-pseudo-fullscreen');
+
+    const exitPseudo = () => {
+      container.classList.remove('is-pseudo-fullscreen');
+      document.body.classList.remove('body-pseudo-fullscreen');
+      this.updateFullscreenUI(false);
+      this.showToast("Exited Fullscreen");
+    };
+
+    const enterPseudo = () => {
+      container.classList.add('is-pseudo-fullscreen');
+      document.body.classList.add('body-pseudo-fullscreen');
+      this.updateFullscreenUI(true);
+      this.showToast("Entered Fullscreen Mode");
+    };
+
+    if (nativeFS || isPseudo) {
+      if (isPseudo) {
+        exitPseudo();
+      }
+      if (nativeFS) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+        }
       }
     } else {
-      document.exitFullscreen();
+      let reqPromise = null;
+      if (container.requestFullscreen) {
+        reqPromise = container.requestFullscreen();
+      } else if (container.webkitRequestFullscreen) {
+        reqPromise = container.webkitRequestFullscreen();
+      } else if (container.webkitRequestFullScreen) {
+        reqPromise = container.webkitRequestFullScreen();
+      } else if (container.mozRequestFullScreen) {
+        reqPromise = container.mozRequestFullScreen();
+      } else if (container.msRequestFullscreen) {
+        reqPromise = container.msRequestFullscreen();
+      } else if (this.video && this.video.webkitEnterFullscreen) {
+        this.video.webkitEnterFullscreen();
+        return;
+      }
+
+      if (reqPromise && typeof reqPromise.catch === 'function') {
+        reqPromise.catch(err => {
+          console.warn('Native requestFullscreen failed (Xbox Edge fallback triggered):', err);
+          enterPseudo();
+        });
+      } else if (!reqPromise && !this.video.webkitEnterFullscreen) {
+        enterPseudo();
+      }
+    }
+  }
+
+  updateFullscreenUI(isFS) {
+    if (this.fullscreenBtn) {
+      const icon = this.fullscreenBtn.querySelector('i');
+      if (icon) {
+        icon.setAttribute('data-lucide', isFS ? 'minimize' : 'maximize');
+      }
+      this.fullscreenBtn.setAttribute('title', isFS ? 'Exit Fullscreen' : 'Fullscreen');
+      if (window.lucide) window.lucide.createIcons();
     }
   }
 

@@ -180,6 +180,8 @@ function switchTab(tabName) {
     if (embedIframe) embedIframe.src = '';
     const embedWrapper = document.getElementById('embed-player-wrapper');
     if (embedWrapper) embedWrapper.style.display = 'none';
+    const playerWrapper = document.querySelector('.player-wrapper');
+    if (playerWrapper) playerWrapper.classList.remove('embed-active');
 
     renderCategories();
     applyFilterAndRender();
@@ -1954,6 +1956,8 @@ function playChannel(channel) {
   if (embedIframe) embedIframe.src = '';
   const embedWrapper = document.getElementById('embed-player-wrapper');
   if (embedWrapper) embedWrapper.style.display = 'none';
+  const playerWrapper = document.querySelector('.player-wrapper');
+  if (playerWrapper) playerWrapper.classList.remove('embed-active');
   const videoEl = document.getElementById('video-player');
   if (videoEl) videoEl.style.display = '';
 
