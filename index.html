@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-CBWB2aVp.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-BzIkWW4S.css">
+  <script type="module" crossorigin src="/assets/index-BrrlD_k_.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-B6TMEugR.css">
 </head>
 <body class="dark-theme">
   
@@ -22,22 +22,21 @@
       <span class="logo-text">TVISION</span>
     </div>
     
+      <span class="logo-text">TVISION</span>
+    </div>
+    
     <nav class="nav-links">
-      <button class="nav-link active" data-tab="home" title="Home">
-        <i data-lucide="home"></i>
-        <span>Home</span>
-      </button>
-      <button class="nav-link" data-tab="search" title="Search">
-        <i data-lucide="search"></i>
-        <span>Search</span>
-      </button>
-      <button class="nav-link" data-tab="live" title="Live TV">
+      <button class="nav-link active" data-tab="live" title="Live TV">
         <i data-lucide="monitor"></i>
         <span>Live TV</span>
       </button>
-      <button class="nav-link" data-tab="library" title="Library">
+      <button class="nav-link" data-tab="vod" title="VOD (Movies & Series)">
+        <i data-lucide="film"></i>
+        <span>VOD</span>
+      </button>
+      <button class="nav-link" data-tab="library" title="Favorites">
         <i data-lucide="star"></i>
-        <span>Library</span>
+        <span>Favorites</span>
       </button>
       <button class="nav-link" data-tab="settings" title="Settings">
         <i data-lucide="settings"></i>
@@ -46,7 +45,7 @@
     </nav>
     
     <div class="sidebar-nav-footer">
-      <span class="version-lbl">v1.1.0</span>
+      <span class="version-lbl">v1.2.0</span>
     </div>
   </aside>
 
@@ -62,88 +61,131 @@
   <!-- Main Scrollable App Container -->
   <main class="app-main-content">
     
-    <!-- Tab 1: Home Dashboard -->
-    <div id="tab-home" class="tab-screen">
-      <!-- Cinematic Spotlight Hero Banner -->
-      <section id="hero-section" class="hero-section">
-        <div id="hero-backdrop" class="hero-backdrop"></div>
-        <div class="hero-gradient-overlay"></div>
-        <div class="hero-content">
-          <span class="hero-tagline">SPOTLIGHT</span>
-          <h1 id="hero-title" class="hero-title">Loading Spotlight...</h1>
-          <div class="hero-meta">
-            <span id="hero-rating" class="hero-rating-pill">⭐ --</span>
-            <span id="hero-year" class="hero-year-pill">----</span>
-            <span id="hero-type" class="hero-type-pill">Movie</span>
-          </div>
-          <p id="hero-overview" class="hero-overview">Gathering content description...</p>
-          <div class="hero-actions">
-            <button id="hero-play-btn" class="btn btn-primary btn-lg flex items-center gap-2">
-              <i data-lucide="play" class="fill-white"></i> Play Now
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Horizontal scrolling rows of cards -->
-      <section class="dashboard-rows-section">
-        <div class="row-container">
-          <h2 class="row-heading">Trending Movies</h2>
-          <div id="row-trending-movies" class="carousel-list custom-scrollbar">
-            <!-- Skeleton cards initially -->
-            <div class="skeleton-card"></div>
-            <div class="skeleton-card"></div>
-            <div class="skeleton-card"></div>
-            <div class="skeleton-card"></div>
-            <div class="skeleton-card"></div>
-          </div>
+    <!-- Tab 1: Live TV Screen (Default View) -->
+    <div id="tab-live" class="tab-screen">
+      <!-- Live split-screen layout -->
+      <div class="live-tv-layout">
+        <!-- Top Half: Dedicated Live Video player container -->
+        <div id="live-player-container" class="live-player-container-wrapper">
+          <!-- Shared Player Section will be appended here dynamically -->
         </div>
 
-        <div class="row-container">
-          <h2 class="row-heading">Trending TV Series</h2>
-          <div id="row-trending-tv" class="carousel-list custom-scrollbar">
-            <div class="skeleton-card"></div>
-            <div class="skeleton-card"></div>
-            <div class="skeleton-card"></div>
-            <div class="skeleton-card"></div>
-            <div class="skeleton-card"></div>
-          </div>
-        </div>
+        <!-- Bottom Half: Category sidebar + Channels grid -->
+        <div class="live-channels-container">
+          <aside class="live-sidebar">
+            <div class="sidebar-section-title">Categories</div>
+            <nav id="categories-container" class="live-categories-nav custom-scrollbar">
+              <!-- Loaded dynamically -->
+            </nav>
+          </aside>
 
-        <div class="row-container" id="row-watchlist-section" style="display: none;">
-          <h2 class="row-heading">My Watchlist</h2>
-          <div id="row-watchlist" class="carousel-list custom-scrollbar"></div>
+          <section class="live-channels-grid-wrap">
+            <div class="live-channels-grid-header">
+              <div>
+                <h3 id="current-category-name" class="current-cat-title">All Channels</h3>
+                <p id="channel-list-info" class="current-cat-subtitle">Loading Live stream channels...</p>
+              </div>
+              
+              <!-- Inline Live Channels Search Input -->
+              <div class="live-search-container">
+                <i data-lucide="search" class="live-search-icon"></i>
+                <input type="text" id="live-search-input" class="live-search-input" placeholder="Search channels...">
+              </div>
+
+              <span id="filtered-count" class="badge-count">0 channels</span>
+            </div>
+
+            <div class="live-grid-scroll custom-scrollbar">
+              <div id="channels-grid" class="live-channels-grid">
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+              </div>
+              <div id="no-channels-found" class="empty-state-card hidden">
+                <i data-lucide="search"></i>
+                <h3>No channels match</h3>
+                <p>Try filtering by another category or clearing your search query.</p>
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
 
-    <!-- Tab 2: Search Screen -->
-    <div id="tab-search" class="tab-screen hidden">
+    <!-- Tab 2: VOD (Movies & Series) Screen with Embedded Search -->
+    <div id="tab-vod" class="tab-screen hidden">
+      <!-- VOD Search Bar Header -->
       <div class="search-header-container">
         <div class="search-bar-wrap">
           <i data-lucide="search" class="search-field-icon"></i>
-          <input type="text" id="search-input" class="search-field-input" placeholder="Search movies, TV shows, and series...">
+          <input type="text" id="vod-search-input" class="search-field-input" placeholder="Search movies, TV shows, and series...">
         </div>
       </div>
-      <div class="search-results-container custom-scrollbar">
-        <h2 class="search-heading" id="search-status-heading">Popular Searches</h2>
-        <div id="search-results-grid" class="search-results-grid">
-          <!-- Skeleton card list on load -->
-          <div class="skeleton-card"></div>
-          <div class="skeleton-card"></div>
-          <div class="skeleton-card"></div>
-          <div class="skeleton-card"></div>
-        </div>
+
+      <!-- VOD Active Search Results Grid (visible when typing search query) -->
+      <div id="vod-search-results-section" class="search-results-container custom-scrollbar hidden">
+        <h2 class="search-heading" id="search-status-heading">Search Results</h2>
+        <div id="search-results-grid" class="search-results-grid"></div>
         <div id="search-empty-state" class="empty-state-card hidden">
           <i data-lucide="alert-triangle"></i>
           <h3>No titles found</h3>
           <p>We couldn't find any movies or TV series matching your search.</p>
         </div>
       </div>
-    </div>
 
-    <!-- Tab 3: Live TV Screen -->
-    <div id="tab-live" class="tab-screen hidden">
+      <!-- VOD Default View (Spotlight Hero + Trending Movies & Shows) -->
+      <div id="vod-default-section" class="vod-default-container custom-scrollbar">
+        <!-- Cinematic Spotlight Hero Banner -->
+        <section id="hero-section" class="hero-section">
+          <div id="hero-backdrop" class="hero-backdrop"></div>
+          <div class="hero-gradient-overlay"></div>
+          <div class="hero-content">
+            <span class="hero-tagline">SPOTLIGHT</span>
+            <h1 id="hero-title" class="hero-title">Loading Spotlight...</h1>
+            <div class="hero-meta">
+              <span id="hero-rating" class="hero-rating-pill">⭐ --</span>
+              <span id="hero-year" class="hero-year-pill">----</span>
+              <span id="hero-type" class="hero-type-pill">Movie</span>
+            </div>
+            <p id="hero-overview" class="hero-overview">Gathering content description...</p>
+            <div class="hero-actions">
+              <button id="hero-play-btn" class="btn btn-primary btn-lg flex items-center gap-2">
+                <i data-lucide="play" class="fill-white"></i> Play Now
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Horizontal scrolling rows of cards -->
+        <section class="dashboard-rows-section">
+          <div class="row-container">
+            <h2 class="row-heading">Trending Movies</h2>
+            <div id="row-trending-movies" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container">
+            <h2 class="row-heading">Trending TV Series</h2>
+            <div id="row-trending-tv" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" id="row-watchlist-section" style="display: none;">
+            <h2 class="row-heading">My Watchlist</h2>
+            <div id="row-watchlist" class="carousel-list custom-scrollbar"></div>
+          </div>
+        </section>
+      </div>
+    </div>
       <!-- Live split-screen layout -->
       <div class="live-tv-layout">
         <!-- Top Half: Dedicated Live Video player container -->

@@ -16830,6 +16830,9 @@
 	<programme channel="咪咕综合体育" start="20260729013000 +0800" stop="20260729033000 +0800">
 		<title lang="zh">UFC格斗之夜281期 主赛</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20260729033500 +0800" stop="20260729040000 +0800">
+		<title lang="zh">中超精华 第19轮</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>
@@ -50969,6 +50972,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260729024000 +0800" stop="20260729032500 +0800">
 		<title lang="zh">20_刑警的日子</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260729032500 +0800" stop="20260729041000 +0800">
+		<title lang="zh">21_刑警的日子</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
