@@ -16857,6 +16857,9 @@
 	<programme channel="咪咕足球" start="20260729040500 +0800" stop="20260729044000 +0800">
 		<title lang="zh">西班牙篮球黄金一代03 美式问候</title>
 	</programme>
+	<programme channel="咪咕足球" start="20260729044000 +0800" stop="20260729045000 +0800">
+		<title lang="zh">频道宣传</title>
+	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
 	</channel>
