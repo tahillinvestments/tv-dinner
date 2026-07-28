@@ -70,10 +70,12 @@ export class IPTVPlayer {
     const showControls = (delay = 2500) => {
       if (!container) return;
       container.classList.add('controls-active');
+      container.classList.remove('user-idle');
       if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
       controlsHideTimeout = setTimeout(() => {
         if (this.video && !this.video.paused) {
           container.classList.remove('controls-active');
+          container.classList.add('user-idle');
           if (document.activeElement && container.contains(document.activeElement)) {
             document.activeElement.blur();
           }
@@ -95,6 +97,9 @@ export class IPTVPlayer {
       if (isFS) {
         if (document.activeElement) document.activeElement.blur();
         showControls(2500);
+      } else if (container) {
+        container.classList.remove('user-idle');
+        container.classList.add('controls-active');
       }
     };
 
@@ -111,6 +116,7 @@ export class IPTVPlayer {
       container.addEventListener('mouseleave', () => {
         if (this.video && !this.video.paused) {
           container.classList.remove('controls-active');
+          container.classList.add('user-idle');
         }
       });
     }
@@ -151,6 +157,15 @@ export class IPTVPlayer {
     }
 
     // Video native events
+    this.video.addEventListener('pause', () => {
+      if (container) {
+        container.classList.remove('user-idle');
+        container.classList.add('controls-active');
+      }
+    });
+    this.video.addEventListener('play', () => {
+      showControls(2500);
+    });
     this.video.addEventListener('waiting', () => {
       if (this.currentUrl) this.showLoading(true);
     });
