@@ -1,14 +1,15 @@
-import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight } from 'lucide';
+import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, Radio } from 'lucide';
 import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
+import { PODCAST_CATEGORIES, searchPodcasts } from './podcastsData';
 import './style.css';
 
 // Initialize Lucide icons
 const iconConfig = {
   icons: {
-    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight
+    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, Radio
   }
 };
 
@@ -178,6 +179,8 @@ function switchTab(tabName) {
     loadMoviesDashboard();
   } else if (tabName === 'series') {
     loadSeriesDashboard();
+  } else if (tabName === 'podcasts') {
+    loadPodcastsDashboard();
   } else if (tabName === 'library') {
     renderLibraryScreen();
   } else {
@@ -349,6 +352,123 @@ async function loadSeriesDashboard() {
   }
 }
 
+// Load YouTube Podcasts Dashboard
+function loadPodcastsDashboard() {
+  const techRow = document.getElementById('row-podcasts-tech');
+  const scienceRow = document.getElementById('row-podcasts-science');
+  const comedyRow = document.getElementById('row-podcasts-comedy');
+  const sportsRow = document.getElementById('row-podcasts-sports');
+  const favoritesRow = document.getElementById('row-podcasts-favorites');
+  const favoritesSection = document.getElementById('row-podcasts-favorites-section');
+
+  // Load Favorite Podcast Channels
+  if (state.favoritePodcasts && state.favoritePodcasts.length > 0) {
+    if (favoritesSection) favoritesSection.style.display = 'block';
+    if (favoritesRow) renderPodcastCardRow(state.favoritePodcasts, favoritesRow);
+  } else {
+    if (favoritesSection) favoritesSection.style.display = 'none';
+  }
+
+  if (techRow) renderPodcastCardRow(PODCAST_CATEGORIES.tech, techRow);
+  if (scienceRow) renderPodcastCardRow(PODCAST_CATEGORIES.science, scienceRow);
+  if (comedyRow) renderPodcastCardRow(PODCAST_CATEGORIES.comedy, comedyRow);
+  if (sportsRow) renderPodcastCardRow(PODCAST_CATEGORIES.sports, sportsRow);
+}
+
+// Render Podcast Cards inside horizontal carousels
+function renderPodcastCardRow(items, container) {
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!items || items.length === 0) {
+    container.innerHTML = '<span class="text-xs text-slate-500 py-4">No podcasts found.</span>';
+    return;
+  }
+
+  const favs = state.favoritePodcasts || [];
+  items.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'detail-item-card hover-scale';
+    const isFav = favs.some(f => f.id === item.id);
+
+    card.innerHTML = `
+      <div style="position: relative;">
+        <img src="${item.thumbnail}" alt="${item.title}" class="detail-item-poster" style="aspect-ratio: 16/9; object-fit: cover;" loading="lazy">
+        <button class="podcast-fav-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Remove Favorite Channel' : 'Add to Favorite Channels'}" style="position: absolute; top: 8px; right: 8px; background: rgba(15,23,42,0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 9999px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: ${isFav ? '#f59e0b' : '#cbd5e1'}; cursor: pointer;">
+          <i data-lucide="star" style="width: 14px; height: 14px; fill: ${isFav ? '#f59e0b' : 'none'};"></i>
+        </button>
+      </div>
+      <div class="detail-item-info">
+        <h4 class="detail-item-title">${item.title}</h4>
+        <div class="detail-item-meta">
+          <span class="detail-item-year">${item.channelName}</span>
+        </div>
+      </div>
+    `;
+
+    // Favorite Channel button toggle
+    const favBtn = card.querySelector('.podcast-fav-btn');
+    if (favBtn) {
+      favBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePodcastFavorite(item);
+      });
+    }
+
+    // Card click opens YouTube Video player details modal
+    card.addEventListener('click', () => openPodcastModal(item));
+    container.appendChild(card);
+  });
+  createIcons(iconConfig);
+}
+
+// Toggle Favorite Podcast Channel
+function togglePodcastFavorite(podcast) {
+  if (!state.favoritePodcasts) state.favoritePodcasts = [];
+  const index = state.favoritePodcasts.findIndex(f => f.id === podcast.id);
+  if (index >= 0) {
+    state.favoritePodcasts.splice(index, 1);
+  } else {
+    state.favoritePodcasts.push(podcast);
+  }
+  localStorage.setItem('iptv_favorite_podcasts', JSON.stringify(state.favoritePodcasts));
+  loadPodcastsDashboard();
+}
+
+// Open Podcast YouTube embed player modal
+function openPodcastModal(podcast) {
+  state.selectedMedia = podcast;
+
+  const modal = document.getElementById('details-modal');
+  if (!modal) return;
+
+  const titleEl = document.getElementById('details-title');
+  const metaEl = document.getElementById('details-meta-info');
+  const overviewEl = document.getElementById('details-overview');
+  const backdropEl = document.getElementById('details-backdrop');
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const embedIframe = document.getElementById('embed-iframe');
+  const activeSourceName = document.getElementById('active-source-name');
+  const embedSourcesList = document.getElementById('embed-sources-list');
+
+  if (titleEl) titleEl.textContent = podcast.title;
+  if (metaEl) metaEl.innerHTML = `<span>${podcast.channelName}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">YouTube Podcast</span>`;
+  if (overviewEl) overviewEl.textContent = podcast.description || 'Watch top YouTube podcast episode and channel content directly inside TVISION.';
+  if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail})`;
+
+  if (activeSourceName) activeSourceName.textContent = `YouTube Embed (${podcast.channelName})`;
+  if (embedSourcesList) embedSourcesList.innerHTML = `<span class="px-3 py-1.5 rounded-lg bg-red-600/30 border border-red-500/40 text-red-300 text-xs font-semibold">🔴 YouTube Stream (HD)</span>`;
+
+  if (embedWrapper) embedWrapper.style.display = 'block';
+  if (embedIframe) {
+    embedIframe.src = `https://www.youtube-nocookie.com/embed/${podcast.youtubeId}?autoplay=1`;
+  }
+
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  createIcons(iconConfig);
+}
+
 // Render list of cards inside scrolling rows
 function renderCardRow(items, container) {
   container.innerHTML = '';
@@ -498,6 +618,39 @@ function setupSearch() {
       searchDebounceTimer = setTimeout(() => {
         triggerSearchQuery(query, 'tv');
       }, 400);
+    });
+  }
+
+  // Podcasts search
+  const podcastsSearchInput = document.getElementById('podcasts-search-input');
+  const podcastsSearchResultsSection = document.getElementById('podcasts-search-results-section');
+  const podcastsDefaultSection = document.getElementById('podcasts-default-section');
+
+  if (podcastsSearchInput) {
+    podcastsSearchInput.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+      if (!query) {
+        if (podcastsSearchResultsSection) podcastsSearchResultsSection.classList.add('hidden');
+        if (podcastsDefaultSection) podcastsDefaultSection.classList.remove('hidden');
+        return;
+      }
+
+      if (podcastsSearchResultsSection) podcastsSearchResultsSection.classList.remove('hidden');
+      if (podcastsDefaultSection) podcastsDefaultSection.classList.add('hidden');
+
+      const results = searchPodcasts(query);
+      const grid = document.getElementById('podcasts-search-results-grid');
+      const heading = document.getElementById('podcasts-search-status-heading');
+      const emptyState = document.getElementById('podcasts-search-empty-state');
+
+      if (heading) heading.textContent = `Podcast results for "${query}"`;
+      if (results.length === 0) {
+        if (grid) grid.innerHTML = '';
+        if (emptyState) emptyState.classList.remove('hidden');
+      } else {
+        if (emptyState) emptyState.classList.add('hidden');
+        if (grid) renderPodcastCardRow(results, grid);
+      }
     });
   }
 

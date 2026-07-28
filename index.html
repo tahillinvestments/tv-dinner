@@ -30,6 +30,10 @@
         <i data-lucide="monitor"></i>
         <span>TV Series</span>
       </button>
+      <button class="nav-link" data-tab="podcasts" title="Podcasts">
+        <i data-lucide="radio"></i>
+        <span>Podcasts</span>
+      </button>
       <button class="nav-link" data-tab="library" title="Favorites">
         <i data-lucide="star"></i>
         <span>Favorites</span>
@@ -111,22 +115,11 @@
 
     <!-- Tab 2: VOD Movies Screen -->
     <div id="tab-movies" class="tab-screen hidden">
-      <!-- Movies Search Bar & Genre Filter Header -->
+      <!-- Movies Search Bar Header -->
       <div class="search-header-container">
         <div class="search-bar-wrap">
           <i data-lucide="search" class="search-field-icon"></i>
           <input type="text" id="movies-search-input" class="search-field-input" placeholder="Search movies...">
-        </div>
-        
-        <!-- Movies Genre Filter Chips -->
-        <div class="genre-chips-scroll custom-scrollbar">
-          <button class="genre-chip movies-genre-chip active" data-genre="all">🔥 All Movies</button>
-          <button class="genre-chip movies-genre-chip" data-genre="28">💥 Action</button>
-          <button class="genre-chip movies-genre-chip" data-genre="35">😂 Comedy</button>
-          <button class="genre-chip movies-genre-chip" data-genre="878">🚀 Sci-Fi & Fantasy</button>
-          <button class="genre-chip movies-genre-chip" data-genre="27">👻 Horror & Thriller</button>
-          <button class="genre-chip movies-genre-chip" data-genre="16">🎨 Animation</button>
-          <button class="genre-chip movies-genre-chip" data-genre="top_rated">⭐ Top Rated</button>
         </div>
       </div>
 
@@ -141,31 +134,10 @@
         </div>
       </div>
 
-      <!-- Movies Default View (Spotlight Hero + Curated Category Rows) -->
+      <!-- Movies Default View (Curated Category Rows) -->
       <div id="movies-default-section" class="vod-default-container custom-scrollbar">
-        <!-- Cinematic Movies Spotlight Hero -->
-        <section id="movies-hero-section" class="hero-section">
-          <div id="movies-hero-backdrop" class="hero-backdrop"></div>
-          <div class="hero-gradient-overlay"></div>
-          <div class="hero-content">
-            <span class="hero-tagline">MOVIE SPOTLIGHT</span>
-            <h1 id="movies-hero-title" class="hero-title">Loading Spotlight...</h1>
-            <div class="hero-meta">
-              <span id="movies-hero-rating" class="hero-rating-pill">⭐ --</span>
-              <span id="movies-hero-year" class="hero-year-pill">----</span>
-              <span class="hero-type-pill">Movie</span>
-            </div>
-            <p id="movies-hero-overview" class="hero-overview">Gathering movie details...</p>
-            <div class="hero-actions">
-              <button id="movies-hero-play-btn" class="btn btn-primary btn-lg flex items-center gap-2">
-                <i data-lucide="play" class="fill-white"></i> Play Movie
-              </button>
-            </div>
-          </div>
-        </section>
-
         <!-- Horizontal scrolling movie rows -->
-        <section class="dashboard-rows-section movies-rows-section">
+        <section class="dashboard-rows-section movies-rows-section pt-4">
           <div class="row-container" data-row-genre="all">
             <div class="row-header-wrap">
               <h2 class="row-heading">🍿 Trending Movies</h2>
@@ -297,22 +269,11 @@
 
     <!-- Tab 3: VOD TV Series Screen -->
     <div id="tab-series" class="tab-screen hidden">
-      <!-- Series Search Bar & Genre Filter Header -->
+      <!-- Series Search Bar Header -->
       <div class="search-header-container">
         <div class="search-bar-wrap">
           <i data-lucide="search" class="search-field-icon"></i>
           <input type="text" id="series-search-input" class="search-field-input" placeholder="Search TV series & shows...">
-        </div>
-        
-        <!-- Series Genre Filter Chips -->
-        <div class="genre-chips-scroll custom-scrollbar">
-          <button class="genre-chip series-genre-chip active" data-genre="all">🔥 All Series</button>
-          <button class="genre-chip series-genre-chip" data-genre="10759">💥 Action & Adventure</button>
-          <button class="genre-chip series-genre-chip" data-genre="35">😂 Comedy Shows</button>
-          <button class="genre-chip series-genre-chip" data-genre="10765">🚀 Sci-Fi & Fantasy</button>
-          <button class="genre-chip series-genre-chip" data-genre="80">👻 Crime & Mystery</button>
-          <button class="genre-chip series-genre-chip" data-genre="16">🎨 Animation & Anime</button>
-          <button class="genre-chip series-genre-chip" data-genre="top_rated">⭐ Top Rated Series</button>
         </div>
       </div>
 
@@ -327,31 +288,10 @@
         </div>
       </div>
 
-      <!-- Series Default View (Spotlight Hero + Curated Category Rows) -->
+      <!-- Series Default View (Curated Category Rows) -->
       <div id="series-default-section" class="vod-default-container custom-scrollbar">
-        <!-- Cinematic Series Spotlight Hero -->
-        <section id="series-hero-section" class="hero-section">
-          <div id="series-hero-backdrop" class="hero-backdrop"></div>
-          <div class="hero-gradient-overlay"></div>
-          <div class="hero-content">
-            <span class="hero-tagline">SERIES SPOTLIGHT</span>
-            <h1 id="series-hero-title" class="hero-title">Loading Spotlight...</h1>
-            <div class="hero-meta">
-              <span id="series-hero-rating" class="hero-rating-pill">⭐ --</span>
-              <span id="series-hero-year" class="hero-year-pill">----</span>
-              <span class="hero-type-pill">TV Show</span>
-            </div>
-            <p id="series-hero-overview" class="hero-overview">Gathering series details...</p>
-            <div class="hero-actions">
-              <button id="series-hero-play-btn" class="btn btn-primary btn-lg flex items-center gap-2">
-                <i data-lucide="play" class="fill-white"></i> Watch Series
-              </button>
-            </div>
-          </div>
-        </section>
-
         <!-- Horizontal scrolling series rows -->
-        <section class="dashboard-rows-section series-rows-section">
+        <section class="dashboard-rows-section series-rows-section pt-4">
           <div class="row-container" data-row-genre="all">
             <div class="row-header-wrap">
               <h2 class="row-heading">📺 Trending TV Series</h2>
@@ -478,6 +418,73 @@
             <i data-lucide="refresh-cw"></i> Load More Series
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Tab 4: YouTube Podcasts Screen -->
+    <div id="tab-podcasts" class="tab-screen hidden">
+      <!-- Podcasts Search Bar Header -->
+      <div class="search-header-container">
+        <div class="search-bar-wrap">
+          <i data-lucide="search" class="search-field-icon"></i>
+          <input type="text" id="podcasts-search-input" class="search-field-input" placeholder="Search YouTube podcasts, hosts, or topics...">
+        </div>
+      </div>
+
+      <!-- Podcasts Active Search Results Grid -->
+      <div id="podcasts-search-results-section" class="search-results-container custom-scrollbar hidden">
+        <h2 class="search-heading" id="podcasts-search-status-heading">Podcast Search Results</h2>
+        <div id="podcasts-search-results-grid" class="search-results-grid"></div>
+        <div id="podcasts-search-empty-state" class="empty-state-card hidden">
+          <i data-lucide="alert-triangle"></i>
+          <h3>No podcasts found</h3>
+          <p>We couldn't find any podcasts matching your search query.</p>
+        </div>
+      </div>
+
+      <!-- Podcasts Default View (Curated Categories + Favorite Channels) -->
+      <div id="podcasts-default-section" class="vod-default-container custom-scrollbar">
+        <section class="dashboard-rows-section podcasts-rows-section pt-4">
+          <!-- Favorite Podcast Channels Row -->
+          <div class="row-container" id="row-podcasts-favorites-section" style="display: none;">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">⭐ Favorite Podcast Channels</h2>
+            </div>
+            <div id="row-podcasts-favorites" class="carousel-list custom-scrollbar"></div>
+          </div>
+
+          <!-- Tech & Business Podcasts -->
+          <div class="row-container">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">🎙️ Tech & Business Podcasts</h2>
+            </div>
+            <div id="row-podcasts-tech" class="carousel-list custom-scrollbar"></div>
+          </div>
+
+          <!-- Science & Mind Podcasts -->
+          <div class="row-container">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">🧠 Science, Mind & Education</h2>
+            </div>
+            <div id="row-podcasts-science" class="carousel-list custom-scrollbar"></div>
+          </div>
+
+          <!-- Comedy & Entertainment Podcasts -->
+          <div class="row-container">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">🎭 Comedy & Entertainment</h2>
+            </div>
+            <div id="row-podcasts-comedy" class="carousel-list custom-scrollbar"></div>
+          </div>
+
+          <!-- Sports & Culture Podcasts -->
+          <div class="row-container">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">🏆 Sports, Fitness & Culture</h2>
+            </div>
+            <div id="row-podcasts-sports" class="carousel-list custom-scrollbar"></div>
+          </div>
+        </section>
       </div>
     </div>
 
