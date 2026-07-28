@@ -943,9 +943,14 @@ body {
   transition: opacity 0.25s ease;
 }
 
-.player-wrapper:hover .video-controls-bar,
-.player-wrapper.embed-active .video-controls-bar:hover {
+.player-wrapper:not(.embed-active):hover .video-controls-bar {
   opacity: 1;
+}
+
+.player-wrapper.embed-active .video-controls-bar {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
 }
 
 .controls-status-row {
