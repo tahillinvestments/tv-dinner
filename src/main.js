@@ -1,5 +1,5 @@
-import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft } from 'lucide';
-import { fetchAndParseM3U } from './parser';
+import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home } from 'lucide';
+import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending } from './tmdb';
 import { getStreamSources } from './streamApi';
@@ -8,13 +8,13 @@ import './style.css';
 // Initialize Lucide icons
 const iconConfig = {
   icons: {
-    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft
+    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home
   }
 };
 
 // Global State
 const state = {
-  currentMode: 'movies', // 'live' or 'movies' as default
+  activeTab: 'home', // 'home', 'search', 'live', 'library', 'settings'
   channels: [],
   filteredChannels: [],
   categories: [],
@@ -22,9 +22,11 @@ const state = {
   searchQuery: '',
   favorites: JSON.parse(localStorage.getItem('iptv_favorites') || '[]'),
   recents: JSON.parse(localStorage.getItem('iptv_recents') || '[]'),
+  watchlist: JSON.parse(localStorage.getItem('vod_watchlist') || '[]'),
   currentPlayingUrl: null,
   
-  // Movies & TV State
+  // Movies & TV Spotlight / Carousel State
+  trendingItems: [],
   moviesSearchResults: [],
   selectedMedia: null,
   activeStreamSse: null,
@@ -41,9 +43,7 @@ function getPlaylistUrl() {
   if (portalUrl && username && password) {
     return `${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
   }
-  return window.location.hostname.endsWith('github.io')
-    ? 'https://tahillinvestments.github.io/tv-dinner/o_all.m3u'
-    : './o_all.m3u';
+  return './o_all.m3u';
 }
 
 const MAX_RECENTS = 20;
@@ -56,461 +56,204 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Init player
   player = new IPTVPlayer('video-player');
   
+  // Initially append player to shared hidden holder
+  const playerSection = document.getElementById('player-section');
+  const holder = document.getElementById('shared-player-holder');
+  if (playerSection && holder) {
+    holder.appendChild(playerSection);
+  }
+
+  // Setup DOM interaction
+  setupNavigation();
+  setupSearch();
+  setupDetailsView();
+  setupSettingsScreen();
+
   // Render initial icons
   createIcons(iconConfig);
 
-  // Setup DOM interaction
-  setupSearch();
-  setupMobileSidebar();
-  setupModeToggle();
-  setupSettingsModal();
-  setupDetailsView();
-
-  // Render initial categories based on default mode (Movies & TV)
-  renderCategories();
+  // Load Home dashboard details
+  loadHomeDashboard();
 
   // Load playlist (Live TV mode data) in background
   loadIPTVPlaylist();
 });
 
-// Load IPTV Playlist in the background
-async function loadIPTVPlaylist() {
-  try {
-    const playlistUrl = getPlaylistUrl();
-    console.log("[IPTV] Loading playlist from:", playlistUrl);
-    
-    state.channels = await fetchAndParseM3U(playlistUrl);
-    
-    // Extract unique categories (groups)
-    const groups = new Set();
-    state.channels.forEach(ch => {
-      if (ch.group) groups.add(ch.group);
+// Setup tab-based screen navigation
+function setupNavigation() {
+  const navButtons = document.querySelectorAll('.nav-links .nav-link');
+  const screens = document.querySelectorAll('.tab-screen');
+  
+  navButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.getAttribute('data-tab');
+      switchTab(tabName);
     });
-    
-    state.categories = ['All Channels', 'Favorites', 'Recents', ...Array.from(groups).sort()];
-    
-    const channelCountEl = document.getElementById('channel-count');
-    if (state.currentMode === 'live') {
-      channelCountEl.textContent = `${state.channels.length} Global Channels`;
-      renderCategories();
-      applyFilterAndRender();
-    }
-  } catch (error) {
-    console.error("Failed to load IPTV playlist:", error);
-    if (state.currentMode === 'live') {
-      const grid = document.getElementById('channels-grid');
-      grid.innerHTML = `
-        <div class="col-span-full py-12 text-center">
-          <div class="w-12 h-12 mx-auto rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-3">
-            <i data-lucide="alert-triangle" class="w-6 h-6"></i>
-          </div>
-          <h3 class="text-sm font-semibold text-slate-200">Failed to load channels</h3>
-          <p class="text-xs text-slate-500 mt-1">Make sure you are connected to the internet. We couldn't download the channel playlist.</p>
-          <button id="reload-playlist-btn" class="mt-4 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors">
-            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Retry Connection
-          </button>
-        </div>
-      `;
-      createIcons(iconConfig);
-      
-      const retryBtn = document.getElementById('reload-playlist-btn');
-      if (retryBtn) {
-        retryBtn.addEventListener('click', () => {
-          retryBtn.disabled = true;
-          retryBtn.textContent = 'Retrying...';
-          loadIPTVPlaylist();
-        });
+  });
+
+  // Mobile sidebar support if needed
+  const mobileToggle = document.getElementById('sidebar-toggle');
+  if (mobileToggle) {
+    mobileToggle.addEventListener('click', () => {
+      const sidebar = document.querySelector('.app-sidebar-nav');
+      if (sidebar) {
+        sidebar.classList.toggle('expanded');
       }
-    }
+    });
   }
 }
 
-// Setup sidebar layout categories list
-function renderCategories() {
-  const container = document.getElementById('categories-container');
-  container.innerHTML = '';
-
-  if (state.currentMode === 'movies') {
-    // Show static guides/filters for movies mode
-    const categories = [
-      { label: 'Trending Movies', icon: 'monitor', filter: 'movie' },
-      { label: 'Trending Series', icon: 'tv', filter: 'tv' },
-      { label: 'Search Catalog', icon: 'search', filter: 'search' },
-    ];
-    categories.forEach(cat => {
-      const btn = document.createElement('button');
-      btn.className = 'category-btn flex items-center justify-between w-full px-3 py-2 text-xs rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 border border-transparent transition-all text-left';
-      btn.innerHTML = `
-        <div class="flex items-center gap-2.5 truncate">
-          <i data-lucide="${cat.icon}" class="w-4 h-4 opacity-75 shrink-0"></i>
-          <span class="truncate">${cat.label}</span>
-        </div>
-      `;
-      btn.addEventListener('click', () => {
-        // Mark active
-        container.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        closeDetailsView();
-        if (cat.filter === 'search') {
-          const searchInput = document.getElementById('search-input');
-          if (searchInput) searchInput.focus();
-        } else {
-          state.searchQuery = '';
-          state.moviesSearchResults = [];
-          getTrending().then(data => {
-            state.moviesSearchResults = (data.results || []).filter(r => r.media_type === cat.filter);
-            renderMoviesCatalog(cat.label);
-          }).catch(err => {
-            console.error('Trending fetch error:', err);
-            player.showToast('Failed to load ' + cat.label);
-          });
-        }
-      });
-      container.appendChild(btn);
-    });
-    createIcons(iconConfig);
-    // Auto-trigger first tab (Trending Movies)
-    if (container.querySelector('.category-btn')) {
-      container.querySelector('.category-btn').click();
+// Switch between tabs
+function switchTab(tabName) {
+  state.activeTab = tabName;
+  
+  // Update buttons state
+  document.querySelectorAll('.nav-links .nav-link').forEach(btn => {
+    if (btn.getAttribute('data-tab') === tabName) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
     }
-    return;
+  });
+
+  // Hide all screens & show active screen
+  document.querySelectorAll('.tab-screen').forEach(screen => {
+    if (screen.id === `tab-${tabName}`) {
+      screen.classList.remove('hidden');
+    } else {
+      screen.classList.add('hidden');
+    }
+  });
+
+  // Shared player relocator
+  const playerSection = document.getElementById('player-section');
+  const liveContainer = document.getElementById('live-player-container');
+  const vodContainer = document.getElementById('vod-player-container');
+  const holder = document.getElementById('shared-player-holder');
+
+  if (tabName === 'live') {
+    // Append player to live TV panel
+    if (liveContainer && playerSection) {
+      liveContainer.appendChild(playerSection);
+    }
+    // Pause embed player if active
+    const embedIframe = document.getElementById('embed-iframe');
+    if (embedIframe) embedIframe.src = '';
+    const embedWrapper = document.getElementById('embed-player-wrapper');
+    if (embedWrapper) embedWrapper.style.display = 'none';
+
+    renderCategories();
+    applyFilterAndRender();
+  } else {
+    // Stop any active HLS stream playback if switching away from live TV
+    if (tabName !== 'live' && state.selectedMedia === null) {
+      // Pause playback & return player back to hidden holder
+      const videoEl = document.getElementById('video-player');
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.removeAttribute('src');
+        videoEl.load();
+      }
+      state.currentPlayingUrl = null;
+      if (holder && playerSection) {
+        holder.appendChild(playerSection);
+      }
+    }
   }
 
-  state.categories.forEach(category => {
-    const btn = document.createElement('button');
-    btn.className = `category-btn flex items-center justify-between w-full px-3 py-2 text-xs rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 border border-transparent transition-all text-left ${
-      state.selectedCategory === category ? 'active' : ''
-    }`;
-    
-    let iconName = 'tv';
-    let count = 0;
-    
-    if (category === 'All Channels') {
-      iconName = 'tv';
-      count = state.channels.length;
-    } else if (category === 'Favorites') {
-      iconName = 'star';
-      count = state.favorites.length;
-    } else if (category === 'Recents') {
-      iconName = 'refresh-cw';
-      count = state.recents.length;
-    } else {
-      iconName = 'tv';
-      count = state.channels.filter(ch => ch.group === category).length;
-    }
-
-    btn.innerHTML = `
-      <div class="flex items-center gap-2.5 truncate">
-        <i data-lucide="${iconName}" class="w-4 h-4 opacity-75 shrink-0"></i>
-        <span class="truncate">${category}</span>
-      </div>
-      <span class="text-[10px] bg-slate-900 border border-slate-800/80 text-slate-500 px-1.5 py-0.5 rounded-md min-w-5 text-center">${count}</span>
-    `;
-
-    btn.addEventListener('click', () => {
-      state.selectedCategory = category;
-      closeMobileSidebar();
-      document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      
-      applyFilterAndRender();
-      
-      const gridContainer = document.querySelector('.channels-grid-container');
-      if (gridContainer) {
-        gridContainer.scrollTop = 0;
-      }
-    });
-
-    container.appendChild(btn);
-  });
+  // Handle page specfics
+  if (tabName === 'home') {
+    loadHomeDashboard();
+  } else if (tabName === 'library') {
+    renderLibraryScreen();
+  } else if (tabName === 'search') {
+    const input = document.getElementById('search-input');
+    if (input) input.focus();
+    loadPopularSearches();
+  }
 
   createIcons(iconConfig);
 }
 
-// Mobile sidebar controls
-function setupMobileSidebar() {
-  const toggle = document.getElementById('sidebar-toggle');
-  const close = document.getElementById('sidebar-close');
-  const sidebar = document.getElementById('app-sidebar');
-  const overlay = document.getElementById('sidebar-overlay');
+// Load Home Dashboard hero + carousels
+async function loadHomeDashboard() {
+  const movieRow = document.getElementById('row-trending-movies');
+  const tvRow = document.getElementById('row-trending-tv');
+  const watchlistRow = document.getElementById('row-watchlist');
+  const watchlistSection = document.getElementById('row-watchlist-section');
 
-  const openDrawer = () => {
-    sidebar.classList.remove('sidebar-closed');
-    sidebar.classList.add('sidebar-open');
-    overlay.classList.remove('hidden');
-  };
-
-  const closeDrawer = () => {
-    sidebar.classList.remove('sidebar-open');
-    sidebar.classList.add('sidebar-closed');
-    overlay.classList.add('hidden');
-  };
-
-  toggle.addEventListener('click', openDrawer);
-  close.addEventListener('click', closeDrawer);
-  overlay.addEventListener('click', closeDrawer);
-}
-
-function closeMobileSidebar() {
-  const sidebar = document.getElementById('app-sidebar');
-  const overlay = document.getElementById('sidebar-overlay');
-  sidebar.classList.remove('sidebar-open');
-  sidebar.classList.add('sidebar-closed');
-  overlay.classList.add('hidden');
-}
-
-// Mode Selection Toggle (Live TV vs Movies & TV)
-function setupModeToggle() {
-  const btnLive = document.getElementById('btn-mode-live');
-  const btnMovies = document.getElementById('btn-mode-movies');
-  const channelCountEl = document.getElementById('channel-count');
-
-  const setMode = (mode) => {
-    if (state.currentMode === mode) return;
-    state.currentMode = mode;
-
-    // Reset current selection views
-    closeDetailsView();
-
-    // Toggle active classes on buttons
-    if (mode === 'live') {
-      btnLive.classList.add('active');
-      btnMovies.classList.remove('active');
-      channelCountEl.textContent = `${state.channels.length} Global Channels`;
-      
-      // Reset inputs & values
-      document.getElementById('search-input').placeholder = "Search channel by name...";
-      document.getElementById('search-input-mobile').placeholder = "Search channels...";
-      document.getElementById('search-input').value = '';
-      document.getElementById('search-input-mobile').value = '';
-      state.searchQuery = '';
-      
-      renderCategories();
-      applyFilterAndRender();
-    } else {
-      btnLive.classList.remove('active');
-      btnMovies.classList.add('active');
-      channelCountEl.textContent = "Movies & Shows";
-      
-      // Update placeholders
-      document.getElementById('search-input').placeholder = "Search movies & TV shows...";
-      document.getElementById('search-input-mobile').placeholder = "Search movies/shows...";
-      document.getElementById('search-input').value = '';
-      document.getElementById('search-input-mobile').value = '';
-      state.searchQuery = '';
-      state.moviesSearchResults = [];
-      
-      renderCategories();
-    }
-  };
-
-  btnLive.addEventListener('click', () => setMode('live'));
-  btnMovies.addEventListener('click', () => setMode('movies'));
-}
-
-// Settings Modal Handling
-function setupSettingsModal() {
-  const toggleBtn = document.getElementById('settings-toggle-btn');
-  const modal = document.getElementById('settings-modal');
-  const closeBtn = document.getElementById('settings-close-btn');
-  const cancelBtn = document.getElementById('settings-cancel-btn');
-  const saveBtn = document.getElementById('settings-save-btn');
-  const keyInput = document.getElementById('settings-tmdb-key');
-  const sandboxInput = document.getElementById('settings-strict-sandbox');
-  
-  // IPTV fields
-  const iptvPortalInput = document.getElementById('settings-iptv-portal');
-  const iptvUsernameInput = document.getElementById('settings-iptv-username');
-  const iptvPasswordInput = document.getElementById('settings-iptv-password');
-  const iptvEpgInput = document.getElementById('settings-iptv-epg');
-
-  const openModal = () => {
-    keyInput.value = localStorage.getItem('tmdb_api_key') || '';
-    if (sandboxInput) {
-      sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
-    }
-    
-    // Load IPTV values or defaults
-    if (iptvPortalInput) iptvPortalInput.value = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-    if (iptvUsernameInput) iptvUsernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
-    if (iptvPasswordInput) iptvPasswordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
-    if (iptvEpgInput) iptvEpgInput.value = localStorage.getItem('iptv_epg') || 'http://portal5458.com:8080/xmltv.php?username=SGmUC7q2U&password=4WM9WVsjG';
-    
-    modal.classList.remove('hidden');
-  };
-
-  const closeModal = () => {
-    modal.classList.add('hidden');
-  };
-
-  const saveSettings = () => {
-    const key = keyInput.value.trim();
-    if (key) {
-      localStorage.setItem('tmdb_api_key', key);
-    } else {
-      localStorage.removeItem('tmdb_api_key');
-    }
-
-    if (sandboxInput) {
-      localStorage.setItem('strict_sandbox', sandboxInput.checked ? 'true' : 'false');
-    }
-
-    // Save IPTV values
-    const oldPortal = localStorage.getItem('iptv_portal_url');
-    const oldUsername = localStorage.getItem('iptv_username');
-    const oldPassword = localStorage.getItem('iptv_password');
-    
-    const newPortal = iptvPortalInput ? iptvPortalInput.value.trim() : '';
-    const newUsername = iptvUsernameInput ? iptvUsernameInput.value.trim() : '';
-    const newPassword = iptvPasswordInput ? iptvPasswordInput.value.trim() : '';
-    const newEpg = iptvEpgInput ? iptvEpgInput.value.trim() : '';
-    
-    localStorage.setItem('iptv_portal_url', newPortal);
-    localStorage.setItem('iptv_username', newUsername);
-    localStorage.setItem('iptv_password', newPassword);
-    localStorage.setItem('iptv_epg', newEpg);
-
-    player.showToast("Settings Saved Successfully");
-    closeModal();
-    
-    // If IPTV credentials changed, reload playlist in background
-    if (newPortal !== oldPortal || newUsername !== oldUsername || newPassword !== oldPassword) {
-      console.log("[IPTV] Credentials changed, reloading playlist...");
-      loadIPTVPlaylist();
-    }
-    
-    // Refresh search results if in movies mode
-    if (state.currentMode === 'movies' && state.searchQuery) {
-      performMoviesSearch(state.searchQuery);
-    }
-  };
-
-  toggleBtn.addEventListener('click', openModal);
-  closeBtn.addEventListener('click', closeModal);
-  cancelBtn.addEventListener('click', closeModal);
-  saveBtn.addEventListener('click', saveSettings);
-  
-  // Close on outer backdrop click
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) closeModal();
-  });
-}
-
-// Search Inputs
-function setupSearch() {
-  const searchInput = document.getElementById('search-input');
-  const searchInputMobile = document.getElementById('search-input-mobile');
-
-  const handleSearch = (e) => {
-    const query = e.target.value.toLowerCase().trim();
-    state.searchQuery = query;
-    
-    // Sync other input
-    if (e.target === searchInput) {
-      searchInputMobile.value = e.target.value;
-    } else {
-      searchInput.value = e.target.value;
-    }
-
-    if (state.currentMode === 'live') {
-      applyFilterAndRender();
-    } else {
-      // Debounce TMDB search API calls
-      clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(() => {
-        performMoviesSearch(query);
-      }, 500);
-    }
-  };
-
-  searchInput.addEventListener('input', handleSearch);
-  searchInputMobile.addEventListener('input', handleSearch);
-}
-
-// Search TMDB API
-async function performMoviesSearch(query) {
-  if (!query) {
-    state.moviesSearchResults = [];
-    renderMoviesCatalog();
-    return;
+  // Load VOD Watchlist Continue Watching row
+  if (state.watchlist.length > 0) {
+    watchlistSection.style.display = 'block';
+    renderCardRow(state.watchlist, watchlistRow);
+  } else {
+    watchlistSection.style.display = 'none';
   }
-
-  // Show skeleton loading loaders
-  const container = document.getElementById('channels-grid');
-  container.innerHTML = `
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-  `;
 
   try {
-    const data = await searchMulti(query);
-    state.moviesSearchResults = data.results || [];
-    renderMoviesCatalog();
+    const data = await getTrending();
+    state.trendingItems = data.results || [];
+    
+    const movies = state.trendingItems.filter(item => item.media_type === 'movie');
+    const series = state.trendingItems.filter(item => item.media_type === 'tv');
+
+    // Populate Spotlight Hero using the first trending item
+    if (state.trendingItems.length > 0) {
+      const heroItem = state.trendingItems[0];
+      const title = heroItem.title || heroItem.name || 'Featured Title';
+      const year = (heroItem.release_date || heroItem.first_air_date || '').split('-')[0] || '2026';
+      const rating = heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A';
+      const type = heroItem.media_type === 'tv' ? 'TV Show' : 'Movie';
+      const overview = heroItem.overview || 'Explore details and stream this trending item instantly.';
+      const bgUrl = getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
+
+      document.getElementById('hero-title').textContent = title;
+      document.getElementById('hero-year').textContent = year;
+      document.getElementById('hero-rating').textContent = `⭐ ${rating}`;
+      document.getElementById('hero-type').textContent = type;
+      document.getElementById('hero-overview').textContent = overview;
+      
+      const backdropEl = document.getElementById('hero-backdrop');
+      if (backdropEl && bgUrl) {
+        backdropEl.style.backgroundImage = `url(${bgUrl})`;
+      }
+
+      // Play button action
+      const playBtn = document.getElementById('hero-play-btn');
+      // Remove old listeners
+      const newPlayBtn = playBtn.cloneNode(true);
+      playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+      newPlayBtn.addEventListener('click', () => openDetailsView(heroItem));
+    }
+
+    renderCardRow(movies, movieRow);
+    renderCardRow(series, tvRow);
   } catch (err) {
-    console.error("TMDB Search failed:", err);
-    player.showToast("Failed to fetch catalog search results");
-    container.innerHTML = '';
-    document.getElementById('no-channels-found').classList.remove('hidden');
+    console.error("Home dashboard load error:", err);
+    movieRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending movies.</span>';
+    tvRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending shows.</span>';
   }
 }
 
-// Render Movies and TV Shows grid catalog list
-function renderMoviesCatalog(categoryLabel) {
-  const container = document.getElementById('channels-grid');
-  const emptyState = document.getElementById('no-channels-found');
+// Render list of cards inside scrolling rows
+function renderCardRow(items, container) {
   container.innerHTML = '';
-
-  const label = categoryLabel || (state.searchQuery ? 'Search Results' : 'Trending Movies');
-  document.getElementById('current-category-name').textContent = label;
-  document.getElementById('channel-list-info').textContent = state.searchQuery
-    ? `Matching results for "${state.searchQuery}"`
-    : 'Popular movies & television shows today';
-
-  // Always use moviesSearchResults — populated by either trending or search
-  const results = state.moviesSearchResults;
-
-  if (results.length === 0) {
-    if (state.searchQuery) {
-      // Search returned no results
-      emptyState.classList.remove('hidden');
-      document.getElementById('filtered-count').textContent = '0 results';
-      return;
-    }
-
-    // No results and no query — show placeholder
-    emptyState.classList.add('hidden');
-    document.getElementById('filtered-count').textContent = 'Catalog ready';
-    container.innerHTML = `
-      <div class="col-span-full py-12 text-center text-slate-400">
-        <div class="w-12 h-12 mx-auto rounded-xl bg-slate-900 border border-slate-800/80 flex items-center justify-center mb-3">
-          <i data-lucide="search" class="w-6 h-6"></i>
-        </div>
-        <h3 class="text-sm font-semibold text-slate-200">Catalog Search</h3>
-        <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Type in the search bar above to look up movies or TV series and stream them instantly.</p>
-      </div>
-    `;
-    createIcons(iconConfig);
+  if (!items || items.length === 0) {
+    container.innerHTML = '<span class="text-xs text-slate-600 py-4">No content items.</span>';
     return;
   }
 
-  emptyState.classList.add('hidden');
-  document.getElementById('filtered-count').textContent = `${results.length} items`;
-
-  results.forEach(item => {
+  items.forEach(item => {
     const title = item.title || item.name || 'Untitled';
     const isTV = item.media_type === 'tv';
-    const releaseDate = item.release_date || item.first_air_date || '';
-    const year = releaseDate ? releaseDate.split('-')[0] : 'N/A';
+    const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
     const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
-    const imgUrl = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
+    const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
 
     const card = document.createElement('div');
-    card.className = "detail-item-card hover-scale";
-    
+    card.className = 'detail-item-card hover-scale';
     card.innerHTML = `
-      <img src="${imgUrl}" alt="${title}" class="detail-item-poster" loading="lazy">
+      <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
       <div class="detail-item-info">
         <h4 class="detail-item-title">${title}</h4>
         <div class="detail-item-meta">
@@ -521,59 +264,293 @@ function renderMoviesCatalog(categoryLabel) {
         </div>
       </div>
     `;
-
     card.addEventListener('click', () => openDetailsView(item));
     container.appendChild(card);
   });
-
   createIcons(iconConfig);
 }
 
-// Setup details view interactions
+// Load popular searches as default searches
+async function loadPopularSearches() {
+  if (state.searchQuery) return;
+  const grid = document.getElementById('search-results-grid');
+  document.getElementById('search-status-heading').textContent = 'Popular Search Titles';
+  
+  try {
+    const data = await getTrending();
+    const trending = data.results || [];
+    renderSearchResultsGrid(trending);
+  } catch (err) {
+    console.error("Failed to load trending searches:", err);
+  }
+}
+
+// Render search results grid
+function renderSearchResultsGrid(results) {
+  const grid = document.getElementById('search-results-grid');
+  const emptyState = document.getElementById('search-empty-state');
+  grid.innerHTML = '';
+
+  if (!results || results.length === 0) {
+    emptyState.classList.remove('hidden');
+    return;
+  }
+  emptyState.classList.add('hidden');
+
+  results.forEach(item => {
+    const title = item.title || item.name || 'Untitled';
+    const isTV = item.media_type === 'tv' || !item.release_date;
+    const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
+    const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
+    const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
+
+    const card = document.createElement('div');
+    card.className = 'detail-item-card hover-scale';
+    card.innerHTML = `
+      <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
+      <div class="detail-item-info">
+        <h4 class="detail-item-title">${title}</h4>
+        <div class="detail-item-meta">
+          <span class="detail-item-year">${year} • ${isTV ? 'TV' : 'Movie'}</span>
+          <span class="detail-item-rating">
+            <i data-lucide="star" class="w-3 h-3 fill-amber-400 text-amber-400"></i> ${rating}
+          </span>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', () => openDetailsView({ ...item, media_type: isTV ? 'tv' : 'movie' }));
+    grid.appendChild(card);
+  });
+  createIcons(iconConfig);
+}
+
+// Setup search logic
+function setupSearch() {
+  const searchInput = document.getElementById('search-input');
+  if (!searchInput) return;
+
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    state.searchQuery = query;
+    
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      triggerSearchQuery(query);
+    }, 450);
+  });
+}
+
+// Execute VOD Search
+async function triggerSearchQuery(query) {
+  const grid = document.getElementById('search-results-grid');
+  const heading = document.getElementById('search-status-heading');
+  
+  if (!query) {
+    loadPopularSearches();
+    return;
+  }
+
+  heading.textContent = `Search results for "${query}"`;
+  grid.innerHTML = `
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+    <div class="skeleton-card"></div>
+  `;
+
+  try {
+    const data = await searchMulti(query);
+    renderSearchResultsGrid(data.results);
+  } catch (err) {
+    console.error("Search fetch failed:", err);
+    grid.innerHTML = '<span class="text-xs text-red-400 py-4">Search failed. Check your TMDB credentials.</span>';
+  }
+}
+
+// Render watchlist items in Library tab
+function renderLibraryScreen() {
+  const grid = document.getElementById('library-results-grid');
+  const emptyState = document.getElementById('library-empty-state');
+  grid.innerHTML = '';
+
+  if (state.watchlist.length === 0) {
+    emptyState.classList.remove('hidden');
+    return;
+  }
+  emptyState.classList.add('hidden');
+
+  state.watchlist.forEach(item => {
+    const title = item.title || item.name || 'Untitled';
+    const isTV = item.media_type === 'tv';
+    const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
+    const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
+    const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
+
+    const card = document.createElement('div');
+    card.className = 'detail-item-card hover-scale';
+    card.innerHTML = `
+      <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
+      <div class="detail-item-info">
+        <h4 class="detail-item-title">${title}</h4>
+        <div class="detail-item-meta">
+          <span class="detail-item-year">${year} • ${isTV ? 'TV' : 'Movie'}</span>
+          <span class="detail-item-rating">
+            <i data-lucide="star" class="w-3 h-3 fill-amber-400 text-amber-400"></i> ${rating}
+          </span>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', () => openDetailsView(item));
+    grid.appendChild(card);
+  });
+  createIcons(iconConfig);
+}
+
+// Setup VOD Details modal
 function setupDetailsView() {
-  const backBtn = document.getElementById('details-back-btn');
-  backBtn.addEventListener('click', closeDetailsView);
+  const closeBtn = document.getElementById('details-close-btn');
+  if (closeBtn) closeBtn.addEventListener('click', closeDetailsView);
+
+  const watchlistBtn = document.getElementById('watchlist-toggle-btn');
+  if (watchlistBtn) {
+    watchlistBtn.addEventListener('click', toggleWatchlist);
+  }
 
   const seasonSelect = document.getElementById('season-select');
-  seasonSelect.addEventListener('change', (e) => {
-    if (state.selectedMedia && state.selectedMedia.media_type === 'tv') {
-      loadTVEpisodes(state.selectedMedia.id, e.target.value);
-    }
-  });
+  if (seasonSelect) {
+    seasonSelect.addEventListener('change', (e) => {
+      if (state.selectedMedia && state.selectedMedia.media_type === 'tv') {
+        loadTVEpisodes(state.selectedMedia.id, e.target.value);
+      }
+    });
+  }
+}
+
+// Toggle VOD watchlist item
+function toggleWatchlist() {
+  if (!state.selectedMedia) return;
+  const index = state.watchlist.findIndex(x => x.id === state.selectedMedia.id && x.media_type === state.selectedMedia.media_type);
+  
+  if (index === -1) {
+    // Add to watchlist
+    state.watchlist.unshift({
+      id: state.selectedMedia.id,
+      media_type: state.selectedMedia.media_type,
+      title: state.selectedMedia.title,
+      name: state.selectedMedia.name,
+      release_date: state.selectedMedia.release_date,
+      first_air_date: state.selectedMedia.first_air_date,
+      vote_average: state.selectedMedia.vote_average,
+      poster_path: state.selectedMedia.poster_path,
+      backdrop_path: state.selectedMedia.backdrop_path,
+      overview: state.selectedMedia.overview
+    });
+    player.showToast("Added to Watchlist");
+  } else {
+    // Remove from watchlist
+    state.watchlist.splice(index, 1);
+    player.showToast("Removed from Watchlist");
+  }
+
+  localStorage.setItem('vod_watchlist', JSON.stringify(state.watchlist));
+  renderWatchlistButtonState();
+  
+  // Refresh library list if active
+  if (state.activeTab === 'library') {
+    renderLibraryScreen();
+  }
+}
+
+// Show active/inactive watchlist button state
+function renderWatchlistButtonState() {
+  const icon = document.getElementById('watchlist-icon');
+  const label = document.getElementById('watchlist-text');
+  if (!icon || !label || !state.selectedMedia) return;
+
+  const inWatchlist = state.watchlist.some(x => x.id === state.selectedMedia.id && x.media_type === state.selectedMedia.media_type);
+  if (inWatchlist) {
+    icon.className = 'w-4 h-4 fill-amber-400 text-amber-400';
+    label.textContent = 'In Watchlist';
+  } else {
+    icon.className = 'w-4 h-4 text-slate-400';
+    label.textContent = 'Add to Watchlist';
+  }
+  createIcons(iconConfig);
 }
 
 // Open detailed info for selected Movie / TV Show
 async function openDetailsView(mediaItem) {
   state.selectedMedia = mediaItem;
+  
+  // Render details overlay container
+  document.getElementById('details-overlay').classList.remove('hidden');
 
-  // Hide catalog grid, show info panel below player
-  document.getElementById('channels-grid').parentElement.parentElement.classList.add('hidden');
-  document.getElementById('details-section').classList.remove('hidden');
+  // Move player container from hidden holder to details container
+  const playerSection = document.getElementById('player-section');
+  const vodContainer = document.getElementById('vod-player-container');
+  if (playerSection && vodContainer) {
+    vodContainer.appendChild(playerSection);
+  }
 
-  // Show iframe in the shared player area, hide video tag
-  const videoEl = document.getElementById('video-player');
-  const embedWrapper = document.getElementById('embed-player-wrapper');
-  const embedIframe = document.getElementById('embed-iframe');
-  videoEl.style.display = 'none';
-  embedWrapper.style.display = 'block';
-  embedIframe.src = ''; // will be set by selectActiveSource
-
-  // Set initial placeholders
+  // Setup placeholder details
   const title = mediaItem.title || mediaItem.name || 'Loading...';
   document.getElementById('details-title').textContent = title;
   document.getElementById('details-year').textContent = (mediaItem.release_date || mediaItem.first_air_date || 'N/A').split('-')[0];
   document.getElementById('details-rating').innerHTML = `⭐ ${mediaItem.vote_average ? mediaItem.vote_average.toFixed(1) : 'N/A'}`;
   document.getElementById('details-runtime').textContent = '';
+  document.getElementById('details-overview').textContent = mediaItem.overview || 'Synopsis loading...';
   document.getElementById('tv-selectors').classList.add('hidden');
 
-  // Reset sources
+  const backdropBg = document.getElementById('details-backdrop');
+  const backdropUrl = getTMDBImageUrl(mediaItem.backdrop_path, 'w1280') || getTMDBImageUrl(mediaItem.poster_path, 'w1280');
+  if (backdropBg && backdropUrl) {
+    backdropBg.style.backgroundImage = `url(${backdropUrl})`;
+  } else if (backdropBg) {
+    backdropBg.style.backgroundImage = '';
+  }
+
+  // Reset stream sources
   document.getElementById('sources-list').innerHTML = '';
-  document.getElementById('sources-status').textContent = 'Choose a server to stream.';
+  document.getElementById('sources-status').textContent = 'Choose a server to play.';
   closeActiveSse();
+  renderWatchlistButtonState();
+
+  // Reset player wrapper visual aspects (hide frame, show poster splash)
+  const videoEl = document.getElementById('video-player');
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const embedIframe = document.getElementById('embed-iframe');
+  
+  if (videoEl) {
+    videoEl.style.display = 'none';
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    videoEl.load();
+  }
+  if (embedWrapper) embedWrapper.style.display = 'none';
+  if (embedIframe) embedIframe.src = '';
+  
+  // Show no active stream poster initially
+  const poster = document.getElementById('player-poster');
+  if (poster) {
+    poster.style.display = 'flex';
+    if (mediaItem.backdrop_path) {
+      poster.style.backgroundImage = `url(${getTMDBImageUrl(mediaItem.backdrop_path, 'w780')})`;
+    } else {
+      poster.style.backgroundImage = '';
+    }
+  }
+
+  // Set Seek controls for VOD VOD controls
+  const seekContainer = document.getElementById('seek-container');
+  if (seekContainer) seekContainer.style.display = 'flex';
+  const liveIndicatorDot = document.getElementById('live-indicator-dot');
+  const liveIndicatorText = document.getElementById('live-indicator-text');
+  if (liveIndicatorDot) liveIndicatorDot.style.display = 'none';
+  if (liveIndicatorText) liveIndicatorText.style.display = 'none';
 
   createIcons(iconConfig);
 
-  // Load detailed information via API
+  // Fetch detailed metadata from TMDB
   const isTV = mediaItem.media_type === 'tv';
   try {
     if (isTV) {
@@ -650,13 +627,12 @@ async function loadTVEpisodes(tvId, seasonNumber) {
   }
 }
 
-// Embed providers — all accept TMDB IDs directly
-// VixSrc, Videasy & Vidking are listed first as primary servers (clean UI, reliable streams)
+// Embed providers list
 const EMBED_PROVIDERS = [
   {
     name: 'VixSrc (Primary)',
-    movie: (id) => `https://vixsrc.to/movie/${id}`,
-    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
+    movie: (id) => `https://vixsrc.to/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vixsrc.to/embed/tv/${id}/${s}/${e}`,
   },
   {
     name: 'Videasy (Primary)',
@@ -695,7 +671,7 @@ const EMBED_PROVIDERS = [
   },
 ];
 
-// Start streaming via iframe embed providers or direct stream if available
+// Start streaming resolution queries
 function startStreamResolution({ type, id, season, episode }) {
   closeActiveSse();
 
@@ -707,13 +683,13 @@ function startStreamResolution({ type, id, season, episode }) {
   listContainer.innerHTML = '';
   state.resolvedSources = [];
   state.activeSourceIndex = -1;
-  embedWrapper.style.display = 'none';
-  embedIframe.src = '';
+  if (embedWrapper) embedWrapper.style.display = 'none';
+  if (embedIframe) embedIframe.src = '';
 
   statusText.textContent = 'Resolving streams...';
 
-  // Populate embed providers as default fallbacks
-  EMBED_PROVIDERS.forEach((provider, index) => {
+  // Populate fallback embed servers
+  EMBED_PROVIDERS.forEach((provider) => {
     const embedUrl = type === 'tv'
       ? provider.tv(id, season, episode)
       : provider.movie(id);
@@ -723,12 +699,12 @@ function startStreamResolution({ type, id, season, episode }) {
 
   renderSourcesUI();
 
-  // Trigger background loading of direct stream sources using Vyla API
+  // Trigger HuggingFace Spaces Vyla stream API resolver in background
   state.activeStreamSse = getStreamSources(
     { type, id, season, episode },
     {
       onWaking: () => {
-        statusText.textContent = 'Streaming server is waking up, resolving direct streams...';
+        statusText.textContent = 'Streaming server waking, resolving direct links...';
       },
       onMeta: (meta) => {
         console.log('[Vyla] Meta resolved:', meta);
@@ -736,7 +712,6 @@ function startStreamResolution({ type, id, season, episode }) {
       onSource: (source) => {
         console.log('[Vyla] Direct source resolved:', source);
         if (source && source.url) {
-          // Prepend direct streams to the start of resolved sources
           const directSource = {
             name: source.name || 'Direct HD Server',
             url: source.url,
@@ -746,7 +721,6 @@ function startStreamResolution({ type, id, season, episode }) {
           state.resolvedSources.unshift(directSource);
           renderSourcesUI();
           
-          // Auto-load direct stream if we haven't selected anything or we're on an embed fallback
           if (state.activeSourceIndex === -1 || state.resolvedSources[state.activeSourceIndex]?.type === 'embed') {
             selectActiveSource(0);
           }
@@ -756,12 +730,12 @@ function startStreamResolution({ type, id, season, episode }) {
         if (state.resolvedSources.some(s => s.type === 'stream')) {
           statusText.textContent = 'Direct streams ready. Choose a server to play.';
         } else {
-          statusText.textContent = 'No direct streams found. Streaming via embed. Switch servers if it doesn\'t load.';
+          statusText.textContent = 'No direct streams found. Streaming via fallback embed.';
         }
       },
       onError: (err) => {
         console.error('[Vyla] SSE resolution error:', err);
-        statusText.textContent = 'Failed to find direct streams. Using embed servers.';
+        statusText.textContent = 'Using embed servers.';
       }
     }
   );
@@ -770,7 +744,7 @@ function startStreamResolution({ type, id, season, episode }) {
   selectActiveSource(0);
 }
 
-// Render the list of source selector buttons
+// Render the source selector buttons list
 function renderSourcesUI() {
   const listContainer = document.getElementById('sources-list');
   if (!listContainer) return;
@@ -788,16 +762,15 @@ function renderSourcesUI() {
   });
 }
 
-// Select source and load in the shared player
 let shieldTimer = null;
 
+// Load server source in the shared player
 function selectActiveSource(index) {
   if (index < 0 || index >= state.resolvedSources.length) return;
 
   state.activeSourceIndex = index;
   const source = state.resolvedSources[index];
 
-  // Update UI button active state
   renderSourcesUI();
 
   const embedIframe = document.getElementById('embed-iframe');
@@ -805,35 +778,34 @@ function selectActiveSource(index) {
   const videoEl = document.getElementById('video-player');
   const playerWrapper = document.querySelector('.player-wrapper');
   const shield = document.getElementById('embed-shield');
+  const poster = document.getElementById('player-poster');
 
-  // Stop playing current stream
+  // Stop video element playback and reset it
   if (videoEl) {
     videoEl.pause();
     videoEl.removeAttribute('src');
     videoEl.load();
   }
 
+  // Hide splash poster once we select a source and play
+  if (poster) poster.style.display = 'none';
+
   if (source.type === 'stream') {
-    // Play direct stream in custom player
     if (embedIframe) embedIframe.src = '';
     if (embedWrapper) embedWrapper.style.display = 'none';
     if (videoEl) videoEl.style.display = '';
     if (playerWrapper) playerWrapper.classList.remove('embed-active');
     if (shield) shield.style.display = 'none';
 
-    // Play stream URL
     player.playChannel({
       url: source.url,
-      name: state.selectedMedia ? (state.selectedMedia.title || state.selectedMedia.name) : 'Movie/TV Video'
+      name: state.selectedMedia ? (state.selectedMedia.title || state.selectedMedia.name) : 'VOD Stream'
     });
   } else {
-    // Play iframe embed
     if (videoEl) videoEl.style.display = 'none';
     if (embedWrapper) embedWrapper.style.display = 'block';
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) {
-      // Sandbox is opt-in (default OFF) — many providers like Videasy actively detect
-      // and block sandboxed iframes, so we only enable it if the user explicitly turns it on.
       const useStrict = localStorage.getItem('strict_sandbox') === 'true';
       if (useStrict) {
         embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
@@ -843,7 +815,6 @@ function selectActiveSource(index) {
       embedIframe.src = source.url;
     }
 
-    // Shield logic: block stray popup-triggering clicks, drop on intent
     if (shield) {
       shield.style.display = 'block';
       clearTimeout(shieldTimer);
@@ -860,17 +831,17 @@ function selectActiveSource(index) {
   const statusText = document.getElementById('sources-status');
   if (statusText) {
     if (source.type === 'stream') {
-      statusText.textContent = `Streaming direct source via ${source.name}. Use player controls below (100% ad-free).`;
+      statusText.textContent = `Streaming direct source via ${source.name}. Use player controls below.`;
     } else {
-      statusText.textContent = `Streaming fallback embed via ${source.name}. Click frame to play. (Warning: Clicks may trigger popups; use an ad-blocker for best results).`;
+      statusText.textContent = `Streaming embed via ${source.name}. Click frame to play. (Warning: Embed ads may trigger popups).`;
     }
   }
 }
 
-// Close ongoing EventSource client stream resolver
+// Close active stream EventSource connection
 function closeActiveSse() {
   if (state.activeStreamSse) {
-    console.log('Closing active stream connection');
+    console.log('Closing VOD stream resolver');
     if (typeof state.activeStreamSse.cancel === 'function') {
       state.activeStreamSse.cancel();
     } else if (typeof state.activeStreamSse.close === 'function') {
@@ -880,13 +851,12 @@ function closeActiveSse() {
   }
 }
 
-// Return to channels listing catalog
+// Close details overlay modal
 function closeDetailsView() {
   closeActiveSse();
   state.selectedMedia = null;
   state.resolvedSources = [];
 
-  // Stop and hide iframe, restore video player
   const embedIframe = document.getElementById('embed-iframe');
   const embedWrapper = document.getElementById('embed-player-wrapper');
   const videoEl = document.getElementById('video-player');
@@ -896,7 +866,7 @@ function closeDetailsView() {
   if (embedWrapper) embedWrapper.style.display = 'none';
   if (playerWrapper) playerWrapper.classList.remove('embed-active');
 
-  // Stop video element playback and reset it
+  // Pause playing video tag
   if (videoEl) {
     videoEl.pause();
     videoEl.removeAttribute('src');
@@ -904,7 +874,7 @@ function closeDetailsView() {
     videoEl.style.display = '';
   }
 
-  // Restore live indicator/controls
+  // Restore live indicators
   const liveDot = document.getElementById('live-indicator-dot');
   const liveText = document.getElementById('live-indicator-text');
   const seekContainer = document.getElementById('seek-container');
@@ -912,16 +882,231 @@ function closeDetailsView() {
   if (liveText) liveText.style.display = '';
   if (seekContainer) seekContainer.style.display = 'none';
 
-  // Hide details panel & reveal catalog grid
-  document.getElementById('details-section').classList.add('hidden');
-  document.getElementById('channels-grid').parentElement.parentElement.classList.remove('hidden');
+  // Hide details panel modal
+  document.getElementById('details-overlay').classList.add('hidden');
+
+  // Relocate player to hidden holder
+  const playerSection = document.getElementById('player-section');
+  const holder = document.getElementById('shared-player-holder');
+  if (playerSection && holder) {
+    holder.appendChild(playerSection);
+  }
 }
 
-// State filtering engine for Live IPTV channels
+// Load settings form credentials
+function setupSettingsScreen() {
+  const tmdbKeyInput = document.getElementById('settings-tmdb-key');
+  const sandboxInput = document.getElementById('settings-strict-sandbox');
+  const usernameInput = document.getElementById('settings-iptv-username');
+  const passwordInput = document.getElementById('settings-iptv-password');
+  const saveBtn = document.getElementById('settings-save-btn');
+
+  // Populate inputs on load
+  if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
+  if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
+  if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
+  if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const key = tmdbKeyInput.value.trim();
+      if (key) {
+        localStorage.setItem('tmdb_api_key', key);
+      } else {
+        localStorage.removeItem('tmdb_api_key');
+      }
+
+      localStorage.setItem('strict_sandbox', sandboxInput.checked ? 'true' : 'false');
+
+      const oldUsername = localStorage.getItem('iptv_username');
+      const oldPassword = localStorage.getItem('iptv_password');
+
+      const newUsername = usernameInput.value.trim();
+      const newPassword = passwordInput.value.trim();
+
+      localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
+      localStorage.setItem('iptv_username', newUsername);
+      localStorage.setItem('iptv_password', newPassword);
+      localStorage.setItem('iptv_epg', `http://portal5458.com:8080/xmltv.php?username=${newUsername}&password=${newPassword}`);
+
+      player.showToast("Settings Saved Successfully");
+
+      // Reload IPTV channels if credentials changed
+      if (newUsername !== oldUsername || newPassword !== oldPassword) {
+        console.log("[IPTV] Credentials changed, reloading channels...");
+        loadIPTVPlaylist();
+      }
+    });
+  }
+}
+
+// Load IPTV playlist from credentials
+// Fetch playlist via Xtream Codes player API and dynamically format as M3U
+async function fetchXtreamPlaylist(portalUrl, username, password) {
+  const proxyPrefix = '/api/proxy?url=';
+  const categoriesUrl = `${proxyPrefix}${encodeURIComponent(`${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_categories`)}`;
+  const streamsUrl = `${proxyPrefix}${encodeURIComponent(`${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams`)}`;
+
+  console.log("[Xtream] Fetching categories from API...");
+  const catRes = await fetch(categoriesUrl);
+  if (!catRes.ok) throw new Error("Failed to fetch Xtream categories");
+  const categories = await catRes.json();
+
+  console.log("[Xtream] Fetching streams from API...");
+  const streamRes = await fetch(streamsUrl);
+  if (!streamRes.ok) throw new Error("Failed to fetch Xtream streams");
+  const streams = await streamRes.json();
+
+  // Create category map
+  const catMap = {};
+  if (Array.isArray(categories)) {
+    categories.forEach(cat => {
+      catMap[cat.category_id] = cat.category_name;
+    });
+  }
+
+  // Convert streams to M3U format
+  let m3uLines = ['#EXTM3U'];
+  if (Array.isArray(streams)) {
+    streams.forEach(stream => {
+      const streamName = stream.name || 'Unknown Channel';
+      const streamId = stream.stream_id;
+      const logo = stream.stream_icon || '';
+      const categoryName = catMap[stream.category_id] || 'General';
+      const streamUrl = `${portalUrl}/live/${username}/${password}/${streamId}.ts`;
+
+      m3uLines.push(`#EXTINF:-1 tvg-id="" tvg-name="${streamName}" tvg-logo="${logo}" group-title="${categoryName}",${streamName}`);
+      m3uLines.push(streamUrl);
+    });
+  }
+
+  return m3uLines.join('\n');
+}
+
+// Load IPTV playlist from credentials
+async function loadIPTVPlaylist() {
+  const headerBadge = document.getElementById('channel-count-header');
+  
+  try {
+    const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
+    const username = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
+    const password = localStorage.getItem('iptv_password') || '4WM9WVsjG';
+    
+    console.log("[IPTV] Loading Xtream playlist from:", portalUrl);
+    let rawM3U = '';
+    
+    if (portalUrl && username && password) {
+      rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
+    } else {
+      const playlistUrl = './o_all.m3u';
+      const response = await fetch(playlistUrl);
+      if (!response.ok) throw new Error("Failed to fetch default M3U");
+      rawM3U = await response.text();
+    }
+    
+    state.channels = parseM3U(rawM3U);
+    
+    // Extract category groups
+    const groups = new Set();
+    state.channels.forEach(ch => {
+      if (ch.group) groups.add(ch.group);
+    });
+    
+    state.categories = ['All Channels', 'Favorites', 'Recents', ...Array.from(groups).sort()];
+    
+    const countText = `${state.channels.length} Live Channels`;
+    if (headerBadge) headerBadge.textContent = countText;
+    
+    const countEl = document.getElementById('filtered-count');
+    if (countEl && state.activeTab === 'live') {
+      countEl.textContent = countText;
+      renderCategories();
+      applyFilterAndRender();
+    }
+  } catch (error) {
+    console.error("Failed to parse IPTV playlist:", error);
+    if (headerBadge) headerBadge.textContent = 'Playlist Offline';
+    
+    if (state.activeTab === 'live') {
+      const grid = document.getElementById('channels-grid');
+      grid.innerHTML = `
+        <div class="col-span-full py-12 text-center">
+          <div class="w-12 h-12 mx-auto rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-3">
+            <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+          </div>
+          <h3 class="text-sm font-semibold text-slate-200">Failed to load channels</h3>
+          <p class="text-xs text-slate-500 mt-1">Please check your IPTV credentials in Settings or verify your network connection.</p>
+          <button id="reload-playlist-btn" class="mt-4 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Retry Playlist Load
+          </button>
+        </div>
+      `;
+      createIcons(iconConfig);
+      
+      const retryBtn = document.getElementById('reload-playlist-btn');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+          retryBtn.disabled = true;
+          retryBtn.textContent = 'Retrying...';
+          loadIPTVPlaylist();
+        });
+      }
+    }
+  }
+}
+
+// Render categories selection in Live TV sidebar
+function renderCategories() {
+  const container = document.getElementById('categories-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  state.categories.forEach(category => {
+    const btn = document.createElement('button');
+    btn.className = `category-btn ${state.selectedCategory === category ? 'active' : ''}`;
+    
+    let iconName = 'tv';
+    let count = 0;
+    
+    if (category === 'All Channels') {
+      iconName = 'tv';
+      count = state.channels.length;
+    } else if (category === 'Favorites') {
+      iconName = 'star';
+      count = state.favorites.length;
+    } else if (category === 'Recents') {
+      iconName = 'refresh-cw';
+      count = state.recents.length;
+    } else {
+      iconName = 'tv';
+      count = state.channels.filter(ch => ch.group === category).length;
+    }
+
+    btn.innerHTML = `
+      <div class="flex items-center gap-2.5 truncate">
+        <i data-lucide="${iconName}" class="w-4 h-4 opacity-75 shrink-0"></i>
+        <span class="truncate">${category}</span>
+      </div>
+      <span class="text-[10px] bg-slate-900 border border-slate-800/80 text-slate-500 px-1.5 py-0.5 rounded-md min-w-5 text-center">${count}</span>
+    `;
+
+    btn.addEventListener('click', () => {
+      state.selectedCategory = category;
+      document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyFilterAndRender();
+    });
+
+    container.appendChild(btn);
+  });
+
+  createIcons(iconConfig);
+}
+
+// Apply filter logic to Live channels
 function applyFilterAndRender() {
   let list = [];
 
-  // 1. Apply category selection
   if (state.selectedCategory === 'All Channels') {
     list = [...state.channels];
   } else if (state.selectedCategory === 'Favorites') {
@@ -934,64 +1119,50 @@ function applyFilterAndRender() {
     list = state.channels.filter(ch => ch.group === state.selectedCategory);
   }
 
-  // 2. Apply search query
-  if (state.searchQuery) {
-    list = list.filter(ch => ch.name.toLowerCase().includes(state.searchQuery));
-  }
-
   state.filteredChannels = list;
 
-  // Update DOM headers
-  document.getElementById('current-category-name').textContent = state.selectedCategory;
-  document.getElementById('filtered-count').textContent = `${list.length} channels`;
-  document.getElementById('channel-list-info').textContent = state.searchQuery 
-    ? `Filtered by search "${state.searchQuery}"` 
-    : `Showing matching results in ${state.selectedCategory}`;
+  const countEl = document.getElementById('filtered-count');
+  if (countEl) countEl.textContent = `${list.length} channels`;
+  
+  const subtitleEl = document.getElementById('channel-list-info');
+  if (subtitleEl) {
+    subtitleEl.textContent = `Showing matching results in ${state.selectedCategory}`;
+  }
 
   renderChannelsGrid();
 }
 
-// Dynamic rendering of Live TV channel cards
+// Render Live TV Channel Cards
 function renderChannelsGrid() {
   const container = document.getElementById('channels-grid');
   const emptyState = document.getElementById('no-channels-found');
+  if (!container) return;
   container.innerHTML = '';
 
   if (state.filteredChannels.length === 0) {
-    emptyState.classList.remove('hidden');
+    if (emptyState) emptyState.classList.remove('hidden');
     return;
   }
-  emptyState.classList.add('hidden');
+  if (emptyState) emptyState.classList.add('hidden');
 
   state.filteredChannels.forEach(channel => {
     const isFav = state.favorites.includes(channel.id);
     const isActive = state.currentPlayingUrl === channel.url;
     
     const card = document.createElement('div');
-    card.className = `channel-card hover-scale p-4 rounded-xl flex items-center justify-between gap-3 cursor-pointer select-none ${
-      isActive ? 'active' : ''
-    }`;
-    
-    card.addEventListener('mousemove', (e) => {
-      const rect = card.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      card.style.setProperty('--mouse-x', `${x}px`);
-      card.style.setProperty('--mouse-y', `${y}px`);
-    });
+    card.className = `channel-card hover-scale ${isActive ? 'active' : ''}`;
 
     const content = document.createElement('div');
     content.className = "flex items-center gap-3 min-w-0 flex-1";
     content.addEventListener('click', () => playChannel(channel));
 
     const logoContainer = document.createElement('div');
-    logoContainer.className = "w-11 h-11 rounded-lg bg-slate-900 border border-slate-800/80 flex items-center justify-center shrink-0 overflow-hidden relative";
+    logoContainer.className = "channel-card-logo-wrap";
     
     if (channel.logo) {
       const img = document.createElement('img');
       img.src = channel.logo;
       img.alt = channel.name;
-      img.className = "w-full h-full object-contain p-1";
       img.loading = "lazy";
       img.onerror = () => {
         img.remove();
@@ -1003,19 +1174,18 @@ function renderChannelsGrid() {
     }
 
     const details = document.createElement('div');
-    details.className = "min-w-0 flex-1";
+    details.className = "channel-card-info";
     details.innerHTML = `
-      <h4 class="text-xs font-bold text-slate-200 truncate pr-2 group-hover:text-indigo-400 transition-colors">${channel.name}</h4>
-      <span class="text-[9px] bg-slate-950 border border-slate-900 text-slate-500 px-1.5 py-0.5 rounded-full mt-1.5 inline-block truncate max-w-full">${channel.group}</span>
+      <h4 class="channel-card-title">${channel.name}</h4>
+      <span class="channel-card-group">${channel.group || 'Live TV'}</span>
     `;
 
     content.appendChild(logoContainer);
     content.appendChild(details);
 
     const favBtn = document.createElement('button');
-    favBtn.className = `p-2 hover:bg-slate-800/80 rounded-lg text-slate-500 hover:text-amber-400 transition-colors shrink-0 ${isFav ? 'text-amber-400' : ''}`;
-    favBtn.ariaLabel = "Add to Favorites";
-    favBtn.innerHTML = `<i data-lucide="star" class="w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : ''}"></i>`;
+    favBtn.className = `channel-fav-btn ${isFav ? 'active' : ''}`;
+    favBtn.innerHTML = `<i data-lucide="star" class="${isFav ? 'fill-amber-400 text-amber-400' : ''}"></i>`;
     favBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleFavorite(channel.id);
@@ -1030,7 +1200,7 @@ function renderChannelsGrid() {
   createIcons(iconConfig);
 }
 
-// Dynamic avatar generation if no channel logo
+// Avatar fallback initial name
 function createPlaceholderLogo(name) {
   const placeholder = document.createElement('div');
   placeholder.className = "w-full h-full flex items-center justify-center font-bold text-[10px] uppercase text-indigo-400 bg-indigo-950/20";
@@ -1045,14 +1215,29 @@ function createPlaceholderLogo(name) {
   return placeholder;
 }
 
-// Action triggers for Live channels
+// Play Live Channel HLS
 function playChannel(channel) {
-  // If playing live channel, make sure to close any active movie streams SSE connection
   closeActiveSse();
 
   state.currentPlayingUrl = channel.url;
-  player.playChannel(channel);
   
+  // Shift player wrapper controls live indicators
+  const liveDot = document.getElementById('live-indicator-dot');
+  const liveText = document.getElementById('live-indicator-text');
+  const seekContainer = document.getElementById('seek-container');
+  if (liveDot) liveDot.style.display = 'block';
+  if (liveText) liveText.style.display = 'block';
+  if (seekContainer) seekContainer.style.display = 'none';
+
+  // Reset embed player wrappers
+  const embedIframe = document.getElementById('embed-iframe');
+  if (embedIframe) embedIframe.src = '';
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  if (embedWrapper) embedWrapper.style.display = 'none';
+  const videoEl = document.getElementById('video-player');
+  if (videoEl) videoEl.style.display = '';
+
+  player.playChannel(channel);
   addToRecents(channel.id);
   
   document.querySelectorAll('.channel-card').forEach(card => {
@@ -1062,6 +1247,7 @@ function playChannel(channel) {
   applyFilterAndRender();
 }
 
+// Toggle Live favorite channels
 function toggleFavorite(id) {
   const index = state.favorites.indexOf(id);
   if (index === -1) {
@@ -1077,6 +1263,7 @@ function toggleFavorite(id) {
   applyFilterAndRender();
 }
 
+// Add played live channel to recents
 function addToRecents(id) {
   const index = state.recents.indexOf(id);
   if (index !== -1) {

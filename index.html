@@ -3,343 +3,407 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WORLD LIVE - IPTV Stream Player</title>
-  <meta name="description" content="A premium, fully responsive IPTV player featuring live English television streams, smart categories, and custom controls.">
+  <title>TVISION - Premium Streaming & Live TV</title>
+  <meta name="description" content="A premium, ad-free streaming player for movies, TV shows, and live TV channels.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="dark-theme">
   
-  <!-- Header -->
-  <header class="app-header">
-    <div class="header-left">
-      <button id="sidebar-toggle" class="icon-btn lg-hidden" aria-label="Toggle Sidebar">
-        <i data-lucide="menu"></i>
+  <!-- Left App Navigation Sidebar -->
+  <aside class="app-sidebar-nav">
+    <div class="sidebar-logo">
+      <div class="logo-icon-badge">
+        <i data-lucide="tv"></i>
+      </div>
+      <span class="logo-text">TVISION</span>
+    </div>
+    
+    <nav class="nav-links">
+      <button class="nav-link active" data-tab="home" title="Home">
+        <i data-lucide="home"></i>
+        <span>Home</span>
       </button>
-      <div class="app-branding">
-        <div class="logo-badge">
-          <i data-lucide="tv"></i>
-        </div>
-        <div class="branding-text">
-          <h1>WORLD LIVE</h1>
-          <p>IPTV Stream Player</p>
-        </div>
-      </div>
-      <!-- Mode Toggle Switch -->
-      <div class="mode-toggle-container">
-        <button id="btn-mode-live" class="mode-toggle-btn">
-          <i data-lucide="tv"></i> <span>Live TV</span>
-        </button>
-        <button id="btn-mode-movies" class="mode-toggle-btn active">
-          <i data-lucide="monitor"></i> <span>Movies & TV</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Search Input (Desktop) -->
-    <div class="search-wrapper md-visible">
-      <i data-lucide="search" class="search-icon"></i>
-      <input type="text" id="search-input" class="search-input" placeholder="Search movies & TV shows...">
-    </div>
-
-    <!-- Right Stats Panel -->
-    <div class="header-right">
-      <div class="status-indicator">
-        <span class="live-dot-container">
-          <span class="live-ping"></span>
-          <span class="live-dot"></span>
-        </span>
-        <span id="channel-count">Loading channels...</span>
-      </div>
-      <button id="settings-toggle-btn" class="icon-btn header-settings-btn" title="API Settings">
+      <button class="nav-link" data-tab="search" title="Search">
+        <i data-lucide="search"></i>
+        <span>Search</span>
+      </button>
+      <button class="nav-link" data-tab="live" title="Live TV">
+        <i data-lucide="monitor"></i>
+        <span>Live TV</span>
+      </button>
+      <button class="nav-link" data-tab="library" title="Library">
+        <i data-lucide="star"></i>
+        <span>Library</span>
+      </button>
+      <button class="nav-link" data-tab="settings" title="Settings">
         <i data-lucide="settings"></i>
+        <span>Settings</span>
       </button>
+    </nav>
+    
+    <div class="sidebar-nav-footer">
+      <span class="version-lbl">v1.1.0</span>
     </div>
+  </aside>
+
+  <!-- Mobile Top Bar (header-branding & hamburger) -->
+  <header class="mobile-header lg-hidden">
+    <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle Sidebar">
+      <i data-lucide="menu"></i>
+    </button>
+    <span class="mobile-title">TVISION</span>
+    <span id="channel-count-header" class="mobile-badge-count">Loading...</span>
   </header>
 
-  <!-- Mobile Search Bar -->
-  <div class="mobile-search-bar md-hidden">
-    <div class="search-wrapper">
-      <i data-lucide="search" class="search-icon"></i>
-      <input type="text" id="search-input-mobile" class="search-input" placeholder="Search movies/shows...">
-    </div>
-  </div>
-
-  <!-- App Body Layout -->
-  <main class="app-body">
+  <!-- Main Scrollable App Container -->
+  <main class="app-main-content">
     
-    <!-- Sidebar -->
-    <aside id="app-sidebar" class="sidebar sidebar-closed">
-      <div class="sidebar-header lg-hidden">
-        <span class="sidebar-title">CATEGORIES</span>
-        <button id="sidebar-close" class="icon-btn" aria-label="Close Sidebar">
-          <i data-lucide="x"></i>
-        </button>
-      </div>
-
-      <nav class="sidebar-nav custom-scrollbar" id="categories-container">
-        <!-- Categories list populated dynamically -->
-        <div class="sidebar-skeleton">
-          <div class="skeleton-item"></div>
-          <div class="skeleton-item"></div>
-          <div class="skeleton-item"></div>
-          <div class="skeleton-item"></div>
-        </div>
-      </nav>
-
-      <div class="sidebar-footer">
-        <span>v1.0.0 (Global Index)</span>
-        <a href="https://github.com/iptv-org/iptv" target="_blank" class="footer-link">
-          iptv-org <i data-lucide="external-link"></i>
-        </a>
-      </div>
-    </aside>
-
-    <!-- Overlay back-drop for sidebar on mobile -->
-    <div id="sidebar-overlay" class="overlay hidden"></div>
-
-    <!-- Main View Panel -->
-    <div class="main-content">
-      
-      <!-- Video Player Container -->
-      <section id="player-section" class="player-container">
-        <div class="player-wrapper group">
-
-          <!-- HLS Video Tag (Live TV) -->
-          <video id="video-player" playsinline style="width:100%;height:100%;"></video>
-
-          <!-- Embed iframe (Movies & TV) -->
-          <div id="embed-player-wrapper" style="display:none;position:absolute;inset:0;z-index:5;">
-            <!-- Popup blocker shield -->
-            <div id="embed-shield" style="position:absolute;inset:0;z-index:10;cursor:pointer;"></div>
-            <iframe
-              id="embed-iframe"
-              allowfullscreen
-              allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
-              referrerpolicy="no-referrer"
-              style="width:100%;height:100%;border:none;background:#000;"
-            ></iframe>
+    <!-- Tab 1: Home Dashboard -->
+    <div id="tab-home" class="tab-screen">
+      <!-- Cinematic Spotlight Hero Banner -->
+      <section id="hero-section" class="hero-section">
+        <div id="hero-backdrop" class="hero-backdrop"></div>
+        <div class="hero-gradient-overlay"></div>
+        <div class="hero-content">
+          <span class="hero-tagline">SPOTLIGHT</span>
+          <h1 id="hero-title" class="hero-title">Loading Spotlight...</h1>
+          <div class="hero-meta">
+            <span id="hero-rating" class="hero-rating-pill">⭐ --</span>
+            <span id="hero-year" class="hero-year-pill">----</span>
+            <span id="hero-type" class="hero-type-pill">Movie</span>
           </div>
-          
-          <!-- Poster splash display before playing -->
-          <div id="player-poster" class="player-overlay poster-overlay">
-            <div class="poster-play-badge">
-              <i data-lucide="play"></i>
-            </div>
-            <h3>No Stream Active</h3>
-            <p>Select any channel from the list below to start streaming immediately.</p>
-          </div>
-
-          <!-- Buffering Spinner -->
-          <div id="player-loading" class="player-overlay loading-overlay hidden">
-            <div class="spinner-container">
-              <div class="spinner-track"></div>
-              <div class="spinner-head"></div>
-            </div>
-            <span>Buffering Live Stream...</span>
-          </div>
-
-          <!-- Toast Message Notification -->
-          <div id="player-toast" class="player-toast opacity-0">
-            <i data-lucide="info"></i>
-            <span id="toast-message">Notification message</span>
-          </div>
-
-          <!-- Error Alert Overlay -->
-          <div id="player-error" class="player-overlay error-overlay hidden">
-            <div class="error-badge">
-              <i data-lucide="alert-triangle"></i>
-            </div>
-            <h3>Stream Connection Failed</h3>
-            <p id="error-details">This stream is currently offline or unreachable.</p>
-            <button id="retry-stream-btn" class="btn btn-primary">
-              <i data-lucide="refresh-cw"></i> Retry Connection
+          <p id="hero-overview" class="hero-overview">Gathering content description...</p>
+          <div class="hero-actions">
+            <button id="hero-play-btn" class="btn btn-primary btn-lg flex items-center gap-2">
+              <i data-lucide="play" class="fill-white"></i> Play Now
             </button>
           </div>
-
-          <!-- Custom Player Controls Bar (visible on hover) -->
-          <div id="video-controls" class="video-controls-bar">
-            <!-- Channel Info and Live Tag -->
-            <div class="controls-status-row">
-              <span class="live-pulse-dot" id="live-indicator-dot"></span>
-              <span class="live-badge" id="live-indicator-text">LIVE</span>
-              <span id="player-channel-title" class="controls-channel-title"></span>
-            </div>
-
-            <!-- Seek Slider / Time display for VOD (Movies & TV) -->
-            <div id="seek-container" class="seek-container" style="display: none;">
-              <span id="current-time" class="time-display">0:00</span>
-              <input type="range" id="seek-slider" min="0" max="100" value="0" class="seek-slider">
-              <span id="duration-time" class="time-display">0:00</span>
-            </div>
-
-            <!-- Controls Row -->
-            <div class="controls-actions-row">
-              <!-- Left side: Playback & Volume -->
-              <div class="actions-left">
-                <button id="play-pause-btn" class="control-btn" aria-label="Play/Pause">
-                  <i data-lucide="pause"></i>
-                </button>
-                
-                <button id="reload-btn" class="control-btn" title="Reload stream">
-                  <i data-lucide="refresh-cw"></i>
-                </button>
-
-                <div class="volume-container">
-                  <button id="mute-btn" class="control-btn" aria-label="Mute/Unmute">
-                    <i data-lucide="volume-2"></i>
-                  </button>
-                  <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="volume-slider">
-                </div>
-              </div>
-
-              <!-- Right side: Stream layout customization -->
-              <div class="actions-right">
-                <button id="aspect-ratio-btn" class="control-btn ratio-btn" title="Aspect Ratio Fit/Fill">
-                  <i data-lucide="monitor"></i> <span id="aspect-label">FIT</span>
-                </button>
-
-                <button id="pip-btn" class="control-btn" title="Picture in Picture">
-                  <i data-lucide="square-stack"></i>
-                </button>
-
-                <button id="fullscreen-btn" class="control-btn" aria-label="Fullscreen">
-                  <i data-lucide="maximize"></i>
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
-      <!-- Channels List Container -->
-      <section class="channels-section">
-        <!-- List Filter Header -->
-        <div class="channels-header">
-          <div class="header-info">
-            <h2 id="current-category-name">All Channels</h2>
-            <p id="channel-list-info">Showing matching results</p>
-          </div>
-          
-          <div class="header-actions">
-            <span id="filtered-count" class="badge">0 channels</span>
+      <!-- Horizontal scrolling rows of cards -->
+      <section class="dashboard-rows-section">
+        <div class="row-container">
+          <h2 class="row-heading">Trending Movies</h2>
+          <div id="row-trending-movies" class="carousel-list custom-scrollbar">
+            <!-- Skeleton cards initially -->
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
           </div>
         </div>
 
-        <!-- Scrollable Channels Grid -->
-        <div class="channels-grid-container custom-scrollbar">
-          <div id="channels-grid" class="channels-grid">
-            <!-- Skeleton Loading Cards -->
+        <div class="row-container">
+          <h2 class="row-heading">Trending TV Series</h2>
+          <div id="row-trending-tv" class="carousel-list custom-scrollbar">
+            <div class="skeleton-card"></div>
             <div class="skeleton-card"></div>
             <div class="skeleton-card"></div>
             <div class="skeleton-card"></div>
             <div class="skeleton-card"></div>
           </div>
-          
-          <!-- Empty Search State -->
-          <div id="no-channels-found" class="empty-state hidden">
-            <div class="empty-state-icon">
-              <i data-lucide="search"></i>
-            </div>
-            <h3>No channels match search</h3>
-            <p>Double check your spelling or choose another category from the sidebar.</p>
-          </div>
+        </div>
+
+        <div class="row-container" id="row-watchlist-section" style="display: none;">
+          <h2 class="row-heading">My Watchlist</h2>
+          <div id="row-watchlist" class="carousel-list custom-scrollbar"></div>
         </div>
       </section>
+    </div>
 
-      <!-- Movie / TV Info Panel (shown below player when a title is selected) -->
-      <section id="details-section" class="details-section hidden">
-        <!-- Compact info bar -->
-        <div class="details-header-bar">
-          <button id="details-back-btn" class="btn btn-secondary text-xs flex items-center gap-1.5">
-            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back to Catalog
+    <!-- Tab 2: Search Screen -->
+    <div id="tab-search" class="tab-screen hidden">
+      <div class="search-header-container">
+        <div class="search-bar-wrap">
+          <i data-lucide="search" class="search-field-icon"></i>
+          <input type="text" id="search-input" class="search-field-input" placeholder="Search movies, TV shows, and series...">
+        </div>
+      </div>
+      <div class="search-results-container custom-scrollbar">
+        <h2 class="search-heading" id="search-status-heading">Popular Searches</h2>
+        <div id="search-results-grid" class="search-results-grid">
+          <!-- Skeleton card list on load -->
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+        <div id="search-empty-state" class="empty-state-card hidden">
+          <i data-lucide="alert-triangle"></i>
+          <h3>No titles found</h3>
+          <p>We couldn't find any movies or TV series matching your search.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Live TV Screen -->
+    <div id="tab-live" class="tab-screen hidden">
+      <!-- Live split-screen layout -->
+      <div class="live-tv-layout">
+        <!-- Top Half: Dedicated Live Video player container -->
+        <div id="live-player-container" class="live-player-container-wrapper">
+          <!-- Shared Player Section will be appended here dynamically -->
+        </div>
+
+        <!-- Bottom Half: Category sidebar + Channels grid -->
+        <div class="live-channels-container">
+          <aside class="live-sidebar">
+            <div class="sidebar-section-title">Categories</div>
+            <nav id="categories-container" class="live-categories-nav custom-scrollbar">
+              <!-- Loaded dynamically -->
+            </nav>
+          </aside>
+
+          <section class="live-channels-grid-wrap">
+            <div class="live-channels-grid-header">
+              <div>
+                <h3 id="current-category-name" class="current-cat-title">All Channels</h3>
+                <p id="channel-list-info" class="current-cat-subtitle">Loading Live stream channels...</p>
+              </div>
+              <span id="filtered-count" class="badge-count">0 channels</span>
+            </div>
+
+            <div class="live-grid-scroll custom-scrollbar">
+              <div id="channels-grid" class="live-channels-grid">
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+              </div>
+              <div id="no-channels-found" class="empty-state-card hidden">
+                <i data-lucide="search"></i>
+                <h3>No channels match</h3>
+                <p>Try filtering by another category or clearing your search query.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 4: Watchlist Library Screen -->
+    <div id="tab-library" class="tab-screen hidden">
+      <div class="library-header">
+        <h2>My Library</h2>
+        <p>Your watchlisted movies and television shows</p>
+      </div>
+      <div class="library-scroll custom-scrollbar">
+        <div id="library-results-grid" class="library-grid">
+          <!-- Loaded dynamically -->
+        </div>
+        <div id="library-empty-state" class="empty-state-card">
+          <i data-lucide="star"></i>
+          <h3>Watchlist is Empty</h3>
+          <p>Explore Home or Search to add movies and TV shows to your personal watchlist library.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 5: Settings Tab Screen -->
+    <div id="tab-settings" class="tab-screen hidden">
+      <div class="settings-header-sheet">
+        <h2>API & IPTV Configuration</h2>
+        <p>Set up API keys, IPTV portal details, and player attributes.</p>
+      </div>
+      <div class="settings-form-container custom-scrollbar">
+        <div class="settings-form-section">
+          <h3>TMDB API Key</h3>
+          <p class="section-desc">Required to fetch movies and TV show summaries, posters, and season details.</p>
+          <div class="settings-input-group">
+            <label for="settings-tmdb-key" class="settings-input-label">TMDB v3 API Key</label>
+            <input type="text" id="settings-tmdb-key" class="settings-input-control" placeholder="Enter custom TMDB Key (Default fallback provided)...">
+          </div>
+          <div class="settings-input-group checkbox-group">
+            <input type="checkbox" id="settings-strict-sandbox" class="settings-checkbox">
+            <label for="settings-strict-sandbox" class="settings-checkbox-label">Strict Iframe Sandbox (Prevents external ads/popups)</label>
+          </div>
+        </div>
+
+        <div class="settings-form-section">
+          <h3>IPTV Portal Credentials</h3>
+          <p class="section-desc">Configure your Xtream Codes portal username and password for IPTV setup.</p>
+          
+          <div class="settings-input-row">
+            <div class="settings-input-group">
+              <label for="settings-iptv-username" class="settings-input-label">Username</label>
+              <input type="text" id="settings-iptv-username" class="settings-input-control" placeholder="Xtream Username...">
+            </div>
+            <div class="settings-input-group">
+              <label for="settings-iptv-password" class="settings-input-label">Password</label>
+              <input type="password" id="settings-iptv-password" class="settings-input-control" placeholder="Xtream Password...">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-form-actions">
+          <button id="settings-save-btn" class="btn btn-primary btn-save flex items-center gap-2">
+            <i data-lucide="settings"></i> Save Configuration
           </button>
-          <div class="details-inline-meta">
-            <span id="details-title" class="details-inline-title">Title</span>
-            <span id="details-year" class="details-meta-pill">—</span>
-            <span id="details-rating" class="details-meta-pill"></span>
-            <span id="details-runtime" class="details-meta-pill"></span>
-          </div>
         </div>
-
-        <!-- Scrollable details body -->
-        <div class="details-body custom-scrollbar">
-          <!-- TV Seasons/Episodes Selector -->
-          <div id="tv-selectors" class="tv-selectors-container hidden">
-            <div class="season-select-wrapper">
-              <label for="season-select" class="selector-label">Season:</label>
-              <select id="season-select" class="season-select"></select>
-            </div>
-            <div class="episodes-container">
-              <span class="selector-label">Episode:</span>
-              <div id="episodes-grid" class="episodes-grid custom-scrollbar"></div>
-            </div>
-          </div>
-
-          <!-- Streaming server picker -->
-          <div class="sources-panel">
-            <div class="sources-header-status">
-              <span class="selector-label">Server:</span>
-              <span id="sources-status" class="sources-status-text">Choose a server to stream.</span>
-            </div>
-            <div id="sources-list" class="sources-list-grid"></div>
-          </div>
-        </div>
-      </section>
+      </div>
     </div>
   </main>
 
-  <!-- Settings Modal (TMDB API Configuration) -->
-  <div id="settings-modal" class="modal-overlay hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>API Configuration</h3>
-        <button id="settings-close-btn" class="icon-btn" aria-label="Close Settings">
-          <i data-lucide="x"></i>
+  <!-- Shared Video Player Markup (Will be moved via JS into active VOD/Live container) -->
+  <div id="shared-player-holder" style="display: none;">
+    <section id="player-section" class="player-container">
+      <div class="player-wrapper group">
+        <!-- HTML5 Video Stream Player (Direct URLs & Live TV) -->
+        <video id="video-player" playsinline style="width:100%;height:100%;"></video>
+
+        <!-- Iframe Embed Player (Movies & TV servers) -->
+        <div id="embed-player-wrapper" style="display:none;position:absolute;inset:0;z-index:5;">
+          <div id="embed-shield" style="position:absolute;inset:0;z-index:10;cursor:pointer;"></div>
+          <iframe
+            id="embed-iframe"
+            allowfullscreen
+            allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
+            referrerpolicy="no-referrer"
+            style="width:100%;height:100%;border:none;background:#000;"
+          ></iframe>
+        </div>
+
+        <!-- Video Player Overlay: No Stream Active Poster -->
+        <div id="player-poster" class="player-overlay poster-overlay">
+          <div class="poster-play-badge">
+            <i data-lucide="play"></i>
+          </div>
+          <h3>Select Stream Source</h3>
+          <p>Choose an episode or channel to start playback.</p>
+        </div>
+
+        <!-- Buffering Loading Overlay -->
+        <div id="player-loading" class="player-overlay loading-overlay hidden">
+          <div class="spinner-container">
+            <div class="spinner-track"></div>
+            <div class="spinner-head"></div>
+          </div>
+          <span>Buffering Stream...</span>
+        </div>
+
+        <!-- Toast overlay -->
+        <div id="player-toast" class="player-toast opacity-0">
+          <i data-lucide="info"></i>
+          <span id="toast-message">Notification message</span>
+        </div>
+
+        <!-- Connection Error overlay -->
+        <div id="player-error" class="player-overlay error-overlay hidden">
+          <div class="error-badge">
+            <i data-lucide="alert-triangle"></i>
+          </div>
+          <h3>Playback Connection Failed</h3>
+          <p id="error-details">The selected stream link is currently offline.</p>
+          <button id="retry-stream-btn" class="btn btn-primary">
+            <i data-lucide="refresh-cw"></i> Retry Stream
+          </button>
+        </div>
+
+        <!-- Custom Video Player Controls Bar -->
+        <div id="video-controls" class="video-controls-bar">
+          <div class="controls-status-row">
+            <span class="live-pulse-dot" id="live-indicator-dot"></span>
+            <span class="live-badge" id="live-indicator-text">LIVE</span>
+            <span id="player-channel-title" class="controls-channel-title"></span>
+          </div>
+
+          <!-- Seek Container for VOD media only -->
+          <div id="seek-container" class="seek-container" style="display: none;">
+            <span id="current-time" class="time-display">0:00</span>
+            <input type="range" id="seek-slider" min="0" max="100" value="0" class="seek-slider">
+            <span id="duration-time" class="time-display">0:00</span>
+          </div>
+
+          <div class="controls-actions-row">
+            <div class="actions-left">
+              <button id="play-pause-btn" class="control-btn" aria-label="Play/Pause">
+                <i data-lucide="pause"></i>
+              </button>
+              <button id="reload-btn" class="control-btn" title="Reload stream">
+                <i data-lucide="refresh-cw"></i>
+              </button>
+              <div class="volume-container">
+                <button id="mute-btn" class="control-btn" aria-label="Mute/Unmute">
+                  <i data-lucide="volume-2"></i>
+                </button>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="volume-slider">
+              </div>
+            </div>
+            <div class="actions-right">
+              <button id="aspect-ratio-btn" class="control-btn ratio-btn" title="Aspect Ratio">
+                <i data-lucide="monitor"></i> <span id="aspect-label">FIT</span>
+              </button>
+              <button id="pip-btn" class="control-btn" title="Picture in Picture">
+                <i data-lucide="square-stack"></i>
+              </button>
+              <button id="fullscreen-btn" class="control-btn" aria-label="Fullscreen">
+                <i data-lucide="maximize"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Fullscreen VOD Details Modal Overlay -->
+  <div id="details-overlay" class="details-overlay hidden">
+    <div class="details-overlay-content custom-scrollbar">
+      <div class="details-overlay-header">
+        <button id="details-close-btn" class="btn btn-secondary flex items-center gap-2">
+          <i data-lucide="arrow-left"></i> <span>Back</span>
+        </button>
+        <button id="watchlist-toggle-btn" class="btn btn-secondary flex items-center gap-2">
+          <i data-lucide="star" id="watchlist-icon"></i> <span id="watchlist-text">Add to Watchlist</span>
         </button>
       </div>
-      <div class="modal-body">
-        <p class="text-xs text-slate-400 mb-4">
-          To search movies and TV shows, we use the TMDB API. A default fallback API key is provided, but you can configure your own key for complete reliability.
-        </p>
-        <div class="input-group">
-          <label for="settings-tmdb-key" class="input-label">TMDB v3 API Key</label>
-          <input type="text" id="settings-tmdb-key" class="settings-input-field" placeholder="Enter your TMDB API Key...">
+
+      <div class="details-grid">
+        <!-- VOD Player Container (Shared Player appends here on VOD load) -->
+        <div id="vod-player-container" class="vod-player-container-wrapper"></div>
+
+        <!-- Media Metadata Panel -->
+        <div class="details-meta-card">
+          <div class="details-backdrop-bg" id="details-backdrop"></div>
+          <div class="details-meta-info">
+            <h2 id="details-title" class="details-title">Movie Title</h2>
+            <div class="details-pills">
+              <span id="details-year" class="details-pill">2026</span>
+              <span id="details-rating" class="details-pill">⭐ --</span>
+              <span id="details-runtime" class="details-pill">-- min</span>
+            </div>
+            <p id="details-overview" class="details-overview">Movie overview information goes here...</p>
+          </div>
         </div>
-        <div class="input-group" style="margin-top: 1.25rem; display: flex; align-items: center; gap: 0.5rem;">
-          <input type="checkbox" id="settings-strict-sandbox" style="width: auto; cursor: pointer; height: 1.25rem; min-height: 1.25rem;">
-          <label for="settings-strict-sandbox" class="input-label" style="margin-bottom: 0; cursor: pointer; font-size: 0.85rem; user-select: none;">
-            Strict Iframe Sandbox (Block Embed Ads & Popups)
-          </label>
+
+        <!-- TV Season / Episode selectors (visible only for TV series) -->
+        <div id="tv-selectors" class="tv-selectors-container hidden">
+          <div class="season-select-wrapper">
+            <label for="season-select" class="selector-label">Season:</label>
+            <select id="season-select" class="season-select"></select>
+          </div>
+          <div class="episodes-container">
+            <span class="selector-label">Episodes:</span>
+            <div id="episodes-grid" class="episodes-grid custom-scrollbar">
+              <!-- Episodes list buttons loaded dynamically -->
+            </div>
+          </div>
         </div>
-        <div class="text-[10px] text-slate-500 mt-2">
-          Don't have a key? Get a free API key at <a href="https://www.themoviedb.org/" target="_blank" class="text-indigo-400 hover:underline">themoviedb.org</a> by creating an account.
+
+        <!-- Stream Server picker -->
+        <div class="sources-panel">
+          <div class="sources-header-status">
+            <span class="selector-label">Stream Source Server:</span>
+            <span id="sources-status" class="sources-status-text">Choose a server to play.</span>
+          </div>
+          <div id="sources-list" class="sources-list-grid">
+            <!-- Server sources loaded dynamically -->
+          </div>
         </div>
-        
-        <hr class="border-slate-800 my-4">
-        
-        <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3">IPTV Credentials</h4>
-        <div class="input-group mb-3">
-          <label for="settings-iptv-portal" class="input-label">Portal URL</label>
-          <input type="text" id="settings-iptv-portal" class="settings-input-field" placeholder="e.g. http://portal5458.com:8080">
-        </div>
-        <div class="input-group mb-3">
-          <label for="settings-iptv-username" class="input-label">Username</label>
-          <input type="text" id="settings-iptv-username" class="settings-input-field" placeholder="Enter Username...">
-        </div>
-        <div class="input-group mb-3">
-          <label for="settings-iptv-password" class="input-label">Password</label>
-          <input type="password" id="settings-iptv-password" class="settings-input-field" placeholder="Enter Password...">
-        </div>
-        <div class="input-group">
-          <label for="settings-iptv-epg" class="input-label">EPG URL (XMLTV)</label>
-          <input type="text" id="settings-iptv-epg" class="settings-input-field" placeholder="EPG XMLTV URL (optional)">
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="settings-cancel-btn" class="btn btn-secondary">Cancel</button>
-        <button id="settings-save-btn" class="btn btn-primary">Save Settings</button>
       </div>
     </div>
   </div>
