@@ -1643,17 +1643,21 @@ function setupSettingsScreen() {
 // Load IPTV playlist from credentials
 // Fetch playlist via Xtream Codes player API and dynamically format as M3U
 async function fetchXtreamPlaylist(portalUrl, username, password) {
+  let cleanPortalUrl = (portalUrl || 'http://portal5458.com:8080').trim().replace(/\/+$/, '');
+  if (!cleanPortalUrl.startsWith('http://') && !cleanPortalUrl.startsWith('https://')) {
+    cleanPortalUrl = 'http://' + cleanPortalUrl;
+  }
+
   const getProxyUrl = (targetUrl) => `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
 
-  const catTarget = `${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_categories`;
-  const streamTarget = `${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams`;
+  const catTarget = `${cleanPortalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_categories`;
+  const streamTarget = `${cleanPortalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams`;
 
   async function fetchJsonWithFallback(targetUrl) {
     const proxies = [
       getProxyUrl(targetUrl),
       `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-      `https://thingproxy.freeboard.io/fetch/${targetUrl}`
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
     ];
 
     for (const pUrl of proxies) {
@@ -1700,21 +1704,22 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   // Convert streams to M3U format — stream URL goes through local proxy so:
   // a) CORS is bypassed, b) VLC user-agent is spoofed, c) CDN redirects are followed
   let m3uLines = ['#EXTM3U'];
-  if (Array.isArray(streams)) {
+  if (Array.isArray(streams) && streams.length > 0) {
     streams.forEach(stream => {
       const streamName = stream.name || 'Unknown Channel';
       const streamId = stream.stream_id;
       const logo = stream.stream_icon || '';
       const categoryName = catMap[stream.category_id] || 'General';
-      const rawStreamUrl = `${portalUrl}/live/${username}/${password}/${streamId}.m3u8`;
+      const rawStreamUrl = `${cleanPortalUrl}/live/${username}/${password}/${streamId}.m3u8`;
       const streamUrl = `/api/proxy?url=${encodeURIComponent(rawStreamUrl)}`;
 
       m3uLines.push(`#EXTINF:-1 tvg-id="" tvg-name="${streamName}" tvg-logo="${logo}" group-title="${categoryName}",${streamName}`);
       m3uLines.push(streamUrl);
     });
+    return m3uLines.join('\n');
   }
 
-  return m3uLines.join('\n');
+  return '';
 }
 
 // Load IPTV playlist from credentials
@@ -1722,31 +1727,54 @@ async function loadIPTVPlaylist() {
   const headerBadge = document.getElementById('channel-count-header');
   
   try {
-    const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-    const username = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
-    const password = localStorage.getItem('iptv_password') || '4WM9WVsjG';
+    const rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
+    const username = (localStorage.getItem('iptv_username') || 'SGmUC7q2U').trim();
+    const password = (localStorage.getItem('iptv_password') || '4WM9WVsjG').trim();
     
+    let portalUrl = rawPortalUrl.trim().replace(/\/+$/, '');
+    if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {
+      portalUrl = 'http://' + portalUrl;
+    }
+
     console.log("[IPTV] Loading Xtream playlist from:", portalUrl);
     let rawM3U = '';
     
     if (portalUrl && username && password) {
-      rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
-    } else {
-      const playlistUrl = './o_all.m3u';
-      const response = await fetch(playlistUrl);
-      if (!response.ok) throw new Error("Failed to fetch default M3U");
-      rawM3U = await response.text();
+      try {
+        rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
+      } catch (e) {
+        console.warn("[IPTV] fetchXtreamPlaylist error:", e);
+      }
     }
     
-    state.channels = parseM3U(rawM3U);
+    if (rawM3U) {
+      state.channels = parseM3U(rawM3U);
+    }
 
+    // Automatic fallback if Xtream returns 0 channels
     if (!state.channels || state.channels.length === 0) {
       console.log("[IPTV] Xtream returned 0 channels, loading fallback M3U playlist...");
-      const response = await fetch('./o_all.m3u');
-      if (response.ok) {
-        const text = await response.text();
-        state.channels = parseM3U(text);
+      const fallbackUrls = ['./o_all.m3u', '/o_all.m3u', './all.m3u', '/all.m3u'];
+      for (const fallbackUrl of fallbackUrls) {
+        try {
+          const response = await fetch(fallbackUrl);
+          if (response.ok) {
+            const text = await response.text();
+            const parsed = parseM3U(text);
+            if (parsed && parsed.length > 0) {
+              state.channels = parsed;
+              console.log(`[IPTV] Loaded ${state.channels.length} fallback channels from ${fallbackUrl}`);
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn(`[IPTV] Fallback playlist fetch failed for ${fallbackUrl}:`, e);
+        }
       }
+    }
+
+    if (!state.channels || state.channels.length === 0) {
+      throw new Error("No channels available from Xtream API or fallback M3U playlist");
     }
     
     // Extract category groups
@@ -1761,9 +1789,8 @@ async function loadIPTVPlaylist() {
     if (headerBadge) headerBadge.textContent = countText;
     
     const countEl = document.getElementById('filtered-count');
-    if (countEl && state.activeTab === 'live') {
-      countEl.textContent = countText;
-    }
+    if (countEl) countEl.textContent = countText;
+
     renderCategories();
     applyFilterAndRender();
   } catch (error) {
