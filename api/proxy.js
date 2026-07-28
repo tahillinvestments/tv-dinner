@@ -85,6 +85,10 @@ export default function handler(req, res) {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
       res.setHeader('Access-Control-Allow-Headers', '*');
 
+      if (proxyRes.headers['content-type']) {
+        res.setHeader('Content-Type', proxyRes.headers['content-type']);
+      }
+
       if (isM3U8) {
         let body = '';
         proxyRes.setEncoding('utf8');
@@ -103,6 +107,7 @@ export default function handler(req, res) {
     proxyReq.on('error', (err) => {
       console.error('[Vercel Proxy Error]:', err.message);
       if (!res.headersSent) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
         return res.status(502).send('Proxy error: ' + err.message);
       }
     });
