@@ -53,19 +53,19 @@ const MAX_RECENTS = 20;
 // Primary servers tried first; fallbacks used when primary fails
 const EMBED_PROVIDERS = [
   {
-    name: 'VixSrc',
-    movie: (id) => `https://vixsrc.to/movie/${id}`,
-    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
+    name: 'VixSrc (Fast HD)',
+    movie: (id) => `https://vixsrc.to/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vixsrc.to/embed/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'Videasy',
+    name: 'Videasy (Multi-Sub)',
     movie: (id) => `https://player.videasy.net/movie/${id}`,
     tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'VidSrc',
-    movie: (id) => `https://vidsrc.me/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.me/embed/tv/${id}/${s}/${e}`,
+    name: 'VidSrc PRO',
+    movie: (id) => `https://vidsrc.cc/v2/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
   },
   {
     name: 'SuperEmbed',
@@ -439,8 +439,15 @@ function togglePodcastFavorite(podcast) {
 function openPodcastModal(podcast) {
   state.selectedMedia = podcast;
 
-  const modal = document.getElementById('details-modal');
-  if (!modal) return;
+  const overlay = document.getElementById('details-overlay');
+  if (!overlay) return;
+
+  // Move shared player section into details container
+  const playerSection = document.getElementById('player-section');
+  const vodContainer = document.getElementById('vod-player-container');
+  if (playerSection && vodContainer) {
+    vodContainer.appendChild(playerSection);
+  }
 
   const titleEl = document.getElementById('details-title');
   const metaEl = document.getElementById('details-meta-info');
@@ -448,23 +455,39 @@ function openPodcastModal(podcast) {
   const backdropEl = document.getElementById('details-backdrop');
   const embedWrapper = document.getElementById('embed-player-wrapper');
   const embedIframe = document.getElementById('embed-iframe');
+  const videoEl = document.getElementById('video-player');
+  const poster = document.getElementById('player-poster');
   const activeSourceName = document.getElementById('active-source-name');
   const embedSourcesList = document.getElementById('embed-sources-list');
+  const tvSelectors = document.getElementById('tv-selectors');
+  const shield = document.getElementById('embed-shield');
 
+  if (tvSelectors) tvSelectors.classList.add('hidden');
   if (titleEl) titleEl.textContent = podcast.title;
-  if (metaEl) metaEl.innerHTML = `<span>${podcast.channelName}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">YouTube Podcast</span>`;
+  if (metaEl) metaEl.innerHTML = `<span class="text-slate-300 font-semibold">${podcast.channelName}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">${podcast.category}</span>`;
   if (overviewEl) overviewEl.textContent = podcast.description || 'Watch top YouTube podcast episode and channel content directly inside TVISION.';
   if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail})`;
 
-  if (activeSourceName) activeSourceName.textContent = `YouTube Embed (${podcast.channelName})`;
-  if (embedSourcesList) embedSourcesList.innerHTML = `<span class="px-3 py-1.5 rounded-lg bg-red-600/30 border border-red-500/40 text-red-300 text-xs font-semibold">🔴 YouTube Stream (HD)</span>`;
+  if (activeSourceName) activeSourceName.textContent = `YouTube Video (${podcast.channelName})`;
+  if (embedSourcesList) embedSourcesList.innerHTML = `<span class="px-3 py-1.5 rounded-lg bg-red-600/30 border border-red-500/40 text-red-300 text-xs font-semibold">🔴 YouTube HD Stream</span>`;
+
+  if (poster) poster.style.display = 'none';
+  if (shield) shield.style.display = 'none';
+  if (videoEl) {
+    videoEl.style.display = 'none';
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+  }
 
   if (embedWrapper) embedWrapper.style.display = 'block';
   if (embedIframe) {
-    embedIframe.src = `https://www.youtube-nocookie.com/embed/${podcast.youtubeId}?autoplay=1`;
+    embedIframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; web-share');
+    embedIframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    embedIframe.removeAttribute('sandbox');
+    embedIframe.src = `https://www.youtube.com/embed/${podcast.youtubeId}?autoplay=1`;
   }
 
-  modal.classList.remove('hidden');
+  overlay.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
   createIcons(iconConfig);
 }
@@ -1334,6 +1357,8 @@ function selectActiveSource(index) {
     if (embedWrapper) embedWrapper.style.display = 'block';
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) {
+      embedIframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; web-share');
+      embedIframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
       const useStrict = localStorage.getItem('strict_sandbox') === 'true';
       if (useStrict) {
         embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
@@ -1343,17 +1368,8 @@ function selectActiveSource(index) {
       embedIframe.src = source.url;
     }
 
-    if (shield) {
-      shield.style.display = 'block';
-      clearTimeout(shieldTimer);
-      shield.onclick = () => {
-        shield.style.display = 'none';
-        clearTimeout(shieldTimer);
-        shieldTimer = setTimeout(() => {
-          if (shield) shield.style.display = 'block';
-        }, 5000);
-      };
-    }
+    // Keep shield hidden so video frame receives clicks cleanly without being blocked
+    if (shield) shield.style.display = 'none';
   }
 
   const statusText = document.getElementById('sources-status');
