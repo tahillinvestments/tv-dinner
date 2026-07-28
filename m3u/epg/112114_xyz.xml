@@ -16845,6 +16845,9 @@
 	<programme channel="咪咕足球" start="20260729022000 +0800" stop="20260729035000 +0800">
 		<title lang="zh">NBL城燃之战-25/26赛季 常规赛第24轮 合肥狂风-上海玄鸟</title>
 	</programme>
+	<programme channel="咪咕足球" start="20260729035000 +0800" stop="20260729040500 +0800">
+		<title lang="zh">频道宣传</title>
+	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
 	</channel>
@@ -51539,6 +51542,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260729031000 +0800" stop="20260729034000 +0800">
 		<title lang="zh">杏花村好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260729034000 +0800" stop="20260729042500 +0800">
+		<title lang="zh">04_密战无声</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
