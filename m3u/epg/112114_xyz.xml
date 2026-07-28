@@ -51084,6 +51084,9 @@
 	<programme channel="newtv超级电影" start="20260729030600 +0800" stop="20260729042000 +0800">
 		<title lang="zh">异形寄生：起源</title>
 	</programme>
+	<programme channel="newtv超级电影" start="20260729042000 +0800" stop="20260729055700 +0800">
+		<title lang="zh">隐婚男女</title>
+	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
 	</channel>
@@ -51671,6 +51674,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260729034000 +0800" stop="20260729042500 +0800">
 		<title lang="zh">04_密战无声</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260729042500 +0800" stop="20260729045500 +0800">
+		<title lang="zh">鲜农宗土蜂蜜好物推荐</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
