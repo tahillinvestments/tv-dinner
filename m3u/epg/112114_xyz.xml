@@ -50931,6 +50931,9 @@
 	<programme channel="newtv超级综艺" start="20260729022500 +0800" stop="20260729030900 +0800">
 		<title lang="zh">06_亲爱的仇敌</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260729030900 +0800" stop="20260729042800 +0800">
+		<title lang="zh">影视留声机</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -50948,6 +50951,9 @@
 	</channel>
 	<programme channel="newtv超级电影" start="20260729010300 +0800" stop="20260729030600 +0800">
 		<title lang="zh">冒牌大哥</title>
+	</programme>
+	<programme channel="newtv超级电影" start="20260729030600 +0800" stop="20260729042000 +0800">
+		<title lang="zh">异形寄生：起源</title>
 	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
@@ -51524,6 +51530,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260729022500 +0800" stop="20260729031000 +0800">
 		<title lang="zh">03_密战无声</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260729031000 +0800" stop="20260729034000 +0800">
+		<title lang="zh">杏花村好物推荐</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
