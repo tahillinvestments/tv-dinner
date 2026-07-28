@@ -1,14 +1,14 @@
-import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film } from 'lucide';
+import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight } from 'lucide';
 import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
-import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTopRated, getByGenre } from './tmdb';
+import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
 import './style.css';
 
 // Initialize Lucide icons
 const iconConfig = {
   icons: {
-    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film
+    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight
   }
 };
 
@@ -438,6 +438,142 @@ function setupSearch() {
       }
     });
   });
+
+  // Setup See More buttons & Category Grid View listeners
+  setupSeeMoreListeners();
+}
+
+// Category Page State
+const categoryViewState = {
+  activeConfig: null,
+  currentPage: 1,
+  isLoading: false
+};
+
+// Bind See More buttons and Category Grid controls
+function setupSeeMoreListeners() {
+  const seeMoreBtns = document.querySelectorAll('.see-more-btn');
+  seeMoreBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.getAttribute('data-category-type');
+      const genreId = btn.getAttribute('data-genre-id');
+      const mediaType = btn.getAttribute('data-media-type');
+      const title = btn.getAttribute('data-category-title') || 'Category Titles';
+
+      openCategoryPage({ type, genreId, mediaType, title });
+    });
+  });
+
+  // Back to VOD button
+  const backBtn = document.getElementById('category-back-btn');
+  if (backBtn) {
+    backBtn.addEventListener('click', () => {
+      const defaultSection = document.getElementById('vod-default-section');
+      const searchSection = document.getElementById('vod-search-results-section');
+      const categorySection = document.getElementById('vod-category-section');
+
+      if (categorySection) categorySection.classList.add('hidden');
+      if (searchSection) searchSection.classList.add('hidden');
+      if (defaultSection) defaultSection.classList.remove('hidden');
+    });
+  }
+
+  // Load More Titles button
+  const loadMoreBtn = document.getElementById('category-load-more-btn');
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener('click', () => {
+      categoryViewState.currentPage += 1;
+      loadCategoryPageItems(false);
+    });
+  }
+}
+
+// Open Expanded Category Full Grid Page
+async function openCategoryPage(config) {
+  categoryViewState.activeConfig = config;
+  categoryViewState.currentPage = 1;
+  categoryViewState.isLoading = false;
+
+  const defaultSection = document.getElementById('vod-default-section');
+  const searchSection = document.getElementById('vod-search-results-section');
+  const categorySection = document.getElementById('vod-category-section');
+  const titleEl = document.getElementById('category-view-title');
+  const gridEl = document.getElementById('category-view-grid');
+
+  if (defaultSection) defaultSection.classList.add('hidden');
+  if (searchSection) searchSection.classList.add('hidden');
+  if (categorySection) categorySection.classList.remove('hidden');
+
+  if (titleEl) titleEl.textContent = config.title;
+  if (gridEl) {
+    gridEl.innerHTML = `
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+    `;
+  }
+
+  await loadCategoryPageItems(true);
+}
+
+// Load Paginated Category Items
+async function loadCategoryPageItems(isReset = false) {
+  if (categoryViewState.isLoading || !categoryViewState.activeConfig) return;
+  categoryViewState.isLoading = true;
+
+  const config = categoryViewState.activeConfig;
+  const page = categoryViewState.currentPage;
+  const gridEl = document.getElementById('category-view-grid');
+
+  try {
+    let items = [];
+    if (config.type === 'trending_movies') {
+      const data = await getTrendingMovies(page);
+      items = data.results || [];
+    } else if (config.type === 'trending_tv') {
+      const data = await getTrendingTV(page);
+      items = data.results || [];
+    } else if (config.type === 'top_rated') {
+      const data = await getTopRated(page);
+      items = data.results || [];
+    } else if (config.type === 'genre') {
+      const data = await getByGenre(config.genreId, config.mediaType || 'movie', page);
+      items = data.results || [];
+    }
+
+    if (isReset && gridEl) {
+      gridEl.innerHTML = '';
+    }
+
+    if (items.length > 0 && gridEl) {
+      items.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'detail-item-card hover-scale';
+        const imgUrl = getTMDBImageUrl(item.poster_path, 'w342') || getTMDBImageUrl(item.backdrop_path, 'w342');
+        const title = item.title || item.name || 'Untitled';
+        const year = (item.release_date || item.first_air_date || '').split('-')[0] || '';
+        const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
+
+        card.innerHTML = `
+          <img src="${imgUrl}" alt="${title}" class="detail-item-poster" loading="lazy">
+          <div class="detail-item-info">
+            <h4 class="detail-item-title">${title}</h4>
+            <div class="detail-item-sub">
+              <span>${year}</span>
+              <span>⭐ ${rating}</span>
+            </div>
+          </div>
+        `;
+        card.addEventListener('click', () => openDetailsView(item));
+        gridEl.appendChild(card);
+      });
+    }
+  } catch (err) {
+    console.error("Failed to load category items:", err);
+  } finally {
+    categoryViewState.isLoading = false;
+  }
 }
 
 // Execute VOD Search

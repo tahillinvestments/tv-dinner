@@ -49,6 +49,18 @@ export async function getTrending(page = 1) {
   return data;
 }
 
+export async function getTrendingMovies(page = 1) {
+  const data = await fetchFromTMDB('/trending/movie/day', { page });
+  (data.results || []).forEach(item => { item.media_type = 'movie'; });
+  return data;
+}
+
+export async function getTrendingTV(page = 1) {
+  const data = await fetchFromTMDB('/trending/tv/day', { page });
+  (data.results || []).forEach(item => { item.media_type = 'tv'; });
+  return data;
+}
+
 /**
  * Fetches top rated movies
  */
