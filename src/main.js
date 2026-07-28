@@ -955,19 +955,34 @@ function setupSettingsScreen() {
 // Load IPTV playlist from credentials
 // Fetch playlist via Xtream Codes player API and dynamically format as M3U
 async function fetchXtreamPlaylist(portalUrl, username, password) {
-  const proxyPrefix = '/api/proxy?url=';
-  const categoriesUrl = `${proxyPrefix}${encodeURIComponent(`${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_categories`)}`;
-  const streamsUrl = `${proxyPrefix}${encodeURIComponent(`${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams`)}`;
+  const getProxyUrl = (targetUrl) => `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+
+  const catTarget = `${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_categories`;
+  const streamTarget = `${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams`;
 
   console.log("[Xtream] Fetching categories from API...");
-  const catRes = await fetch(categoriesUrl);
-  if (!catRes.ok) throw new Error("Failed to fetch Xtream categories");
-  const categories = await catRes.json();
+  let categories = [];
+  try {
+    let catRes = await fetch(getProxyUrl(catTarget));
+    if (!catRes.ok) {
+      catRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(catTarget)}`);
+    }
+    if (catRes.ok) categories = await catRes.json();
+  } catch (e) {
+    console.warn("Category fetch warning:", e);
+  }
 
   console.log("[Xtream] Fetching streams from API...");
-  const streamRes = await fetch(streamsUrl);
-  if (!streamRes.ok) throw new Error("Failed to fetch Xtream streams");
-  const streams = await streamRes.json();
+  let streams = [];
+  try {
+    let streamRes = await fetch(getProxyUrl(streamTarget));
+    if (!streamRes.ok) {
+      streamRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(streamTarget)}`);
+    }
+    if (streamRes.ok) streams = await streamRes.json();
+  } catch (e) {
+    console.warn("Stream list fetch warning:", e);
+  }
 
   // Create category map
   const catMap = {};
