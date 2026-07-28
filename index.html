@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-B19fL8zU.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CGvJG7EP.css">
+  <script type="module" crossorigin src="/assets/index-BCYslFsi.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-C0W-rwpE.css">
 </head>
 <body class="dark-theme">
   
@@ -59,6 +59,40 @@
     <span class="mobile-title">TVISION</span>
     <span id="channel-count-header" class="mobile-badge-count">Loading...</span>
   </header>
+
+  <!-- Mobile Drawer Menu Overlay -->
+  <div id="mobile-drawer-overlay" class="mobile-drawer-backdrop hidden">
+    <div class="mobile-drawer-sheet">
+      <div class="mobile-drawer-header">
+        <span class="text-lg font-black text-white flex items-center gap-2">
+          <i data-lucide="tv" class="w-5 h-5 text-red-500"></i> Navigation Menu
+        </span>
+        <button id="mobile-drawer-close" class="icon-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <nav class="mobile-drawer-nav">
+        <button class="mobile-drawer-link active" data-tab="live">
+          <i data-lucide="tv"></i> <span>Live TV</span>
+        </button>
+        <button class="mobile-drawer-link" data-tab="movies">
+          <i data-lucide="film"></i> <span>Movies</span>
+        </button>
+        <button class="mobile-drawer-link" data-tab="series">
+          <i data-lucide="monitor"></i> <span>TV Series</span>
+        </button>
+        <button class="mobile-drawer-link" data-tab="podcasts">
+          <i data-lucide="radio"></i> <span>Podcasts</span>
+        </button>
+        <button class="mobile-drawer-link" data-tab="library">
+          <i data-lucide="star"></i> <span>Favorites</span>
+        </button>
+        <button class="mobile-drawer-link" data-tab="settings">
+          <i data-lucide="settings"></i> <span>Settings</span>
+        </button>
+      </nav>
+    </div>
+  </div>
 
   <!-- Main Scrollable App Container -->
   <main class="app-main-content">
@@ -707,6 +741,33 @@
           </div>
           <div id="sources-list" class="sources-list-grid">
             <!-- Server sources loaded dynamically -->
+          </div>
+        </div>
+  <!-- Podcast Channel Episodes Overlay Modal -->
+  <div id="podcast-channel-overlay" class="details-overlay custom-scrollbar hidden">
+    <div class="details-content-sheet">
+      <div class="details-header-bar">
+        <button id="podcast-channel-close-btn" class="details-close-btn flex items-center gap-2">
+          <i data-lucide="arrow-left"></i> Back to Channels
+        </button>
+      </div>
+
+      <div class="details-main-body">
+        <div class="details-meta-card flex flex-col md:flex-row items-center gap-6 p-6 bg-slate-900/60 rounded-2xl border border-slate-800">
+          <img id="podcast-channel-avatar" class="w-24 h-24 rounded-full object-cover border-2 border-red-500 shadow-lg" src="" alt="Channel Avatar">
+          <div class="flex-1 text-center md:text-left">
+            <h2 id="podcast-channel-title" class="text-2xl font-black text-white">Channel Name</h2>
+            <p id="podcast-channel-host" class="text-sm font-semibold text-red-400 mt-1">Host Name</p>
+            <p id="podcast-channel-desc" class="text-xs text-slate-400 mt-2 max-w-xl">Channel description...</p>
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <i data-lucide="video" class="w-5 h-5 text-red-500"></i> Latest Channel Episodes
+          </h3>
+          <div id="podcast-channel-episodes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Channel episodes loaded dynamically -->
           </div>
         </div>
       </div>
