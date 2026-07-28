@@ -65,6 +65,23 @@ export class IPTVPlayer {
       });
     }
 
+    // Mouse movement, gamepad focus & touch controls auto-hide timer
+    let controlsHideTimeout = null;
+    const showControls = (delay = 2500) => {
+      if (!container) return;
+      container.classList.add('controls-active');
+      if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
+      controlsHideTimeout = setTimeout(() => {
+        if (this.video && !this.video.paused) {
+          container.classList.remove('controls-active');
+          if (document.activeElement && container.contains(document.activeElement)) {
+            document.activeElement.blur();
+          }
+        }
+      }, delay);
+    };
+    this.triggerShowControls = showControls;
+
     const updateFullscreenState = () => {
       const isFS = !!(
         document.fullscreenElement ||
@@ -75,6 +92,10 @@ export class IPTVPlayer {
       );
 
       this.updateFullscreenUI(isFS);
+      if (isFS) {
+        if (document.activeElement) document.activeElement.blur();
+        showControls(2500);
+      }
     };
 
     document.addEventListener('fullscreenchange', updateFullscreenState);
@@ -82,24 +103,11 @@ export class IPTVPlayer {
     document.addEventListener('mozfullscreenchange', updateFullscreenState);
     document.addEventListener('MSFullscreenChange', updateFullscreenState);
 
-    // Mouse movement, gamepad focus & touch controls auto-hide timer
-    let controlsHideTimeout = null;
-    const showControls = () => {
-      if (!container) return;
-      container.classList.add('controls-active');
-      if (controlsHideTimeout) clearTimeout(controlsHideTimeout);
-      controlsHideTimeout = setTimeout(() => {
-        if (this.video && !this.video.paused && document.activeElement !== this.fullscreenBtn && document.activeElement !== this.playPauseBtn) {
-          container.classList.remove('controls-active');
-        }
-      }, 4000);
-    };
-
     if (container) {
-      container.addEventListener('mousemove', showControls);
-      container.addEventListener('touchstart', showControls, { passive: true });
-      container.addEventListener('focusin', showControls);
-      container.addEventListener('keydown', showControls);
+      container.addEventListener('mousemove', () => showControls(2500));
+      container.addEventListener('touchstart', () => showControls(2500), { passive: true });
+      container.addEventListener('focusin', () => showControls(2500));
+      container.addEventListener('keydown', () => showControls(2500));
       container.addEventListener('mouseleave', () => {
         if (this.video && !this.video.paused) {
           container.classList.remove('controls-active');
@@ -502,6 +510,8 @@ export class IPTVPlayer {
       document.body.classList.add('body-pseudo-fullscreen');
       this.updateFullscreenUI(true);
       this.showToast("Entered Fullscreen Mode");
+      if (document.activeElement) document.activeElement.blur();
+      if (this.triggerShowControls) this.triggerShowControls(2500);
     };
 
     if (nativeFS || isPseudo) {
