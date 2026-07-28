@@ -42,7 +42,7 @@ function proxyRequest(req, res, targetUrlStr) {
     return;
   }
 
-  const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname);
+  const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('portal5458') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/');
   const transport = targetUrl.protocol === 'https:' ? https : http;
 
   // Build clean outbound headers (strip browser-specific ones)

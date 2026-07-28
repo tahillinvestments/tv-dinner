@@ -1633,29 +1633,33 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   const catTarget = `${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_categories`;
   const streamTarget = `${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams`;
 
-  console.log("[Xtream] Fetching categories from API...");
-  let categories = [];
-  try {
-    let catRes = await fetch(getProxyUrl(catTarget));
-    if (!catRes.ok) {
-      catRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(catTarget)}`);
-    }
-    if (catRes.ok) categories = await catRes.json();
-  } catch (e) {
-    console.warn("Category fetch warning:", e);
+  async function fetchJsonWithFallback(targetUrl) {
+    // 1. Try local proxy
+    try {
+      const r1 = await fetch(getProxyUrl(targetUrl));
+      if (r1.ok) return await r1.json();
+    } catch (e) {}
+
+    // 2. Try direct fetch
+    try {
+      const r2 = await fetch(targetUrl);
+      if (r2.ok) return await r2.json();
+    } catch (e) {}
+
+    // 3. Try allorigins proxy fallback
+    try {
+      const r3 = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`);
+      if (r3.ok) return await r3.json();
+    } catch (e) {}
+
+    return [];
   }
 
+  console.log("[Xtream] Fetching categories from API...");
+  const categories = await fetchJsonWithFallback(catTarget);
+
   console.log("[Xtream] Fetching streams from API...");
-  let streams = [];
-  try {
-    let streamRes = await fetch(getProxyUrl(streamTarget));
-    if (!streamRes.ok) {
-      streamRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(streamTarget)}`);
-    }
-    if (streamRes.ok) streams = await streamRes.json();
-  } catch (e) {
-    console.warn("Stream list fetch warning:", e);
-  }
+  const streams = await fetchJsonWithFallback(streamTarget);
 
   // Create category map
   const catMap = {};
