@@ -1,4 +1,4 @@
-import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home } from 'lucide';
+import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film } from 'lucide';
 import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending } from './tmdb';
@@ -8,7 +8,7 @@ import './style.css';
 // Initialize Lucide icons
 const iconConfig = {
   icons: {
-    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home
+    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film
   }
 };
 
@@ -86,11 +86,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Init player
   player = new IPTVPlayer('video-player');
   
-  // Initially append player to shared hidden holder
+  // Initially append player to live container
   const playerSection = document.getElementById('player-section');
-  const holder = document.getElementById('shared-player-holder');
-  if (playerSection && holder) {
-    holder.appendChild(playerSection);
+  const liveContainer = document.getElementById('live-player-container');
+  if (playerSection && liveContainer) {
+    liveContainer.appendChild(playerSection);
   }
 
   // Setup DOM interaction
@@ -102,8 +102,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Render initial icons
   createIcons(iconConfig);
 
-  // Load Home dashboard details
-  loadHomeDashboard();
+  // Set default tab to Live TV
+  switchTab('live');
 
   // Load playlist (Live TV mode data) in background
   loadIPTVPlaylist();
@@ -174,6 +174,10 @@ function switchTab(tabName) {
 
     renderCategories();
     applyFilterAndRender();
+  } else if (tabName === 'vod') {
+    loadHomeDashboard();
+  } else if (tabName === 'library') {
+    renderLibraryScreen();
   } else {
     // Stop any active HLS stream playback if switching away from live TV
     if (tabName !== 'live' && state.selectedMedia === null) {
@@ -355,20 +359,41 @@ function renderSearchResultsGrid(results) {
   createIcons(iconConfig);
 }
 
-// Setup search logic
+// Setup search logic for Live TV and VOD independently
 function setupSearch() {
-  const searchInput = document.getElementById('search-input');
-  if (!searchInput) return;
+  // Live channel inline search
+  const liveSearchInput = document.getElementById('live-search-input');
+  if (liveSearchInput) {
+    liveSearchInput.addEventListener('input', () => {
+      applyFilterAndRender();
+    });
+  }
 
-  searchInput.addEventListener('input', (e) => {
-    const query = e.target.value.trim();
-    state.searchQuery = query;
-    
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-      triggerSearchQuery(query);
-    }, 450);
-  });
+  // VOD Movies & Series search
+  const vodSearchInput = document.getElementById('vod-search-input');
+  const searchResultsSection = document.getElementById('vod-search-results-section');
+  const vodDefaultSection = document.getElementById('vod-default-section');
+
+  if (vodSearchInput) {
+    vodSearchInput.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+      state.searchQuery = query;
+
+      if (!query) {
+        if (searchResultsSection) searchResultsSection.classList.add('hidden');
+        if (vodDefaultSection) vodDefaultSection.classList.remove('hidden');
+        return;
+      }
+
+      if (searchResultsSection) searchResultsSection.classList.remove('hidden');
+      if (vodDefaultSection) vodDefaultSection.classList.add('hidden');
+
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        triggerSearchQuery(query);
+      }, 400);
+    });
+  }
 }
 
 // Execute VOD Search
@@ -500,10 +525,10 @@ function renderWatchlistButtonState() {
 
   const inWatchlist = state.watchlist.some(x => x.id === state.selectedMedia.id && x.media_type === state.selectedMedia.media_type);
   if (inWatchlist) {
-    icon.className = 'w-4 h-4 fill-amber-400 text-amber-400';
+    icon.setAttribute('class', 'w-4 h-4 fill-amber-400 text-amber-400');
     label.textContent = 'In Watchlist';
   } else {
-    icon.className = 'w-4 h-4 text-slate-400';
+    icon.setAttribute('class', 'w-4 h-4 text-slate-400');
     label.textContent = 'Add to Watchlist';
   }
   createIcons(iconConfig);
@@ -511,79 +536,88 @@ function renderWatchlistButtonState() {
 
 // Open detailed info for selected Movie / TV Show
 async function openDetailsView(mediaItem) {
-  state.selectedMedia = mediaItem;
-  
-  // Render details overlay container
-  document.getElementById('details-overlay').classList.remove('hidden');
-
-  // Move player container from hidden holder to details container
-  const playerSection = document.getElementById('player-section');
-  const vodContainer = document.getElementById('vod-player-container');
-  if (playerSection && vodContainer) {
-    vodContainer.appendChild(playerSection);
-  }
-
-  // Setup placeholder details
-  const title = mediaItem.title || mediaItem.name || 'Loading...';
-  document.getElementById('details-title').textContent = title;
-  document.getElementById('details-year').textContent = (mediaItem.release_date || mediaItem.first_air_date || 'N/A').split('-')[0];
-  document.getElementById('details-rating').innerHTML = `⭐ ${mediaItem.vote_average ? mediaItem.vote_average.toFixed(1) : 'N/A'}`;
-  document.getElementById('details-runtime').textContent = '';
-  document.getElementById('details-overview').textContent = mediaItem.overview || 'Synopsis loading...';
-  document.getElementById('tv-selectors').classList.add('hidden');
-
-  const backdropBg = document.getElementById('details-backdrop');
-  const backdropUrl = getTMDBImageUrl(mediaItem.backdrop_path, 'w1280') || getTMDBImageUrl(mediaItem.poster_path, 'w1280');
-  if (backdropBg && backdropUrl) {
-    backdropBg.style.backgroundImage = `url(${backdropUrl})`;
-  } else if (backdropBg) {
-    backdropBg.style.backgroundImage = '';
-  }
-
-  // Reset stream sources
-  document.getElementById('sources-list').innerHTML = '';
-  document.getElementById('sources-status').textContent = 'Choose a server to play.';
-  closeActiveSse();
-  renderWatchlistButtonState();
-
-  // Reset player wrapper visual aspects (hide frame, show poster splash)
-  const videoEl = document.getElementById('video-player');
-  const embedWrapper = document.getElementById('embed-player-wrapper');
-  const embedIframe = document.getElementById('embed-iframe');
-  
-  if (videoEl) {
-    videoEl.style.display = 'none';
-    videoEl.pause();
-    videoEl.removeAttribute('src');
-    videoEl.load();
-  }
-  if (embedWrapper) embedWrapper.style.display = 'none';
-  if (embedIframe) embedIframe.src = '';
-  
-  // Show no active stream poster initially
-  const poster = document.getElementById('player-poster');
-  if (poster) {
-    poster.style.display = 'flex';
-    if (mediaItem.backdrop_path) {
-      poster.style.backgroundImage = `url(${getTMDBImageUrl(mediaItem.backdrop_path, 'w780')})`;
-    } else {
-      poster.style.backgroundImage = '';
-    }
-  }
-
-  // Set Seek controls for VOD VOD controls
-  const seekContainer = document.getElementById('seek-container');
-  if (seekContainer) seekContainer.style.display = 'flex';
-  const liveIndicatorDot = document.getElementById('live-indicator-dot');
-  const liveIndicatorText = document.getElementById('live-indicator-text');
-  if (liveIndicatorDot) liveIndicatorDot.style.display = 'none';
-  if (liveIndicatorText) liveIndicatorText.style.display = 'none';
-
-  createIcons(iconConfig);
-
-  // Fetch detailed metadata from TMDB
-  const isTV = mediaItem.media_type === 'tv';
   try {
+    console.log("[openDetailsView] mediaItem:", mediaItem);
+    state.selectedMedia = mediaItem;
+    
+    // Render details overlay container
+    document.getElementById('details-overlay').classList.remove('hidden');
+
+    // Move player container from hidden holder to details container
+    const playerSection = document.getElementById('player-section');
+    const vodContainer = document.getElementById('vod-player-container');
+    if (playerSection && vodContainer) {
+      vodContainer.appendChild(playerSection);
+    }
+
+    // Setup placeholder details
+    const title = mediaItem.title || mediaItem.name || 'Loading...';
+    document.getElementById('details-title').textContent = title;
+    const rawDate = String(mediaItem.release_date || mediaItem.first_air_date || 'N/A');
+    document.getElementById('details-year').textContent = rawDate.split('-')[0];
+    document.getElementById('details-rating').innerHTML = `⭐ ${mediaItem.vote_average ? mediaItem.vote_average.toFixed(1) : 'N/A'}`;
+    document.getElementById('details-runtime').textContent = '';
+    document.getElementById('details-overview').textContent = mediaItem.overview || 'Synopsis loading...';
+    document.getElementById('tv-selectors').classList.add('hidden');
+
+    const backdropBg = document.getElementById('details-backdrop');
+    const backdropUrl = getTMDBImageUrl(mediaItem.backdrop_path, 'w1280') || getTMDBImageUrl(mediaItem.poster_path, 'w1280');
+    if (backdropBg && backdropUrl) {
+      backdropBg.style.backgroundImage = `url(${backdropUrl})`;
+    } else if (backdropBg) {
+      backdropBg.style.backgroundImage = '';
+    }
+
+    // Reset stream sources
+    document.getElementById('sources-list').innerHTML = '';
+    document.getElementById('sources-status').textContent = 'Choose a server to play.';
+    closeActiveSse();
+    renderWatchlistButtonState();
+
+    // Reset player wrapper visual aspects (hide frame, show poster splash)
+    const videoEl = document.getElementById('video-player');
+    const embedWrapper = document.getElementById('embed-player-wrapper');
+    const embedIframe = document.getElementById('embed-iframe');
+    
+    if (videoEl) {
+      videoEl.style.display = 'none';
+      videoEl.pause();
+      videoEl.removeAttribute('src');
+      videoEl.load();
+    }
+    if (embedWrapper) embedWrapper.style.display = 'none';
+    if (embedIframe) embedIframe.src = '';
+    
+    // Show no active stream poster initially
+    const poster = document.getElementById('player-poster');
+    if (poster) {
+      poster.style.display = 'flex';
+      if (mediaItem.backdrop_path) {
+        poster.style.backgroundImage = `url(${getTMDBImageUrl(mediaItem.backdrop_path, 'w780')})`;
+      } else {
+        poster.style.backgroundImage = '';
+      }
+    }
+
+    // Set Seek controls for VOD VOD controls
+    const seekContainer = document.getElementById('seek-container');
+    if (seekContainer) seekContainer.style.display = 'flex';
+    const liveIndicatorDot = document.getElementById('live-indicator-dot');
+    const liveIndicatorText = document.getElementById('live-indicator-text');
+    if (liveIndicatorDot) liveIndicatorDot.style.display = 'none';
+    if (liveIndicatorText) liveIndicatorText.style.display = 'none';
+
+    createIcons(iconConfig);
+
+    // Synchronously populate stream server sources immediately
+    const isTV = mediaItem.media_type === 'tv';
+    startStreamResolution({
+      type: isTV ? 'tv' : 'movie',
+      id: mediaItem.id,
+      season: 1,
+      episode: 1
+    });
+
     if (isTV) {
       try {
         const details = await getTVShowDetails(mediaItem.id);
@@ -596,7 +630,7 @@ async function openDetailsView(mediaItem) {
         const seasonSelect = document.getElementById('season-select');
         seasonSelect.innerHTML = '';
         (details?.seasons || []).forEach(season => {
-          if (season.season_number === 0 && details.seasons.length > 1) return;
+          if (season.season_number === 0 && (details?.seasons?.length || 0) > 1) return;
           const opt = document.createElement('option');
           opt.value = season.season_number;
           opt.textContent = season.name || `Season ${season.season_number}`;
@@ -605,11 +639,9 @@ async function openDetailsView(mediaItem) {
 
         // Load episodes for the first season
         if (details?.seasons && details.seasons.length > 0) {
-          const firstSeasonNum = details.seasons[0].season_number === 0 && details.seasons.length > 1
-            ? details.seasons[1].season_number
-            : details.seasons[0].season_number;
+          const firstSeasonNum = seasonSelect.options.length > 0 ? seasonSelect.options[0].value : 1;
           seasonSelect.value = firstSeasonNum;
-          loadTVEpisodes(mediaItem.id, firstSeasonNum);
+          await loadTVEpisodes(mediaItem.id, firstSeasonNum);
         } else {
           startStreamResolution({ type: 'tv', id: mediaItem.id, season: 1, episode: 1 });
         }
@@ -618,7 +650,6 @@ async function openDetailsView(mediaItem) {
         startStreamResolution({ type: 'tv', id: mediaItem.id, season: 1, episode: 1 });
       }
     } else {
-      startStreamResolution({ type: 'movie', id: mediaItem.id });
       try {
         const details = await getMovieDetails(mediaItem.id);
         document.getElementById('details-runtime').textContent = `${details?.runtime || 'N/A'} min`;
@@ -627,10 +658,7 @@ async function openDetailsView(mediaItem) {
       }
     }
   } catch (err) {
-    console.error("Failed to load TMDB details:", err);
-    if (!isTV) {
-      startStreamResolution({ type: 'movie', id: mediaItem.id });
-    }
+    console.error("[openDetailsView] Error opening details view:", err);
   }
 }
 
@@ -710,6 +738,9 @@ function startStreamResolution({ type, id, season = 1, episode = 1 }) {
   });
 
   renderSourcesUI();
+  if (state.resolvedSources.length > 0) {
+    selectActiveSource(0);
+  }
 
   // Trigger HuggingFace Spaces Vyla stream API resolver in background
   state.activeStreamSse = getStreamSources(
