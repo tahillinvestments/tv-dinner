@@ -1855,3 +1855,120 @@ body {
   margin-top: 2rem;
   margin-bottom: 2rem;
 }
+
+/* Mobile Optimization for Live TV Channels & Viewports */
+@media (max-width: 768px) {
+  .live-player-container-wrapper {
+    height: 24vh !important;
+  }
+
+  .live-grid-scroll {
+    padding: 0.5rem 0.6rem !important;
+  }
+
+  .live-channels-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+    gap: 0.4rem !important;
+  }
+
+  .channel-card {
+    padding: 0.45rem 0.55rem !important;
+    border-radius: 8px !important;
+    gap: 0.4rem !important;
+  }
+
+  .channel-card-logo-wrap {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 6px !important;
+  }
+
+  .channel-card-name {
+    font-size: 0.7rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .live-channels-grid-header {
+    padding: 0.6rem 0.85rem !important;
+  }
+
+  .live-sidebar {
+    width: 140px !important;
+  }
+
+  .category-btn {
+    padding: 0.5rem 0.55rem !important;
+    font-size: 0.725rem !important;
+  }
+}
+
+/* Mobile Drawer Overlay Sheet */
+.mobile-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  justify-content: flex-start;
+  animation: fadeIn 0.2s ease;
+}
+
+.mobile-drawer-sheet {
+  width: 280px;
+  height: 100%;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  padding: 1.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5);
+}
+
+.mobile-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 1.25rem;
+}
+
+.mobile-drawer-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mobile-drawer-link {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-radius: 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: var(--transition-smooth);
+}
+
+.mobile-drawer-link:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.mobile-drawer-link.active {
+  background-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
+
+.mobile-drawer-link svg {
+  width: 20px;
+  height: 20px;
+}

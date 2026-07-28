@@ -3,7 +3,7 @@ import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
-import { PODCAST_CATEGORIES, searchPodcasts } from './podcastsData';
+import { PODCAST_CHANNELS, searchPodcastsAndEpisodes } from './podcastsData';
 import './style.css';
 
 // Initialize Lucide icons
@@ -112,24 +112,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Setup tab-based screen navigation
 function setupNavigation() {
-  const navButtons = document.querySelectorAll('.nav-links .nav-link');
-  const screens = document.querySelectorAll('.tab-screen');
+  const navButtons = document.querySelectorAll('.nav-links .nav-link, .mobile-drawer-link');
   
   navButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const tabName = btn.getAttribute('data-tab');
       switchTab(tabName);
+      // Close mobile drawer overlay if open
+      const mobileDrawer = document.getElementById('mobile-drawer-overlay');
+      if (mobileDrawer) mobileDrawer.classList.add('hidden');
     });
   });
 
-  // Mobile sidebar support if needed
+  // Mobile hamburger button toggle
   const mobileToggle = document.getElementById('sidebar-toggle');
-  if (mobileToggle) {
+  const mobileDrawer = document.getElementById('mobile-drawer-overlay');
+  const mobileClose = document.getElementById('mobile-drawer-close');
+
+  if (mobileToggle && mobileDrawer) {
     mobileToggle.addEventListener('click', () => {
-      const sidebar = document.querySelector('.app-sidebar-nav');
-      if (sidebar) {
-        sidebar.classList.toggle('expanded');
-      }
+      mobileDrawer.classList.remove('hidden');
+    });
+  }
+
+  if (mobileClose && mobileDrawer) {
+    mobileClose.addEventListener('click', () => {
+      mobileDrawer.classList.add('hidden');
     });
   }
 }
@@ -139,7 +147,7 @@ function switchTab(tabName) {
   state.activeTab = tabName;
   
   // Update buttons state
-  document.querySelectorAll('.nav-links .nav-link').forEach(btn => {
+  document.querySelectorAll('.nav-links .nav-link, .mobile-drawer-link').forEach(btn => {
     if (btn.getAttribute('data-tab') === tabName) {
       btn.classList.add('active');
     } else {
@@ -352,7 +360,7 @@ async function loadSeriesDashboard() {
   }
 }
 
-// Load YouTube Podcasts Dashboard
+// Load YouTube Podcasts CHANNELS Dashboard
 function loadPodcastsDashboard() {
   const techRow = document.getElementById('row-podcasts-tech');
   const scienceRow = document.getElementById('row-podcasts-science');
@@ -364,44 +372,46 @@ function loadPodcastsDashboard() {
   // Load Favorite Podcast Channels
   if (state.favoritePodcasts && state.favoritePodcasts.length > 0) {
     if (favoritesSection) favoritesSection.style.display = 'block';
-    if (favoritesRow) renderPodcastCardRow(state.favoritePodcasts, favoritesRow);
+    if (favoritesRow) renderPodcastChannelRow(state.favoritePodcasts, favoritesRow);
   } else {
     if (favoritesSection) favoritesSection.style.display = 'none';
   }
 
-  if (techRow) renderPodcastCardRow(PODCAST_CATEGORIES.tech, techRow);
-  if (scienceRow) renderPodcastCardRow(PODCAST_CATEGORIES.science, scienceRow);
-  if (comedyRow) renderPodcastCardRow(PODCAST_CATEGORIES.comedy, comedyRow);
-  if (sportsRow) renderPodcastCardRow(PODCAST_CATEGORIES.sports, sportsRow);
+  if (techRow) renderPodcastChannelRow(PODCAST_CHANNELS.tech, techRow);
+  if (scienceRow) renderPodcastChannelRow(PODCAST_CHANNELS.science, scienceRow);
+  if (comedyRow) renderPodcastChannelRow(PODCAST_CHANNELS.comedy, comedyRow);
+  if (sportsRow) renderPodcastChannelRow(PODCAST_CHANNELS.sports, sportsRow);
 }
 
-// Render Podcast Cards inside horizontal carousels
-function renderPodcastCardRow(items, container) {
+// Render Podcast Channels inside horizontal carousels
+function renderPodcastChannelRow(channels, container) {
   if (!container) return;
   container.innerHTML = '';
 
-  if (!items || items.length === 0) {
-    container.innerHTML = '<span class="text-xs text-slate-500 py-4">No podcasts found.</span>';
+  if (!channels || channels.length === 0) {
+    container.innerHTML = '<span class="text-xs text-slate-500 py-4">No podcast channels found.</span>';
     return;
   }
 
   const favs = state.favoritePodcasts || [];
-  items.forEach(item => {
+  channels.forEach(channel => {
     const card = document.createElement('div');
     card.className = 'detail-item-card hover-scale';
-    const isFav = favs.some(f => f.id === item.id);
+    const isFav = favs.some(f => f.id === channel.id);
+    const epCount = channel.episodes ? channel.episodes.length : 1;
 
     card.innerHTML = `
       <div style="position: relative;">
-        <img src="${item.thumbnail}" alt="${item.title}" class="detail-item-poster" style="aspect-ratio: 16/9; object-fit: cover;" loading="lazy">
+        <img src="${channel.avatar}" alt="${channel.channelName}" class="detail-item-poster" style="aspect-ratio: 1/1; object-fit: cover; border-radius: 12px 12px 0 0;" loading="lazy">
         <button class="podcast-fav-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Remove Favorite Channel' : 'Add to Favorite Channels'}" style="position: absolute; top: 8px; right: 8px; background: rgba(15,23,42,0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 9999px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: ${isFav ? '#f59e0b' : '#cbd5e1'}; cursor: pointer;">
           <i data-lucide="star" style="width: 14px; height: 14px; fill: ${isFav ? '#f59e0b' : 'none'};"></i>
         </button>
       </div>
       <div class="detail-item-info">
-        <h4 class="detail-item-title">${item.title}</h4>
+        <h4 class="detail-item-title">${channel.channelName}</h4>
         <div class="detail-item-meta">
-          <span class="detail-item-year">${item.channelName}</span>
+          <span class="detail-item-year">${channel.host || channel.category}</span>
+          <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-semibold text-[10px]">${epCount} Episodes</span>
         </div>
       </div>
     `;
@@ -411,14 +421,89 @@ function renderPodcastCardRow(items, container) {
     if (favBtn) {
       favBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        togglePodcastFavorite(item);
+        togglePodcastFavorite(channel);
       });
     }
 
-    // Card click opens YouTube Video player details modal
-    card.addEventListener('click', () => openPodcastModal(item));
+    // Clicking channel card opens its episodes view!
+    card.addEventListener('click', () => openPodcastChannelModal(channel));
     container.appendChild(card);
   });
+  createIcons(iconConfig);
+}
+
+// Open Channel Episodes View Modal
+function openPodcastChannelModal(channel) {
+  const overlay = document.getElementById('podcast-channel-overlay');
+  if (!overlay) return;
+
+  const avatar = document.getElementById('podcast-channel-avatar');
+  const title = document.getElementById('podcast-channel-title');
+  const host = document.getElementById('podcast-channel-host');
+  const desc = document.getElementById('podcast-channel-desc');
+  const grid = document.getElementById('podcast-channel-episodes-grid');
+  const closeBtn = document.getElementById('podcast-channel-close-btn');
+
+  if (avatar) avatar.src = channel.avatar;
+  if (title) title.textContent = channel.channelName;
+  if (host) host.textContent = `Hosted by ${channel.host || 'YouTube Creator'} • ${channel.category}`;
+  if (desc) desc.textContent = channel.description || 'Watch latest full video podcast episodes.';
+
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      overlay.classList.add('hidden');
+      document.body.style.overflow = '';
+    };
+  }
+
+  grid.innerHTML = '';
+  const episodes = channel.episodes || [
+    {
+      id: `${channel.id}_ep1`,
+      title: `${channel.channelName} - Full Latest Episode`,
+      youtubeId: channel.youtubeId || 'jvqFAi7vkBc',
+      date: 'Latest',
+      duration: 'Full Episode',
+      thumbnail: channel.avatar
+    }
+  ];
+
+  episodes.forEach(ep => {
+    const card = document.createElement('div');
+    card.className = 'bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden hover:border-red-500 transition-all cursor-pointer group flex flex-col';
+    card.innerHTML = `
+      <div class="relative aspect-video overflow-hidden">
+        <img src="${ep.thumbnail}" alt="${ep.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
+            <i data-lucide="play" class="w-6 h-6 fill-white text-white ml-0.5"></i>
+          </div>
+        </div>
+        <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-semibold text-white">${ep.duration || 'Video'}</span>
+      </div>
+      <div class="p-3 flex-1 flex flex-col justify-between">
+        <h4 class="text-sm font-bold text-white line-clamp-2">${ep.title}</h4>
+        <div class="flex items-center justify-between text-xs text-slate-400 mt-2">
+          <span>${ep.date || 'Recent'}</span>
+          <span class="text-red-400 font-semibold text-[11px]">Watch HD 🔴</span>
+        </div>
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      openPodcastModal({
+        ...ep,
+        channelName: channel.channelName,
+        category: channel.category,
+        thumbnail: ep.thumbnail
+      });
+    });
+
+    grid.appendChild(card);
+  });
+
+  overlay.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
   createIcons(iconConfig);
 }
 
@@ -644,13 +729,13 @@ function setupSearch() {
     });
   }
 
-  // Podcasts search
+  // Podcasts search (Channels & Latest Episodes)
   const podcastsSearchInput = document.getElementById('podcasts-search-input');
   const podcastsSearchResultsSection = document.getElementById('podcasts-search-results-section');
   const podcastsDefaultSection = document.getElementById('podcasts-default-section');
 
   if (podcastsSearchInput) {
-    podcastsSearchInput.addEventListener('input', (e) => {
+    podcastsSearchInput.addEventListener('input', async (e) => {
       const query = e.target.value.trim();
       if (!query) {
         if (podcastsSearchResultsSection) podcastsSearchResultsSection.classList.add('hidden');
@@ -661,18 +746,45 @@ function setupSearch() {
       if (podcastsSearchResultsSection) podcastsSearchResultsSection.classList.remove('hidden');
       if (podcastsDefaultSection) podcastsDefaultSection.classList.add('hidden');
 
-      const results = searchPodcasts(query);
       const grid = document.getElementById('podcasts-search-results-grid');
       const heading = document.getElementById('podcasts-search-status-heading');
       const emptyState = document.getElementById('podcasts-search-empty-state');
 
       if (heading) heading.textContent = `Podcast results for "${query}"`;
-      if (results.length === 0) {
+      if (grid) grid.innerHTML = '<span class="text-xs text-slate-500 py-4">Searching YouTube podcasts...</span>';
+
+      const { channels, episodes } = await searchPodcastsAndEpisodes(query);
+
+      if (channels.length === 0 && episodes.length === 0) {
         if (grid) grid.innerHTML = '';
         if (emptyState) emptyState.classList.remove('hidden');
       } else {
         if (emptyState) emptyState.classList.add('hidden');
-        if (grid) renderPodcastCardRow(results, grid);
+        if (grid) {
+          if (channels.length > 0) {
+            renderPodcastChannelRow(channels, grid);
+          } else {
+            // Render episodes grid
+            grid.innerHTML = '';
+            episodes.forEach(ep => {
+              const card = document.createElement('div');
+              card.className = 'detail-item-card hover-scale';
+              card.innerHTML = `
+                <img src="${ep.thumbnail}" alt="${ep.title}" class="detail-item-poster" style="aspect-ratio: 16/9; object-fit: cover;" loading="lazy">
+                <div class="detail-item-info">
+                  <h4 class="detail-item-title">${ep.title}</h4>
+                  <div class="detail-item-meta">
+                    <span class="detail-item-year">${ep.channelName || 'YouTube'}</span>
+                    <span class="text-red-400 font-semibold text-[10px]">Play 🔴</span>
+                  </div>
+                </div>
+              `;
+              card.addEventListener('click', () => openPodcastModal(ep));
+              grid.appendChild(card);
+            });
+            createIcons(iconConfig);
+          }
+        }
       }
     });
   }
