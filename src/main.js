@@ -53,9 +53,9 @@ const MAX_RECENTS = 20;
 // Primary servers tried first; fallbacks used when primary fails
 const EMBED_PROVIDERS = [
   {
-    name: 'VixSrc (Fast HD)',
-    movie: (id) => `https://vixsrc.to/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vixsrc.to/embed/tv/${id}/${s}/${e}`,
+    name: 'VidLink PRO',
+    movie: (id) => `https://vidlink.pro/movie/${id}`,
+    tv: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}`,
   },
   {
     name: 'Videasy (Multi-Sub)',
@@ -73,9 +73,9 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
   },
   {
-    name: 'NontonGo',
-    movie: (id) => `https://www.nontongo.win/embed/movie/${id}`,
-    tv: (id, s, e) => `https://www.nontongo.win/embed/tv/${id}/${s}/${e}`,
+    name: '2Embed',
+    movie: (id) => `https://www.2embed.cc/embed/${id}`,
+    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
   },
 ];
 
@@ -567,7 +567,7 @@ function openPodcastModal(podcast) {
   if (embedWrapper) embedWrapper.style.display = 'block';
   if (embedIframe) {
     embedIframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; web-share');
-    embedIframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    embedIframe.removeAttribute('referrerpolicy');
     embedIframe.removeAttribute('sandbox');
     embedIframe.src = `https://www.youtube.com/embed/${podcast.youtubeId}?autoplay=1`;
   }
@@ -1470,7 +1470,7 @@ function selectActiveSource(index) {
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) {
       embedIframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; web-share');
-      embedIframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+      embedIframe.removeAttribute('referrerpolicy');
       const useStrict = localStorage.getItem('strict_sandbox') === 'true';
       if (useStrict) {
         embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');

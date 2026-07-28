@@ -39,7 +39,7 @@ export default function handler(req, res) {
     return res.status(400).send('Invalid URL parameter');
   }
 
-  const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname);
+  const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('portal5458') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/');
   const outHeaders = {};
   for (const [k, v] of Object.entries(req.headers)) {
     if (!STRIP_REQ_HEADERS.has(k.toLowerCase())) {
