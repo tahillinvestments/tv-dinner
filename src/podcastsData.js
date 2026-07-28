@@ -380,11 +380,13 @@ export function searchPodcastChannels(query) {
   const q = query.toLowerCase().trim();
   const allChannels = getAllPodcastChannels();
 
-  // Return matching local channels
+  // Return matching local channels (channelName, host, category, description, or episode titles)
   const matches = allChannels.filter(c => 
     c.channelName.toLowerCase().includes(q) ||
-    c.host.toLowerCase().includes(q) ||
-    c.category.toLowerCase().includes(q)
+    (c.host && c.host.toLowerCase().includes(q)) ||
+    (c.category && c.category.toLowerCase().includes(q)) ||
+    (c.description && c.description.toLowerCase().includes(q)) ||
+    (c.episodes && c.episodes.some(ep => ep.title.toLowerCase().includes(q)))
   );
 
   // Dynamic YouTube channel creation for any searched query outside curated dataset

@@ -170,6 +170,23 @@ function switchTab(tabName) {
   const vodContainer = document.getElementById('vod-player-container');
   const holder = document.getElementById('shared-player-holder');
 
+// Stop and discontinue any active Live TV stream feed to prevent playback & audio conflicts
+function stopActiveLiveTVFeed() {
+  console.log('[IPTV] Discontinuing active Live TV stream feed');
+  if (player) {
+    try {
+      player.destroyHls();
+    } catch (e) {}
+  }
+  const videoEl = document.getElementById('video-player');
+  if (videoEl) {
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    try { videoEl.load(); } catch (e) {}
+  }
+  state.currentPlayingUrl = null;
+}
+
   if (tabName === 'live') {
     // Append player to live TV panel
     if (liveContainer && playerSection) {
@@ -185,27 +202,20 @@ function switchTab(tabName) {
 
     renderCategories();
     applyFilterAndRender();
-  } else if (tabName === 'movies') {
-    loadMoviesDashboard();
-  } else if (tabName === 'series') {
-    loadSeriesDashboard();
-  } else if (tabName === 'podcasts') {
-    loadPodcastsDashboard();
-  } else if (tabName === 'library') {
-    renderLibraryScreen();
   } else {
-    // Stop any active HLS stream playback if switching away from live TV
-    if (tabName !== 'live' && state.selectedMedia === null) {
-      const videoEl = document.getElementById('video-player');
-      if (videoEl) {
-        videoEl.pause();
-        videoEl.removeAttribute('src');
-        videoEl.load();
-      }
-      state.currentPlayingUrl = null;
-      if (holder && playerSection) {
-        holder.appendChild(playerSection);
-      }
+    stopActiveLiveTVFeed();
+    if (tabName === 'movies') {
+      loadMoviesDashboard();
+    } else if (tabName === 'series') {
+      loadSeriesDashboard();
+    } else if (tabName === 'podcasts') {
+      loadPodcastsDashboard();
+    } else if (tabName === 'library') {
+      renderLibraryScreen();
+    }
+
+    if (state.selectedMedia === null && holder && playerSection) {
+      holder.appendChild(playerSection);
     }
   }
 
@@ -569,6 +579,7 @@ function resetPlayerWindow() {
 
 // Open YouTube Video Modal (Podcast Episode)
 function openPodcastModal(podcast) {
+  stopActiveLiveTVFeed();
   resetPlayerWindow();
   state.selectedMedia = podcast;
 
@@ -1196,6 +1207,7 @@ function renderWatchlistButtonState() {
 async function openDetailsView(mediaItem) {
   try {
     console.log("[openDetailsView] mediaItem:", mediaItem);
+    stopActiveLiveTVFeed();
     resetPlayerWindow();
     state.selectedMedia = mediaItem;
     
@@ -1475,6 +1487,7 @@ function selectActiveSource(index) {
   const poster = document.getElementById('player-poster');
 
   // Stop video element playback and reset it
+  stopActiveLiveTVFeed();
   if (videoEl) {
     videoEl.pause();
     videoEl.removeAttribute('src');
