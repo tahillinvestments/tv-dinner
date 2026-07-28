@@ -17,20 +17,18 @@
       <div class="logo-icon-badge">
         <i data-lucide="tv"></i>
       </div>
-      <span class="logo-text">TVISION</span>
-    </div>
-    
-      <span class="logo-text">TVISION</span>
-    </div>
-    
     <nav class="nav-links">
       <button class="nav-link active" data-tab="live" title="Live TV">
-        <i data-lucide="monitor"></i>
+        <i data-lucide="tv"></i>
         <span>Live TV</span>
       </button>
-      <button class="nav-link" data-tab="vod" title="VOD (Movies & Series)">
+      <button class="nav-link" data-tab="movies" title="VOD (Movies)">
         <i data-lucide="film"></i>
-        <span>VOD</span>
+        <span>Movies</span>
+      </button>
+      <button class="nav-link" data-tab="series" title="VOD (Series)">
+        <i data-lucide="monitor"></i>
+        <span>TV Series</span>
       </button>
       <button class="nav-link" data-tab="library" title="Favorites">
         <i data-lucide="star"></i>
@@ -111,86 +109,71 @@
       </div>
     </div>
 
-    <!-- Tab 2: VOD (Movies & Series) Screen with Embedded Search -->
-    <div id="tab-vod" class="tab-screen hidden">
-      <!-- VOD Search Bar & Genre Filter Header -->
+    <!-- Tab 2: VOD Movies Screen -->
+    <div id="tab-movies" class="tab-screen hidden">
+      <!-- Movies Search Bar & Genre Filter Header -->
       <div class="search-header-container">
         <div class="search-bar-wrap">
           <i data-lucide="search" class="search-field-icon"></i>
-          <input type="text" id="vod-search-input" class="search-field-input" placeholder="Search movies, TV shows, and series...">
+          <input type="text" id="movies-search-input" class="search-field-input" placeholder="Search movies...">
         </div>
         
-        <!-- Curation Genre Filter Chips -->
+        <!-- Movies Genre Filter Chips -->
         <div class="genre-chips-scroll custom-scrollbar">
-          <button class="genre-chip active" data-genre="all">🔥 All Curation</button>
-          <button class="genre-chip" data-genre="28">💥 Action</button>
-          <button class="genre-chip" data-genre="35">😂 Comedy</button>
-          <button class="genre-chip" data-genre="878">🚀 Sci-Fi & Fantasy</button>
-          <button class="genre-chip" data-genre="27">👻 Horror & Thriller</button>
-          <button class="genre-chip" data-genre="16">🎨 Animation & Anime</button>
-          <button class="genre-chip" data-genre="top_rated">⭐ Top Rated</button>
+          <button class="genre-chip movies-genre-chip active" data-genre="all">🔥 All Movies</button>
+          <button class="genre-chip movies-genre-chip" data-genre="28">💥 Action</button>
+          <button class="genre-chip movies-genre-chip" data-genre="35">😂 Comedy</button>
+          <button class="genre-chip movies-genre-chip" data-genre="878">🚀 Sci-Fi & Fantasy</button>
+          <button class="genre-chip movies-genre-chip" data-genre="27">👻 Horror & Thriller</button>
+          <button class="genre-chip movies-genre-chip" data-genre="16">🎨 Animation</button>
+          <button class="genre-chip movies-genre-chip" data-genre="top_rated">⭐ Top Rated</button>
         </div>
       </div>
 
-      <!-- VOD Active Search Results Grid (visible when typing search query) -->
-      <div id="vod-search-results-section" class="search-results-container custom-scrollbar hidden">
-        <h2 class="search-heading" id="search-status-heading">Search Results</h2>
-        <div id="search-results-grid" class="search-results-grid"></div>
-        <div id="search-empty-state" class="empty-state-card hidden">
+      <!-- Movies Active Search Results Grid -->
+      <div id="movies-search-results-section" class="search-results-container custom-scrollbar hidden">
+        <h2 class="search-heading" id="movies-search-status-heading">Search Results</h2>
+        <div id="movies-search-results-grid" class="search-results-grid"></div>
+        <div id="movies-search-empty-state" class="empty-state-card hidden">
           <i data-lucide="alert-triangle"></i>
-          <h3>No titles found</h3>
-          <p>We couldn't find any movies or TV series matching your search.</p>
+          <h3>No movies found</h3>
+          <p>We couldn't find any movies matching your search query.</p>
         </div>
       </div>
 
-      <!-- VOD Default View (Spotlight Hero + Curated Categories) -->
-      <div id="vod-default-section" class="vod-default-container custom-scrollbar">
-        <!-- Cinematic Spotlight Hero Banner -->
-        <section id="hero-section" class="hero-section">
-          <div id="hero-backdrop" class="hero-backdrop"></div>
+      <!-- Movies Default View (Spotlight Hero + Curated Category Rows) -->
+      <div id="movies-default-section" class="vod-default-container custom-scrollbar">
+        <!-- Cinematic Movies Spotlight Hero -->
+        <section id="movies-hero-section" class="hero-section">
+          <div id="movies-hero-backdrop" class="hero-backdrop"></div>
           <div class="hero-gradient-overlay"></div>
           <div class="hero-content">
-            <span class="hero-tagline">SPOTLIGHT</span>
-            <h1 id="hero-title" class="hero-title">Loading Spotlight...</h1>
+            <span class="hero-tagline">MOVIE SPOTLIGHT</span>
+            <h1 id="movies-hero-title" class="hero-title">Loading Spotlight...</h1>
             <div class="hero-meta">
-              <span id="hero-rating" class="hero-rating-pill">⭐ --</span>
-              <span id="hero-year" class="hero-year-pill">----</span>
-              <span id="hero-type" class="hero-type-pill">Movie</span>
+              <span id="movies-hero-rating" class="hero-rating-pill">⭐ --</span>
+              <span id="movies-hero-year" class="hero-year-pill">----</span>
+              <span class="hero-type-pill">Movie</span>
             </div>
-            <p id="hero-overview" class="hero-overview">Gathering content description...</p>
+            <p id="movies-hero-overview" class="hero-overview">Gathering movie details...</p>
             <div class="hero-actions">
-              <button id="hero-play-btn" class="btn btn-primary btn-lg flex items-center gap-2">
-                <i data-lucide="play" class="fill-white"></i> Play Now
+              <button id="movies-hero-play-btn" class="btn btn-primary btn-lg flex items-center gap-2">
+                <i data-lucide="play" class="fill-white"></i> Play Movie
               </button>
             </div>
           </div>
         </section>
 
-        <!-- Horizontal scrolling rows of cards -->
-        <section class="dashboard-rows-section">
+        <!-- Horizontal scrolling movie rows -->
+        <section class="dashboard-rows-section movies-rows-section">
           <div class="row-container" data-row-genre="all">
             <div class="row-header-wrap">
-              <h2 class="row-heading">Trending Movies</h2>
-              <button class="see-more-btn" data-category-type="trending_movies" data-category-title="Trending Movies">
+              <h2 class="row-heading">🍿 Trending Movies</h2>
+              <button class="see-more-btn" data-category-type="trending_movies" data-category-title="🍿 Trending Movies">
                 See More <i data-lucide="chevron-right"></i>
               </button>
             </div>
             <div id="row-trending-movies" class="carousel-list custom-scrollbar">
-              <div class="skeleton-card"></div>
-              <div class="skeleton-card"></div>
-              <div class="skeleton-card"></div>
-              <div class="skeleton-card"></div>
-            </div>
-          </div>
-
-          <div class="row-container" data-row-genre="all">
-            <div class="row-header-wrap">
-              <h2 class="row-heading">Trending TV Series</h2>
-              <button class="see-more-btn" data-category-type="trending_tv" data-category-title="Trending TV Series">
-                See More <i data-lucide="chevron-right"></i>
-              </button>
-            </div>
-            <div id="row-trending-tv" class="carousel-list custom-scrollbar">
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
@@ -205,7 +188,7 @@
                 See More <i data-lucide="chevron-right"></i>
               </button>
             </div>
-            <div id="row-top-rated" class="carousel-list custom-scrollbar">
+            <div id="row-top-rated-movies" class="carousel-list custom-scrollbar">
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
@@ -220,7 +203,7 @@
                 See More <i data-lucide="chevron-right"></i>
               </button>
             </div>
-            <div id="row-action" class="carousel-list custom-scrollbar">
+            <div id="row-action-movies" class="carousel-list custom-scrollbar">
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
@@ -235,7 +218,7 @@
                 See More <i data-lucide="chevron-right"></i>
               </button>
             </div>
-            <div id="row-comedy" class="carousel-list custom-scrollbar">
+            <div id="row-comedy-movies" class="carousel-list custom-scrollbar">
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
@@ -250,7 +233,7 @@
                 See More <i data-lucide="chevron-right"></i>
               </button>
             </div>
-            <div id="row-scifi" class="carousel-list custom-scrollbar">
+            <div id="row-scifi-movies" class="carousel-list custom-scrollbar">
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
@@ -265,7 +248,7 @@
                 See More <i data-lucide="chevron-right"></i>
               </button>
             </div>
-            <div id="row-horror" class="carousel-list custom-scrollbar">
+            <div id="row-horror-movies" class="carousel-list custom-scrollbar">
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
@@ -275,12 +258,12 @@
 
           <div class="row-container" data-row-genre="16">
             <div class="row-header-wrap">
-              <h2 class="row-heading">🎨 Animation & Anime</h2>
-              <button class="see-more-btn" data-category-type="genre" data-genre-id="16" data-media-type="movie" data-category-title="🎨 Animation & Anime">
+              <h2 class="row-heading">🎨 Animated Feature Films</h2>
+              <button class="see-more-btn" data-category-type="genre" data-genre-id="16" data-media-type="movie" data-category-title="🎨 Animated Feature Films">
                 See More <i data-lucide="chevron-right"></i>
               </button>
             </div>
-            <div id="row-animation" class="carousel-list custom-scrollbar">
+            <div id="row-animation-movies" class="carousel-list custom-scrollbar">
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
               <div class="skeleton-card"></div>
@@ -288,25 +271,211 @@
             </div>
           </div>
 
-          <div class="row-container" id="row-watchlist-section" style="display: none;" data-row-genre="all">
-            <h2 class="row-heading">My Watchlist</h2>
-            <div id="row-watchlist" class="carousel-list custom-scrollbar"></div>
+          <div class="row-container" id="row-movies-watchlist-section" style="display: none;" data-row-genre="all">
+            <h2 class="row-heading">My Movie Watchlist</h2>
+            <div id="row-movies-watchlist" class="carousel-list custom-scrollbar"></div>
           </div>
         </section>
       </div>
 
-      <!-- VOD Expanded Category Grid Full Screen View -->
-      <div id="vod-category-section" class="category-view-container custom-scrollbar hidden">
+      <!-- Movies Category Grid Full Screen View -->
+      <div id="movies-category-section" class="category-view-container custom-scrollbar hidden">
         <div class="category-view-header">
-          <button id="category-back-btn" class="category-back-btn">
-            <i data-lucide="arrow-left"></i> Back to VOD
+          <button id="movies-category-back-btn" class="category-back-btn">
+            <i data-lucide="arrow-left"></i> Back to Movies
           </button>
-          <h2 id="category-view-title" class="category-view-title">Category Title</h2>
+          <h2 id="movies-category-view-title" class="category-view-title">Category Title</h2>
         </div>
-        <div id="category-view-grid" class="search-results-grid"></div>
+        <div id="movies-category-view-grid" class="search-results-grid"></div>
         <div class="category-load-more-wrap">
-          <button id="category-load-more-btn" class="btn btn-secondary flex items-center gap-2">
-            <i data-lucide="refresh-cw"></i> Load More Titles
+          <button id="movies-category-load-more-btn" class="btn btn-secondary flex items-center gap-2">
+            <i data-lucide="refresh-cw"></i> Load More Movies
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: VOD TV Series Screen -->
+    <div id="tab-series" class="tab-screen hidden">
+      <!-- Series Search Bar & Genre Filter Header -->
+      <div class="search-header-container">
+        <div class="search-bar-wrap">
+          <i data-lucide="search" class="search-field-icon"></i>
+          <input type="text" id="series-search-input" class="search-field-input" placeholder="Search TV series & shows...">
+        </div>
+        
+        <!-- Series Genre Filter Chips -->
+        <div class="genre-chips-scroll custom-scrollbar">
+          <button class="genre-chip series-genre-chip active" data-genre="all">🔥 All Series</button>
+          <button class="genre-chip series-genre-chip" data-genre="10759">💥 Action & Adventure</button>
+          <button class="genre-chip series-genre-chip" data-genre="35">😂 Comedy Shows</button>
+          <button class="genre-chip series-genre-chip" data-genre="10765">🚀 Sci-Fi & Fantasy</button>
+          <button class="genre-chip series-genre-chip" data-genre="80">👻 Crime & Mystery</button>
+          <button class="genre-chip series-genre-chip" data-genre="16">🎨 Animation & Anime</button>
+          <button class="genre-chip series-genre-chip" data-genre="top_rated">⭐ Top Rated Series</button>
+        </div>
+      </div>
+
+      <!-- Series Active Search Results Grid -->
+      <div id="series-search-results-section" class="search-results-container custom-scrollbar hidden">
+        <h2 class="search-heading" id="series-search-status-heading">Search Results</h2>
+        <div id="series-search-results-grid" class="search-results-grid"></div>
+        <div id="series-search-empty-state" class="empty-state-card hidden">
+          <i data-lucide="alert-triangle"></i>
+          <h3>No TV series found</h3>
+          <p>We couldn't find any TV series matching your search query.</p>
+        </div>
+      </div>
+
+      <!-- Series Default View (Spotlight Hero + Curated Category Rows) -->
+      <div id="series-default-section" class="vod-default-container custom-scrollbar">
+        <!-- Cinematic Series Spotlight Hero -->
+        <section id="series-hero-section" class="hero-section">
+          <div id="series-hero-backdrop" class="hero-backdrop"></div>
+          <div class="hero-gradient-overlay"></div>
+          <div class="hero-content">
+            <span class="hero-tagline">SERIES SPOTLIGHT</span>
+            <h1 id="series-hero-title" class="hero-title">Loading Spotlight...</h1>
+            <div class="hero-meta">
+              <span id="series-hero-rating" class="hero-rating-pill">⭐ --</span>
+              <span id="series-hero-year" class="hero-year-pill">----</span>
+              <span class="hero-type-pill">TV Show</span>
+            </div>
+            <p id="series-hero-overview" class="hero-overview">Gathering series details...</p>
+            <div class="hero-actions">
+              <button id="series-hero-play-btn" class="btn btn-primary btn-lg flex items-center gap-2">
+                <i data-lucide="play" class="fill-white"></i> Watch Series
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Horizontal scrolling series rows -->
+        <section class="dashboard-rows-section series-rows-section">
+          <div class="row-container" data-row-genre="all">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">📺 Trending TV Series</h2>
+              <button class="see-more-btn" data-category-type="trending_tv" data-category-title="📺 Trending TV Series">
+                See More <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+            <div id="row-trending-tv" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="top_rated">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">⭐ Top Rated Series</h2>
+              <button class="see-more-btn" data-category-type="top_rated_tv" data-category-title="⭐ Top Rated Series">
+                See More <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+            <div id="row-top-rated-series" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="10759">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">💥 Action & Adventure Shows</h2>
+              <button class="see-more-btn" data-category-type="genre" data-genre-id="10759" data-media-type="tv" data-category-title="💥 Action & Adventure Shows">
+                See More <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+            <div id="row-action-series" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="35">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">😂 Comedy Series</h2>
+              <button class="see-more-btn" data-category-type="genre" data-genre-id="35" data-media-type="tv" data-category-title="😂 Comedy Series">
+                See More <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+            <div id="row-comedy-series" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="10765">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">🚀 Sci-Fi & Fantasy Series</h2>
+              <button class="see-more-btn" data-category-type="genre" data-genre-id="10765" data-media-type="tv" data-category-title="🚀 Sci-Fi & Fantasy Series">
+                See More <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+            <div id="row-scifi-series" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="80">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">👻 Crime & Mystery Shows</h2>
+              <button class="see-more-btn" data-category-type="genre" data-genre-id="80" data-media-type="tv" data-category-title="👻 Crime & Mystery Shows">
+                See More <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+            <div id="row-crime-series" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="16">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">🎨 Animated Series & Anime</h2>
+              <button class="see-more-btn" data-category-type="genre" data-genre-id="16" data-media-type="tv" data-category-title="🎨 Animated Series & Anime">
+                See More <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+            <div id="row-animation-series" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" id="row-series-watchlist-section" style="display: none;" data-row-genre="all">
+            <h2 class="row-heading">My TV Series Watchlist</h2>
+            <div id="row-series-watchlist" class="carousel-list custom-scrollbar"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Series Category Grid Full Screen View -->
+      <div id="series-category-section" class="category-view-container custom-scrollbar hidden">
+        <div class="category-view-header">
+          <button id="series-category-back-btn" class="category-back-btn">
+            <i data-lucide="arrow-left"></i> Back to TV Series
+          </button>
+          <h2 id="series-category-view-title" class="category-view-title">Category Title</h2>
+        </div>
+        <div id="series-category-view-grid" class="search-results-grid"></div>
+        <div class="category-load-more-wrap">
+          <button id="series-category-load-more-btn" class="btn btn-secondary flex items-center gap-2">
+            <i data-lucide="refresh-cw"></i> Load More Series
           </button>
         </div>
       </div>

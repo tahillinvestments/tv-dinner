@@ -1,7 +1,7 @@
 import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight } from 'lucide';
 import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
-import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getByGenre } from './tmdb';
+import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
 import './style.css';
 
@@ -174,14 +174,15 @@ function switchTab(tabName) {
 
     renderCategories();
     applyFilterAndRender();
-  } else if (tabName === 'vod') {
-    loadHomeDashboard();
+  } else if (tabName === 'movies') {
+    loadMoviesDashboard();
+  } else if (tabName === 'series') {
+    loadSeriesDashboard();
   } else if (tabName === 'library') {
     renderLibraryScreen();
   } else {
     // Stop any active HLS stream playback if switching away from live TV
     if (tabName !== 'live' && state.selectedMedia === null) {
-      // Pause playback & return player back to hidden holder
       const videoEl = document.getElementById('video-player');
       if (videoEl) {
         videoEl.pause();
@@ -195,93 +196,156 @@ function switchTab(tabName) {
     }
   }
 
-  // Handle page specfics
-  if (tabName === 'home') {
-    loadHomeDashboard();
-  } else if (tabName === 'library') {
-    renderLibraryScreen();
-  } else if (tabName === 'search') {
-    const input = document.getElementById('search-input');
-    if (input) input.focus();
-    loadPopularSearches();
-  }
-
   createIcons(iconConfig);
 }
 
-// Load Home Dashboard hero + curated category carousels
-async function loadHomeDashboard() {
-  const movieRow = document.getElementById('row-trending-movies');
-  const tvRow = document.getElementById('row-trending-tv');
-  const topRatedRow = document.getElementById('row-top-rated');
-  const actionRow = document.getElementById('row-action');
-  const comedyRow = document.getElementById('row-comedy');
-  const scifiRow = document.getElementById('row-scifi');
-  const horrorRow = document.getElementById('row-horror');
-  const animationRow = document.getElementById('row-animation');
-  const watchlistRow = document.getElementById('row-watchlist');
-  const watchlistSection = document.getElementById('row-watchlist-section');
+// Load Movies Dashboard hero + curated category carousels
+async function loadMoviesDashboard() {
+  const trendingRow = document.getElementById('row-trending-movies');
+  const topRatedRow = document.getElementById('row-top-rated-movies');
+  const actionRow = document.getElementById('row-action-movies');
+  const comedyRow = document.getElementById('row-comedy-movies');
+  const scifiRow = document.getElementById('row-scifi-movies');
+  const horrorRow = document.getElementById('row-horror-movies');
+  const animationRow = document.getElementById('row-animation-movies');
+  const watchlistRow = document.getElementById('row-movies-watchlist');
+  const watchlistSection = document.getElementById('row-movies-watchlist-section');
 
-  // Load VOD Watchlist Continue Watching row
-  if (state.watchlist.length > 0) {
-    watchlistSection.style.display = 'block';
-    renderCardRow(state.watchlist, watchlistRow);
-  } else {
-    watchlistSection.style.display = 'none';
+  // Load Movies Watchlist
+  const movieWatchlist = state.watchlist.filter(x => x.media_type === 'movie');
+  if (watchlistSection && watchlistRow) {
+    if (movieWatchlist.length > 0) {
+      watchlistSection.style.display = 'block';
+      renderCardRow(movieWatchlist, watchlistRow);
+    } else {
+      watchlistSection.style.display = 'none';
+    }
   }
 
   try {
-    const data = await getTrending();
-    state.trendingItems = data.results || [];
+    const data = await getTrendingMovies();
+    const movies = data.results || [];
     
-    const movies = state.trendingItems.filter(item => item.media_type === 'movie');
-    const series = state.trendingItems.filter(item => item.media_type === 'tv');
-
-    // Populate Spotlight Hero using the first trending item
-    if (state.trendingItems.length > 0) {
-      const heroItem = state.trendingItems[0];
-      const title = heroItem.title || heroItem.name || 'Featured Title';
-      const year = (heroItem.release_date || heroItem.first_air_date || '').split('-')[0] || '2026';
+    if (movies.length > 0) {
+      const heroItem = movies[0];
+      const title = heroItem.title || 'Featured Movie';
+      const year = (heroItem.release_date || '').split('-')[0] || '2026';
       const rating = heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A';
-      const type = heroItem.media_type === 'tv' ? 'TV Show' : 'Movie';
-      const overview = heroItem.overview || 'Explore details and stream this trending item instantly.';
+      const overview = heroItem.overview || 'Explore details and stream this trending movie instantly.';
       const bgUrl = getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
 
-      document.getElementById('hero-title').textContent = title;
-      document.getElementById('hero-year').textContent = year;
-      document.getElementById('hero-rating').textContent = `⭐ ${rating}`;
-      document.getElementById('hero-type').textContent = type;
-      document.getElementById('hero-overview').textContent = overview;
+      const titleEl = document.getElementById('movies-hero-title');
+      if (titleEl) titleEl.textContent = title;
+      const yearEl = document.getElementById('movies-hero-year');
+      if (yearEl) yearEl.textContent = year;
+      const ratingEl = document.getElementById('movies-hero-rating');
+      if (ratingEl) ratingEl.textContent = `⭐ ${rating}`;
+      const overviewEl = document.getElementById('movies-hero-overview');
+      if (overviewEl) overviewEl.textContent = overview;
       
-      const backdropEl = document.getElementById('hero-backdrop');
+      const backdropEl = document.getElementById('movies-hero-backdrop');
       if (backdropEl && bgUrl) {
         backdropEl.style.backgroundImage = `url(${bgUrl})`;
       }
 
-      // Play button action
-      const playBtn = document.getElementById('hero-play-btn');
-      const newPlayBtn = playBtn.cloneNode(true);
-      playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
-      newPlayBtn.addEventListener('click', () => openDetailsView(heroItem));
+      const playBtn = document.getElementById('movies-hero-play-btn');
+      if (playBtn) {
+        const newPlayBtn = playBtn.cloneNode(true);
+        playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+        newPlayBtn.addEventListener('click', () => openDetailsView(heroItem));
+      }
     }
 
-    renderCardRow(movies, movieRow);
-    renderCardRow(series, tvRow);
+    if (trendingRow) renderCardRow(movies, trendingRow);
 
-    // Fetch rich curation category rows concurrently
+    // Fetch movie curation category rows concurrently
     Promise.allSettled([
-      getTopRated().then(res => renderCardRow(res.results, topRatedRow)),
-      getByGenre(28, 'movie').then(res => renderCardRow(res.results, actionRow)),
-      getByGenre(35, 'movie').then(res => renderCardRow(res.results, comedyRow)),
-      getByGenre(878, 'movie').then(res => renderCardRow(res.results, scifiRow)),
-      getByGenre(27, 'movie').then(res => renderCardRow(res.results, horrorRow)),
-      getByGenre(16, 'movie').then(res => renderCardRow(res.results, animationRow))
+      getTopRated().then(res => topRatedRow && renderCardRow(res.results, topRatedRow)),
+      getByGenre(28, 'movie').then(res => actionRow && renderCardRow(res.results, actionRow)),
+      getByGenre(35, 'movie').then(res => comedyRow && renderCardRow(res.results, comedyRow)),
+      getByGenre(878, 'movie').then(res => scifiRow && renderCardRow(res.results, scifiRow)),
+      getByGenre(27, 'movie').then(res => horrorRow && renderCardRow(res.results, horrorRow)),
+      getByGenre(16, 'movie').then(res => animationRow && renderCardRow(res.results, animationRow))
     ]);
 
   } catch (err) {
-    console.error("Home dashboard load error:", err);
-    if (movieRow) movieRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending movies.</span>';
-    if (tvRow) tvRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending shows.</span>';
+    console.error("Movies dashboard load error:", err);
+    if (trendingRow) trendingRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending movies.</span>';
+  }
+}
+
+// Load TV Series Dashboard hero + curated category carousels
+async function loadSeriesDashboard() {
+  const trendingRow = document.getElementById('row-trending-tv');
+  const topRatedRow = document.getElementById('row-top-rated-series');
+  const actionRow = document.getElementById('row-action-series');
+  const comedyRow = document.getElementById('row-comedy-series');
+  const scifiRow = document.getElementById('row-scifi-series');
+  const crimeRow = document.getElementById('row-crime-series');
+  const animationRow = document.getElementById('row-animation-series');
+  const watchlistRow = document.getElementById('row-series-watchlist');
+  const watchlistSection = document.getElementById('row-series-watchlist-section');
+
+  // Load TV Series Watchlist
+  const seriesWatchlist = state.watchlist.filter(x => x.media_type === 'tv');
+  if (watchlistSection && watchlistRow) {
+    if (seriesWatchlist.length > 0) {
+      watchlistSection.style.display = 'block';
+      renderCardRow(seriesWatchlist, watchlistRow);
+    } else {
+      watchlistSection.style.display = 'none';
+    }
+  }
+
+  try {
+    const data = await getTrendingTV();
+    const series = data.results || [];
+    
+    if (series.length > 0) {
+      const heroItem = series[0];
+      const title = heroItem.name || 'Featured Series';
+      const year = (heroItem.first_air_date || '').split('-')[0] || '2026';
+      const rating = heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A';
+      const overview = heroItem.overview || 'Explore details and stream this trending series instantly.';
+      const bgUrl = getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
+
+      const titleEl = document.getElementById('series-hero-title');
+      if (titleEl) titleEl.textContent = title;
+      const yearEl = document.getElementById('series-hero-year');
+      if (yearEl) yearEl.textContent = year;
+      const ratingEl = document.getElementById('series-hero-rating');
+      if (ratingEl) ratingEl.textContent = `⭐ ${rating}`;
+      const overviewEl = document.getElementById('series-hero-overview');
+      if (overviewEl) overviewEl.textContent = overview;
+      
+      const backdropEl = document.getElementById('series-hero-backdrop');
+      if (backdropEl && bgUrl) {
+        backdropEl.style.backgroundImage = `url(${bgUrl})`;
+      }
+
+      const playBtn = document.getElementById('series-hero-play-btn');
+      if (playBtn) {
+        const newPlayBtn = playBtn.cloneNode(true);
+        playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+        newPlayBtn.addEventListener('click', () => openDetailsView(heroItem));
+      }
+    }
+
+    if (trendingRow) renderCardRow(series, trendingRow);
+
+    // Fetch series curation category rows concurrently
+    Promise.allSettled([
+      getTopRatedTV().then(res => topRatedRow && renderCardRow(res.results, topRatedRow)),
+      getByGenre(10759, 'tv').then(res => actionRow && renderCardRow(res.results, actionRow)),
+      getByGenre(35, 'tv').then(res => comedyRow && renderCardRow(res.results, comedyRow)),
+      getByGenre(10765, 'tv').then(res => scifiRow && renderCardRow(res.results, scifiRow)),
+      getByGenre(80, 'tv').then(res => crimeRow && renderCardRow(res.results, crimeRow)),
+      getByGenre(16, 'tv').then(res => animationRow && renderCardRow(res.results, animationRow))
+    ]);
+
+  } catch (err) {
+    console.error("Series dashboard load error:", err);
+    if (trendingRow) trendingRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending series.</span>';
   }
 }
 
@@ -375,7 +439,7 @@ function renderSearchResultsGrid(results) {
   createIcons(iconConfig);
 }
 
-// Setup search logic for Live TV and VOD independently
+// Setup search & genre chip logic for Movies and TV Series
 function setupSearch() {
   // Live channel inline search
   const liveSearchInput = document.getElementById('live-search-input');
@@ -385,41 +449,67 @@ function setupSearch() {
     });
   }
 
-  // VOD Movies & Series search
-  const vodSearchInput = document.getElementById('vod-search-input');
-  const searchResultsSection = document.getElementById('vod-search-results-section');
-  const vodDefaultSection = document.getElementById('vod-default-section');
+  // Movies search
+  const moviesSearchInput = document.getElementById('movies-search-input');
+  const moviesSearchResultsSection = document.getElementById('movies-search-results-section');
+  const moviesDefaultSection = document.getElementById('movies-default-section');
 
-  if (vodSearchInput) {
-    vodSearchInput.addEventListener('input', (e) => {
+  if (moviesSearchInput) {
+    moviesSearchInput.addEventListener('input', (e) => {
       const query = e.target.value.trim();
       state.searchQuery = query;
 
       if (!query) {
-        if (searchResultsSection) searchResultsSection.classList.add('hidden');
-        if (vodDefaultSection) vodDefaultSection.classList.remove('hidden');
+        if (moviesSearchResultsSection) moviesSearchResultsSection.classList.add('hidden');
+        if (moviesDefaultSection) moviesDefaultSection.classList.remove('hidden');
         return;
       }
 
-      if (searchResultsSection) searchResultsSection.classList.remove('hidden');
-      if (vodDefaultSection) vodDefaultSection.classList.add('hidden');
+      if (moviesSearchResultsSection) moviesSearchResultsSection.classList.remove('hidden');
+      if (moviesDefaultSection) moviesDefaultSection.classList.add('hidden');
 
       clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(() => {
-        triggerSearchQuery(query);
+        triggerSearchQuery(query, 'movie');
       }, 400);
     });
   }
 
-  // Genre chip filter click listeners
-  const genreChips = document.querySelectorAll('.genre-chip');
-  genreChips.forEach(chip => {
+  // Series search
+  const seriesSearchInput = document.getElementById('series-search-input');
+  const seriesSearchResultsSection = document.getElementById('series-search-results-section');
+  const seriesDefaultSection = document.getElementById('series-default-section');
+
+  if (seriesSearchInput) {
+    seriesSearchInput.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+      state.searchQuery = query;
+
+      if (!query) {
+        if (seriesSearchResultsSection) seriesSearchResultsSection.classList.add('hidden');
+        if (seriesDefaultSection) seriesDefaultSection.classList.remove('hidden');
+        return;
+      }
+
+      if (seriesSearchResultsSection) seriesSearchResultsSection.classList.remove('hidden');
+      if (seriesDefaultSection) seriesDefaultSection.classList.add('hidden');
+
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        triggerSearchQuery(query, 'tv');
+      }, 400);
+    });
+  }
+
+  // Movies genre chips
+  const moviesChips = document.querySelectorAll('.movies-genre-chip');
+  moviesChips.forEach(chip => {
     chip.addEventListener('click', () => {
-      genreChips.forEach(c => c.classList.remove('active'));
+      moviesChips.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
 
       const targetGenre = chip.getAttribute('data-genre');
-      const rows = document.querySelectorAll('.dashboard-rows-section .row-container');
+      const rows = document.querySelectorAll('.movies-rows-section .row-container');
 
       rows.forEach(row => {
         const rowGenre = row.getAttribute('data-row-genre');
@@ -429,17 +519,30 @@ function setupSearch() {
           row.style.display = 'none';
         }
       });
-
-      if (targetGenre !== 'all') {
-        const targetRow = document.querySelector(`.row-container[data-row-genre="${targetGenre}"]`);
-        if (targetRow) {
-          targetRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      }
     });
   });
 
-  // Setup See More buttons & Category Grid View listeners
+  // Series genre chips
+  const seriesChips = document.querySelectorAll('.series-genre-chip');
+  seriesChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      seriesChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      const targetGenre = chip.getAttribute('data-genre');
+      const rows = document.querySelectorAll('.series-rows-section .row-container');
+
+      rows.forEach(row => {
+        const rowGenre = row.getAttribute('data-row-genre');
+        if (targetGenre === 'all' || rowGenre === targetGenre || rowGenre === 'all') {
+          row.style.display = 'block';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+  });
+
   setupSeeMoreListeners();
 }
 
@@ -464,13 +567,13 @@ function setupSeeMoreListeners() {
     });
   });
 
-  // Back to VOD button
-  const backBtn = document.getElementById('category-back-btn');
-  if (backBtn) {
-    backBtn.addEventListener('click', () => {
-      const defaultSection = document.getElementById('vod-default-section');
-      const searchSection = document.getElementById('vod-search-results-section');
-      const categorySection = document.getElementById('vod-category-section');
+  // Movies Category Back button
+  const moviesBackBtn = document.getElementById('movies-category-back-btn');
+  if (moviesBackBtn) {
+    moviesBackBtn.addEventListener('click', () => {
+      const defaultSection = document.getElementById('movies-default-section');
+      const searchSection = document.getElementById('movies-search-results-section');
+      const categorySection = document.getElementById('movies-category-section');
 
       if (categorySection) categorySection.classList.add('hidden');
       if (searchSection) searchSection.classList.add('hidden');
@@ -478,10 +581,33 @@ function setupSeeMoreListeners() {
     });
   }
 
-  // Load More Titles button
-  const loadMoreBtn = document.getElementById('category-load-more-btn');
-  if (loadMoreBtn) {
-    loadMoreBtn.addEventListener('click', () => {
+  // Series Category Back button
+  const seriesBackBtn = document.getElementById('series-category-back-btn');
+  if (seriesBackBtn) {
+    seriesBackBtn.addEventListener('click', () => {
+      const defaultSection = document.getElementById('series-default-section');
+      const searchSection = document.getElementById('series-search-results-section');
+      const categorySection = document.getElementById('series-category-section');
+
+      if (categorySection) categorySection.classList.add('hidden');
+      if (searchSection) searchSection.classList.add('hidden');
+      if (defaultSection) defaultSection.classList.remove('hidden');
+    });
+  }
+
+  // Movies Load More button
+  const moviesLoadMoreBtn = document.getElementById('movies-category-load-more-btn');
+  if (moviesLoadMoreBtn) {
+    moviesLoadMoreBtn.addEventListener('click', () => {
+      categoryViewState.currentPage += 1;
+      loadCategoryPageItems(false);
+    });
+  }
+
+  // Series Load More button
+  const seriesLoadMoreBtn = document.getElementById('series-category-load-more-btn');
+  if (seriesLoadMoreBtn) {
+    seriesLoadMoreBtn.addEventListener('click', () => {
       categoryViewState.currentPage += 1;
       loadCategoryPageItems(false);
     });
@@ -494,11 +620,13 @@ async function openCategoryPage(config) {
   categoryViewState.currentPage = 1;
   categoryViewState.isLoading = false;
 
-  const defaultSection = document.getElementById('vod-default-section');
-  const searchSection = document.getElementById('vod-search-results-section');
-  const categorySection = document.getElementById('vod-category-section');
-  const titleEl = document.getElementById('category-view-title');
-  const gridEl = document.getElementById('category-view-grid');
+  const isTV = config.mediaType === 'tv' || config.type === 'trending_tv' || config.type === 'top_rated_tv';
+  
+  const defaultSection = isTV ? document.getElementById('series-default-section') : document.getElementById('movies-default-section');
+  const searchSection = isTV ? document.getElementById('series-search-results-section') : document.getElementById('movies-search-results-section');
+  const categorySection = isTV ? document.getElementById('series-category-section') : document.getElementById('movies-category-section');
+  const titleEl = isTV ? document.getElementById('series-category-view-title') : document.getElementById('movies-category-view-title');
+  const gridEl = isTV ? document.getElementById('series-category-view-grid') : document.getElementById('movies-category-view-grid');
 
   if (defaultSection) defaultSection.classList.add('hidden');
   if (searchSection) searchSection.classList.add('hidden');
@@ -524,7 +652,8 @@ async function loadCategoryPageItems(isReset = false) {
 
   const config = categoryViewState.activeConfig;
   const page = categoryViewState.currentPage;
-  const gridEl = document.getElementById('category-view-grid');
+  const isTV = config.mediaType === 'tv' || config.type === 'trending_tv' || config.type === 'top_rated_tv';
+  const gridEl = isTV ? document.getElementById('series-category-view-grid') : document.getElementById('movies-category-view-grid');
 
   try {
     let items = [];
@@ -536,6 +665,9 @@ async function loadCategoryPageItems(isReset = false) {
       items = data.results || [];
     } else if (config.type === 'top_rated') {
       const data = await getTopRated(page);
+      items = data.results || [];
+    } else if (config.type === 'top_rated_tv') {
+      const data = await getTopRatedTV(page);
       items = data.results || [];
     } else if (config.type === 'genre') {
       const data = await getByGenre(config.genreId, config.mediaType || 'movie', page);
@@ -565,7 +697,7 @@ async function loadCategoryPageItems(isReset = false) {
             </div>
           </div>
         `;
-        card.addEventListener('click', () => openDetailsView(item));
+        card.addEventListener('click', () => openDetailsView({ ...item, media_type: isTV ? 'tv' : 'movie' }));
         gridEl.appendChild(card);
       });
     }
@@ -576,32 +708,52 @@ async function loadCategoryPageItems(isReset = false) {
   }
 }
 
-// Execute VOD Search
-async function triggerSearchQuery(query) {
-  const grid = document.getElementById('search-results-grid');
-  const heading = document.getElementById('search-status-heading');
+// Execute Movies / Series Search
+async function triggerSearchQuery(query, filterType = 'all') {
+  const isTV = filterType === 'tv';
+  const grid = isTV ? document.getElementById('series-search-results-grid') : document.getElementById('movies-search-results-grid');
+  const heading = isTV ? document.getElementById('series-search-status-heading') : document.getElementById('movies-search-status-heading');
+  const emptyState = isTV ? document.getElementById('series-search-empty-state') : document.getElementById('movies-search-empty-state');
   
-  if (!query) {
-    loadPopularSearches();
-    return;
-  }
+  if (!query) return;
 
-  heading.textContent = `Search results for "${query}"`;
-  grid.innerHTML = `
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-    <div class="skeleton-card"></div>
-  `;
+  if (heading) heading.textContent = `Search results for "${query}"`;
+  if (grid) {
+    grid.innerHTML = `
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+    `;
+  }
+  if (emptyState) emptyState.classList.add('hidden');
 
   try {
     const data = await searchMulti(query);
-    renderSearchResultsGrid(data.results);
+    let results = data.results || [];
+
+    if (filterType === 'movie') {
+      results = results.filter(item => item.media_type === 'movie');
+    } else if (filterType === 'tv') {
+      results = results.filter(item => item.media_type === 'tv');
+    }
+
+    if (results.length === 0) {
+      if (grid) grid.innerHTML = '';
+      if (emptyState) emptyState.classList.remove('hidden');
+      return;
+    }
+
+    if (grid) {
+      renderSearchGrid(results, grid);
+    }
   } catch (err) {
-    console.error("Search fetch failed:", err);
-    grid.innerHTML = '<span class="text-xs text-red-400 py-4">Search failed. Check your TMDB credentials.</span>';
+    console.error("Search failed:", err);
+    if (grid) grid.innerHTML = '<div class="col-span-full text-center text-red-400 py-8">Failed to fetch search results. Please check your connection.</div>';
   }
 }
+
+
 
 // Render watchlist items in Library tab
 function renderLibraryScreen() {

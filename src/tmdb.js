@@ -71,6 +71,15 @@ export async function getTopRated(page = 1) {
 }
 
 /**
+ * Fetches top rated TV shows
+ */
+export async function getTopRatedTV(page = 1) {
+  const data = await fetchFromTMDB('/tv/top_rated', { page });
+  (data.results || []).forEach(item => { item.media_type = 'tv'; });
+  return data;
+}
+
+/**
  * Fetches movies/TV by genre ID
  */
 export async function getByGenre(genreId, mediaType = 'movie', page = 1) {
