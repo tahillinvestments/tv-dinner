@@ -1635,6 +1635,19 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   const catTarget = `${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_categories`;
   const streamTarget = `${portalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams`;
 
+  async function fetchWithTimeout(url, timeoutMs = 6000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      throw err;
+    }
+  }
+
   async function fetchJsonWithFallback(targetUrl) {
     const proxies = [
       getProxyUrl(targetUrl),
@@ -1645,7 +1658,7 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
 
     for (const pUrl of proxies) {
       try {
-        const res = await fetch(pUrl);
+        const res = await fetchWithTimeout(pUrl, 6000);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -1654,13 +1667,13 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
           }
         }
       } catch (e) {
-        console.warn(`[Xtream] Proxy attempt failed for ${pUrl}:`, e);
+        console.warn(`[Xtream] Proxy attempt failed for ${pUrl}:`, e.message || e);
       }
     }
 
     // Direct fetch fallback
     try {
-      const res = await fetch(targetUrl);
+      const res = await fetchWithTimeout(targetUrl, 5000);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) return data;
@@ -1687,25 +1700,25 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   // Convert streams to M3U format — stream URL goes through local proxy so:
   // a) CORS is bypassed, b) VLC user-agent is spoofed, c) CDN redirects are followed
   let m3uLines = ['#EXTM3U'];
-  if (Array.isArray(streams)) {
+  if (Array.isArray(streams) && streams.length > 0) {
     streams.forEach(stream => {
       const streamName = stream.name || 'Unknown Channel';
       const streamId = stream.stream_id;
       const logo = stream.stream_icon || '';
       const categoryName = catMap[stream.category_id] || 'General';
-      // Route through the local CORS+VLC-UA proxy so HLS.js can load segments
       const rawStreamUrl = `${portalUrl}/live/${username}/${password}/${streamId}.m3u8`;
       const streamUrl = `/api/proxy?url=${encodeURIComponent(rawStreamUrl)}`;
 
       m3uLines.push(`#EXTINF:-1 tvg-id="" tvg-name="${streamName}" tvg-logo="${logo}" group-title="${categoryName}",${streamName}`);
       m3uLines.push(streamUrl);
     });
+    return m3uLines.join('\n');
   }
 
-  return m3uLines.join('\n');
+  return '';
 }
 
-// Load IPTV playlist from credentials
+// Load IPTV playlist from credentials with automatic bundled M3U fallback
 async function loadIPTVPlaylist() {
   const headerBadge = document.getElementById('channel-count-header');
   
@@ -1718,15 +1731,42 @@ async function loadIPTVPlaylist() {
     let rawM3U = '';
     
     if (portalUrl && username && password) {
-      rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
-    } else {
-      const playlistUrl = './o_all.m3u';
-      const response = await fetch(playlistUrl);
-      if (!response.ok) throw new Error("Failed to fetch default M3U");
-      rawM3U = await response.text();
+      try {
+        rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
+      } catch (err) {
+        console.warn("[IPTV] fetchXtreamPlaylist error:", err);
+      }
     }
     
-    state.channels = parseM3U(rawM3U);
+    if (rawM3U) {
+      state.channels = parseM3U(rawM3U);
+    }
+
+    // Automatic Fallback if Xtream returned 0 channels or failed
+    if (!state.channels || state.channels.length === 0) {
+      console.log("[IPTV] Xtream API returned 0 channels. Loading fallback M3U playlist...");
+      const fallbackUrls = ['./o_all.m3u', '/o_all.m3u', './all.m3u', '/all.m3u'];
+      for (const url of fallbackUrls) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const fallbackText = await res.text();
+            const fallbackChannels = parseM3U(fallbackText);
+            if (fallbackChannels.length > 0) {
+              state.channels = fallbackChannels;
+              console.log(`[IPTV] Successfully loaded ${state.channels.length} fallback channels from ${url}`);
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn(`[IPTV] Fallback fetch failed for ${url}:`, e);
+        }
+      }
+    }
+
+    if (!state.channels || state.channels.length === 0) {
+      throw new Error("No channels found in Xtream API or fallback M3U playlist");
+    }
     
     // Extract category groups
     const groups = new Set();
@@ -1742,9 +1782,10 @@ async function loadIPTVPlaylist() {
     const countEl = document.getElementById('filtered-count');
     if (countEl && state.activeTab === 'live') {
       countEl.textContent = countText;
-      renderCategories();
-      applyFilterAndRender();
     }
+
+    renderCategories();
+    applyFilterAndRender();
   } catch (error) {
     console.error("Failed to parse IPTV playlist:", error);
     if (headerBadge) headerBadge.textContent = 'Playlist Offline';
