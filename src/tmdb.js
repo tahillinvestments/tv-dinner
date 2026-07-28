@@ -25,18 +25,77 @@ export async function fetchFromTMDB(endpoint, params = {}) {
  */
 export async function searchMulti(query, page = 1) {
   if (!query || query.trim() === '') return { results: [] };
-  const data = await fetchFromTMDB('/search/multi', {
-    query: query.trim(),
-    page,
-    include_adult: 'false'
-  });
-  
-  // Filter only movies and tv shows, and sort by popularity
-  data.results = (data.results || [])
-    .filter(item => item.media_type === 'movie' || item.media_type === 'tv')
-    .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
-    
-  return data;
+  const trimmed = query.trim();
+
+  // If query is an IMDb ID (e.g. tt1375666 or tt0111161)
+  if (/^tt\d+$/i.test(trimmed)) {
+    try {
+      const findData = await fetchFromTMDB(`/find/${trimmed}`, { external_source: 'imdb_id' });
+      const results = [];
+      (findData.movie_results || []).forEach(m => { m.media_type = 'movie'; results.push(m); });
+      (findData.tv_results || []).forEach(t => { t.media_type = 'tv'; results.push(t); });
+      if (results.length > 0) return { results };
+    } catch (e) {
+      console.warn("IMDb ID find failed:", e);
+    }
+  }
+
+  // If query is a pure numeric ID (e.g. 1081003 or 27205)
+  if (/^\d+$/.test(trimmed)) {
+    const results = [];
+    try {
+      const mDetails = await fetchFromTMDB(`/movie/${trimmed}`);
+      if (mDetails && mDetails.id) {
+        mDetails.media_type = 'movie';
+        results.push(mDetails);
+      }
+    } catch (e) {}
+
+    try {
+      const tDetails = await fetchFromTMDB(`/tv/${trimmed}`);
+      if (tDetails && tDetails.id) {
+        tDetails.media_type = 'tv';
+        results.push(tDetails);
+      }
+    } catch (e) {}
+
+    if (results.length > 0) return { results };
+  }
+
+  // Primary multi search
+  let results = [];
+  try {
+    const data = await fetchFromTMDB('/search/multi', {
+      query: trimmed,
+      page,
+      include_adult: 'false'
+    });
+    results = (data.results || [])
+      .filter(item => item.media_type === 'movie' || item.media_type === 'tv');
+  } catch (e) {
+    console.warn("TMDB multi search error:", e);
+  }
+
+  // Fallback: search movie and tv directly if multi-search returns nothing
+  if (results.length === 0) {
+    try {
+      const [movieData, tvData] = await Promise.allSettled([
+        fetchFromTMDB('/search/movie', { query: trimmed, page }),
+        fetchFromTMDB('/search/tv', { query: trimmed, page })
+      ]);
+      if (movieData.status === 'fulfilled' && movieData.value.results) {
+        movieData.value.results.forEach(m => { m.media_type = 'movie'; results.push(m); });
+      }
+      if (tvData.status === 'fulfilled' && tvData.value.results) {
+        tvData.value.results.forEach(t => { t.media_type = 'tv'; results.push(t); });
+      }
+    } catch (e) {
+      console.warn("Fallback direct search error:", e);
+    }
+  }
+
+  results.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  return { results };
 }
 
 /**

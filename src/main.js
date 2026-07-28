@@ -520,8 +520,54 @@ function togglePodcastFavorite(podcast) {
   loadPodcastsDashboard();
 }
 
-// Open Podcast YouTube embed player modal
+// Reset video player window before loading any new stream request
+function resetPlayerWindow() {
+  console.log('[resetPlayerWindow] Resetting player window state');
+  closeActiveSse();
+
+  const videoEl = document.getElementById('video-player');
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const embedIframe = document.getElementById('embed-iframe');
+  const playerWrapper = document.querySelector('.player-wrapper');
+  const shield = document.getElementById('embed-shield');
+  const poster = document.getElementById('player-poster');
+  const sourcesList = document.getElementById('sources-list');
+  const statusText = document.getElementById('sources-status');
+
+  if (videoEl) {
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    videoEl.load();
+    videoEl.style.display = 'none';
+  }
+
+  if (embedIframe) {
+    embedIframe.src = 'about:blank';
+    embedIframe.removeAttribute('src');
+  }
+
+  if (embedWrapper) {
+    embedWrapper.style.display = 'none';
+  }
+
+  if (playerWrapper) {
+    playerWrapper.classList.remove('embed-active');
+  }
+
+  if (shield) shield.style.display = 'none';
+
+  if (poster) {
+    poster.style.display = 'flex';
+    poster.style.backgroundImage = '';
+  }
+
+  if (sourcesList) sourcesList.innerHTML = '';
+  if (statusText) statusText.textContent = 'Select a stream or episode to play.';
+}
+
+// Open YouTube Video Modal (Podcast Episode)
 function openPodcastModal(podcast) {
+  resetPlayerWindow();
   state.selectedMedia = podcast;
 
   const overlay = document.getElementById('details-overlay');
@@ -629,16 +675,12 @@ async function loadPopularSearches() {
 }
 
 // Render search results grid
-function renderSearchResultsGrid(results) {
-  const grid = document.getElementById('search-results-grid');
-  const emptyState = document.getElementById('search-empty-state');
+function renderSearchGrid(results, gridContainer) {
+  const grid = gridContainer || document.getElementById('movies-search-results-grid');
+  if (!grid) return;
   grid.innerHTML = '';
 
-  if (!results || results.length === 0) {
-    emptyState.classList.remove('hidden');
-    return;
-  }
-  emptyState.classList.add('hidden');
+  if (!results || results.length === 0) return;
 
   results.forEach(item => {
     const title = item.title || item.name || 'Untitled';
@@ -995,9 +1037,29 @@ async function triggerSearchQuery(query, filterType = 'all') {
     let results = data.results || [];
 
     if (filterType === 'movie') {
-      results = results.filter(item => item.media_type === 'movie');
+      let filtered = results.filter(item => item.media_type === 'movie');
+      if (filtered.length === 0) {
+        // Fallback search specifically for movie
+        try {
+          const mData = await fetchFromTMDB('/search/movie', { query });
+          filtered = (mData.results || []).map(m => ({ ...m, media_type: 'movie' }));
+        } catch (e) {
+          console.warn("Fallback movie search failed:", e);
+        }
+      }
+      results = filtered;
     } else if (filterType === 'tv') {
-      results = results.filter(item => item.media_type === 'tv');
+      let filtered = results.filter(item => item.media_type === 'tv');
+      if (filtered.length === 0) {
+        // Fallback search specifically for tv
+        try {
+          const tData = await fetchFromTMDB('/search/tv', { query });
+          filtered = (tData.results || []).map(t => ({ ...t, media_type: 'tv' }));
+        } catch (e) {
+          console.warn("Fallback tv search failed:", e);
+        }
+      }
+      results = filtered;
     }
 
     if (results.length === 0) {
@@ -1132,6 +1194,7 @@ function renderWatchlistButtonState() {
 async function openDetailsView(mediaItem) {
   try {
     console.log("[openDetailsView] mediaItem:", mediaItem);
+    resetPlayerWindow();
     state.selectedMedia = mediaItem;
     
     // Render details overlay container
@@ -1143,6 +1206,8 @@ async function openDetailsView(mediaItem) {
     if (playerSection && vodContainer) {
       vodContainer.appendChild(playerSection);
     }
+
+    renderWatchlistButtonState();
 
     // Setup placeholder details
     const title = mediaItem.title || mediaItem.name || 'Loading...';

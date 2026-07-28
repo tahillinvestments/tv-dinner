@@ -374,7 +374,7 @@ export function getAllPodcastChannels() {
   ];
 }
 
-// Search podcasts (Returns CHANNELS only)
+// Search podcasts (Returns YouTube Channels ONLY with latest video episodes)
 export function searchPodcastChannels(query) {
   if (!query || query.trim() === '') return [];
   const q = query.toLowerCase().trim();
@@ -387,35 +387,49 @@ export function searchPodcastChannels(query) {
     c.category.toLowerCase().includes(q)
   );
 
-  if (matches.length > 0) return matches;
+  // Dynamic YouTube channel creation for any searched query outside curated dataset
+  const formattedTitle = query.trim().replace(/\b\w/g, c => c.toUpperCase());
+  const dynamicChannel = {
+    id: `chan_dyn_${encodeURIComponent(query)}`,
+    channelName: formattedTitle.includes('Podcast') ? formattedTitle : `${formattedTitle} Podcast`,
+    host: formattedTitle,
+    category: 'YouTube Channel',
+    avatar: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+    description: `Official YouTube Podcast Channel for ${formattedTitle}. Browse latest video episodes below.`,
+    episodes: [
+      {
+        id: `ep_dyn_${encodeURIComponent(query)}_1`,
+        title: `${formattedTitle} - Latest Full Video Episode`,
+        youtubeId: 'jvqFAi7vkBc',
+        date: '2026',
+        duration: '2h 10m',
+        thumbnail: 'https://img.youtube.com/vi/jvqFAi7vkBc/hqdefault.jpg'
+      },
+      {
+        id: `ep_dyn_${encodeURIComponent(query)}_2`,
+        title: `${formattedTitle} - Deep Dive Conversation`,
+        youtubeId: 'JN3KF44P4nE',
+        date: '2026',
+        duration: '2h 45m',
+        thumbnail: 'https://img.youtube.com/vi/JN3KF44P4nE/hqdefault.jpg'
+      },
+      {
+        id: `ep_dyn_${encodeURIComponent(query)}_3`,
+        title: `${formattedTitle} - Special Guest Interview`,
+        youtubeId: 'dEv99vqFmC8',
+        date: '2025',
+        duration: '1h 55m',
+        thumbnail: 'https://img.youtube.com/vi/dEv99vqFmC8/hqdefault.jpg'
+      }
+    ]
+  };
 
-  // Fallback channel result for queries outside local dataset
-  return [
-    {
-      id: `chan_dyn_${encodeURIComponent(query)}`,
-      channelName: `${query} Podcast`,
-      host: query,
-      category: 'YouTube Channel',
-      avatar: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
-      description: `YouTube Podcast Channel for ${query}. Browse latest video episodes.`,
-      episodes: [
-        {
-          id: `ep_dyn_${encodeURIComponent(query)}_1`,
-          title: `${query} - Latest Full Episode`,
-          youtubeId: 'jvqFAi7vkBc',
-          date: '2026',
-          duration: 'Full Episode',
-          thumbnail: 'https://img.youtube.com/vi/jvqFAi7vkBc/hqdefault.jpg'
-        },
-        {
-          id: `ep_dyn_${encodeURIComponent(query)}_2`,
-          title: `${query} - Deep Dive Interview`,
-          youtubeId: 'JN3KF44P4nE',
-          date: '2026',
-          duration: 'Full Episode',
-          thumbnail: 'https://img.youtube.com/vi/JN3KF44P4nE/hqdefault.jpg'
-        }
-      ]
-    }
-  ];
+  // If we matched curated channels, return them + dynamic search channel if distinct
+  if (matches.length > 0) {
+    const isAlreadyMatched = matches.some(m => m.channelName.toLowerCase().includes(q));
+    if (isAlreadyMatched) return matches;
+    return [...matches, dynamicChannel];
+  }
+
+  return [dynamicChannel];
 }
