@@ -50,6 +50,29 @@ export async function getTrending(page = 1) {
 }
 
 /**
+ * Fetches top rated movies
+ */
+export async function getTopRated(page = 1) {
+  const data = await fetchFromTMDB('/movie/top_rated', { page });
+  (data.results || []).forEach(item => { item.media_type = 'movie'; });
+  return data;
+}
+
+/**
+ * Fetches movies/TV by genre ID
+ */
+export async function getByGenre(genreId, mediaType = 'movie', page = 1) {
+  const endpoint = mediaType === 'tv' ? '/discover/tv' : '/discover/movie';
+  const data = await fetchFromTMDB(endpoint, {
+    with_genres: genreId,
+    sort_by: 'popularity.desc',
+    page
+  });
+  (data.results || []).forEach(item => { item.media_type = mediaType; });
+  return data;
+}
+
+/**
  * Fetches details for a specific movie
  */
 export async function getMovieDetails(id) {

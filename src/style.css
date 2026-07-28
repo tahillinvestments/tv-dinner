@@ -1739,3 +1739,40 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
 }
+
+/* VOD Curation Genre Filter Chips Bar */
+.genre-chips-scroll {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-top: 0.5rem;
+  padding-bottom: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.genre-chip {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 9999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.genre-chip:hover {
+  border-color: var(--border-hover);
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.genre-chip.active {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}

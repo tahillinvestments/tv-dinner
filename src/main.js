@@ -1,7 +1,7 @@
 import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film } from 'lucide';
 import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
-import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending } from './tmdb';
+import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTopRated, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
 import './style.css';
 
@@ -209,10 +209,16 @@ function switchTab(tabName) {
   createIcons(iconConfig);
 }
 
-// Load Home Dashboard hero + carousels
+// Load Home Dashboard hero + curated category carousels
 async function loadHomeDashboard() {
   const movieRow = document.getElementById('row-trending-movies');
   const tvRow = document.getElementById('row-trending-tv');
+  const topRatedRow = document.getElementById('row-top-rated');
+  const actionRow = document.getElementById('row-action');
+  const comedyRow = document.getElementById('row-comedy');
+  const scifiRow = document.getElementById('row-scifi');
+  const horrorRow = document.getElementById('row-horror');
+  const animationRow = document.getElementById('row-animation');
   const watchlistRow = document.getElementById('row-watchlist');
   const watchlistSection = document.getElementById('row-watchlist-section');
 
@@ -254,7 +260,6 @@ async function loadHomeDashboard() {
 
       // Play button action
       const playBtn = document.getElementById('hero-play-btn');
-      // Remove old listeners
       const newPlayBtn = playBtn.cloneNode(true);
       playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
       newPlayBtn.addEventListener('click', () => openDetailsView(heroItem));
@@ -262,10 +267,21 @@ async function loadHomeDashboard() {
 
     renderCardRow(movies, movieRow);
     renderCardRow(series, tvRow);
+
+    // Fetch rich curation category rows concurrently
+    Promise.allSettled([
+      getTopRated().then(res => renderCardRow(res.results, topRatedRow)),
+      getByGenre(28, 'movie').then(res => renderCardRow(res.results, actionRow)),
+      getByGenre(35, 'movie').then(res => renderCardRow(res.results, comedyRow)),
+      getByGenre(878, 'movie').then(res => renderCardRow(res.results, scifiRow)),
+      getByGenre(27, 'movie').then(res => renderCardRow(res.results, horrorRow)),
+      getByGenre(16, 'movie').then(res => renderCardRow(res.results, animationRow))
+    ]);
+
   } catch (err) {
     console.error("Home dashboard load error:", err);
-    movieRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending movies.</span>';
-    tvRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending shows.</span>';
+    if (movieRow) movieRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending movies.</span>';
+    if (tvRow) tvRow.innerHTML = '<span class="text-xs text-slate-500 py-4">Failed to load trending shows.</span>';
   }
 }
 
@@ -394,6 +410,34 @@ function setupSearch() {
       }, 400);
     });
   }
+
+  // Genre chip filter click listeners
+  const genreChips = document.querySelectorAll('.genre-chip');
+  genreChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      genreChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      const targetGenre = chip.getAttribute('data-genre');
+      const rows = document.querySelectorAll('.dashboard-rows-section .row-container');
+
+      rows.forEach(row => {
+        const rowGenre = row.getAttribute('data-row-genre');
+        if (targetGenre === 'all' || rowGenre === targetGenre || rowGenre === 'all') {
+          row.style.display = 'block';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      if (targetGenre !== 'all') {
+        const targetRow = document.querySelector(`.row-container[data-row-genre="${targetGenre}"]`);
+        if (targetRow) {
+          targetRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    });
+  });
 }
 
 // Execute VOD Search

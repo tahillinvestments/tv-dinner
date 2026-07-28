@@ -113,11 +113,22 @@
 
     <!-- Tab 2: VOD (Movies & Series) Screen with Embedded Search -->
     <div id="tab-vod" class="tab-screen hidden">
-      <!-- VOD Search Bar Header -->
+      <!-- VOD Search Bar & Genre Filter Header -->
       <div class="search-header-container">
         <div class="search-bar-wrap">
           <i data-lucide="search" class="search-field-icon"></i>
           <input type="text" id="vod-search-input" class="search-field-input" placeholder="Search movies, TV shows, and series...">
+        </div>
+        
+        <!-- Curation Genre Filter Chips -->
+        <div class="genre-chips-scroll custom-scrollbar">
+          <button class="genre-chip active" data-genre="all">🔥 All Curation</button>
+          <button class="genre-chip" data-genre="28">💥 Action</button>
+          <button class="genre-chip" data-genre="35">😂 Comedy</button>
+          <button class="genre-chip" data-genre="878">🚀 Sci-Fi & Fantasy</button>
+          <button class="genre-chip" data-genre="27">👻 Horror & Thriller</button>
+          <button class="genre-chip" data-genre="16">🎨 Animation & Anime</button>
+          <button class="genre-chip" data-genre="top_rated">⭐ Top Rated</button>
         </div>
       </div>
 
@@ -132,7 +143,7 @@
         </div>
       </div>
 
-      <!-- VOD Default View (Spotlight Hero + Trending Movies & Shows) -->
+      <!-- VOD Default View (Spotlight Hero + Curated Categories) -->
       <div id="vod-default-section" class="vod-default-container custom-scrollbar">
         <!-- Cinematic Spotlight Hero Banner -->
         <section id="hero-section" class="hero-section">
@@ -157,7 +168,7 @@
 
         <!-- Horizontal scrolling rows of cards -->
         <section class="dashboard-rows-section">
-          <div class="row-container">
+          <div class="row-container" data-row-genre="all">
             <h2 class="row-heading">Trending Movies</h2>
             <div id="row-trending-movies" class="carousel-list custom-scrollbar">
               <div class="skeleton-card"></div>
@@ -167,7 +178,7 @@
             </div>
           </div>
 
-          <div class="row-container">
+          <div class="row-container" data-row-genre="all">
             <h2 class="row-heading">Trending TV Series</h2>
             <div id="row-trending-tv" class="carousel-list custom-scrollbar">
               <div class="skeleton-card"></div>
@@ -177,7 +188,67 @@
             </div>
           </div>
 
-          <div class="row-container" id="row-watchlist-section" style="display: none;">
+          <div class="row-container" data-row-genre="top_rated">
+            <h2 class="row-heading">⭐ Top Rated Masterpieces</h2>
+            <div id="row-top-rated" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="28">
+            <h2 class="row-heading">💥 Action & Blockbusters</h2>
+            <div id="row-action" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="35">
+            <h2 class="row-heading">😂 Comedy Hits</h2>
+            <div id="row-comedy" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="878">
+            <h2 class="row-heading">🚀 Sci-Fi & Fantasy Worlds</h2>
+            <div id="row-scifi" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="27">
+            <h2 class="row-heading">👻 Horror & Thrillers</h2>
+            <div id="row-horror" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" data-row-genre="16">
+            <h2 class="row-heading">🎨 Animation & Anime</h2>
+            <div id="row-animation" class="carousel-list custom-scrollbar">
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+              <div class="skeleton-card"></div>
+            </div>
+          </div>
+
+          <div class="row-container" id="row-watchlist-section" style="display: none;" data-row-genre="all">
             <h2 class="row-heading">My Watchlist</h2>
             <div id="row-watchlist" class="carousel-list custom-scrollbar"></div>
           </div>
