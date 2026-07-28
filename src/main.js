@@ -63,9 +63,9 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'VidSrc PRO',
-    movie: (id) => `https://vidsrc.cc/v2/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
+    name: 'VixSrc (Fast HD)',
+    movie: (id) => `https://vixsrc.to/movie/${id}`,
+    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
   },
   {
     name: 'SuperEmbed',
@@ -73,9 +73,9 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
   },
   {
-    name: '2Embed',
-    movie: (id) => `https://www.2embed.cc/embed/${id}`,
-    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+    name: 'VidSrc PRO',
+    movie: (id) => `https://vidsrc.cc/v2/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
   },
 ];
 
@@ -1433,7 +1433,7 @@ function selectActiveSource(index) {
     if (embedWrapper) embedWrapper.style.display = 'block';
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) {
-      embedIframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; web-share');
+      embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share');
       embedIframe.removeAttribute('referrerpolicy');
       const useStrict = localStorage.getItem('strict_sandbox') === 'true';
       if (useStrict) {
