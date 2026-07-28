@@ -51117,6 +51117,9 @@
 	<programme channel="newtv超级电视剧" start="20260729050000 +0800" stop="20260729054500 +0800">
 		<title lang="zh">01_冤家亲家</title>
 	</programme>
+	<programme channel="newtv超级电视剧" start="20260729054500 +0800" stop="20260729063000 +0800">
+		<title lang="zh">02_冤家亲家</title>
+	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
 	</channel>
@@ -51689,6 +51692,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260729045500 +0800" stop="20260729054000 +0800">
 		<title lang="zh">05_密战无声</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260729054000 +0800" stop="20260729061000 +0800">
+		<title lang="zh">鲜农宗土蜂蜜好物推荐</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
