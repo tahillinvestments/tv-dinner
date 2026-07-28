@@ -50928,6 +50928,9 @@
 	<programme channel="newtv超级综艺" start="20260729013600 +0800" stop="20260729022500 +0800">
 		<title lang="zh">05_亲爱的仇敌</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260729022500 +0800" stop="20260729030900 +0800">
+		<title lang="zh">06_亲爱的仇敌</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -50936,6 +50939,9 @@
 	</programme>
 	<programme channel="newtv超级体育" start="20260729010600 +0800" stop="20260729023600 +0800">
 		<title lang="zh">实况录像-2026世界杯 1/4决赛 西班牙队-比利时队</title>
+	</programme>
+	<programme channel="newtv超级体育" start="20260729023600 +0800" stop="20260729040000 +0800">
+		<title lang="zh">实况录像-2025/2026赛季中国男子篮球职业联赛 半决赛 4</title>
 	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
@@ -50954,6 +50960,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260729015400 +0800" stop="20260729024000 +0800">
 		<title lang="zh">19_刑警的日子</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260729024000 +0800" stop="20260729032500 +0800">
+		<title lang="zh">20_刑警的日子</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -51512,6 +51521,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260729014000 +0800" stop="20260729022500 +0800">
 		<title lang="zh">02_密战无声</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260729022500 +0800" stop="20260729031000 +0800">
+		<title lang="zh">03_密战无声</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
