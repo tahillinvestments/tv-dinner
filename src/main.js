@@ -3,7 +3,7 @@ import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
-import { PODCAST_CHANNELS, searchPodcastsAndEpisodes } from './podcastsData';
+import { PODCAST_CHANNELS, searchPodcastChannels } from './podcastsData';
 import './style.css';
 
 // Initialize Lucide icons
@@ -729,13 +729,13 @@ function setupSearch() {
     });
   }
 
-  // Podcasts search (Channels & Latest Episodes)
+  // Podcasts search (CHANNELS only)
   const podcastsSearchInput = document.getElementById('podcasts-search-input');
   const podcastsSearchResultsSection = document.getElementById('podcasts-search-results-section');
   const podcastsDefaultSection = document.getElementById('podcasts-default-section');
 
   if (podcastsSearchInput) {
-    podcastsSearchInput.addEventListener('input', async (e) => {
+    podcastsSearchInput.addEventListener('input', (e) => {
       const query = e.target.value.trim();
       if (!query) {
         if (podcastsSearchResultsSection) podcastsSearchResultsSection.classList.add('hidden');
@@ -750,41 +750,15 @@ function setupSearch() {
       const heading = document.getElementById('podcasts-search-status-heading');
       const emptyState = document.getElementById('podcasts-search-empty-state');
 
-      if (heading) heading.textContent = `Podcast results for "${query}"`;
-      if (grid) grid.innerHTML = '<span class="text-xs text-slate-500 py-4">Searching YouTube podcasts...</span>';
+      if (heading) heading.textContent = `Podcast channel results for "${query}"`;
+      const channels = searchPodcastChannels(query);
 
-      const { channels, episodes } = await searchPodcastsAndEpisodes(query);
-
-      if (channels.length === 0 && episodes.length === 0) {
+      if (channels.length === 0) {
         if (grid) grid.innerHTML = '';
         if (emptyState) emptyState.classList.remove('hidden');
       } else {
         if (emptyState) emptyState.classList.add('hidden');
-        if (grid) {
-          if (channels.length > 0) {
-            renderPodcastChannelRow(channels, grid);
-          } else {
-            // Render episodes grid
-            grid.innerHTML = '';
-            episodes.forEach(ep => {
-              const card = document.createElement('div');
-              card.className = 'detail-item-card hover-scale';
-              card.innerHTML = `
-                <img src="${ep.thumbnail}" alt="${ep.title}" class="detail-item-poster" style="aspect-ratio: 16/9; object-fit: cover;" loading="lazy">
-                <div class="detail-item-info">
-                  <h4 class="detail-item-title">${ep.title}</h4>
-                  <div class="detail-item-meta">
-                    <span class="detail-item-year">${ep.channelName || 'YouTube'}</span>
-                    <span class="text-red-400 font-semibold text-[10px]">Play 🔴</span>
-                  </div>
-                </div>
-              `;
-              card.addEventListener('click', () => openPodcastModal(ep));
-              grid.appendChild(card);
-            });
-            createIcons(iconConfig);
-          }
-        }
+        if (grid) renderPodcastChannelRow(channels, grid);
       }
     });
   }
@@ -1229,14 +1203,16 @@ async function openDetailsView(mediaItem) {
 
     createIcons(iconConfig);
 
-    // Synchronously populate stream server sources immediately
+    // For Movies, start stream resolution immediately. For TV series, wait for user to select an episode button.
     const isTV = mediaItem.media_type === 'tv';
-    startStreamResolution({
-      type: isTV ? 'tv' : 'movie',
-      id: mediaItem.id,
-      season: 1,
-      episode: 1
-    });
+    if (!isTV) {
+      startStreamResolution({
+        type: 'movie',
+        id: mediaItem.id
+      });
+    } else {
+      document.getElementById('sources-status').textContent = 'Select an episode below to start streaming.';
+    }
 
     if (isTV) {
       try {
@@ -1257,17 +1233,14 @@ async function openDetailsView(mediaItem) {
           seasonSelect.appendChild(opt);
         });
 
-        // Load episodes for the first season
+        // Load episodes for the first season (without auto-playing)
         if (details?.seasons && details.seasons.length > 0) {
           const firstSeasonNum = seasonSelect.options.length > 0 ? seasonSelect.options[0].value : 1;
           seasonSelect.value = firstSeasonNum;
           await loadTVEpisodes(mediaItem.id, firstSeasonNum);
-        } else {
-          startStreamResolution({ type: 'tv', id: mediaItem.id, season: 1, episode: 1 });
         }
       } catch (e) {
         console.warn("Failed to load TV details:", e);
-        startStreamResolution({ type: 'tv', id: mediaItem.id, season: 1, episode: 1 });
       }
     } else {
       try {
@@ -1282,7 +1255,7 @@ async function openDetailsView(mediaItem) {
   }
 }
 
-// Load episodes list grid for TV Show
+// Load episodes list grid for TV Show (waits for episode click to play)
 async function loadTVEpisodes(tvId, seasonNumber) {
   const grid = document.getElementById('episodes-grid');
   grid.innerHTML = '<span class="text-xs text-slate-500">Loading episodes...</span>';
@@ -1292,9 +1265,9 @@ async function loadTVEpisodes(tvId, seasonNumber) {
     grid.innerHTML = '';
     
     const episodes = data.episodes || [];
-    episodes.forEach((ep, idx) => {
+    episodes.forEach((ep) => {
       const btn = document.createElement('button');
-      btn.className = `episode-btn ${idx === 0 ? 'active' : ''}`;
+      btn.className = 'episode-btn';
       btn.textContent = ep.episode_number;
       btn.title = ep.name || `Episode ${ep.episode_number}`;
       
@@ -1302,7 +1275,7 @@ async function loadTVEpisodes(tvId, seasonNumber) {
         document.querySelectorAll('.episode-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         
-        // Start streaming resolving
+        // Start stream resolution on explicit episode click
         document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
         startStreamResolution({ 
           type: 'tv', 
@@ -1314,15 +1287,6 @@ async function loadTVEpisodes(tvId, seasonNumber) {
 
       grid.appendChild(btn);
     });
-
-    if (episodes.length > 0) {
-      startStreamResolution({
-        type: 'tv',
-        id: tvId,
-        season: seasonNumber,
-        episode: episodes[0].episode_number
-      });
-    }
   } catch (err) {
     console.error("Failed to load TV episodes:", err);
     grid.innerHTML = '<span class="text-xs text-red-400">Failed to load episodes.</span>';

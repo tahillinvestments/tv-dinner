@@ -364,7 +364,7 @@ export const PODCAST_CHANNELS = {
   ]
 };
 
-// All channels list
+// Return all podcast channels list
 export function getAllPodcastChannels() {
   return [
     ...PODCAST_CHANNELS.tech,
@@ -374,60 +374,48 @@ export function getAllPodcastChannels() {
   ];
 }
 
-// Search local channels + dynamic search helper
-export async function searchPodcastsAndEpisodes(query) {
-  if (!query || query.trim() === '') return { channels: [], episodes: [] };
+// Search podcasts (Returns CHANNELS only)
+export function searchPodcastChannels(query) {
+  if (!query || query.trim() === '') return [];
   const q = query.toLowerCase().trim();
-
   const allChannels = getAllPodcastChannels();
 
-  // Local channels matching
-  const matchingChannels = allChannels.filter(c => 
+  // Return matching local channels
+  const matches = allChannels.filter(c => 
     c.channelName.toLowerCase().includes(q) ||
     c.host.toLowerCase().includes(q) ||
     c.category.toLowerCase().includes(q)
   );
 
-  // Local episodes matching
-  const matchingEpisodes = [];
-  allChannels.forEach(c => {
-    (c.episodes || []).forEach(ep => {
-      if (ep.title.toLowerCase().includes(q) || c.channelName.toLowerCase().includes(q)) {
-        matchingEpisodes.push({
-          ...ep,
-          channelName: c.channelName
-        });
-      }
-    });
-  });
+  if (matches.length > 0) return matches;
 
-  // Dynamic search fallback for YouTube query beyond local app dataset
-  if (matchingChannels.length === 0 && matchingEpisodes.length === 0) {
-    // Generate real YouTube search results dynamically
-    const cleanQ = encodeURIComponent(query);
-    const dynamicResults = [
-      {
-        id: `dyn_${cleanQ}_1`,
-        title: `${query} - Latest Full Podcast Episode`,
-        channelName: `${query} Podcast`,
-        category: 'YouTube Search Result',
-        youtubeId: 'jvqFAi7vkBc', // Fallback video stream
-        thumbnail: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
-        description: `Stream latest episodes and interviews for ${query} on YouTube.`
-      },
-      {
-        id: `dyn_${cleanQ}_2`,
-        title: `${query} - Deep Dive Interview`,
-        channelName: `${query} Media`,
-        category: 'YouTube Search Result',
-        youtubeId: 'JN3KF44P4nE',
-        thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
-        description: `Watch trending YouTube episodes featuring ${query}.`
-      }
-    ];
-
-    return { channels: [], episodes: dynamicResults };
-  }
-
-  return { channels: matchingChannels, episodes: matchingEpisodes };
+  // Fallback channel result for queries outside local dataset
+  return [
+    {
+      id: `chan_dyn_${encodeURIComponent(query)}`,
+      channelName: `${query} Podcast`,
+      host: query,
+      category: 'YouTube Channel',
+      avatar: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+      description: `YouTube Podcast Channel for ${query}. Browse latest video episodes.`,
+      episodes: [
+        {
+          id: `ep_dyn_${encodeURIComponent(query)}_1`,
+          title: `${query} - Latest Full Episode`,
+          youtubeId: 'jvqFAi7vkBc',
+          date: '2026',
+          duration: 'Full Episode',
+          thumbnail: 'https://img.youtube.com/vi/jvqFAi7vkBc/hqdefault.jpg'
+        },
+        {
+          id: `ep_dyn_${encodeURIComponent(query)}_2`,
+          title: `${query} - Deep Dive Interview`,
+          youtubeId: 'JN3KF44P4nE',
+          date: '2026',
+          duration: 'Full Episode',
+          thumbnail: 'https://img.youtube.com/vi/JN3KF44P4nE/hqdefault.jpg'
+        }
+      ]
+    }
+  ];
 }
