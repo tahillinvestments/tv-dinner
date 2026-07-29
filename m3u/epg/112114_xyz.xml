@@ -18225,6 +18225,9 @@
 	<programme channel="咪咕足球" start="20260729090500 +0800" stop="20260729103500 +0800">
 		<title lang="zh">篮球：为爱而生01 热爱</title>
 	</programme>
+	<programme channel="咪咕足球" start="20260729104500 +0800" stop="20260729114500 +0800">
+		<title lang="zh">超级三对三-2026超三联赛</title>
+	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
 	</channel>
@@ -59895,6 +59898,9 @@
 	<programme channel="newtv超级综艺" start="20260729090800 +0800" stop="20260729102500 +0800">
 		<title lang="zh">全民畅舞</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260729102500 +0800" stop="20260729114200 +0800">
+		<title lang="zh">越战越勇</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -59925,6 +59931,9 @@
 	<programme channel="newtv超级体育" start="20260729090000 +0800" stop="20260729103000 +0800">
 		<title lang="zh">实况录像-2026世界杯 1/8决赛 巴西队-挪威队</title>
 	</programme>
+	<programme channel="newtv超级体育" start="20260729103000 +0800" stop="20260729120000 +0800">
+		<title lang="zh">实况录像-2026年世界田联钻石联赛 多哈站</title>
+	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
 	</channel>
@@ -59945,6 +59954,9 @@
 	</programme>
 	<programme channel="newtv超级电影" start="20260729093300 +0800" stop="20260729103400 +0800">
 		<title lang="zh">特别有种：特警使命</title>
+	</programme>
+	<programme channel="newtv超级电影" start="20260729103400 +0800" stop="20260729120600 +0800">
+		<title lang="zh">变体</title>
 	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
@@ -59987,6 +59999,12 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260729093700 +0800" stop="20260729102200 +0800">
 		<title lang="zh">12_画眉</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260729102700 +0800" stop="20260729110600 +0800">
+		<title lang="zh">17_证词</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260729110600 +0800" stop="20260729114400 +0800">
+		<title lang="zh">18_证词</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -60583,6 +60601,12 @@
 		<title lang="zh">04_天堑1949</title>
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260729100000 +0800" stop="20260729103000 +0800">
+		<title lang="zh">紫苏牛肉酱好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260729103000 +0800" stop="20260729111500 +0800">
+		<title lang="zh">05_天堑1949</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260729111500 +0800" stop="20260729114500 +0800">
 		<title lang="zh">紫苏牛肉酱好物推荐</title>
 	</programme>
 	<channel id="newtv精品体育">
