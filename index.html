@@ -457,28 +457,67 @@
 
     <!-- Tab 4: YouTube Podcasts Screen -->
     <div id="tab-podcasts" class="tab-screen hidden">
-      <!-- Podcasts Search Bar Header -->
+      <!-- Podcasts Search Bar & Category Header -->
       <div class="search-header-container">
         <div class="search-bar-wrap">
           <i data-lucide="search" class="search-field-icon"></i>
-          <input type="text" id="podcasts-search-input" class="search-field-input" placeholder="Search YouTube podcasts, hosts, or topics...">
+          <input type="text" id="podcasts-search-input" class="search-field-input" placeholder="Search 25+ top podcast channels, hosts, or topics (e.g. Lex Fridman, AI, Huberman)...">
+        </div>
+        
+        <!-- Category Filter Chips -->
+        <div class="podcast-chips-scroll custom-scrollbar flex items-center gap-2 mt-3 pb-1 overflow-x-auto">
+          <button class="podcast-chip active" data-category="all">✨ All Podcasts</button>
+          <button class="podcast-chip" data-category="tech">⚡ Tech & AI</button>
+          <button class="podcast-chip" data-category="science">🧠 Science & Mind</button>
+          <button class="podcast-chip" data-category="comedy">🎭 Comedy & Talk</button>
+          <button class="podcast-chip" data-category="sports">🏆 Sports & Culture</button>
+          <button class="podcast-chip" data-category="history">📜 History & True Crime</button>
+          <button class="podcast-chip" data-category="favorites">⭐ My Favorites</button>
         </div>
       </div>
 
-      <!-- Podcasts Active Search Results Grid -->
+      <!-- Podcasts Active Search Results Grid (Categorized Channels, YouTube Channels, Episodes) -->
       <div id="podcasts-search-results-section" class="search-results-container custom-scrollbar hidden">
         <h2 class="search-heading" id="podcasts-search-status-heading">Podcast Search Results</h2>
-        <div id="podcasts-search-results-grid" class="search-results-grid"></div>
+        <div id="podcasts-search-results-grid" class="space-y-8"></div>
         <div id="podcasts-search-empty-state" class="empty-state-card hidden">
           <i data-lucide="alert-triangle"></i>
           <h3>No podcasts found</h3>
-          <p>We couldn't find any podcasts matching your search query.</p>
+          <p>We couldn't find any podcast channels or episodes matching your search query.</p>
         </div>
       </div>
 
-      <!-- Podcasts Default View (Curated Categories + Favorite Channels) -->
+      <!-- Podcasts Default View (Hero Showcase + Curated Rows) -->
       <div id="podcasts-default-section" class="vod-default-container custom-scrollbar">
-        <section class="dashboard-rows-section podcasts-rows-section pt-4">
+        <!-- Featured Hero Podcast Banner -->
+        <div id="podcast-hero-banner" class="relative rounded-3xl overflow-hidden mb-6 border border-slate-800/80 bg-gradient-to-r from-slate-950 via-slate-900 to-red-950/40 p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+          <div class="flex-1 space-y-3 text-center md:text-left">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/20 border border-red-500/30 text-red-400 text-xs font-bold uppercase tracking-wider">
+              <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Featured Spotlight
+            </div>
+            <h1 id="podcast-hero-title" class="text-2xl md:text-4xl font-black text-white leading-tight">Sam Altman: OpenAI, GPT-5 & AGI Future</h1>
+            <p id="podcast-hero-host" class="text-sm font-semibold text-red-400">Lex Fridman Podcast • Hosted by Lex Fridman</p>
+            <p id="podcast-hero-desc" class="text-xs md:text-sm text-slate-300 max-w-2xl line-clamp-3">Deep dive conversation on OpenAI's latest AI breakthroughs, computing clusters, Sora video generation, and the future of human intelligence.</p>
+            <div class="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
+              <button id="podcast-hero-play-btn" class="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm flex items-center gap-2 transition-all transform hover:scale-105 shadow-lg shadow-red-600/30">
+                <i data-lucide="play" class="w-4 h-4 fill-white"></i> Watch Episode Now
+              </button>
+              <button id="podcast-hero-channel-btn" class="px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold text-sm border border-slate-700 flex items-center gap-2 transition-all">
+                <i data-lucide="radio" class="w-4 h-4 text-red-400"></i> View All Episodes
+              </button>
+            </div>
+          </div>
+          <div class="relative w-full md:w-80 aspect-video rounded-2xl overflow-hidden border border-slate-700 shadow-xl group cursor-pointer" id="podcast-hero-thumb-card">
+            <img id="podcast-hero-thumb" src="https://img.youtube.com/vi/jvqFAi7vkBc/hqdefault.jpg" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="Hero Thumbnail">
+            <div class="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-all">
+              <div class="w-12 h-12 rounded-full bg-red-600/90 flex items-center justify-center shadow-lg">
+                <i data-lucide="play" class="w-6 h-6 fill-white text-white ml-0.5"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="dashboard-rows-section podcasts-rows-section pt-2">
           <!-- Favorite Podcast Channels Row -->
           <div class="row-container" id="row-podcasts-favorites-section" style="display: none;">
             <div class="row-header-wrap">
@@ -488,35 +527,43 @@
           </div>
 
           <!-- Tech & Business Podcasts -->
-          <div class="row-container">
+          <div class="row-container" id="row-container-tech">
             <div class="row-header-wrap">
-              <h2 class="row-heading">🎙️ Tech & Business Podcasts</h2>
+              <h2 class="row-heading">🎙️ Tech, AI & Business Podcasts</h2>
             </div>
             <div id="row-podcasts-tech" class="carousel-list custom-scrollbar"></div>
           </div>
 
           <!-- Science & Mind Podcasts -->
-          <div class="row-container">
+          <div class="row-container" id="row-container-science">
             <div class="row-header-wrap">
-              <h2 class="row-heading">🧠 Science, Mind & Education</h2>
+              <h2 class="row-heading">🧠 Science, Mind & Health</h2>
             </div>
             <div id="row-podcasts-science" class="carousel-list custom-scrollbar"></div>
           </div>
 
           <!-- Comedy & Entertainment Podcasts -->
-          <div class="row-container">
+          <div class="row-container" id="row-container-comedy">
             <div class="row-header-wrap">
-              <h2 class="row-heading">🎭 Comedy & Entertainment</h2>
+              <h2 class="row-heading">🎭 Comedy & Unfiltered Talk</h2>
             </div>
             <div id="row-podcasts-comedy" class="carousel-list custom-scrollbar"></div>
           </div>
 
           <!-- Sports & Culture Podcasts -->
-          <div class="row-container">
+          <div class="row-container" id="row-container-sports">
             <div class="row-header-wrap">
-              <h2 class="row-heading">🏆 Sports, Fitness & Culture</h2>
+              <h2 class="row-heading">🏆 Sports, Fitness & Pop Culture</h2>
             </div>
             <div id="row-podcasts-sports" class="carousel-list custom-scrollbar"></div>
+          </div>
+
+          <!-- History & True Crime Podcasts -->
+          <div class="row-container" id="row-container-history">
+            <div class="row-header-wrap">
+              <h2 class="row-heading">📜 History, True Crime & Deep Dives</h2>
+            </div>
+            <div id="row-podcasts-history" class="carousel-list custom-scrollbar"></div>
           </div>
         </section>
       </div>
@@ -741,35 +788,79 @@
             <!-- Server sources loaded dynamically -->
           </div>
         </div>
+
+        <!-- In-Player More Episodes Selector (Visible when playing podcast) -->
+        <div id="player-more-episodes-section" class="mt-6 hidden">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="list-video" class="w-4 h-4 text-red-500"></i> More Episodes from this Channel
+            </h3>
+            <span id="player-more-episodes-channel" class="text-xs text-slate-400 font-medium">Channel Name</span>
+          </div>
+          <div id="player-more-episodes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Podcast Channel Episodes Overlay Modal -->
   <div id="podcast-channel-overlay" class="details-overlay custom-scrollbar hidden">
-    <div class="details-content-sheet">
-      <div class="details-header-bar">
+    <div class="details-content-sheet max-w-5xl">
+      <div class="details-header-bar flex items-center justify-between">
         <button id="podcast-channel-close-btn" class="details-close-btn flex items-center gap-2">
           <i data-lucide="arrow-left"></i> Back to Channels
+        </button>
+        <button id="podcast-channel-favorite-btn" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs flex items-center gap-2 border border-slate-700 transition-all">
+          <i data-lucide="star" class="w-4 h-4"></i> Add to Favorites
         </button>
       </div>
 
       <div class="details-main-body">
-        <div class="details-meta-card flex flex-col md:flex-row items-center gap-6 p-6 bg-slate-900/60 rounded-2xl border border-slate-800">
-          <img id="podcast-channel-avatar" class="w-24 h-24 rounded-full object-cover border-2 border-red-500 shadow-lg" src="" alt="Channel Avatar">
-          <div class="flex-1 text-center md:text-left">
-            <h2 id="podcast-channel-title" class="text-2xl font-black text-white">Channel Name</h2>
-            <p id="podcast-channel-host" class="text-sm font-semibold text-red-400 mt-1">Host Name</p>
-            <p id="podcast-channel-desc" class="text-xs text-slate-400 mt-2 max-w-xl">Channel description...</p>
+        <div class="details-meta-card flex flex-col md:flex-row items-center gap-6 p-6 bg-slate-900/80 rounded-2xl border border-slate-800 shadow-xl">
+          <img id="podcast-channel-avatar" class="w-24 h-24 rounded-full object-cover border-2 border-red-500 shadow-lg shrink-0" src="" alt="Channel Avatar">
+          <div class="flex-1 text-center md:text-left space-y-1">
+            <div class="flex flex-wrap items-center justify-center md:justify-start gap-2">
+              <h2 id="podcast-channel-title" class="text-2xl font-black text-white">Channel Name</h2>
+              <span id="podcast-channel-subs-badge" class="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold">Subscribers</span>
+            </div>
+            <p id="podcast-channel-host" class="text-xs font-semibold text-red-400">Host Name</p>
+            <p id="podcast-channel-desc" class="text-xs text-slate-300 max-w-2xl">Channel description...</p>
           </div>
         </div>
 
-        <div class="mt-6">
-          <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <i data-lucide="video" class="w-5 h-5 text-red-500"></i> Latest Channel Episodes
-          </h3>
+        <div class="mt-6 space-y-4">
+          <!-- Episode Toolbar: Search & Sort & Counts -->
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+            <div class="flex items-center gap-2">
+              <h3 class="text-sm font-bold text-white flex items-center gap-2 shrink-0">
+                <i data-lucide="film" class="w-4 h-4 text-red-500"></i> Past & Latest Episodes
+              </h3>
+              <span id="podcast-episodes-count" class="px-2 py-0.5 rounded bg-slate-800 text-[11px] font-semibold text-slate-300">0 Episodes</span>
+            </div>
+
+            <div class="flex items-center gap-2 flex-1 sm:flex-none">
+              <div class="relative flex-1 sm:w-64">
+                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="podcast-episodes-search" placeholder="Search past episodes or guests..." class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-red-500">
+              </div>
+              <select id="podcast-episodes-sort" class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-semibold text-slate-200 focus:outline-none focus:border-red-500">
+                <option value="newest">📅 Newest First</option>
+                <option value="oldest">⏳ Oldest First</option>
+                <option value="duration">⏱️ Longest Episodes</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Channel episodes grid -->
           <div id="podcast-channel-episodes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <!-- Channel episodes loaded dynamically -->
+          </div>
+
+          <!-- Pagination Load More button -->
+          <div class="text-center pt-4" id="podcast-episodes-load-more-wrap">
+            <button id="podcast-episodes-load-more" class="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs inline-flex items-center gap-2 border border-slate-700 shadow-md transition-all">
+              <i data-lucide="chevron-down" class="w-4 h-4"></i> Load More Past Episodes
+            </button>
           </div>
         </div>
       </div>

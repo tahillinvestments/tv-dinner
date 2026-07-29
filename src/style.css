@@ -2082,3 +2082,45 @@ body.body-pseudo-fullscreen {
   width: 20px;
   height: 20px;
 }
+
+/* ==========================================================================
+   Podcast UI & Filter Chip Enhancements
+   ========================================================================== */
+.podcast-chip {
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  background-color: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.podcast-chip:hover {
+  background-color: rgba(51, 65, 85, 0.9);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #ffffff;
+}
+
+.podcast-chip.active {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border-color: #f87171;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+#podcast-hero-banner {
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.8), 0 0 30px rgba(239, 68, 68, 0.08);
+  background-size: cover;
+  background-position: center;
+}
+
+.search-results-container.custom-scrollbar {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
