@@ -1704,6 +1704,21 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   const streamTarget = `${cleanPortalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams`;
 
   async function fetchJsonWithFallback(targetUrl) {
+    // 1. Try direct fetch first
+    try {
+      const res = await fetch(targetUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          console.log(`[Xtream] Direct API fetch succeeded (${data.length} items)`);
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn(`[Xtream] Direct fetch failed for ${targetUrl}, trying proxy...`, e);
+    }
+
+    // 2. Try proxy options
     const proxies = [
       getProxyUrl(targetUrl),
       `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
@@ -1724,15 +1739,6 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
         console.warn(`[Xtream] Proxy attempt failed for ${pUrl}:`, e);
       }
     }
-
-    // Direct fetch fallback
-    try {
-      const res = await fetch(targetUrl);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) return data;
-      }
-    } catch (e) {}
 
     return [];
   }
