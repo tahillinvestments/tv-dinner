@@ -17979,6 +17979,12 @@
 	<programme channel="咪咕综合体育" start="20260729064500 +0800" stop="20260729072500 +0800">
 		<title lang="zh">世界杯精华</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20260729073000 +0800" stop="20260729075500 +0800">
+		<title lang="zh">欧陆足球版图-英超特辑</title>
+	</programme>
+	<programme channel="咪咕综合体育" start="20260729080000 +0800" stop="20260729094000 +0800">
+		<title lang="zh">全景世界杯-2026美加墨世界杯 半决赛 法国-西班牙</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>
@@ -59204,6 +59210,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260729065500 +0800" stop="20260729072500 +0800">
 		<title lang="zh">鲜农宗土蜂蜜好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260729072500 +0800" stop="20260729081000 +0800">
+		<title lang="zh">02_天堑1949</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
