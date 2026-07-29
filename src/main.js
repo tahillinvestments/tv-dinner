@@ -537,6 +537,10 @@ function resetPlayerWindow() {
   console.log('[resetPlayerWindow] Resetting player window state');
   closeActiveSse();
 
+  if (document.fullscreenElement) {
+    try { document.exitFullscreen().catch(() => {}); } catch (e) {}
+  }
+
   const videoEl = document.getElementById('video-player');
   const embedWrapper = document.getElementById('embed-player-wrapper');
   const embedIframe = document.getElementById('embed-iframe');
@@ -546,10 +550,18 @@ function resetPlayerWindow() {
   const sourcesList = document.getElementById('sources-list');
   const statusText = document.getElementById('sources-status');
 
+  if (playerWrapper) {
+    playerWrapper.classList.remove('is-pseudo-fullscreen');
+    playerWrapper.classList.remove('embed-active');
+    playerWrapper.classList.remove('user-idle');
+    playerWrapper.classList.add('controls-active');
+  }
+  document.body.classList.remove('body-pseudo-fullscreen');
+
   if (videoEl) {
     videoEl.pause();
     videoEl.removeAttribute('src');
-    videoEl.load();
+    try { videoEl.load(); } catch (e) {}
     videoEl.style.display = 'none';
   }
 
@@ -560,10 +572,6 @@ function resetPlayerWindow() {
 
   if (embedWrapper) {
     embedWrapper.style.display = 'none';
-  }
-
-  if (playerWrapper) {
-    playerWrapper.classList.remove('embed-active');
   }
 
   if (shield) shield.style.display = 'none';
@@ -638,6 +646,7 @@ function openPodcastModal(podcast) {
 
 // Render list of cards inside scrolling rows
 function renderCardRow(items, container) {
+  if (!container) return;
   container.innerHTML = '';
   if (!items || items.length === 0) {
     container.innerHTML = '<span class="text-xs text-slate-600 py-4">No content items.</span>';
@@ -646,14 +655,16 @@ function renderCardRow(items, container) {
 
   items.forEach(item => {
     const title = item.title || item.name || 'Untitled';
-    const isTV = item.media_type === 'tv';
+    const isTV = item.media_type === 'tv' || (!item.release_date && item.first_air_date);
     const mediaItem = { ...item, media_type: isTV ? 'tv' : 'movie' };
     const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
     const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
     const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
 
     const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale';
+    card.className = 'detail-item-card hover-scale cursor-pointer';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
     card.innerHTML = `
       <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
       <div class="detail-item-info">
@@ -666,7 +677,20 @@ function renderCardRow(items, container) {
         </div>
       </div>
     `;
-    card.addEventListener('click', () => openDetailsView(mediaItem));
+
+    const handleOpen = (e) => {
+      if (e) e.stopPropagation();
+      openDetailsView(mediaItem);
+    };
+
+    card.addEventListener('click', handleOpen);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleOpen(e);
+      }
+    });
+
     container.appendChild(card);
   });
   createIcons(iconConfig);
@@ -676,12 +700,13 @@ function renderCardRow(items, container) {
 async function loadPopularSearches() {
   if (state.searchQuery) return;
   const grid = document.getElementById('search-results-grid');
-  document.getElementById('search-status-heading').textContent = 'Popular Search Titles';
+  const heading = document.getElementById('search-status-heading');
+  if (heading) heading.textContent = 'Popular Search Titles';
   
   try {
     const data = await getTrending();
     const trending = data.results || [];
-    renderSearchResultsGrid(trending);
+    if (grid) renderSearchGrid(trending, grid);
   } catch (err) {
     console.error("Failed to load trending searches:", err);
   }
@@ -697,13 +722,16 @@ function renderSearchGrid(results, gridContainer) {
 
   results.forEach(item => {
     const title = item.title || item.name || 'Untitled';
-    const isTV = item.media_type === 'tv' || !item.release_date;
+    const isTV = item.media_type === 'tv' || (!item.release_date && item.first_air_date);
+    const mediaItem = { ...item, media_type: isTV ? 'tv' : 'movie' };
     const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
     const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
     const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
 
     const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale';
+    card.className = 'detail-item-card hover-scale cursor-pointer';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
     card.innerHTML = `
       <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
       <div class="detail-item-info">
@@ -716,7 +744,20 @@ function renderSearchGrid(results, gridContainer) {
         </div>
       </div>
     `;
-    card.addEventListener('click', () => openDetailsView({ ...item, media_type: isTV ? 'tv' : 'movie' }));
+
+    const handleOpen = (e) => {
+      if (e) e.stopPropagation();
+      openDetailsView(mediaItem);
+    };
+
+    card.addEventListener('click', handleOpen);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleOpen(e);
+      }
+    });
+
     grid.appendChild(card);
   });
   createIcons(iconConfig);
