@@ -2084,8 +2084,35 @@ async function loadIPTVPlaylist() {
       } catch (e) {
         console.warn("[IPTV] fetchXtreamPlaylist error:", e);
       }
+
+      // Fallback 1: Try get.php m3u_plus export URL via proxy
+      if (!rawM3U || rawM3U.trim().length === 0) {
+        try {
+          const directM3uUrl = getProxyUrl(`${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`);
+          console.log("[IPTV] Fetching fallback M3U export from get.php:", directM3uUrl);
+          const res = await fetch(directM3uUrl);
+          if (res.ok) {
+            rawM3U = await res.text();
+          }
+        } catch (e) {
+          console.warn("[IPTV] Direct get.php M3U fallback failed:", e);
+        }
+      }
     }
     
+    // Fallback 2: Try local default playlist (/all.m3u) if Xtream API returned no streams
+    if (!rawM3U || rawM3U.trim().length === 0) {
+      try {
+        console.log("[IPTV] Loading default static M3U playlist fallback (/all.m3u)...");
+        const res = await fetch('./all.m3u');
+        if (res.ok) {
+          rawM3U = await res.text();
+        }
+      } catch (e) {
+        console.warn("[IPTV] Failed to fetch static /all.m3u fallback:", e);
+      }
+    }
+
     if (rawM3U) {
       state.channels = parseM3U(rawM3U);
     }
