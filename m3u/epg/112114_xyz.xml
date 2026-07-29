@@ -18186,6 +18186,9 @@
 	<programme channel="咪咕综合体育" start="20260729094500 +0800" stop="20260729101000 +0800">
 		<title lang="zh">超级主队b7卫冕征途第三集</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20260729101500 +0800" stop="20260729115500 +0800">
+		<title lang="zh">中超来噜-2026赛季中超 第20轮 成都蓉城-北京国安</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>

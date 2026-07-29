@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-Vnpif4V6.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CPYuJB4R.css">
+  <script type="module" crossorigin src="/assets/index-ChkMRjJt.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-B8jfbTXy.css">
 </head>
 <body class="dark-theme">
   
@@ -459,26 +459,15 @@
 
     <!-- Tab 4: YouTube Podcasts Screen -->
     <div id="tab-podcasts" class="tab-screen hidden">
-      <!-- Podcasts Search Bar & Category Header -->
+      <!-- Podcasts Search Bar Header -->
       <div class="search-header-container">
         <div class="search-bar-wrap">
           <i data-lucide="search" class="search-field-icon"></i>
           <input type="text" id="podcasts-search-input" class="search-field-input" placeholder="Search 25+ top podcast channels, hosts, or topics (e.g. Lex Fridman, AI, Huberman)...">
         </div>
-        
-        <!-- Category Filter Chips -->
-        <div class="podcast-chips-scroll custom-scrollbar flex items-center gap-2 mt-3 pb-1 overflow-x-auto">
-          <button class="podcast-chip active" data-category="all">✨ All Podcasts</button>
-          <button class="podcast-chip" data-category="tech">⚡ Tech & AI</button>
-          <button class="podcast-chip" data-category="science">🧠 Science & Mind</button>
-          <button class="podcast-chip" data-category="comedy">🎭 Comedy & Talk</button>
-          <button class="podcast-chip" data-category="sports">🏆 Sports & Culture</button>
-          <button class="podcast-chip" data-category="history">📜 History & True Crime</button>
-          <button class="podcast-chip" data-category="favorites">⭐ My Favorites</button>
-        </div>
       </div>
 
-      <!-- Podcasts Active Search Results Grid (Categorized Channels, YouTube Channels, Episodes) -->
+      <!-- Podcasts Active Search Results Grid -->
       <div id="podcasts-search-results-section" class="search-results-container custom-scrollbar hidden">
         <h2 class="search-heading" id="podcasts-search-status-heading">Podcast Search Results</h2>
         <div id="podcasts-search-results-grid" class="space-y-8"></div>
@@ -489,36 +478,8 @@
         </div>
       </div>
 
-      <!-- Podcasts Default View (Hero Showcase + Curated Rows) -->
+      <!-- Podcasts Default View (Curated Rows) -->
       <div id="podcasts-default-section" class="vod-default-container custom-scrollbar">
-        <!-- Featured Hero Podcast Banner -->
-        <div id="podcast-hero-banner" class="relative rounded-3xl overflow-hidden mb-6 border border-slate-800/80 bg-gradient-to-r from-slate-950 via-slate-900 to-red-950/40 p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
-          <div class="flex-1 space-y-3 text-center md:text-left">
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/20 border border-red-500/30 text-red-400 text-xs font-bold uppercase tracking-wider">
-              <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Featured Spotlight
-            </div>
-            <h1 id="podcast-hero-title" class="text-2xl md:text-4xl font-black text-white leading-tight">Sam Altman: OpenAI, GPT-5 & AGI Future</h1>
-            <p id="podcast-hero-host" class="text-sm font-semibold text-red-400">Lex Fridman Podcast • Hosted by Lex Fridman</p>
-            <p id="podcast-hero-desc" class="text-xs md:text-sm text-slate-300 max-w-2xl line-clamp-3">Deep dive conversation on OpenAI's latest AI breakthroughs, computing clusters, Sora video generation, and the future of human intelligence.</p>
-            <div class="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
-              <button id="podcast-hero-play-btn" class="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm flex items-center gap-2 transition-all transform hover:scale-105 shadow-lg shadow-red-600/30">
-                <i data-lucide="play" class="w-4 h-4 fill-white"></i> Watch Episode Now
-              </button>
-              <button id="podcast-hero-channel-btn" class="px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-semibold text-sm border border-slate-700 flex items-center gap-2 transition-all">
-                <i data-lucide="radio" class="w-4 h-4 text-red-400"></i> View All Episodes
-              </button>
-            </div>
-          </div>
-          <div class="relative w-full md:w-80 aspect-video rounded-2xl overflow-hidden border border-slate-700 shadow-xl group cursor-pointer" id="podcast-hero-thumb-card">
-            <img id="podcast-hero-thumb" src="https://img.youtube.com/vi/jvqFAi7vkBc/hqdefault.jpg" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="Hero Thumbnail">
-            <div class="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-all">
-              <div class="w-12 h-12 rounded-full bg-red-600/90 flex items-center justify-center shadow-lg">
-                <i data-lucide="play" class="w-6 h-6 fill-white text-white ml-0.5"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <section class="dashboard-rows-section podcasts-rows-section pt-2">
           <!-- Favorite Podcast Channels Row -->
           <div class="row-container" id="row-podcasts-favorites-section" style="display: none;">
@@ -812,7 +773,7 @@
         <button id="podcast-channel-close-btn" class="details-close-btn flex items-center gap-2">
           <i data-lucide="arrow-left"></i> Back to Channels
         </button>
-        <button id="podcast-channel-favorite-btn" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs flex items-center gap-2 border border-slate-700 transition-all">
+        <button id="podcast-channel-favorite-btn" class="podcast-fav-toggle-btn flex items-center gap-2">
           <i data-lucide="star" class="w-4 h-4"></i> Add to Favorites
         </button>
       </div>
@@ -843,9 +804,9 @@
             <div class="flex items-center gap-2 flex-1 sm:flex-none">
               <div class="relative flex-1 sm:w-64">
                 <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                <input type="text" id="podcast-episodes-search" placeholder="Search past episodes or guests..." class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-red-500">
+                <input type="text" id="podcast-episodes-search" placeholder="Search past episodes or guests..." class="podcast-modal-input w-full pl-8 pr-3">
               </div>
-              <select id="podcast-episodes-sort" class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-semibold text-slate-200 focus:outline-none focus:border-red-500">
+              <select id="podcast-episodes-sort" class="podcast-modal-select">
                 <option value="newest">📅 Newest First</option>
                 <option value="oldest">⏳ Oldest First</option>
                 <option value="duration">⏱️ Longest Episodes</option>
@@ -860,7 +821,7 @@
 
           <!-- Pagination Load More button -->
           <div class="text-center pt-4" id="podcast-episodes-load-more-wrap">
-            <button id="podcast-episodes-load-more" class="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs inline-flex items-center gap-2 border border-slate-700 shadow-md transition-all">
+            <button id="podcast-episodes-load-more" class="podcast-load-more-btn inline-flex items-center gap-2">
               <i data-lucide="chevron-down" class="w-4 h-4"></i> Load More Past Episodes
             </button>
           </div>
