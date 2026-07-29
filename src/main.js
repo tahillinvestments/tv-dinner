@@ -142,6 +142,23 @@ function setupNavigation() {
   }
 }
 
+// Stop and discontinue any active Live TV stream feed to prevent playback & audio conflicts
+function stopActiveLiveTVFeed() {
+  console.log('[IPTV] Discontinuing active Live TV stream feed');
+  if (typeof player !== 'undefined' && player) {
+    try {
+      player.destroyHls();
+    } catch (e) {}
+  }
+  const videoEl = document.getElementById('video-player');
+  if (videoEl) {
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+    try { videoEl.load(); } catch (e) {}
+  }
+  state.currentPlayingUrl = null;
+}
+
 // Switch between tabs
 function switchTab(tabName) {
   state.activeTab = tabName;
@@ -169,23 +186,6 @@ function switchTab(tabName) {
   const liveContainer = document.getElementById('live-player-container');
   const vodContainer = document.getElementById('vod-player-container');
   const holder = document.getElementById('shared-player-holder');
-
-// Stop and discontinue any active Live TV stream feed to prevent playback & audio conflicts
-function stopActiveLiveTVFeed() {
-  console.log('[IPTV] Discontinuing active Live TV stream feed');
-  if (player) {
-    try {
-      player.destroyHls();
-    } catch (e) {}
-  }
-  const videoEl = document.getElementById('video-player');
-  if (videoEl) {
-    videoEl.pause();
-    videoEl.removeAttribute('src');
-    try { videoEl.load(); } catch (e) {}
-  }
-  state.currentPlayingUrl = null;
-}
 
   if (tabName === 'live') {
     // Append player to live TV panel
