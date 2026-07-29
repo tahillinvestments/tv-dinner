@@ -1870,11 +1870,16 @@ function closeDetailsView() {
   }
   document.body.style.overflow = '';
 
-  // Relocate player to hidden holder
+  // Relocate player to live container or hidden holder
   const playerSection = document.getElementById('player-section');
+  const liveContainer = document.getElementById('live-player-container');
   const holder = document.getElementById('shared-player-holder');
-  if (playerSection && holder) {
-    holder.appendChild(playerSection);
+  if (playerSection) {
+    if (state.activeTab === 'live' && liveContainer) {
+      liveContainer.appendChild(playerSection);
+    } else if (holder) {
+      holder.appendChild(playerSection);
+    }
   }
 }
 
@@ -2259,6 +2264,13 @@ function playChannel(channel) {
   closeActiveSse();
 
   state.currentPlayingUrl = channel.url;
+  
+  // Relocate shared player section to live container if needed
+  const playerSection = document.getElementById('player-section');
+  const liveContainer = document.getElementById('live-player-container');
+  if (playerSection && liveContainer && playerSection.parentElement !== liveContainer) {
+    liveContainer.appendChild(playerSection);
+  }
   
   // Shift player wrapper controls live indicators
   const liveDot = document.getElementById('live-indicator-dot');
