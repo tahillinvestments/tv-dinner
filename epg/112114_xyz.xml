@@ -59949,6 +59949,9 @@
 	<programme channel="newtv超级体育" start="20260729120000 +0800" stop="20260729123500 +0800">
 		<title lang="zh">体坛快讯</title>
 	</programme>
+	<programme channel="newtv超级体育" start="20260729123500 +0800" stop="20260729125500 +0800">
+		<title lang="zh">艺术里的奥林匹克(4K)</title>
+	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
 	</channel>
@@ -60026,6 +60029,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260729114400 +0800" stop="20260729122200 +0800">
 		<title lang="zh">19_证词</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260729122200 +0800" stop="20260729130100 +0800">
+		<title lang="zh">20_证词</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -60632,6 +60638,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260729114500 +0800" stop="20260729123100 +0800">
 		<title lang="zh">36_无间</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260729123100 +0800" stop="20260729131600 +0800">
+		<title lang="zh">37_无间</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
