@@ -2086,19 +2086,34 @@ body.body-pseudo-fullscreen {
 /* ==========================================================================
    Podcast UI & Dark Form Control Styling (No Unstyled Browser White Frames)
    ========================================================================== */
-.podcast-modal-input,
+.podcast-modal-input {
+  background-color: #0b0e17 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 10px !important;
+  padding: 7px 12px 7px 32px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  outline: none !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5) !important;
+}
+
 .podcast-modal-select {
   background-color: #0b0e17 !important;
   color: #ffffff !important;
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   border-radius: 10px !important;
-  padding: 7px 12px !important;
+  padding: 7px 28px 7px 12px !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   outline: none !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5) !important;
   appearance: none !important;
   -webkit-appearance: none !important;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 8px center !important;
+  background-size: 14px !important;
 }
 
 .podcast-modal-input:focus,
