@@ -1212,7 +1212,12 @@ async function openDetailsView(mediaItem) {
     state.selectedMedia = mediaItem;
     
     // Render details overlay container
-    document.getElementById('details-overlay').classList.remove('hidden');
+    const overlay = document.getElementById('details-overlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+      overlay.scrollTop = 0;
+      document.body.style.overflow = 'hidden';
+    }
 
     // Move player container from hidden holder to details container
     const playerSection = document.getElementById('player-section');
@@ -1583,7 +1588,11 @@ function closeDetailsView() {
   if (seekContainer) seekContainer.style.display = 'none';
 
   // Hide details panel modal
-  document.getElementById('details-overlay').classList.add('hidden');
+  const overlay = document.getElementById('details-overlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+  }
+  document.body.style.overflow = '';
 
   // Relocate player to hidden holder
   const playerSection = document.getElementById('player-section');

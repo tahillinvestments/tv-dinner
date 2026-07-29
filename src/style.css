@@ -1371,7 +1371,7 @@ body.body-pseudo-fullscreen {
   inset: 0;
   background-color: rgba(7, 9, 14, 0.98);
   backdrop-filter: blur(20px);
-  z-index: 500;
+  z-index: 99999 !important;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
