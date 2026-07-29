@@ -1801,30 +1801,8 @@ async function loadIPTVPlaylist() {
       state.channels = parseM3U(rawM3U);
     }
 
-    // Automatic fallback if Xtream returns 0 channels
     if (!state.channels || state.channels.length === 0) {
-      console.log("[IPTV] Xtream returned 0 channels, loading fallback M3U playlist...");
-      const fallbackUrls = ['./o_all.m3u', '/o_all.m3u', './all.m3u', '/all.m3u'];
-      for (const fallbackUrl of fallbackUrls) {
-        try {
-          const response = await fetch(fallbackUrl);
-          if (response.ok) {
-            const text = await response.text();
-            const parsed = parseM3U(text);
-            if (parsed && parsed.length > 0) {
-              state.channels = parsed;
-              console.log(`[IPTV] Loaded ${state.channels.length} fallback channels from ${fallbackUrl}`);
-              break;
-            }
-          }
-        } catch (e) {
-          console.warn(`[IPTV] Fallback playlist fetch failed for ${fallbackUrl}:`, e);
-        }
-      }
-    }
-
-    if (!state.channels || state.channels.length === 0) {
-      throw new Error("No channels available from Xtream API or fallback M3U playlist");
+      throw new Error("No live channels returned from your Xtream IPTV account. Please check your credentials in Settings.");
     }
     
     // Extract category groups
