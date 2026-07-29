@@ -382,9 +382,6 @@ const PODCAST_EPISODES_PER_PAGE = 9;
 
 // Load YouTube Podcasts Dashboard
 function loadPodcastsDashboard() {
-  loadPodcastHeroBanner();
-  setupPodcastCategoryChips();
-
   const techRow = document.getElementById('row-podcasts-tech');
   const scienceRow = document.getElementById('row-podcasts-science');
   const comedyRow = document.getElementById('row-podcasts-comedy');
@@ -408,90 +405,6 @@ function loadPodcastsDashboard() {
   if (historyRow) renderPodcastChannelRow(PODCAST_CHANNELS.history, historyRow);
 }
 
-// Load Hero Spotlight Podcast Banner
-function loadPodcastHeroBanner() {
-  const hero = getHeroPodcast();
-  if (!hero) return;
-
-  const titleEl = document.getElementById('podcast-hero-title');
-  const hostEl = document.getElementById('podcast-hero-host');
-  const descEl = document.getElementById('podcast-hero-desc');
-  const thumbEl = document.getElementById('podcast-hero-thumb');
-  const playBtn = document.getElementById('podcast-hero-play-btn');
-  const channelBtn = document.getElementById('podcast-hero-channel-btn');
-  const heroCard = document.getElementById('podcast-hero-thumb-card');
-
-  if (titleEl) titleEl.textContent = hero.title;
-  if (hostEl) hostEl.textContent = `${hero.channelName} • ${hero.subscribers}`;
-  if (descEl) descEl.textContent = hero.description;
-  if (thumbEl) thumbEl.src = hero.thumbnail;
-
-  const playHeroEpisode = () => {
-    openPodcastModal({
-      id: hero.id,
-      title: hero.title,
-      youtubeId: hero.youtubeId,
-      channelName: hero.channelName,
-      category: hero.category,
-      thumbnail: hero.thumbnail,
-      description: hero.description,
-      date: hero.date
-    });
-  };
-
-  if (playBtn) playBtn.onclick = playHeroEpisode;
-  if (heroCard) heroCard.onclick = playHeroEpisode;
-
-  if (channelBtn) {
-    channelBtn.onclick = () => {
-      const lexChannel = PODCAST_CHANNELS.tech.find(c => c.id === 'chan_lex_fridman') || PODCAST_CHANNELS.tech[0];
-      openPodcastChannelModal(lexChannel);
-    };
-  }
-}
-
-// Category Filter Chips Interaction
-function setupPodcastCategoryChips() {
-  const chips = document.querySelectorAll('.podcast-chip');
-  if (!chips || chips.length === 0) return;
-
-  chips.forEach(chip => {
-    chip.onclick = () => {
-      chips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-
-      const category = chip.getAttribute('data-category');
-      filterPodcastRowsByCategory(category);
-    };
-  });
-}
-
-function filterPodcastRowsByCategory(category) {
-  const rows = {
-    tech: document.getElementById('row-container-tech'),
-    science: document.getElementById('row-container-science'),
-    comedy: document.getElementById('row-container-comedy'),
-    sports: document.getElementById('row-container-sports'),
-    history: document.getElementById('row-container-history'),
-    favorites: document.getElementById('row-podcasts-favorites-section')
-  };
-
-  Object.entries(rows).forEach(([catKey, rowEl]) => {
-    if (!rowEl) return;
-    if (category === 'all') {
-      if (catKey === 'favorites') {
-        rowEl.style.display = (state.favoritePodcasts && state.favoritePodcasts.length > 0) ? 'block' : 'none';
-      } else {
-        rowEl.style.display = 'block';
-      }
-    } else if (category === 'favorites') {
-      rowEl.style.display = (catKey === 'favorites') ? 'block' : 'none';
-    } else {
-      rowEl.style.display = (catKey === category) ? 'block' : 'none';
-    }
-  });
-}
-
 // Render Podcast Channels inside horizontal carousels
 function renderPodcastChannelRow(channels, container) {
   if (!container) return;
@@ -511,7 +424,7 @@ function renderPodcastChannelRow(channels, container) {
 
     card.innerHTML = `
       <div style="position: relative;">
-        <img src="${channel.avatar}" alt="${channel.channelName}" class="detail-item-poster" style="aspect-ratio: 1/1; object-fit: cover; border-radius: 12px 12px 0 0;" loading="lazy">
+        <img src="${channel.avatar}" alt="${channel.channelName}" class="detail-item-poster" style="aspect-ratio: 1/1; object-fit: cover; border-radius: 12px 12px 0 0;" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
         <button class="podcast-fav-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Remove Favorite Channel' : 'Add to Favorite Channels'}" style="position: absolute; top: 8px; right: 8px; background: rgba(15,23,42,0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 9999px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: ${isFav ? '#f59e0b' : '#cbd5e1'}; cursor: pointer;">
           <i data-lucide="star" style="width: 14px; height: 14px; fill: ${isFav ? '#f59e0b' : 'none'};"></i>
         </button>
@@ -677,12 +590,16 @@ function renderChannelEpisodesGrid() {
     return;
   }
 
+  const channelAvatar = activePodcastModalChannel ? activePodcastModalChannel.avatar : 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';
+
   visibleEpisodes.forEach(ep => {
     const card = document.createElement('div');
     card.className = 'bg-slate-900/80 border border-slate-800/80 rounded-xl overflow-hidden hover:border-red-500 transition-all cursor-pointer group flex flex-col shadow-md hover:shadow-red-950/20';
+    const thumbUrl = ep.thumbnail || channelAvatar;
+
     card.innerHTML = `
-      <div class="relative aspect-video overflow-hidden">
-        <img src="${ep.thumbnail}" alt="${ep.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+      <div class="relative aspect-video overflow-hidden bg-slate-950">
+        <img src="${thumbUrl}" alt="${ep.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.onerror=null; this.src='${channelAvatar}';">
         <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
           <div class="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
             <i data-lucide="play" class="w-6 h-6 fill-white text-white ml-0.5"></i>
@@ -706,7 +623,7 @@ function renderChannelEpisodesGrid() {
         ...ep,
         channelName: activePodcastModalChannel.channelName,
         category: activePodcastModalChannel.category,
-        thumbnail: ep.thumbnail,
+        thumbnail: ep.thumbnail || channelAvatar,
         description: ep.description || activePodcastModalChannel.description
       });
     });

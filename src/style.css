@@ -2084,39 +2084,68 @@ body.body-pseudo-fullscreen {
 }
 
 /* ==========================================================================
-   Podcast UI & Filter Chip Enhancements
+   Podcast UI & Dark Form Control Styling (No Unstyled Browser White Frames)
    ========================================================================== */
-.podcast-chip {
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  background-color: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #cbd5e1;
-  font-size: 0.75rem;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  user-select: none;
+.podcast-modal-input,
+.podcast-modal-select {
+  background-color: #0b0e17 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 10px !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  outline: none !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5) !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
 }
 
-.podcast-chip:hover {
-  background-color: rgba(51, 65, 85, 0.9);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #ffffff;
+.podcast-modal-input:focus,
+.podcast-modal-select:focus {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3) !important;
 }
 
-.podcast-chip.active {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  border-color: #f87171;
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+.podcast-modal-select option {
+  background-color: #0b0e17 !important;
+  color: #ffffff !important;
 }
 
-#podcast-hero-banner {
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.8), 0 0 30px rgba(239, 68, 68, 0.08);
-  background-size: cover;
-  background-position: center;
+.podcast-load-more-btn {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 12px !important;
+  padding: 10px 24px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.podcast-load-more-btn:hover {
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%) !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25) !important;
+}
+
+.podcast-fav-toggle-btn {
+  background: rgba(30, 41, 59, 0.8) !important;
+  color: #f59e0b !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  border-radius: 12px !important;
+  padding: 8px 16px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.podcast-fav-toggle-btn:hover {
+  background: rgba(51, 65, 85, 0.9) !important;
+  border-color: #f59e0b !important;
 }
 
 .search-results-container.custom-scrollbar {
