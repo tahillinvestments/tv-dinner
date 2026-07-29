@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-RctByNwE.js"></script>
+  <script type="module" crossorigin src="/assets/index-CJS9Ombe.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-CmLo9YOU.css">
 </head>
 <body class="dark-theme">
@@ -583,6 +583,29 @@
               <label for="settings-iptv-password" class="settings-input-label">Password</label>
               <input type="password" id="settings-iptv-password" class="settings-input-control" placeholder="Xtream Password...">
             </div>
+          </div>
+        </div>
+
+        <div class="settings-form-section">
+          <h3>Stream Proxy & Bandwidth Control</h3>
+          <p class="section-desc">Manage stream proxying to protect your Vercel Fast Origin Transfer bandwidth limits.</p>
+          
+          <div class="settings-input-group">
+            <label for="settings-proxy-mode" class="settings-input-label">Proxy Mode</label>
+            <select id="settings-proxy-mode" class="settings-input-control" style="background: var(--bg-card); color: var(--text-primary); cursor: pointer;">
+              <option value="direct_segments" selected>Direct Segments (Recommended: Proxy manifest only, stream video directly - Low Bandwidth)</option>
+              <option value="external">Cloudflare Worker / Custom Proxy (0 Vercel Bandwidth Usage)</option>
+              <option value="direct">Direct Stream Playback (No Proxy)</option>
+              <option value="full">Full Vercel Proxy (High Vercel Bandwidth Usage)</option>
+            </select>
+          </div>
+
+          <div id="settings-external-proxy-container" class="settings-input-group" style="display: none; margin-top: 12px;">
+            <label for="settings-external-proxy-url" class="settings-input-label">Custom Proxy URL (e.g. Cloudflare Worker)</label>
+            <input type="text" id="settings-external-proxy-url" class="settings-input-control" placeholder="https://my-proxy.workers.dev/?url=">
+            <p class="section-desc" style="margin-top: 6px; font-size: 0.8rem; color: #a1a1aa;">
+              Deploy your own free Cloudflare Worker using <code>/cloudflare_worker_template.js</code> for unlimited free bandwidth.
+            </p>
           </div>
         </div>
 
