@@ -5,14 +5,23 @@ import { URL } from 'url';
 const STRIP_REQ_HEADERS = new Set(['host', 'referer', 'origin', 'x-forwarded-for', 'x-real-ip']);
 const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us']);
 
-function rewriteM3U8(m3uText, baseUrl) {
+function rewriteM3U8(m3uText, baseUrl, proxySegments = false) {
   const base = new URL(baseUrl);
+  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('portal5458') || base.protocol === 'http:' || base.pathname.includes('/live/');
+
   return m3uText.split('\n').map(line => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
     try {
       const absolute = new URL(trimmed, base).href;
-      return `/api/proxy?url=${encodeURIComponent(absolute)}`;
+      const lower = absolute.toLowerCase();
+      const isNestedPlaylist = lower.includes('.m3u8') || lower.includes('.m3u') || lower.includes('player_api.php');
+      
+      // IPTV hosts or HTTP origins on HTTPS sites REQUIRE proxying for VLC User-Agent spoofing and HTTP-to-HTTPS mixed content bypass.
+      if (proxySegments || isNestedPlaylist || isIptvOrHttp) {
+        return `/api/proxy?url=${encodeURIComponent(absolute)}`;
+      }
+      return absolute;
     } catch {
       return line;
     }
@@ -28,6 +37,7 @@ export default function handler(req, res) {
   }
 
   const targetUrlStr = req.query.url;
+  const shouldProxySegments = req.query.proxySegments === '1' || req.query.proxySegments === 'true';
   if (!targetUrlStr) {
     return res.status(400).send('Missing url parameter');
   }
@@ -94,7 +104,7 @@ export default function handler(req, res) {
         proxyRes.setEncoding('utf8');
         proxyRes.on('data', chunk => { body += chunk; });
         proxyRes.on('end', () => {
-          const rewritten = rewriteM3U8(body, urlStr);
+          const rewritten = rewriteM3U8(body, urlStr, shouldProxySegments);
           res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
           return res.status(proxyRes.statusCode || 200).send(rewritten);
         });

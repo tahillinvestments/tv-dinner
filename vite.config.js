@@ -16,8 +16,10 @@ const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us']);
  * @param {string} baseUrl  - the absolute URL the m3u8 was fetched from (used to resolve relative URIs)
  * @returns {string}        - rewritten m3u8 content
  */
-function rewriteM3U8(m3uText, baseUrl) {
+function rewriteM3U8(m3uText, baseUrl, proxySegments = false) {
   const base = new URL(baseUrl);
+  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('portal5458') || base.protocol === 'http:' || base.pathname.includes('/live/');
+
   return m3uText.split('\n').map(line => {
     const trimmed = line.trim();
     // Skip comment / tag lines
@@ -25,14 +27,20 @@ function rewriteM3U8(m3uText, baseUrl) {
     try {
       // Resolve relative or absolute segment/playlist URIs
       const absolute = new URL(trimmed, base).href;
-      return `/api/proxy?url=${encodeURIComponent(absolute)}`;
+      const lower = absolute.toLowerCase();
+      const isNestedPlaylist = lower.includes('.m3u8') || lower.includes('.m3u') || lower.includes('player_api.php');
+      
+      if (proxySegments || isNestedPlaylist || isIptvOrHttp) {
+        return `/api/proxy?url=${encodeURIComponent(absolute)}`;
+      }
+      return absolute;
     } catch {
       return line; // leave malformed lines as-is
     }
   }).join('\n');
 }
 
-function proxyRequest(req, res, targetUrlStr) {
+function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
   let targetUrl;
   try {
     targetUrl = new URL(targetUrlStr);
@@ -115,7 +123,7 @@ function proxyRequest(req, res, targetUrlStr) {
         proxyRes.on('data', chunk => { body += chunk; });
         proxyRes.on('end', () => {
           // Use the final (possibly redirected) URL as base for resolution
-          const rewritten = rewriteM3U8(body, url);
+          const rewritten = rewriteM3U8(body, url, proxySegments);
           const buf = Buffer.from(rewritten, 'utf8');
           resHeaders['content-length'] = buf.byteLength;
           resHeaders['content-type'] = 'application/vnd.apple.mpegurl';
@@ -173,6 +181,7 @@ export default defineConfig({
           if (qIndex === -1) { res.statusCode = 400; res.end('Missing url parameter'); return; }
           const params = new URLSearchParams(req.url.slice(qIndex + 1));
           const targetUrl = params.get('url');
+          const proxySegments = params.get('proxySegments') === '1' || params.get('proxySegments') === 'true';
 
           if (!targetUrl) {
             res.statusCode = 400;
@@ -180,7 +189,7 @@ export default defineConfig({
             return;
           }
 
-          proxyRequest(req, res, targetUrl);
+          proxyRequest(req, res, targetUrl, proxySegments);
         });
       }
     }
