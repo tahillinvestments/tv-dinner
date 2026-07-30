@@ -13,6 +13,19 @@ const iconConfig = {
   }
 };
 
+// Global Popup Guard: Intercept popup windows & redirects from third-party scripts
+(function setupPopupGuard() {
+  try {
+    const originalOpen = window.open;
+    window.open = function(url, target, features) {
+      console.warn('[Popup Guard] Blocked external popup attempt:', url);
+      return null;
+    };
+  } catch (e) {
+    console.warn('[Popup Guard] Setup notice:', e);
+  }
+})();
+
 // Global State
 const state = {
   activeTab: 'home', // 'home', 'search', 'live', 'library', 'settings'
@@ -1795,8 +1808,9 @@ function selectActiveSource(index) {
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) {
       embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share');
-      embedIframe.removeAttribute('referrerpolicy');
-      const useStrict = localStorage.getItem('strict_sandbox') === 'true';
+      embedIframe.setAttribute('referrerpolicy', 'no-referrer');
+      // Default to strict sandboxing (omits allow-popups and allow-top-navigation)
+      const useStrict = localStorage.getItem('strict_sandbox') !== 'false';
       if (useStrict) {
         embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
       } else {
@@ -1805,8 +1819,16 @@ function selectActiveSource(index) {
       embedIframe.src = source.url;
     }
 
-    // Keep shield hidden so video frame receives clicks cleanly without being blocked
-    if (shield) shield.style.display = 'none';
+    // Activate 1-click shield overlay to intercept initial ad popup triggers
+    if (shield) {
+      shield.style.display = 'block';
+      shield.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        shield.style.display = 'none';
+        console.log('[Popup Shield] First-click ad popup disarmed.');
+      };
+    }
   }
 
   const statusText = document.getElementById('sources-status');
@@ -1909,7 +1931,7 @@ function setupSettingsScreen() {
 
   // Populate inputs on load
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
-  if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
+  if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') !== 'false';
   if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
   if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
 
