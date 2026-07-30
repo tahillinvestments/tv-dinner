@@ -1809,8 +1809,8 @@ function selectActiveSource(index) {
     if (embedIframe) {
       embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share');
       embedIframe.setAttribute('referrerpolicy', 'no-referrer');
-      // Default to strict sandboxing (omits allow-popups and allow-top-navigation)
-      const useStrict = localStorage.getItem('strict_sandbox') !== 'false';
+      // Only apply sandbox if user explicitly enabled Strict Sandbox in Settings (some embed providers block sandboxed iframes)
+      const useStrict = localStorage.getItem('strict_sandbox') === 'true';
       if (useStrict) {
         embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
       } else {
@@ -1931,7 +1931,7 @@ function setupSettingsScreen() {
 
   // Populate inputs on load
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
-  if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') !== 'false';
+  if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
   if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
   if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
 
