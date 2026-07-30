@@ -1883,23 +1883,17 @@ function closeDetailsView() {
   }
 }
 
-// Helper to construct proxy URL based on user settings
+// Helper to construct proxy URL (Direct by default, or Cloudflare Worker if set)
 function getProxyUrl(targetUrl) {
-  const mode = localStorage.getItem('proxy_mode') || 'direct_segments';
+  const mode = localStorage.getItem('proxy_mode') || 'direct';
   const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
 
-  if (mode === 'direct') {
-    return targetUrl;
-  }
   if (mode === 'external' && customProxy) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
     return `${customProxy}${glue}${encodeURIComponent(targetUrl)}`;
   }
-  if (mode === 'full') {
-    return `/api/proxy?url=${encodeURIComponent(targetUrl)}&proxySegments=1`;
-  }
-  // Default: direct_segments (Proxy manifest only, direct video segments)
-  return `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+  // Default: Direct connection (0 Vercel serverless / Fast Origin Transfer data)
+  return targetUrl;
 }
 
 // Load settings form credentials
@@ -1919,7 +1913,7 @@ function setupSettingsScreen() {
   if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
   if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
 
-  const savedProxyMode = localStorage.getItem('proxy_mode') || 'direct_segments';
+  const savedProxyMode = localStorage.getItem('proxy_mode') || 'direct';
   if (proxyModeSelect) {
     proxyModeSelect.value = savedProxyMode;
   }
@@ -1955,7 +1949,7 @@ function setupSettingsScreen() {
 
       const newUsername = usernameInput.value.trim();
       const newPassword = passwordInput.value.trim();
-      const newProxyMode = proxyModeSelect ? proxyModeSelect.value : 'direct_segments';
+      const newProxyMode = proxyModeSelect ? proxyModeSelect.value : 'direct';
       const newExternalProxy = externalProxyInput ? externalProxyInput.value.trim() : '';
 
       localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
@@ -2002,12 +1996,13 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
       console.warn(`[Xtream] Direct fetch failed for ${targetUrl}, trying proxy...`, e);
     }
 
-    // 2. Try proxy options
+    // 2. Try proxy options (Cloudflare Worker or public CORS proxies)
+    const customProxy = getProxyUrl(targetUrl);
     const proxies = [
-      getProxyUrl(targetUrl),
+      customProxy !== targetUrl ? customProxy : null,
       `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
       `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
-    ];
+    ].filter(Boolean);
 
     for (const pUrl of proxies) {
       try {

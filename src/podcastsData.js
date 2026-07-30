@@ -1104,7 +1104,7 @@ export async function fetchChannelPastEpisodes(channel) {
   if (channel.ytChannelId) {
     try {
       const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.ytChannelId}`;
-      const proxyUrl = `/api/proxy?url=${encodeURIComponent(rssUrl)}`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`;
       const res = await fetch(proxyUrl);
       if (res.ok) {
         const xmlText = await res.text();
