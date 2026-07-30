@@ -16734,6 +16734,9 @@
 	<programme channel="咪咕综合体育" start="20260731040000 +0800" stop="20260731055500 +0800">
 		<title lang="zh">2025第十二届浪琴表北京国际马术大师赛第二日1</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20260731060000 +0800" stop="20260731064500 +0800">
+		<title lang="zh">英超精华 第38轮</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>
@@ -16748,6 +16751,9 @@
 	</programme>
 	<programme channel="咪咕足球" start="20260731040500 +0800" stop="20260731044000 +0800">
 		<title lang="zh">西班牙篮球黄金一代05 接班人们</title>
+	</programme>
+	<programme channel="咪咕足球" start="20260731045000 +0800" stop="20260731063000 +0800">
+		<title lang="zh">我爱女篮-25/26WCBA常规赛 第16轮 浙江稠州银行-北京首钢园</title>
 	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
@@ -50820,6 +50826,9 @@
 	<programme channel="newtv超级综艺" start="20260731035700 +0800" stop="20260731044700 +0800">
 		<title lang="zh">18_亲爱的仇敌</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260731044700 +0800" stop="20260731064700 +0800">
+		<title lang="zh">影视留声机</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -50835,6 +50844,9 @@
 	<programme channel="newtv超级体育" start="20260731040000 +0800" stop="20260731060000 +0800">
 		<title lang="zh">2026年法国网球公开赛-男单决赛(4K)</title>
 	</programme>
+	<programme channel="newtv超级体育" start="20260731060000 +0800" stop="20260731063000 +0800">
+		<title lang="zh">实况录像-2026年射箭世界杯 中国站 1</title>
+	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
 	</channel>
@@ -50846,6 +50858,9 @@
 	</programme>
 	<programme channel="newtv超级电影" start="20260731041100 +0800" stop="20260731052400 +0800">
 		<title lang="zh">楚留香之盗帅觉醒</title>
+	</programme>
+	<programme channel="newtv超级电影" start="20260731052400 +0800" stop="20260731071600 +0800">
+		<title lang="zh">长安伏妖</title>
 	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
@@ -50867,6 +50882,12 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260731041400 +0800" stop="20260731050000 +0800">
 		<title lang="zh">08_冤家亲家</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260731050000 +0800" stop="20260731054500 +0800">
+		<title lang="zh">09_冤家亲家</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260731054500 +0800" stop="20260731063000 +0800">
+		<title lang="zh">10_冤家亲家</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -51440,6 +51461,12 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260731043200 +0800" stop="20260731051700 +0800">
 		<title lang="zh">15_密战无声</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260731051700 +0800" stop="20260731060200 +0800">
+		<title lang="zh">11_天堑1949</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260731060200 +0800" stop="20260731063200 +0800">
+		<title lang="zh">鲜农宗土蜂蜜好物推荐</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
