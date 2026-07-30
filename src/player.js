@@ -312,12 +312,24 @@ export class IPTVPlayer {
     this.showError(false);
     this.showLoading(true);
 
+    // Safety timeout to prevent Buffering Stream... from getting stuck indefinitely
+    if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
+    this.bufferTimeout = setTimeout(() => {
+      if (this.loading && !this.loading.classList.contains('hidden') && this.video.paused) {
+        console.warn('[Player] Stream loading timed out.');
+        this.showLoading(false);
+        this.showError(true, 'Stream load timed out. Direct stream may be blocked by browser CORS/Mixed Content. You can add a free Cloudflare Worker URL in Settings.');
+      }
+    }, 12000);
+
     // Destroy existing HLS instance
     this.destroyHls();
 
     // Check for saved resume position
     const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
     const saved = resumeData[this.currentUrl];
+
+    let networkRetryCount = 0;
 
     // Check HLS compatibility
     if (Hls.isSupported()) {
@@ -345,8 +357,23 @@ export class IPTVPlayer {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error("Fatal network error in HLS playback. Trying recovery...");
-              this.hls.startLoad();
+              networkRetryCount++;
+              console.error(`Fatal network error in HLS playback (attempt ${networkRetryCount})...`);
+              if (networkRetryCount <= 2) {
+                this.hls.startLoad();
+              } else {
+                // Try fallback proxy if direct fetch fails
+                if (!this.currentUrl.includes('corsproxy.io') && !this.currentUrl.includes('allorigins')) {
+                  const fallbackUrl = `https://corsproxy.io/?${encodeURIComponent(channel.url)}`;
+                  console.log('[Player] Retrying stream via public CORS proxy:', fallbackUrl);
+                  this.currentUrl = fallbackUrl;
+                  this.hls.loadSource(fallbackUrl);
+                  this.hls.startLoad();
+                } else {
+                  this.showError(true, 'Stream network connection failed. Stream is offline or blocked by browser security.');
+                  this.destroyHls();
+                }
+              }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.error("Fatal media error. Attempting recovery...");
@@ -632,6 +659,10 @@ export class IPTVPlayer {
   }
 
   destroyHls() {
+    if (this.bufferTimeout) {
+      clearTimeout(this.bufferTimeout);
+      this.bufferTimeout = null;
+    }
     if (this.hls) {
       this.hls.destroy();
       this.hls = null;
