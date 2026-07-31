@@ -2090,9 +2090,9 @@ async function loadIPTVPlaylist() {
       }
     }
     
-    // Fallback 2: Load authentic Xtream o_all.m3u (10,856 channels) or all.m3u
+    // Fallback 2: Load authentic Xtream feed (2,396 channels) or all.m3u
     if (!rawM3U || rawM3U.trim().length === 0) {
-      const fallbacks = ['./o_all.m3u', './all.m3u'];
+      const fallbacks = ['./xtream_feed.m3u', './all.m3u'];
       for (const fallbackUrl of fallbacks) {
         try {
           console.log(`[IPTV] Loading authentic Xtream M3U channel playlist fallback (${fallbackUrl})...`);
