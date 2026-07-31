@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-CalMJddG.js"></script>
+  <script type="module" crossorigin src="/assets/index-DXWgvAOZ.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-CmLo9YOU.css">
 </head>
 <body class="dark-theme">
@@ -571,13 +571,8 @@
         </div>
 
         <div class="settings-form-section">
-          <h3>IPTV Portal Credentials</h3>
-          <p class="section-desc">Configure your Xtream Codes portal URL, username, and password for live TV channels.</p>
-          
-          <div class="settings-input-group" style="margin-bottom: 12px;">
-            <label for="settings-iptv-portal" class="settings-input-label">Server / Portal URL</label>
-            <input type="text" id="settings-iptv-portal" class="settings-input-control" placeholder="e.g. http://portal5458.com:8080">
-          </div>
+          <h3>IPTV Account Credentials</h3>
+          <p class="section-desc">Configure your Xtream Codes username and password for live TV channels.</p>
 
           <div class="settings-input-row">
             <div class="settings-input-group">
@@ -588,27 +583,6 @@
               <label for="settings-iptv-password" class="settings-input-label">Password</label>
               <input type="password" id="settings-iptv-password" class="settings-input-control" placeholder="Xtream Password...">
             </div>
-          </div>
-        </div>
-
-        <div class="settings-form-section">
-          <h3>Network & Stream Connection</h3>
-          <p class="section-desc">App runs as a 100% Static App on Vercel with <strong>0 Vercel Serverless / Fast Origin Transfer Bandwidth</strong> used.</p>
-          
-          <div class="settings-input-group">
-            <label for="settings-proxy-mode" class="settings-input-label">Connection Mode</label>
-            <select id="settings-proxy-mode" class="settings-input-control" style="background: var(--bg-card); color: var(--text-primary); cursor: pointer;">
-              <option value="direct" selected>Direct Connection (0 Vercel Serverless Egress)</option>
-              <option value="external">Cloudflare Worker / Custom Proxy (External 0-Cost Proxy)</option>
-            </select>
-          </div>
-
-          <div id="settings-external-proxy-container" class="settings-input-group" style="display: none; margin-top: 12px;">
-            <label for="settings-external-proxy-url" class="settings-input-label">Custom Proxy URL (Optional Cloudflare Worker)</label>
-            <input type="text" id="settings-external-proxy-url" class="settings-input-control" placeholder="https://my-proxy.workers.dev/?url=">
-            <p class="section-desc" style="margin-top: 6px; font-size: 0.8rem; color: #a1a1aa;">
-              If browser CORS or mixed-content rules block an HTTP stream, use a free Cloudflare Worker URL.
-            </p>
           </div>
         </div>
 
