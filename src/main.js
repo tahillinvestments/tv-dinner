@@ -1922,6 +1922,7 @@ function getProxyUrl(targetUrl) {
 function setupSettingsScreen() {
   const tmdbKeyInput = document.getElementById('settings-tmdb-key');
   const sandboxInput = document.getElementById('settings-strict-sandbox');
+  const portalInput = document.getElementById('settings-iptv-portal');
   const usernameInput = document.getElementById('settings-iptv-username');
   const passwordInput = document.getElementById('settings-iptv-password');
   const proxyModeSelect = document.getElementById('settings-proxy-mode');
@@ -1932,6 +1933,7 @@ function setupSettingsScreen() {
   // Populate inputs on load
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
+  if (portalInput) portalInput.value = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
   if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
   if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
 
@@ -1965,27 +1967,30 @@ function setupSettingsScreen() {
 
       localStorage.setItem('strict_sandbox', sandboxInput.checked ? 'true' : 'false');
 
+      const oldPortalUrl = localStorage.getItem('iptv_portal_url');
       const oldUsername = localStorage.getItem('iptv_username');
       const oldPassword = localStorage.getItem('iptv_password');
       const oldProxyMode = localStorage.getItem('proxy_mode');
 
+      const rawPortal = portalInput ? portalInput.value.trim() : '';
+      const newPortalUrl = rawPortal || 'http://portal5458.com:8080';
       const newUsername = usernameInput.value.trim();
       const newPassword = passwordInput.value.trim();
       const newProxyMode = proxyModeSelect ? proxyModeSelect.value : 'direct';
       const newExternalProxy = externalProxyInput ? externalProxyInput.value.trim() : '';
 
-      localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
+      localStorage.setItem('iptv_portal_url', newPortalUrl);
       localStorage.setItem('iptv_username', newUsername);
       localStorage.setItem('iptv_password', newPassword);
-      localStorage.setItem('iptv_epg', `http://portal5458.com:8080/xmltv.php?username=${newUsername}&password=${newPassword}`);
+      localStorage.setItem('iptv_epg', `${newPortalUrl.replace(/\/+$/, '')}/xmltv.php?username=${newUsername}&password=${newPassword}`);
       localStorage.setItem('proxy_mode', newProxyMode);
       localStorage.setItem('external_proxy_url', newExternalProxy);
 
       player.showToast("Settings Saved Successfully");
 
-      // Reload IPTV channels if credentials or proxy mode changed
-      if (newUsername !== oldUsername || newPassword !== oldPassword || newProxyMode !== oldProxyMode) {
-        console.log("[IPTV] Credentials or proxy settings changed, reloading channels...");
+      // Reload IPTV channels if credentials or portal URL or proxy mode changed
+      if (newPortalUrl !== oldPortalUrl || newUsername !== oldUsername || newPassword !== oldPassword || newProxyMode !== oldProxyMode) {
+        console.log("[IPTV] Credentials or portal settings changed, reloading channels...");
         loadIPTVPlaylist();
       }
     });
