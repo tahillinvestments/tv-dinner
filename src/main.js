@@ -1922,39 +1922,15 @@ function getProxyUrl(targetUrl) {
 function setupSettingsScreen() {
   const tmdbKeyInput = document.getElementById('settings-tmdb-key');
   const sandboxInput = document.getElementById('settings-strict-sandbox');
-  const portalInput = document.getElementById('settings-iptv-portal');
   const usernameInput = document.getElementById('settings-iptv-username');
   const passwordInput = document.getElementById('settings-iptv-password');
-  const proxyModeSelect = document.getElementById('settings-proxy-mode');
-  const externalProxyInput = document.getElementById('settings-external-proxy-url');
-  const externalProxyContainer = document.getElementById('settings-external-proxy-container');
   const saveBtn = document.getElementById('settings-save-btn');
 
   // Populate inputs on load
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
-  if (portalInput) portalInput.value = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
   if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
   if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
-
-  const savedProxyMode = localStorage.getItem('proxy_mode') || 'direct';
-  if (proxyModeSelect) {
-    proxyModeSelect.value = savedProxyMode;
-  }
-  if (externalProxyInput) {
-    externalProxyInput.value = localStorage.getItem('external_proxy_url') || '';
-  }
-  if (externalProxyContainer) {
-    externalProxyContainer.style.display = savedProxyMode === 'external' ? 'block' : 'none';
-  }
-
-  if (proxyModeSelect) {
-    proxyModeSelect.addEventListener('change', () => {
-      if (externalProxyContainer) {
-        externalProxyContainer.style.display = proxyModeSelect.value === 'external' ? 'block' : 'none';
-      }
-    });
-  }
 
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
@@ -1967,30 +1943,22 @@ function setupSettingsScreen() {
 
       localStorage.setItem('strict_sandbox', sandboxInput.checked ? 'true' : 'false');
 
-      const oldPortalUrl = localStorage.getItem('iptv_portal_url');
       const oldUsername = localStorage.getItem('iptv_username');
       const oldPassword = localStorage.getItem('iptv_password');
-      const oldProxyMode = localStorage.getItem('proxy_mode');
 
-      const rawPortal = portalInput ? portalInput.value.trim() : '';
-      const newPortalUrl = rawPortal || 'http://portal5458.com:8080';
       const newUsername = usernameInput.value.trim();
       const newPassword = passwordInput.value.trim();
-      const newProxyMode = proxyModeSelect ? proxyModeSelect.value : 'direct';
-      const newExternalProxy = externalProxyInput ? externalProxyInput.value.trim() : '';
 
-      localStorage.setItem('iptv_portal_url', newPortalUrl);
+      localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
       localStorage.setItem('iptv_username', newUsername);
       localStorage.setItem('iptv_password', newPassword);
-      localStorage.setItem('iptv_epg', `${newPortalUrl.replace(/\/+$/, '')}/xmltv.php?username=${newUsername}&password=${newPassword}`);
-      localStorage.setItem('proxy_mode', newProxyMode);
-      localStorage.setItem('external_proxy_url', newExternalProxy);
+      localStorage.setItem('iptv_epg', `http://portal5458.com:8080/xmltv.php?username=${newUsername}&password=${newPassword}`);
 
       player.showToast("Settings Saved Successfully");
 
-      // Reload IPTV channels if credentials or portal URL or proxy mode changed
-      if (newPortalUrl !== oldPortalUrl || newUsername !== oldUsername || newPassword !== oldPassword || newProxyMode !== oldProxyMode) {
-        console.log("[IPTV] Credentials or portal settings changed, reloading channels...");
+      // Reload IPTV channels if credentials changed
+      if (newUsername !== oldUsername || newPassword !== oldPassword) {
+        console.log("[IPTV] Credentials changed, reloading channels...");
         loadIPTVPlaylist();
       }
     });
@@ -2107,7 +2075,7 @@ async function loadIPTVPlaylist() {
         console.warn("[IPTV] fetchXtreamPlaylist error:", e);
       }
 
-      // Fallback 1: Try get.php m3u_plus export URL via proxy
+      // Fallback 1: Try get.php m3u_plus export URL
       if (!rawM3U || rawM3U.trim().length === 0) {
         try {
           const directM3uUrl = getProxyUrl(`${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`);
@@ -2122,16 +2090,23 @@ async function loadIPTVPlaylist() {
       }
     }
     
-    // Fallback 2: Try local default playlist (/all.m3u) if Xtream API returned no streams
+    // Fallback 2: Load authentic Xtream o_all.m3u (10,856 channels) or all.m3u
     if (!rawM3U || rawM3U.trim().length === 0) {
-      try {
-        console.log("[IPTV] Loading default static M3U playlist fallback (/all.m3u)...");
-        const res = await fetch('./all.m3u');
-        if (res.ok) {
-          rawM3U = await res.text();
+      const fallbacks = ['./o_all.m3u', './all.m3u'];
+      for (const fallbackUrl of fallbacks) {
+        try {
+          console.log(`[IPTV] Loading authentic Xtream M3U channel playlist fallback (${fallbackUrl})...`);
+          const res = await fetch(fallbackUrl);
+          if (res.ok) {
+            const text = await res.text();
+            if (text && text.includes('#EXTM3U')) {
+              rawM3U = text;
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn(`[IPTV] Failed to fetch static ${fallbackUrl} fallback:`, e);
         }
-      } catch (e) {
-        console.warn("[IPTV] Failed to fetch static /all.m3u fallback:", e);
       }
     }
 
