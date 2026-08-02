@@ -89,7 +89,8 @@ export default async function handler(req, res) {
 
     if (isM3U8) {
       const text = await response.text();
-      const proxyOrigin = `https://${host}${parsedUrl.pathname}`;
+      const proto = req.headers['x-forwarded-proto'] || (host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https');
+      const proxyOrigin = `${proto}://${host}${parsedUrl.pathname}`;
       const rewritten = rewriteM3U8(text, finalUrl, proxyOrigin);
       outHeaders['content-type'] = 'application/vnd.apple.mpegurl';
       outHeaders['content-length'] = Buffer.byteLength(rewritten).toString();

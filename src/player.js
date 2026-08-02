@@ -212,6 +212,10 @@ export class IPTVPlayer {
 
     // Video events for updating progress
     this.video.addEventListener('timeupdate', () => {
+      if (this.loading && !this.loading.classList.contains('hidden') && !this.video.paused && this.video.currentTime > 0) {
+        this.showLoading(false);
+        this.showError(false);
+      }
       this.updateProgress();
       this.savePlaybackPosition();
     });
@@ -284,11 +288,13 @@ export class IPTVPlayer {
           delete resumeData[keys[0]]; // remove oldest record
         }
         
+        const key = this.currentMediaKey || this.currentUrl;
+        
         // If user watched more than 95% of video, reset it; otherwise save if played > 10s
         if (this.video.currentTime / this.video.duration > 0.95) {
-          delete resumeData[this.currentUrl];
+          delete resumeData[key];
         } else if (this.video.currentTime > 10) {
-          resumeData[this.currentUrl] = {
+          resumeData[key] = {
             position: this.video.currentTime,
             timestamp: now
           };
@@ -370,16 +376,6 @@ export class IPTVPlayer {
     if (this.error) this.error.classList.add('hidden');
     this.showLoading(true);
 
-    // Safety timeout to prevent Buffering Stream... from getting stuck indefinitely
-    if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
-    this.bufferTimeout = setTimeout(() => {
-      if (this.loading && !this.loading.classList.contains('hidden') && this.video.paused) {
-        console.warn('[Player] Stream loading timed out.');
-        this.showLoading(false);
-        this.showError(true, 'Stream load timed out. Stream may be offline or slow to respond.');
-      }
-    }, 15000);
-
     // Check for saved resume position
     const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
     const key = this.currentMediaKey || this.currentUrl;
@@ -387,6 +383,22 @@ export class IPTVPlayer {
     const resumePos = (typeof startPosition === 'number' && startPosition > 0)
       ? startPosition
       : (saved ? saved.position : 0);
+
+    // Safety timeout to prevent Buffering Stream... from getting stuck indefinitely
+    if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
+    const initialTime = this.video ? this.video.currentTime : 0;
+    this.bufferTimeout = setTimeout(() => {
+      if (this.loading && !this.loading.classList.contains('hidden')) {
+        const hasAdvanced = this.video && !this.video.paused && this.video.currentTime > initialTime;
+        if (!hasAdvanced) {
+          console.warn('[Player] Stream loading timed out.');
+          this.showLoading(false);
+          this.showError(true, 'Stream load timed out. Stream may be offline or slow to respond.');
+        } else {
+          this.showLoading(false);
+        }
+      }
+    }, 15000);
 
     let networkRetryIndex = 0;
     const originalUrl = rawTargetUrl;
@@ -405,6 +417,7 @@ export class IPTVPlayer {
       this.hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
+        startPosition: (resumePos && resumePos > 0) ? resumePos : -1,
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
         maxBufferSize: 60 * 1000 * 1000, // 60MB
@@ -419,6 +432,12 @@ export class IPTVPlayer {
       this.hls.loadSource(this.currentUrl);
       this.hls.attachMedia(this.video);
       
+      this.hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        if (this.loading && !this.loading.classList.contains('hidden') && !this.video.paused) {
+          this.showLoading(false);
+        }
+      });
+
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
         this.showLoading(false);
@@ -489,9 +508,9 @@ export class IPTVPlayer {
       this.video.addEventListener('loadedmetadata', () => {
         if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
         this.showLoading(false);
-        if (saved && saved.position > 0) {
-          this.video.currentTime = saved.position;
-          this.showToast(`Resumed from ${this.formatTime(saved.position)}`);
+        if (resumePos && resumePos > 0) {
+          this.video.currentTime = resumePos;
+          this.showToast(`Resumed from ${this.formatTime(resumePos)}`);
         }
       }, { once: true });
 

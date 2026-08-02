@@ -3,7 +3,7 @@ import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
-import { PODCAST_CHANNELS, getAllPodcastChannels, getHeroPodcast, searchPodcastChannels, searchRealPodcastAPI, fetchChannelPastEpisodes } from './podcastsData';
+import { PODCAST_CHANNELS, getAllPodcastChannels, getHeroPodcast, getLatestPodcastEpisodes, loadTopItunesPodcasts, searchPodcastChannels, searchRealPodcastAPI, fetchChannelPastEpisodes } from './podcastsData';
 import './style.css';
 
 // Initialize Lucide icons
@@ -401,7 +401,7 @@ let podcastEpisodesPage = 1;
 const PODCAST_EPISODES_PER_PAGE = 9;
 
 // Load YouTube Podcasts Dashboard
-function loadPodcastsDashboard() {
+  const latestRow = document.getElementById('row-podcasts-latest-episodes');
   const techRow = document.getElementById('row-podcasts-tech');
   const scienceRow = document.getElementById('row-podcasts-science');
   const comedyRow = document.getElementById('row-podcasts-comedy');
@@ -446,35 +446,9 @@ function loadPodcastsDashboard() {
     }
   }
 
-  // Wire Category Filter Pills
-  const pills = document.querySelectorAll('.podcast-cat-pill');
-  pills.forEach(pill => {
-    pill.onclick = () => {
-      pills.forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-
-      const cat = pill.getAttribute('data-cat');
-      const techWrap = document.getElementById('row-container-tech');
-      const scienceWrap = document.getElementById('row-container-science');
-      const comedyWrap = document.getElementById('row-container-comedy');
-      const sportsWrap = document.getElementById('row-container-sports');
-      const historyWrap = document.getElementById('row-container-history');
-
-      if (cat === 'all') {
-        if (techWrap) techWrap.style.display = 'block';
-        if (scienceWrap) scienceWrap.style.display = 'block';
-        if (comedyWrap) comedyWrap.style.display = 'block';
-        if (sportsWrap) sportsWrap.style.display = 'block';
-        if (historyWrap) historyWrap.style.display = 'block';
-      } else {
-        if (techWrap) techWrap.style.display = cat === 'tech' ? 'block' : 'none';
-        if (scienceWrap) scienceWrap.style.display = cat === 'science' ? 'block' : 'none';
-        if (comedyWrap) comedyWrap.style.display = cat === 'comedy' ? 'block' : 'none';
-        if (sportsWrap) sportsWrap.style.display = cat === 'sports' ? 'block' : 'none';
-        if (historyWrap) historyWrap.style.display = cat === 'history' ? 'block' : 'none';
-      }
-    };
-  });
+  // Load Latest Podcast Episodes Row
+  const latestEpisodes = getLatestPodcastEpisodes();
+  if (latestRow) renderPodcastEpisodesRow(latestEpisodes, latestRow);
 
   // Load Favorite Podcast Channels
   if (state.favoritePodcasts && state.favoritePodcasts.length > 0) {
@@ -489,58 +463,89 @@ function loadPodcastsDashboard() {
   if (comedyRow) renderPodcastChannelRow(PODCAST_CHANNELS.comedy, comedyRow);
   if (sportsRow) renderPodcastChannelRow(PODCAST_CHANNELS.sports, sportsRow);
   if (historyRow) renderPodcastChannelRow(PODCAST_CHANNELS.history, historyRow);
-}
 
-// Render Podcast Channels inside horizontal carousels
-function renderPodcastChannelRow(channels, container) {
+  // Dynamically load top podcasts from Apple Podcasts chart to enrich categories
+  loadTopItunesPodcasts().then(() => {
+    if (techRow) renderPodcastChannelRow(PODCAST_CHANNELS.tech, techRow);
+    if (scienceRow) renderPodcastChannelRow(PODCAST_CHANNELS.science, scienceRow);
+    if (comedyRow) renderPodcastChannelRow(PODCAST_CHANNELS.comedy, comedyRow);
+    if (sportsRow) renderPodcastChannelRow(PODCAST_CHANNELS.sports, sportsRow);
+    if (historyRow) renderPodcastChannelRow(PODCAST_CHANNELS.history, historyRow);
+  });
+
+// Render Podcast Episodes inside horizontal carousels
+function renderPodcastEpisodesRow(episodes, container) {
   if (!container) return;
   container.innerHTML = '';
 
-  if (!channels || channels.length === 0) {
-    container.innerHTML = '<span class="text-xs text-slate-500 py-4">No podcast channels found.</span>';
+  if (!episodes || episodes.length === 0) {
+    container.innerHTML = '<span class="text-xs text-slate-500 py-4">No recent episodes available.</span>';
     return;
   }
 
-  const favs = state.favoritePodcasts || [];
-  channels.forEach(channel => {
+  episodes.forEach(ep => {
     const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale min-w-[210px] sm:min-w-[230px]';
-    const isFav = favs.some(f => f.id === channel.id);
-    const epCount = channel.episodes ? channel.episodes.length : 1;
-
+    card.className = 'detail-item-card hover-scale min-w-[240px] sm:min-w-[260px] cursor-pointer';
     card.innerHTML = `
       <div style="position: relative;">
-        <img src="${channel.avatar}" alt="${channel.channelName}" class="detail-item-poster" style="aspect-ratio: 1/1; object-fit: cover; border-radius: 12px 12px 0 0;" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
-        <button class="podcast-fav-btn ${isFav ? 'active' : ''}" title="${isFav ? 'Remove Favorite Channel' : 'Add to Favorite Channels'}" style="position: absolute; top: 8px; right: 8px; background: rgba(15,23,42,0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 9999px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: ${isFav ? '#f59e0b' : '#cbd5e1'}; cursor: pointer;">
-          <i data-lucide="star" style="width: 14px; height: 14px; fill: ${isFav ? '#f59e0b' : 'none'};"></i>
-        </button>
-        <span style="position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.8); padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 700; color: #ef4444; border: 1px solid rgba(239,68,68,0.3);">
-          ${channel.subscribers || channel.category}
+        <img src="${ep.thumbnail || ep.avatar}" alt="${ep.title}" class="detail-item-poster" style="aspect-ratio: 16/9; object-fit: cover; border-radius: 12px 12px 0 0;" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
+        <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;" class="opacity-0 hover:opacity-100 transition-opacity">
+          <div style="width: 36px; height: 36px; border-radius: 9999px; background: #dc2626; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+            <i data-lucide="play" style="width: 18px; height: 18px; fill: white; color: white; margin-left: 2px;"></i>
+          </div>
+        </div>
+        <span style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.85); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #ffffff;">
+          ${ep.duration || 'Episode'}
+        </span>
+        <span style="position: absolute; top: 8px; left: 8px; background: rgba(239,68,68,0.9); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #ffffff;">
+          ${ep.date || 'Recent'}
         </span>
       </div>
-      <div class="detail-item-info">
-        <h4 class="detail-item-title">${channel.channelName}</h4>
-        <div class="detail-item-meta">
-          <span class="detail-item-year">${channel.host || 'Podcast Host'}</span>
-          <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-semibold text-[10px]">${epCount}+ Episodes</span>
-        </div>
+      <div class="detail-item-info p-3">
+        <span class="text-[10px] font-bold text-red-400 uppercase tracking-wider block truncate">${ep.channelName || 'Podcast'}</span>
+        <h4 class="detail-item-title text-xs font-bold text-white line-clamp-2 leading-snug" title="${ep.title}">${ep.title}</h4>
       </div>
     `;
 
-    // Favorite Channel button toggle
-    const favBtn = card.querySelector('.podcast-fav-btn');
-    if (favBtn) {
-      favBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        togglePodcastFavorite(channel);
-      });
-    }
-
-    // Clicking channel card opens its expanded episodes view modal!
-    card.addEventListener('click', () => openPodcastChannelModal(channel));
+    card.addEventListener('click', () => {
+      openPodcastModal(ep);
+    });
     container.appendChild(card);
   });
   createIcons(iconConfig);
+}
+
+// In-app real-time filtering of podcast default rows on query input
+function filterInAppPodcastDashboard(query) {
+  if (!query) {
+    loadPodcastsDashboard();
+    return;
+  }
+  const q = query.toLowerCase();
+
+  const latestRow = document.getElementById('row-podcasts-latest-episodes');
+  const techRow = document.getElementById('row-podcasts-tech');
+  const scienceRow = document.getElementById('row-podcasts-science');
+  const comedyRow = document.getElementById('row-podcasts-comedy');
+  const sportsRow = document.getElementById('row-podcasts-sports');
+  const historyRow = document.getElementById('row-podcasts-history');
+
+  const filteredEps = getLatestPodcastEpisodes().filter(e => 
+    e.title.toLowerCase().includes(q) || (e.channelName && e.channelName.toLowerCase().includes(q))
+  );
+  if (latestRow) renderPodcastEpisodesRow(filteredEps, latestRow);
+
+  const filterChannels = (list) => list.filter(c => 
+    c.channelName.toLowerCase().includes(q) || 
+    (c.host && c.host.toLowerCase().includes(q)) ||
+    (c.category && c.category.toLowerCase().includes(q))
+  );
+
+  if (techRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.tech), techRow);
+  if (scienceRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.science), scienceRow);
+  if (comedyRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.comedy), comedyRow);
+  if (sportsRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.sports), sportsRow);
+  if (historyRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.history), historyRow);
 }
 
 // Global state for Podcast Detail Modal & Episode filtering
@@ -1282,6 +1287,8 @@ function setupSearch() {
       const query = e.target.value.trim();
       clearTimeout(podcastsSearchDebounceTimer);
 
+      filterInAppPodcastDashboard(query);
+
       if (!query) {
         if (podcastsSearchResultsSection) podcastsSearchResultsSection.classList.add('hidden');
         if (podcastsDefaultSection) podcastsDefaultSection.classList.remove('hidden');
@@ -1289,7 +1296,6 @@ function setupSearch() {
       }
 
       if (podcastsSearchResultsSection) podcastsSearchResultsSection.classList.remove('hidden');
-      if (podcastsDefaultSection) podcastsDefaultSection.classList.add('hidden');
 
       const grid = document.getElementById('podcasts-search-results-grid');
       const heading = document.getElementById('podcasts-search-status-heading');
@@ -2751,8 +2757,12 @@ function isExplicitNonUSCategory(cat) {
   if (!cat || cat === 'All Channels' || cat === 'Favorites' || cat === 'Recents') return false;
   if (isUSCategory(cat)) return false;
   const upper = String(cat).toUpperCase().trim();
-  const nonUsRegex = /^(UK|CA|MX|FR|DE|ES|IT|AR|BR|TR|PL|RO|RU|AL|EX-YU|GR|NL|PT|IN|PK|ARABIC|LATINO|AFRICA|GERMANY|FRANCE|ITALY|SPAIN|TURKISH|UKRAINE|POLAND|ASIA|AU|NZ)[\s\-_|:]/i;
-  return nonUsRegex.test(upper);
+  
+  // Non-US country/region/language keywords (full names and 2-letter codes)
+  const nonUsPattern = /\b(BRAZIL|BRAZILIAN|BR|CANADA|CANADIAN|CA|DEPORTES|DEPORTE|DEPORTIVAS|LATINO|LATINA|LATIN|PORTUGAL|PORTUGUESE|PT|UK|UNITED KINGDOM|MEXICO|MEXICAN|MX|FRANCE|FRENCH|FR|GERMANY|GERMAN|DE|SPAIN|SPANISH|ES|ITALY|ITALIAN|IT|ARGENTINA|AR|TURKEY|TURKISH|TR|POLAND|POLISH|PL|ROMANIA|ROMANIAN|RO|RUSSIA|RUSSIAN|RU|ALBANIA|AL|EX-YU|GREECE|GREEK|GR|NETHERLANDS|DUTCH|NL|INDIA|INDIAN|IN|PAKISTAN|PK|ARABIC|AFRICA|AFRICAN|UKRAINE|UKRAINIAN|ASIA|ASIAN|AUSTRALIA|AU|NEW ZEALAND|NZ)\b/i;
+  const prefixPattern = /^(UK|CA|MX|FR|DE|ES|IT|AR|BR|TR|PL|RO|RU|AL|EX-YU|GR|NL|PT|IN|PK|AU|NZ)([\s\-_|:]|$)/i;
+
+  return nonUsPattern.test(upper) || prefixPattern.test(upper);
 }
 
 function updateCategoriesList() {

@@ -964,6 +964,84 @@ export function getAllPodcastChannels() {
   ];
 }
 
+// Return healthy list of latest podcast episodes across all channels
+export function getLatestPodcastEpisodes() {
+  const allChannels = getAllPodcastChannels();
+  const episodesList = [];
+
+  allChannels.forEach(chan => {
+    if (chan.episodes && chan.episodes.length > 0) {
+      // Include latest episodes from each channel
+      chan.episodes.slice(0, 3).forEach(ep => {
+        episodesList.push({
+          ...ep,
+          channelId: chan.id,
+          channelName: chan.channelName,
+          host: chan.host,
+          category: chan.category,
+          avatar: chan.avatar,
+          thumbnail: ep.thumbnail || chan.avatar
+        });
+      });
+    }
+  });
+
+  return episodesList;
+}
+
+// Dynamically fetch top podcast channels from Apple Podcasts RSS chart to enrich categories
+export async function loadTopItunesPodcasts() {
+  try {
+    const res = await fetch('https://itunes.apple.com/us/rss/toppodcasts/limit=50/json');
+    if (res.ok) {
+      const data = await res.json();
+      const entries = data.feed?.entry || [];
+      const newChannels = entries.map((entry, idx) => {
+        const title = entry['im:name']?.label || 'Top Podcast';
+        const artist = entry['im:artist']?.label || 'Podcast Creator';
+        const category = entry.category?.attributes?.label || 'General Podcast';
+        const images = entry['im:image'] || [];
+        const avatar = images[images.length - 1]?.label || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';
+        const collectionId = entry.id?.attributes?.['im:id'];
+        const summary = entry.summary?.label || `Official Apple Top Podcast: ${title}`;
+
+        return {
+          id: `top_itunes_${collectionId || idx}`,
+          collectionId: collectionId,
+          channelName: title,
+          host: artist,
+          category: category,
+          subscribers: 'Apple Top 50',
+          avatar: avatar,
+          description: summary,
+          episodes: []
+        };
+      });
+
+      // Distribute into category lists if not already present
+      const existingNames = new Set(getAllPodcastChannels().map(c => c.channelName.toLowerCase()));
+      newChannels.forEach(ch => {
+        if (existingNames.has(ch.channelName.toLowerCase())) return;
+        const cat = ch.category.toLowerCase();
+        if (cat.includes('tech') || cat.includes('business')) {
+          PODCAST_CHANNELS.tech.push(ch);
+        } else if (cat.includes('science') || cat.includes('health') || cat.includes('medicine')) {
+          PODCAST_CHANNELS.science.push(ch);
+        } else if (cat.includes('comedy') || cat.includes('society') || cat.includes('entertainment')) {
+          PODCAST_CHANNELS.comedy.push(ch);
+        } else if (cat.includes('sport') || cat.includes('recreation') || cat.includes('leisure')) {
+          PODCAST_CHANNELS.sports.push(ch);
+        } else {
+          PODCAST_CHANNELS.history.push(ch);
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to load iTunes top podcasts chart:', e);
+  }
+  return getAllPodcastChannels();
+}
+
 // Return top featured hero podcast episode for top banner
 export function getHeroPodcast() {
   return {
@@ -1028,7 +1106,7 @@ export async function searchRealPodcastAPI(query) {
   // 3. Live real podcast channel search via iTunes API
   try {
     const term = encodeURIComponent(query.trim());
-    const channelUrl = `https://itunes.apple.com/search?media=podcast&entity=podcast&term=${term}&limit=18`;
+    const channelUrl = `https://itunes.apple.com/search?media=podcast&entity=podcast&term=${term}&limit=30`;
     const res = await fetch(channelUrl);
     if (res.ok) {
       const data = await res.json();
@@ -1057,7 +1135,7 @@ export async function searchRealPodcastAPI(query) {
   // 4. Live real podcast episode search via iTunes API
   try {
     const term = encodeURIComponent(query.trim());
-    const epUrl = `https://itunes.apple.com/search?media=podcast&entity=podcastEpisode&term=${term}&limit=18`;
+    const epUrl = `https://itunes.apple.com/search?media=podcast&entity=podcastEpisode&term=${term}&limit=30`;
     const res = await fetch(epUrl);
     if (res.ok) {
       const data = await res.json();
