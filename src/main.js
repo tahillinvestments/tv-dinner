@@ -400,152 +400,683 @@ let podcastEpisodesSortMode = 'newest';
 let podcastEpisodesPage = 1;
 const PODCAST_EPISODES_PER_PAGE = 9;
 
-// Load YouTube Podcasts Dashboard
-  const latestRow = document.getElementById('row-podcasts-latest-episodes');
-  const techRow = document.getElementById('row-podcasts-tech');
-  const scienceRow = document.getElementById('row-podcasts-science');
-  const comedyRow = document.getElementById('row-podcasts-comedy');
-  const sportsRow = document.getElementById('row-podcasts-sports');
-  const historyRow = document.getElementById('row-podcasts-history');
-  const favoritesRow = document.getElementById('row-podcasts-favorites');
-  const favoritesSection = document.getElementById('row-podcasts-favorites-section');
+// ==========================================================================
+// POCKET CASTS REDESIGN STATE & APP CONTROLLER
+// ==========================================================================
+let pocketcastsState = {
+  subscribedShowIds: JSON.parse(localStorage.getItem('pocketcasts_subscribed_ids') || '[]'),
+  queue: JSON.parse(localStorage.getItem('pocketcasts_queue') || '[]'),
+  history: JSON.parse(localStorage.getItem('pocketcasts_history') || '[]'),
+  currentView: 'discover',
+  activeCategory: 'all',
+  currentEpisode: null,
+  audioElement: null,
+  isPlaying: false,
+  playbackSpeed: 1.0,
+  navInitialized: false
+};
 
-  // Populate Podcast Spotlight Hero Banner
-  const heroChannel = PODCAST_CHANNELS.tech[0]; // Lex Fridman
-  if (heroChannel && heroChannel.episodes && heroChannel.episodes.length > 0) {
-    const heroEp = heroChannel.episodes[0]; // #420 Sam Altman
+// Main Entry Point called when user switches to Podcasts tab
+function loadPodcastsDashboard() {
+  if (!pocketcastsState.navInitialized) {
+    initPocketCastsNav();
+    pocketcastsState.navInitialized = true;
+  }
+  renderPocketCastsView();
+  updatePocketCastsBadges();
+}
+
+function initPocketCastsNav() {
+  // Navigation tabs
+  const navBtns = document.querySelectorAll('.podcast-nav-btn');
+  navBtns.forEach(btn => {
+    btn.onclick = () => {
+      const view = btn.getAttribute('data-view');
+      pocketcastsState.currentView = view;
+      navBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderPocketCastsView();
+    };
+  });
+
+  // Category filter pills
+  const catPills = document.querySelectorAll('.podcast-cat-pill');
+  catPills.forEach(pill => {
+    pill.onclick = () => {
+      catPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      pocketcastsState.activeCategory = pill.getAttribute('data-category');
+      renderPocketCastsDiscover();
+    };
+  });
+
+  // Live search input
+  const searchInput = document.getElementById('podcasts-search-input');
+  const clearBtn = document.getElementById('podcasts-search-clear');
+  const closeSearchBtn = document.getElementById('podcasts-search-close-btn');
+
+  if (searchInput) {
+    let searchDebounceTimer;
+    searchInput.oninput = (e) => {
+      const query = e.target.value.trim();
+      if (clearBtn) {
+        if (query) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+      }
+
+      clearTimeout(searchDebounceTimer);
+      if (!query) {
+        hidePodcastSearchResults();
+        return;
+      }
+
+      searchDebounceTimer = setTimeout(() => {
+        handlePocketCastsSearch(query);
+      }, 350);
+    };
+  }
+
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      if (searchInput) searchInput.value = '';
+      clearBtn.classList.add('hidden');
+      hidePodcastSearchResults();
+    };
+  }
+
+  if (closeSearchBtn) {
+    closeSearchBtn.onclick = () => {
+      if (searchInput) searchInput.value = '';
+      if (clearBtn) clearBtn.classList.add('hidden');
+      hidePodcastSearchResults();
+    };
+  }
+
+  // Pocket Casts Dock Mini Player controls
+  initPocketCastsDockControls();
+
+  // Clear queue button
+  const clearQueueBtn = document.getElementById('podcast-clear-queue-btn');
+  if (clearQueueBtn) {
+    clearQueueBtn.onclick = () => {
+      pocketcastsState.queue = [];
+      localStorage.setItem('pocketcasts_queue', JSON.stringify([]));
+      renderPocketCastsQueue();
+      updatePocketCastsBadges();
+    };
+  }
+
+  // Clear history button
+  const clearHistoryBtn = document.getElementById('podcast-clear-history-btn');
+  if (clearHistoryBtn) {
+    clearHistoryBtn.onclick = () => {
+      pocketcastsState.history = [];
+      localStorage.setItem('pocketcasts_history', JSON.stringify([]));
+      renderPocketCastsHistory();
+    };
+  }
+
+  // Hero Spotlight setup
+  const heroChannel = PODCAST_CHANNELS.tech[0];
+  const heroPlayBtn = document.getElementById('podcast-hero-play-btn');
+  const heroShowBtn = document.getElementById('podcast-hero-show-btn');
+
+  if (heroChannel && heroChannel.episodes && heroChannel.episodes[0]) {
+    const heroEp = heroChannel.episodes[0];
     const heroBg = document.getElementById('podcast-hero-bg');
     const heroTitle = document.getElementById('podcast-hero-title');
     const heroShow = document.getElementById('podcast-hero-show');
     const heroDesc = document.getElementById('podcast-hero-desc');
-    const heroCat = document.getElementById('podcast-hero-category');
-    const playBtn = document.getElementById('podcast-hero-play-btn');
-    const showBtn = document.getElementById('podcast-hero-show-btn');
 
     if (heroBg) heroBg.style.backgroundImage = `url(${heroEp.thumbnail || heroChannel.avatar})`;
     if (heroTitle) heroTitle.textContent = heroEp.title;
     if (heroShow) heroShow.textContent = `${heroChannel.channelName} • Hosted by ${heroChannel.host}`;
     if (heroDesc) heroDesc.textContent = heroEp.description || heroChannel.description;
-    if (heroCat) heroCat.textContent = heroChannel.category;
 
-    if (playBtn) {
-      playBtn.innerHTML = `<i data-lucide="play" class="w-4 h-4 fill-white text-white"></i> Play Episode (${heroEp.duration || 'Video'})`;
-      playBtn.onclick = () => {
-        openPodcastModal({
-          ...heroEp,
-          channelName: heroChannel.channelName,
-          category: heroChannel.category,
-          thumbnail: heroEp.thumbnail || heroChannel.avatar,
-          description: heroEp.description || heroChannel.description
-        });
-      };
-    }
-
-    if (showBtn) {
-      showBtn.onclick = () => openPodcastChannelModal(heroChannel);
+    if (heroPlayBtn) {
+      heroPlayBtn.onclick = () => playPodcastEpisodeInDock(heroEp, heroChannel);
     }
   }
 
-  // Load Latest Podcast Episodes Row
-  const latestEpisodes = getLatestPodcastEpisodes();
-  if (latestRow) renderPodcastEpisodesRow(latestEpisodes, latestRow);
-
-  // Load Favorite Podcast Channels
-  if (state.favoritePodcasts && state.favoritePodcasts.length > 0) {
-    if (favoritesSection) favoritesSection.style.display = 'block';
-    if (favoritesRow) renderPodcastChannelRow(state.favoritePodcasts, favoritesRow);
-  } else {
-    if (favoritesSection) favoritesSection.style.display = 'none';
+  if (heroShowBtn && heroChannel) {
+    heroShowBtn.onclick = () => openPodcastChannelModal(heroChannel);
   }
 
-  if (techRow) renderPodcastChannelRow(PODCAST_CHANNELS.tech, techRow);
-  if (scienceRow) renderPodcastChannelRow(PODCAST_CHANNELS.science, scienceRow);
-  if (comedyRow) renderPodcastChannelRow(PODCAST_CHANNELS.comedy, comedyRow);
-  if (sportsRow) renderPodcastChannelRow(PODCAST_CHANNELS.sports, sportsRow);
-  if (historyRow) renderPodcastChannelRow(PODCAST_CHANNELS.history, historyRow);
-
-  // Dynamically load top podcasts from Apple Podcasts chart to enrich categories
+  // Fetch top iTunes podcasts to populate discover directory
   loadTopItunesPodcasts().then(() => {
-    if (techRow) renderPodcastChannelRow(PODCAST_CHANNELS.tech, techRow);
-    if (scienceRow) renderPodcastChannelRow(PODCAST_CHANNELS.science, scienceRow);
-    if (comedyRow) renderPodcastChannelRow(PODCAST_CHANNELS.comedy, comedyRow);
-    if (sportsRow) renderPodcastChannelRow(PODCAST_CHANNELS.sports, sportsRow);
-    if (historyRow) renderPodcastChannelRow(PODCAST_CHANNELS.history, historyRow);
+    if (pocketcastsState.currentView === 'discover') renderPocketCastsDiscover();
+  });
+}
+
+function updatePocketCastsBadges() {
+  const subBadge = document.getElementById('podcast-subscribed-badge');
+  const queueBadge = document.getElementById('podcast-queue-badge');
+
+  if (subBadge) {
+    const count = pocketcastsState.subscribedShowIds.length;
+    subBadge.textContent = count;
+    if (count > 0) subBadge.classList.remove('hidden');
+    else subBadge.classList.add('hidden');
+  }
+
+  if (queueBadge) {
+    const count = pocketcastsState.queue.length;
+    queueBadge.textContent = count;
+    if (count > 0) queueBadge.classList.remove('hidden');
+    else queueBadge.classList.add('hidden');
+  }
+}
+
+function hidePodcastSearchResults() {
+  const searchResultsSection = document.getElementById('podcasts-search-results-section');
+  const discoverView = document.getElementById('podcast-view-discover');
+  if (searchResultsSection) searchResultsSection.classList.add('hidden');
+  if (discoverView) discoverView.classList.remove('hidden');
+}
+
+function renderPocketCastsView() {
+  const views = {
+    discover: document.getElementById('podcast-view-discover'),
+    subscribed: document.getElementById('podcast-view-subscribed'),
+    queue: document.getElementById('podcast-view-queue'),
+    history: document.getElementById('podcast-view-history')
+  };
+
+  const searchResultsSection = document.getElementById('podcasts-search-results-section');
+  if (searchResultsSection) searchResultsSection.classList.add('hidden');
+
+  Object.keys(views).forEach(vKey => {
+    if (views[vKey]) {
+      if (vKey === pocketcastsState.currentView) {
+        views[vKey].classList.remove('hidden');
+      } else {
+        views[vKey].classList.add('hidden');
+      }
+    }
   });
 
-// Render Podcast Episodes inside horizontal carousels
-function renderPodcastEpisodesRow(episodes, container) {
-  if (!container) return;
-  container.innerHTML = '';
+  if (pocketcastsState.currentView === 'discover') renderPocketCastsDiscover();
+  else if (pocketcastsState.currentView === 'subscribed') renderPocketCastsSubscribed();
+  else if (pocketcastsState.currentView === 'queue') renderPocketCastsQueue();
+  else if (pocketcastsState.currentView === 'history') renderPocketCastsHistory();
 
-  if (!episodes || episodes.length === 0) {
-    container.innerHTML = '<span class="text-xs text-slate-500 py-4">No recent episodes available.</span>';
-    return;
+  createIcons(iconConfig);
+}
+
+function renderPocketCastsDiscover() {
+  const grid = document.getElementById('podcast-discover-grid');
+  if (!grid) return;
+
+  const allChannels = getAllPodcastChannels();
+  let channelsToDisplay = allChannels;
+
+  if (pocketcastsState.activeCategory && pocketcastsState.activeCategory !== 'all') {
+    channelsToDisplay = allChannels.filter(c => 
+      c.category && c.category.toLowerCase().includes(pocketcastsState.activeCategory.toLowerCase().split(',')[0].trim())
+    );
   }
 
-  episodes.forEach(ep => {
-    const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale min-w-[240px] sm:min-w-[260px] cursor-pointer';
-    card.innerHTML = `
-      <div style="position: relative;">
-        <img src="${ep.thumbnail || ep.avatar}" alt="${ep.title}" class="detail-item-poster" style="aspect-ratio: 16/9; object-fit: cover; border-radius: 12px 12px 0 0;" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
-        <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;" class="opacity-0 hover:opacity-100 transition-opacity">
-          <div style="width: 36px; height: 36px; border-radius: 9999px; background: #dc2626; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-            <i data-lucide="play" style="width: 18px; height: 18px; fill: white; color: white; margin-left: 2px;"></i>
-          </div>
-        </div>
-        <span style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.85); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #ffffff;">
-          ${ep.duration || 'Episode'}
-        </span>
-        <span style="position: absolute; top: 8px; left: 8px; background: rgba(239,68,68,0.9); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; color: #ffffff;">
-          ${ep.date || 'Recent'}
-        </span>
-      </div>
-      <div class="detail-item-info p-3">
-        <span class="text-[10px] font-bold text-red-400 uppercase tracking-wider block truncate">${ep.channelName || 'Podcast'}</span>
-        <h4 class="detail-item-title text-xs font-bold text-white line-clamp-2 leading-snug" title="${ep.title}">${ep.title}</h4>
-      </div>
-    `;
-
-    card.addEventListener('click', () => {
-      openPodcastModal(ep);
-    });
-    container.appendChild(card);
+  grid.innerHTML = '';
+  channelsToDisplay.forEach(channel => {
+    grid.appendChild(createPocketCastsShowCard(channel));
   });
   createIcons(iconConfig);
 }
 
-// In-app real-time filtering of podcast default rows on query input
-function filterInAppPodcastDashboard(query) {
-  if (!query) {
-    loadPodcastsDashboard();
+function renderPocketCastsSubscribed() {
+  const grid = document.getElementById('podcast-subscribed-grid');
+  const emptyCard = document.getElementById('podcast-subscribed-empty');
+  const countText = document.getElementById('podcast-subscribed-count-text');
+
+  if (!grid) return;
+
+  const allChannels = getAllPodcastChannels();
+  const subscribedChannels = allChannels.filter(c => pocketcastsState.subscribedShowIds.includes(c.id));
+
+  if (countText) countText.textContent = `${subscribedChannels.length} Shows`;
+
+  if (subscribedChannels.length === 0) {
+    grid.innerHTML = '';
+    if (emptyCard) emptyCard.classList.remove('hidden');
+    const goDiscoverBtn = document.getElementById('podcast-go-discover-btn');
+    if (goDiscoverBtn) {
+      goDiscoverBtn.onclick = () => {
+        const discoverNav = document.getElementById('podcast-nav-discover');
+        if (discoverNav) discoverNav.click();
+      };
+    }
     return;
   }
-  const q = query.toLowerCase();
 
-  const latestRow = document.getElementById('row-podcasts-latest-episodes');
-  const techRow = document.getElementById('row-podcasts-tech');
-  const scienceRow = document.getElementById('row-podcasts-science');
-  const comedyRow = document.getElementById('row-podcasts-comedy');
-  const sportsRow = document.getElementById('row-podcasts-sports');
-  const historyRow = document.getElementById('row-podcasts-history');
+  if (emptyCard) emptyCard.classList.add('hidden');
+  grid.innerHTML = '';
+  subscribedChannels.forEach(channel => {
+    grid.appendChild(createPocketCastsShowCard(channel, true));
+  });
+  createIcons(iconConfig);
+}
 
-  const filteredEps = getLatestPodcastEpisodes().filter(e => 
-    e.title.toLowerCase().includes(q) || (e.channelName && e.channelName.toLowerCase().includes(q))
-  );
-  if (latestRow) renderPodcastEpisodesRow(filteredEps, latestRow);
+function createPocketCastsShowCard(channel, isSubscribedView = false) {
+  const card = document.createElement('div');
+  card.className = 'podcast-show-card';
+  const isSubscribed = pocketcastsState.subscribedShowIds.includes(channel.id);
+  const epCount = channel.episodes ? channel.episodes.length : 12;
 
-  const filterChannels = (list) => list.filter(c => 
-    c.channelName.toLowerCase().includes(q) || 
-    (c.host && c.host.toLowerCase().includes(q)) ||
-    (c.category && c.category.toLowerCase().includes(q))
-  );
+  card.innerHTML = `
+    <div class="podcast-show-thumb-wrap">
+      <img src="${channel.avatar}" alt="${channel.channelName}" class="podcast-show-thumb" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
+      ${isSubscribed ? `<span class="podcast-show-unplayed-badge">${epCount} eps</span>` : ''}
+    </div>
+    <div class="podcast-show-info">
+      <h4 class="podcast-show-title" title="${channel.channelName}">${channel.channelName}</h4>
+      <p class="podcast-show-author">${channel.host || 'Host'} • ${channel.category || 'Podcast'}</p>
+      <button class="podcast-show-sub-btn ${isSubscribed ? 'is-subscribed' : ''}">
+        <i data-lucide="${isSubscribed ? 'check' : 'plus'}" class="w-3.5 h-3.5"></i>
+        <span>${isSubscribed ? 'Subscribed' : 'Subscribe'}</span>
+      </button>
+    </div>
+  `;
 
-  if (techRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.tech), techRow);
-  if (scienceRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.science), scienceRow);
-  if (comedyRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.comedy), comedyRow);
-  if (sportsRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.sports), sportsRow);
-  if (historyRow) renderPodcastChannelRow(filterChannels(PODCAST_CHANNELS.history), historyRow);
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('.podcast-show-sub-btn')) return;
+    openPodcastChannelModal(channel);
+  });
+
+  const subBtn = card.querySelector('.podcast-show-sub-btn');
+  if (subBtn) {
+    subBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePodcastSubscription(channel);
+    });
+  }
+
+  return card;
+}
+
+function togglePodcastSubscription(channel) {
+  const idx = pocketcastsState.subscribedShowIds.indexOf(channel.id);
+  if (idx >= 0) {
+    pocketcastsState.subscribedShowIds.splice(idx, 1);
+  } else {
+    pocketcastsState.subscribedShowIds.push(channel.id);
+  }
+  localStorage.setItem('pocketcasts_subscribed_ids', JSON.stringify(pocketcastsState.subscribedShowIds));
+  updatePocketCastsBadges();
+  if (pocketcastsState.currentView === 'subscribed') renderPocketCastsSubscribed();
+  else if (pocketcastsState.currentView === 'discover') renderPocketCastsDiscover();
+}
+
+async function handlePocketCastsSearch(query) {
+  const searchResultsSection = document.getElementById('podcasts-search-results-section');
+  const discoverView = document.getElementById('podcast-view-discover');
+  const showsGrid = document.getElementById('podcasts-search-shows-grid');
+  const statusHeading = document.getElementById('podcasts-search-status-heading');
+  const emptyState = document.getElementById('podcasts-search-empty-state');
+  const epSection = document.getElementById('podcasts-search-episodes-section');
+  const epList = document.getElementById('podcasts-search-episodes-list');
+
+  if (!searchResultsSection) return;
+
+  searchResultsSection.classList.remove('hidden');
+  if (discoverView) discoverView.classList.add('hidden');
+  if (statusHeading) statusHeading.textContent = `Searching podcasts for "${query}"...`;
+  if (emptyState) emptyState.classList.add('hidden');
+
+  if (showsGrid) {
+    showsGrid.innerHTML = `
+      <div class="col-span-full flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
+        <div class="w-7 h-7 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+        <span class="text-xs font-semibold text-slate-300">Searching global Apple & YouTube podcast database...</span>
+      </div>
+    `;
+  }
+
+  try {
+    const results = await searchRealPodcastAPI(query);
+    const { curatedChannels = [], realChannels = [], matchingEpisodes = [] } = results;
+    const allShows = [...curatedChannels, ...realChannels];
+
+    if (allShows.length === 0 && matchingEpisodes.length === 0) {
+      if (showsGrid) showsGrid.innerHTML = '';
+      if (epSection) epSection.classList.add('hidden');
+      if (emptyState) emptyState.classList.remove('hidden');
+      if (statusHeading) statusHeading.textContent = `No podcasts found for "${query}"`;
+      return;
+    }
+
+    if (emptyState) emptyState.classList.add('hidden');
+    if (statusHeading) statusHeading.textContent = `Search Results for "${query}" (${allShows.length} shows found)`;
+
+    if (showsGrid) {
+      showsGrid.innerHTML = '';
+      allShows.forEach(show => {
+        showsGrid.appendChild(createPocketCastsShowCard(show));
+      });
+    }
+
+    if (matchingEpisodes.length > 0 && epList && epSection) {
+      epSection.classList.remove('hidden');
+      epList.innerHTML = '';
+      matchingEpisodes.forEach(ep => {
+        const epRow = document.createElement('div');
+        epRow.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all gap-3';
+        epRow.innerHTML = `
+          <div class="flex items-center gap-3 overflow-hidden">
+            <img src="${ep.thumbnail || ep.channelAvatar || ''}" class="w-10 h-10 rounded-lg object-cover flex-shrink-0" onerror="this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
+            <div class="overflow-hidden">
+              <h4 class="text-xs font-bold text-white truncate">${ep.title}</h4>
+              <p class="text-[11px] text-red-400 font-semibold truncate">${ep.channelName || 'Podcast Episode'}</p>
+            </div>
+          </div>
+          <button class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1">
+            <i data-lucide="play" class="w-3.5 h-3.5 fill-white"></i> Play
+          </button>
+        `;
+        epRow.querySelector('button').onclick = () => playPodcastEpisodeInDock(ep);
+        epList.appendChild(epRow);
+      });
+    } else if (epSection) {
+      epSection.classList.add('hidden');
+    }
+  } catch (err) {
+    console.error('Podcast search error:', err);
+  }
+  createIcons(iconConfig);
+}
+
+function addToPodcastQueue(episode) {
+  const epId = episode.id || episode.youtubeId;
+  if (!pocketcastsState.queue.some(e => (e.id || e.youtubeId) === epId)) {
+    pocketcastsState.queue.push(episode);
+    localStorage.setItem('pocketcasts_queue', JSON.stringify(pocketcastsState.queue));
+    updatePocketCastsBadges();
+    if (player && typeof player.showToast === 'function') {
+      player.showToast(`Added to Up Next Queue: ${episode.title.slice(0, 30)}...`);
+    }
+    if (pocketcastsState.currentView === 'queue') renderPocketCastsQueue();
+  }
+}
+
+function removeFromPodcastQueue(epId) {
+  pocketcastsState.queue = pocketcastsState.queue.filter(e => (e.id || e.youtubeId) !== epId);
+  localStorage.setItem('pocketcasts_queue', JSON.stringify(pocketcastsState.queue));
+  updatePocketCastsBadges();
+  renderPocketCastsQueue();
+}
+
+function renderPocketCastsQueue() {
+  const queueList = document.getElementById('podcast-queue-list');
+  const emptyCard = document.getElementById('podcast-queue-empty');
+  const countText = document.getElementById('podcast-queue-count-text');
+
+  if (!queueList) return;
+
+  if (countText) countText.textContent = `${pocketcastsState.queue.length} Episodes`;
+
+  if (pocketcastsState.queue.length === 0) {
+    queueList.innerHTML = '';
+    if (emptyCard) emptyCard.classList.remove('hidden');
+    return;
+  }
+
+  if (emptyCard) emptyCard.classList.add('hidden');
+  queueList.innerHTML = '';
+
+  pocketcastsState.queue.forEach((ep, idx) => {
+    const epId = ep.id || ep.youtubeId;
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all gap-3';
+    row.innerHTML = `
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="text-xs font-bold text-slate-500 w-4 text-center">${idx + 1}</span>
+        <img src="${ep.thumbnail || ep.avatar || ''}" class="w-11 h-11 rounded-lg object-cover flex-shrink-0" onerror="this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
+        <div class="min-w-0">
+          <h4 class="text-xs font-bold text-white truncate">${ep.title}</h4>
+          <p class="text-[11px] text-red-400 font-semibold truncate">${ep.channelName || 'Podcast'} • ${ep.duration || 'Audio'}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <button class="queue-play-btn p-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs" title="Play Now">
+          <i data-lucide="play" class="w-4 h-4 fill-white"></i>
+        </button>
+        <button class="queue-remove-btn p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 text-xs" title="Remove from Queue">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </div>
+    `;
+
+    row.querySelector('.queue-play-btn').onclick = () => playPodcastEpisodeInDock(ep);
+    row.querySelector('.queue-remove-btn').onclick = () => removeFromPodcastQueue(epId);
+
+    queueList.appendChild(row);
+  });
+  createIcons(iconConfig);
+}
+
+function renderPocketCastsHistory() {
+  const historyList = document.getElementById('podcast-history-list');
+  const emptyCard = document.getElementById('podcast-history-empty');
+
+  if (!historyList) return;
+
+  if (pocketcastsState.history.length === 0) {
+    historyList.innerHTML = '';
+    if (emptyCard) emptyCard.classList.remove('hidden');
+    return;
+  }
+
+  if (emptyCard) emptyCard.classList.add('hidden');
+  historyList.innerHTML = '';
+
+  pocketcastsState.history.forEach((item) => {
+    const ep = item.episode || item;
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-all gap-3';
+    row.innerHTML = `
+      <div class="flex items-center gap-3 min-w-0">
+        <img src="${ep.thumbnail || ep.avatar || ''}" class="w-11 h-11 rounded-lg object-cover flex-shrink-0" onerror="this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
+        <div class="min-w-0">
+          <h4 class="text-xs font-bold text-white truncate">${ep.title}</h4>
+          <p class="text-[11px] text-slate-400 font-medium truncate">${ep.channelName || 'Podcast'} • ${item.dateStr || 'Recently Played'}</p>
+        </div>
+      </div>
+      <button class="history-replay-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 transition-all">
+        <i data-lucide="play" class="w-3.5 h-3.5 fill-white"></i> Play
+      </button>
+    `;
+
+    row.querySelector('.history-replay-btn').onclick = () => playPodcastEpisodeInDock(ep);
+    historyList.appendChild(row);
+  });
+  createIcons(iconConfig);
+}
+
+async function playPodcastEpisodeInDock(episode, showInfo = null) {
+  pocketcastsState.currentEpisode = episode;
+
+  // Add to history
+  const historyItem = { episode, dateStr: new Date().toLocaleDateString() };
+  pocketcastsState.history = [historyItem, ...pocketcastsState.history.filter(h => (h.episode?.id || h.episode?.youtubeId) !== (episode.id || episode.youtubeId))].slice(0, 30);
+  localStorage.setItem('pocketcasts_history', JSON.stringify(pocketcastsState.history));
+
+  // Dynamically resolve MP3 audio URL from Apple Podcasts if missing
+  if (!episode.audioUrl && (episode.title || episode.channelName)) {
+    try {
+      const cleanTitle = (episode.title || '')
+        .replace(/^#?\d+[\s–—-]*/, '')
+        .replace(/^E\d+:?\s*/i, '')
+        .replace(/#\d+/g, '')
+        .trim();
+      const searchTerm = encodeURIComponent(`${episode.channelName || ''} ${cleanTitle}`.trim());
+      const res = await fetch(`https://itunes.apple.com/search?media=podcast&entity=podcastEpisode&term=${searchTerm}&limit=1`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results && data.results[0] && (data.results[0].episodeUrl || data.results[0].previewUrl)) {
+          episode.audioUrl = data.results[0].episodeUrl || data.results[0].previewUrl;
+          if (data.results[0].artworkUrl600) episode.thumbnail = data.results[0].artworkUrl600;
+        }
+      }
+    } catch (e) {
+      console.warn('[Podcasts] Dock audio stream resolution error:', e);
+    }
+  }
+
+  if (episode.audioUrl) {
+    if (!pocketcastsState.audioElement) {
+      pocketcastsState.audioElement = new Audio();
+    }
+    const audio = pocketcastsState.audioElement;
+    audio.src = episode.audioUrl;
+    audio.playbackRate = pocketcastsState.playbackSpeed;
+    audio.play().then(() => {
+      pocketcastsState.isPlaying = true;
+      updateDockPlayerUI();
+    }).catch(e => console.warn('Audio autoplay handled:', e));
+
+    audio.ontimeupdate = () => {
+      const cur = audio.currentTime;
+      const dur = audio.duration || 1;
+      const pct = (cur / dur) * 100;
+      const progressBar = document.getElementById('dock-progress-bar');
+      const timeCur = document.getElementById('dock-time-current');
+      const timeDur = document.getElementById('dock-time-duration');
+      if (progressBar) progressBar.value = pct;
+      if (timeCur) timeCur.textContent = formatTime(cur);
+      if (timeDur) timeDur.textContent = formatTime(dur);
+    };
+
+    audio.onended = () => {
+      pocketcastsState.isPlaying = false;
+      updateDockPlayerUI();
+      if (pocketcastsState.queue.length > 0) {
+        const nextEp = pocketcastsState.queue.shift();
+        localStorage.setItem('pocketcasts_queue', JSON.stringify(pocketcastsState.queue));
+        updatePocketCastsBadges();
+        playPodcastEpisodeInDock(nextEp);
+      }
+    };
+  } else {
+    openPodcastModal(episode);
+  }
+
+  updateDockPlayerUI();
+}
+
+function formatTime(seconds) {
+  if (isNaN(seconds)) return '00:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  const h = Math.floor(m / 60);
+  if (h > 0) {
+    const remM = m % 60;
+    return `${h}:${remM < 10 ? '0' : ''}${remM}:${s < 10 ? '0' : ''}${s}`;
+  }
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+function updateDockPlayerUI() {
+  const dock = document.getElementById('pocketcasts-player-dock');
+  const thumb = document.getElementById('dock-thumb');
+  const title = document.getElementById('dock-title');
+  const show = document.getElementById('dock-show');
+  const playBtn = document.getElementById('dock-play-pause');
+
+  if (!dock) return;
+
+  const ep = pocketcastsState.currentEpisode;
+  if (!ep) {
+    dock.classList.add('hidden');
+    return;
+  }
+
+  dock.classList.remove('hidden');
+  if (thumb) thumb.src = ep.thumbnail || ep.avatar || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';
+  if (title) title.textContent = ep.title;
+  if (show) show.textContent = ep.channelName || 'Podcast Episode';
+
+  if (playBtn) {
+    if (pocketcastsState.isPlaying) {
+      playBtn.innerHTML = `<i data-lucide="pause" class="w-5 h-5 fill-white"></i>`;
+    } else {
+      playBtn.innerHTML = `<i data-lucide="play" class="w-5 h-5 fill-white"></i>`;
+    }
+    createIcons(iconConfig);
+  }
+}
+
+function initPocketCastsDockControls() {
+  const playBtn = document.getElementById('dock-play-pause');
+  const skipBackBtn = document.getElementById('dock-skip-back');
+  const skipFwdBtn = document.getElementById('dock-skip-fwd');
+  const speedBtn = document.getElementById('dock-speed-btn');
+  const queueBtn = document.getElementById('dock-queue-btn');
+  const expandBtn = document.getElementById('dock-expand-btn');
+  const progressBar = document.getElementById('dock-progress-bar');
+
+  if (playBtn) {
+    playBtn.onclick = () => {
+      const audio = pocketcastsState.audioElement;
+      if (!audio) return;
+      if (pocketcastsState.isPlaying) {
+        audio.pause();
+        pocketcastsState.isPlaying = false;
+      } else {
+        audio.play();
+        pocketcastsState.isPlaying = true;
+      }
+      updateDockPlayerUI();
+    };
+  }
+
+  if (skipBackBtn) {
+    skipBackBtn.onclick = () => {
+      const audio = pocketcastsState.audioElement;
+      if (audio) audio.currentTime = Math.max(0, audio.currentTime - 10);
+    };
+  }
+
+  if (skipFwdBtn) {
+    skipFwdBtn.onclick = () => {
+      const audio = pocketcastsState.audioElement;
+      if (audio) audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 30);
+    };
+  }
+
+  const speeds = [1.0, 1.25, 1.5, 2.0];
+  if (speedBtn) {
+    speedBtn.onclick = () => {
+      const curIdx = speeds.indexOf(pocketcastsState.playbackSpeed);
+      const nextIdx = (curIdx + 1) % speeds.length;
+      pocketcastsState.playbackSpeed = speeds[nextIdx];
+      speedBtn.textContent = `${pocketcastsState.playbackSpeed}x`;
+      if (pocketcastsState.audioElement) {
+        pocketcastsState.audioElement.playbackRate = pocketcastsState.playbackSpeed;
+      }
+    };
+  }
+
+  if (queueBtn) {
+    queueBtn.onclick = () => {
+      const navQueue = document.getElementById('podcast-nav-queue');
+      if (navQueue) navQueue.click();
+    };
+  }
+
+  if (expandBtn) {
+    expandBtn.onclick = () => {
+      if (pocketcastsState.currentEpisode) openPodcastModal(pocketcastsState.currentEpisode);
+    };
+  }
+
+  if (progressBar) {
+    progressBar.oninput = (e) => {
+      const audio = pocketcastsState.audioElement;
+      if (audio && audio.duration) {
+        const targetSec = (e.target.value / 100) * audio.duration;
+        audio.currentTime = targetSec;
+      }
+    };
+  }
 }
 
 // Global state for Podcast Detail Modal & Episode filtering
@@ -577,6 +1108,10 @@ function toggleEpisodeSaved(epId) {
 
 // Channel Up (+1) and Channel Down (-1) Navigation Function for Live TV
 function changeLiveChannel(direction) {
+  if (state.activeTab === 'podcasts' || (state.selectedMedia && (state.selectedMedia.audioUrl || state.selectedMedia.category === 'Podcast' || state.selectedMedia.channelName))) {
+    return;
+  }
+
   const channelList = (state.filteredChannels && state.filteredChannels.length > 0) 
     ? state.filteredChannels 
     : (state.channels || []);
@@ -980,8 +1515,8 @@ function resetPlayerWindow() {
   if (statusText) statusText.textContent = 'Select a stream or episode to play.';
 }
 
-// Open YouTube Video Modal (Podcast Episode)
-function openPodcastModal(podcast) {
+// Open HD Video Player Modal (Podcast Episode)
+async function openPodcastModal(podcast) {
   stopActiveLiveTVFeed();
   resetPlayerWindow();
   state.selectedMedia = podcast;
@@ -989,12 +1524,54 @@ function openPodcastModal(podcast) {
   const overlay = document.getElementById('details-overlay');
   if (!overlay) return;
 
+  // Dynamically resolve real YouTube Video ID if missing
+  if (!podcast.youtubeId && (podcast.title || podcast.channelName)) {
+    try {
+      const cleanTitle = (podcast.title || '')
+        .replace(/^#?\d+[\s–—-]*/, '')
+        .replace(/^E\d+:?\s*/i, '')
+        .replace(/#\d+/g, '')
+        .trim();
+      const q = encodeURIComponent(`${podcast.channelName || ''} ${cleanTitle}`.trim());
+      const res = await fetch(`https://inv.tux.pizza/api/v1/search?q=${q}&type=video`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0] && data[0].videoId) {
+          podcast.youtubeId = data[0].videoId;
+          podcast.thumbnail = `https://img.youtube.com/vi/${podcast.youtubeId}/hqdefault.jpg`;
+        }
+      }
+    } catch (err) {
+      console.warn('[Podcasts] Invidious YouTube video resolution error:', err);
+    }
+  }
+
   // Move shared player section into details container
   const playerSection = document.getElementById('player-section');
   const vodContainer = document.getElementById('vod-player-container');
   if (playerSection && vodContainer) {
     vodContainer.appendChild(playerSection);
   }
+
+  // Hide Live TV controls & Stream Sources panel completely for Podcasts
+  const tvSelectors = document.getElementById('tv-selectors');
+  const sourcesPanel = document.querySelector('.sources-panel');
+  const chPrevBtn = document.getElementById('ch-prev-btn');
+  const chNextBtn = document.getElementById('ch-next-btn');
+  const liveIndicatorDot = document.getElementById('live-indicator-dot');
+  const liveIndicatorText = document.getElementById('live-indicator-text');
+  const seekContainer = document.getElementById('seek-container');
+  const seekSlider = document.getElementById('seek-slider');
+  const currentTimeEl = document.getElementById('current-time');
+  const durationTimeEl = document.getElementById('duration-time');
+
+  if (tvSelectors) tvSelectors.style.display = 'none';
+  if (sourcesPanel) sourcesPanel.style.display = 'none';
+  if (chPrevBtn) chPrevBtn.style.display = 'none';
+  if (chNextBtn) chNextBtn.style.display = 'none';
+  if (liveIndicatorDot) liveIndicatorDot.style.display = 'none';
+  if (liveIndicatorText) liveIndicatorText.textContent = 'VIDEO PODCAST';
+  if (seekContainer) seekContainer.style.display = 'flex';
 
   const titleEl = document.getElementById('details-title');
   const metaEl = document.getElementById('details-meta-info');
@@ -1004,54 +1581,37 @@ function openPodcastModal(podcast) {
   const embedIframe = document.getElementById('embed-iframe');
   const videoEl = document.getElementById('video-player');
   const poster = document.getElementById('player-poster');
-  const activeSourceName = document.getElementById('active-source-name');
-  const embedSourcesList = document.getElementById('embed-sources-list');
-  const tvSelectors = document.getElementById('tv-selectors');
   const shield = document.getElementById('embed-shield');
 
-  if (tvSelectors) tvSelectors.classList.add('hidden');
   if (titleEl) titleEl.textContent = podcast.title;
-  if (metaEl) metaEl.innerHTML = `<span class="text-slate-300 font-semibold">${podcast.channelName || 'Podcast'}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">${podcast.category || (podcast.audioUrl ? 'Audio Episode' : 'YouTube Video')}</span>`;
-  if (overviewEl) overviewEl.textContent = podcast.description || 'Watch and listen to top podcast episodes directly inside TV DINNER.';
+  const ytId = podcast.youtubeId || 'jvqFAi7vkBc';
+  const ytFallbackBtn = `
+    <a href="https://www.youtube.com/watch?v=${ytId}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md ml-2">
+      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+      <span>Watch on YouTube</span>
+    </a>
+  `;
+
+  if (metaEl) metaEl.innerHTML = `<span class="text-slate-300 font-semibold">${podcast.channelName || 'Video Podcast'}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">🔴 HD Video Episode</span>${ytFallbackBtn}`;
+  if (overviewEl) overviewEl.textContent = podcast.description || 'Watch top video podcast episodes directly inside TV DINNER.';
   if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail || podcast.avatar || ''})`;
 
   if (shield) shield.style.display = 'none';
+  if (poster) poster.style.display = 'none';
 
-  if (podcast.audioUrl) {
-    if (activeSourceName) activeSourceName.textContent = `🎙️ Audio Stream (${podcast.channelName || 'Podcast'})`;
-    if (embedSourcesList) embedSourcesList.innerHTML = `<span class="px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold">🎙️ Direct Audio Stream</span>`;
+  if (videoEl) {
+    videoEl.style.display = 'none';
+    videoEl.pause();
+    videoEl.removeAttribute('src');
+  }
 
-    if (embedWrapper) embedWrapper.style.display = 'none';
-    if (embedIframe) embedIframe.removeAttribute('src');
-
-    if (poster) {
-      poster.src = podcast.thumbnail || podcast.avatar || '';
-      poster.style.display = 'block';
-    }
-    if (videoEl) {
-      videoEl.style.display = 'block';
-      videoEl.poster = podcast.thumbnail || podcast.avatar || '';
-      videoEl.src = podcast.audioUrl;
-      videoEl.play().catch(e => console.warn('[Player] Audio autoplay blocked:', e));
-    }
-  } else {
-    if (activeSourceName) activeSourceName.textContent = `YouTube Video (${podcast.channelName || 'Podcast'})`;
-    if (embedSourcesList) embedSourcesList.innerHTML = `<span class="px-3 py-1.5 rounded-lg bg-red-600/30 border border-red-500/40 text-red-300 text-xs font-semibold">🔴 YouTube HD Stream</span>`;
-
-    if (poster) poster.style.display = 'none';
-    if (videoEl) {
-      videoEl.style.display = 'none';
-      videoEl.pause();
-      videoEl.removeAttribute('src');
-    }
-
-    if (embedWrapper) embedWrapper.style.display = 'block';
-    if (embedIframe) {
-      embedIframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; web-share');
-      embedIframe.removeAttribute('referrerpolicy');
-      embedIframe.removeAttribute('sandbox');
-      embedIframe.src = `https://www.youtube.com/embed/${podcast.youtubeId || 'jvqFAi7vkBc'}?autoplay=1`;
-    }
+  // Force HD Video Player embed
+  if (embedWrapper) embedWrapper.style.display = 'block';
+  if (embedIframe) {
+    const origin = encodeURIComponent(window.location.origin);
+    embedIframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+    embedIframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    embedIframe.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&enablejsapi=1&origin=${origin}&rel=0`;
   }
 
   // Populate In-Player "More Episodes from Channel" section
@@ -1900,6 +2460,9 @@ async function openDetailsView(mediaItem) {
     document.getElementById('details-rating').innerHTML = `⭐ ${mediaItem.vote_average ? mediaItem.vote_average.toFixed(1) : 'N/A'}`;
     document.getElementById('details-runtime').textContent = '';
     document.getElementById('details-overview').textContent = mediaItem.overview || 'Synopsis loading...';
+    const sourcesPanel = document.querySelector('.sources-panel');
+    if (sourcesPanel) sourcesPanel.style.display = '';
+
     document.getElementById('tv-selectors').classList.add('hidden');
 
     const backdropBg = document.getElementById('details-backdrop');

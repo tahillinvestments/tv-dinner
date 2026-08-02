@@ -1182,39 +1182,93 @@ export function searchPodcastChannels(query) {
   return searchRealPodcastAPI(query);
 }
 
-// Dynamically fetch past episodes for a channel (via iTunes lookup, RSS feed, or catalog)
+// Dynamically fetch past episodes for a channel (via YouTube RSS feed, iTunes lookup, or RSS feed)
 export async function fetchChannelPastEpisodes(channel) {
   if (!channel) return [];
 
-  // A. If channel has iTunes collectionId, fetch episodes via iTunes Lookup API
-  if (channel.collectionId) {
+  // A. If channel has ytChannelId, fetch real YouTube XML RSS feed (LIVE HD VIDEO EPISODES)
+  if (channel.ytChannelId) {
     try {
-      const lookupUrl = `https://itunes.apple.com/lookup?id=${channel.collectionId}&entity=podcastEpisode&limit=50`;
-      const res = await fetch(lookupUrl);
+      const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.ytChannelId}`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`;
+      const res = await fetch(proxyUrl);
       if (res.ok) {
-        const data = await res.json();
-        if (data.results && data.results.length > 1) {
-          const epList = data.results.slice(1).map((ep, idx) => {
-            const minutes = ep.trackTimeMillis ? Math.round(ep.trackTimeMillis / 60000) : null;
-            const durationStr = minutes ? (minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`) : 'Audio';
-            const relDate = ep.releaseDate ? new Date(ep.releaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent';
-            const relYear = ep.releaseDate ? new Date(ep.releaseDate).getFullYear() : 2026;
+        const xmlText = await res.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const entries = xmlDoc.querySelectorAll('entry');
+        if (entries && entries.length > 0) {
+          const videoEpisodes = Array.from(entries).map((entry, index) => {
+            const ytVideoIdEl = entry.querySelector('yt\\:videoId, videoId');
+            const titleEl = entry.querySelector('title');
+            const publishedEl = entry.querySelector('published');
+            const descriptionEl = entry.querySelector('media\\:description, description');
+
+            const yid = ytVideoIdEl ? ytVideoIdEl.textContent : null;
+            if (!yid) return null;
+
+            const epTitle = titleEl ? titleEl.textContent : `${channel.channelName} Video Episode ${index + 1}`;
+            const pubDate = publishedEl ? new Date(publishedEl.textContent).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent';
+            const pubYear = publishedEl ? new Date(publishedEl.textContent).getFullYear() : 2026;
+            const epDesc = descriptionEl ? descriptionEl.textContent.slice(0, 180) + '...' : channel.description;
+
             return {
-              id: `ep_lookup_${ep.trackId || idx}`,
-              title: ep.trackName,
-              audioUrl: ep.episodeUrl || ep.previewUrl,
-              date: relDate,
-              year: relYear,
-              duration: durationStr,
-              thumbnail: ep.artworkUrl600 || ep.artworkUrl160 || channel.avatar,
-              description: ep.description || ep.shortDescription || channel.description || ''
+              id: `ep_yt_${yid}`,
+              title: epTitle,
+              youtubeId: yid,
+              channelName: channel.channelName,
+              host: channel.host,
+              category: channel.category,
+              date: pubDate,
+              year: pubYear,
+              duration: 'HD Video',
+              thumbnail: `https://img.youtube.com/vi/${yid}/hqdefault.jpg`,
+              description: epDesc
             };
-          });
-          if (epList.length > 0) return epList;
+          }).filter(Boolean);
+
+          if (videoEpisodes.length > 0) {
+            return videoEpisodes;
+          }
         }
       }
     } catch (e) {
-      console.warn('iTunes Lookup failed for channel:', channel.channelName, e);
+      console.warn('[Podcasts] YouTube RSS video fetch error for channel:', channel.channelName, e);
+    }
+  }
+
+  // B. If channel has iTunes collectionId, fetch episodes via iTunes Lookup API
+  if (channel.collectionId) {
+    try {
+      const epUrl = `https://itunes.apple.com/lookup?id=${channel.collectionId}&entity=podcastEpisode&limit=50`;
+      const res = await fetch(epUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results && data.results.length > 1) {
+          const episodes = data.results.slice(1).map((item, idx) => {
+            const minutes = item.trackTimeMillis ? Math.round(item.trackTimeMillis / 60000) : null;
+            const durationStr = minutes ? (minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`) : 'Audio Episode';
+            const relDate = item.releaseDate ? new Date(item.releaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent';
+            const relYear = item.releaseDate ? new Date(item.releaseDate).getFullYear() : 2026;
+            return {
+              id: `ep_itunes_${item.trackId || idx}`,
+              title: item.trackName || `${channel.channelName} Episode ${idx + 1}`,
+              channelName: channel.channelName,
+              host: channel.host,
+              category: channel.category,
+              audioUrl: item.episodeUrl || item.previewUrl,
+              date: relDate,
+              year: relYear,
+              duration: durationStr,
+              thumbnail: item.artworkUrl600 || item.artworkUrl160 || item.artworkUrl60 || channel.avatar,
+              description: item.description || item.shortDescription || channel.description
+            };
+          }).filter(e => e.audioUrl);
+          if (episodes.length > 0) return episodes;
+        }
+      }
+    } catch (err) {
+      console.warn('iTunes collection lookup error:', err);
     }
   }
 
