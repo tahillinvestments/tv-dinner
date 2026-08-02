@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-B4fAQeK_.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-BVHVJq92.css">
+  <script type="module" crossorigin src="/assets/index-DIbsrLZ0.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BEVfze37.css">
 </head>
 <body class="dark-theme">
   
@@ -19,6 +19,9 @@
       <div class="logo-icon-badge">
         <i data-lucide="tv"></i>
       </div>
+      <span class="logo-text">TV DINNER</span>
+    </div>
+
     <nav class="nav-links">
       <button class="nav-link active" data-tab="live" title="Live TV">
         <i data-lucide="tv"></i>
@@ -117,18 +120,26 @@
 
           <section class="live-channels-grid-wrap">
             <div class="live-channels-grid-header">
-              <div>
+              <div class="live-header-title-wrap">
                 <h3 id="current-category-name" class="current-cat-title">All Channels</h3>
                 <p id="channel-list-info" class="current-cat-subtitle">Loading Live stream channels...</p>
               </div>
               
-              <!-- Inline Live Channels Search Input -->
-              <div class="live-search-container">
-                <i data-lucide="search" class="live-search-icon"></i>
-                <input type="text" id="live-search-input" class="live-search-input" placeholder="Search channels...">
-              </div>
+              <div class="live-header-controls">
+                <label class="us-only-toggle" title="Filter to US channels and categories">
+                  <input type="checkbox" id="us-only-switch" checked>
+                  <span class="us-toggle-slider"></span>
+                  <span class="us-toggle-label">US Only</span>
+                </label>
 
-              <span id="filtered-count" class="badge-count">0 channels</span>
+                <!-- Inline Live Channels Search Input -->
+                <div class="live-search-container">
+                  <i data-lucide="search" class="live-search-icon"></i>
+                  <input type="text" id="live-search-input" class="live-search-input" placeholder="Search channels...">
+                </div>
+
+                <span id="filtered-count" class="badge-count">0 channels</span>
+              </div>
             </div>
 
             <div class="live-grid-scroll custom-scrollbar">
@@ -688,8 +699,14 @@
 
           <div class="controls-actions-row">
             <div class="actions-left">
+              <button id="ch-prev-btn" class="control-btn" title="Previous Channel">
+                <i data-lucide="chevron-left"></i>
+              </button>
               <button id="play-pause-btn" class="control-btn" aria-label="Play/Pause">
                 <i data-lucide="pause"></i>
+              </button>
+              <button id="ch-next-btn" class="control-btn" title="Next Channel">
+                <i data-lucide="chevron-right"></i>
               </button>
               <button id="reload-btn" class="control-btn" title="Reload stream">
                 <i data-lucide="refresh-cw"></i>
