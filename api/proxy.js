@@ -1,8 +1,13 @@
-export const config = {
-  runtime: 'edge',
-};
+// Node.js Serverless Function (NOT Edge runtime).
+// Edge runtime blocks direct IP address access (e.g. http://206.212.244.182:25461/...)
+// which is where IPTV HLS segments are served from after a portal redirect.
+// Node.js runtime has no such restriction.
 
-const STRIP_REQ_HEADERS = new Set(['host', 'referer', 'origin', 'x-forwarded-for', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor']);
+import { Readable } from 'node:stream';
+
+const STRIP_RES_HEADERS = new Set([
+  'content-encoding', 'transfer-encoding', 'connection', 'keep-alive',
+]);
 
 function rewriteM3U8(m3uText, finalUrl, proxyOrigin) {
   const base = new URL(finalUrl);
@@ -10,7 +15,6 @@ function rewriteM3U8(m3uText, finalUrl, proxyOrigin) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
     try {
-      // Resolve relative path against finalUrl (the post-redirect server URL, e.g. http://206.212.244.182:25461)
       const absolute = new URL(trimmed, base).href;
       return `${proxyOrigin}?url=${encodeURIComponent(absolute)}`;
     } catch {
@@ -19,77 +23,91 @@ function rewriteM3U8(m3uText, finalUrl, proxyOrigin) {
   }).join('\n');
 }
 
-export default async function handler(request) {
-  const requestUrl = new URL(request.url);
-
-  // CORS Preflight
-  if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
+export default async function handler(req, res) {
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    res
+      .writeHead(204, {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, PATCH, DELETE',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': '*',
-      },
-    });
+      })
+      .end();
+    return;
   }
 
-  const targetUrlStr = requestUrl.searchParams.get('url');
+  const host = req.headers.host || 'tvdinner.vercel.app';
+  const parsedUrl = new URL(req.url, `https://${host}`);
+  const targetUrlStr = parsedUrl.searchParams.get('url');
+
   if (!targetUrlStr) {
-    return new Response('Missing url parameter', { status: 400 });
+    res.status(400).end('Missing url parameter');
+    return;
   }
 
   let targetUrl;
   try {
     targetUrl = new URL(targetUrlStr);
   } catch {
-    return new Response('Invalid URL parameter', { status: 400 });
+    res.status(400).end('Invalid URL parameter');
+    return;
   }
 
-  const newHeaders = new Headers();
-  for (const [k, v] of request.headers.entries()) {
-    if (!STRIP_REQ_HEADERS.has(k.toLowerCase())) {
-      newHeaders.set(k, v);
-    }
+  const outgoingHeaders = {
+    'user-agent': 'VLC/3.0.21 LibVLC/3.0.21',
+    'accept': '*/*',
+  };
+  if (req.headers.range) {
+    outgoingHeaders['range'] = req.headers.range;
   }
-  newHeaders.set('host', targetUrl.host);
-  newHeaders.set('User-Agent', 'VLC/3.0.21 LibVLC/3.0.21');
 
   try {
     const response = await fetch(targetUrl.href, {
-      method: request.method,
-      headers: newHeaders,
+      method: req.method === 'POST' ? 'POST' : 'GET',
+      headers: outgoingHeaders,
       redirect: 'follow',
     });
 
     const finalUrl = response.url || targetUrl.href;
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
-    const isM3U8 = contentType.includes('mpegurl') || targetUrl.pathname.endsWith('.m3u8') || targetUrl.pathname.endsWith('.m3u');
+    const isM3U8 =
+      contentType.includes('mpegurl') ||
+      targetUrl.pathname.endsWith('.m3u8') ||
+      targetUrl.pathname.endsWith('.m3u');
 
-    const outHeaders = new Headers(response.headers);
-    outHeaders.set('Access-Control-Allow-Origin', '*');
-    outHeaders.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-    outHeaders.set('Access-Control-Allow-Headers', '*');
+    // Set CORS + copy upstream headers
+    const outHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': '*',
+    };
+    for (const [k, v] of response.headers.entries()) {
+      if (!STRIP_RES_HEADERS.has(k.toLowerCase())) {
+        outHeaders[k] = v;
+      }
+    }
 
     if (isM3U8) {
       const text = await response.text();
-      const proxyOrigin = `${requestUrl.protocol}//${requestUrl.host}${requestUrl.pathname}`;
+      const proxyOrigin = `https://${host}${parsedUrl.pathname}`;
       const rewritten = rewriteM3U8(text, finalUrl, proxyOrigin);
-      outHeaders.set('Content-Type', 'application/vnd.apple.mpegurl');
-      return new Response(rewritten, {
-        status: response.status,
-        headers: outHeaders,
-      });
+      outHeaders['content-type'] = 'application/vnd.apple.mpegurl';
+      outHeaders['content-length'] = Buffer.byteLength(rewritten).toString();
+      res.writeHead(response.status, outHeaders);
+      res.end(rewritten);
+      return;
     }
 
-    return new Response(response.body, {
-      status: response.status,
-      headers: outHeaders,
-    });
+    // Stream binary content (TS segments, JSON API, etc.) without buffering
+    res.writeHead(response.status, outHeaders);
+    if (response.body) {
+      const nodeStream = Readable.fromWeb(response.body);
+      nodeStream.pipe(res);
+    } else {
+      res.end();
+    }
   } catch (err) {
-    return new Response('Proxy Error: ' + err.message, {
-      status: 502,
-      headers: { 'Access-Control-Allow-Origin': '*' },
-    });
+    res.writeHead(502, { 'Access-Control-Allow-Origin': '*' });
+    res.end('Proxy Error: ' + err.message);
   }
 }
