@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "update-feed": "python scratch/generate_xtream_feed.py",
-    "build": "python scratch/generate_xtream_feed.py && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "sources:build": "tsup",
     "sources:run": "node ./dist-updater/index.js",
