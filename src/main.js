@@ -824,39 +824,40 @@ function renderChannelEpisodesGrid() {
     const isSaved = podcastSavedEpisodes.includes(epId);
 
     const card = document.createElement('div');
-    card.className = `bg-slate-900/90 border ${isPlayed ? 'border-slate-850 opacity-80' : 'border-slate-800'} rounded-2xl overflow-hidden hover:border-red-500 transition-all group flex flex-col shadow-lg hover:shadow-red-950/30 relative`;
+    card.className = `podcast-episode-card ${isPlayed ? 'is-played' : ''}`;
     const thumbUrl = ep.thumbnail || channelAvatar;
 
     card.innerHTML = `
-      <div class="relative aspect-video overflow-hidden bg-slate-950 ep-play-trigger cursor-pointer">
-        <img src="${thumbUrl}" alt="${ep.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.onerror=null; this.src='${channelAvatar}';">
-        <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <div class="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
-            <i data-lucide="play" class="w-6 h-6 fill-white text-white ml-0.5"></i>
+      <div class="ep-thumb-wrapper ep-play-trigger">
+        <img src="${thumbUrl}" alt="${ep.title}" class="ep-thumb-img" onerror="this.onerror=null; this.src='${channelAvatar}';">
+        <div class="ep-play-overlay">
+          <div class="ep-play-disc">
+            <i data-lucide="play" class="w-5 h-5 fill-white text-white ml-0.5"></i>
           </div>
         </div>
-        <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/80 text-[10px] font-bold text-white border border-white/10 backdrop-blur-sm">${ep.duration || 'Video'}</span>
-        ${isPlayed ? '<span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-emerald-600/90 text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i> PLAYED</span>' : '<span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600/90 text-[10px] font-bold text-white uppercase tracking-wider">HD 🔴</span>'}
+        <span class="ep-duration-badge">${ep.duration || 'Video'}</span>
+        ${isPlayed ? '<span class="ep-status-badge played">✓ PLAYED</span>' : '<span class="ep-status-badge hd">HD 🔴</span>'}
       </div>
 
-      <div class="p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
+      <div class="ep-body">
         <div>
-          <h4 class="text-xs sm:text-sm font-bold text-white line-clamp-2 leading-snug group-hover:text-red-400 transition-colors ep-play-trigger cursor-pointer">${ep.title}</h4>
-          <p class="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed">${ep.description || 'Full podcast episode video conversation.'}</p>
+          <h4 class="ep-title ep-play-trigger">${ep.title}</h4>
+          <p class="ep-desc">${ep.description || 'Full podcast episode video conversation.'}</p>
         </div>
 
-        <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-xs">
-          <span class="text-[11px] text-slate-400 font-medium">📅 ${ep.date || ep.year || 'Past'}</span>
+        <div class="ep-footer">
+          <span class="ep-date">📅 ${ep.date || ep.year || 'Past'}</span>
 
-          <div class="flex items-center gap-1">
-            <button class="ep-save-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" title="${isSaved ? 'Remove Bookmark' : 'Save Bookmark'}">
+          <div class="ep-actions">
+            <button class="ep-btn-icon ep-save-btn" title="${isSaved ? 'Remove Bookmark' : 'Save Bookmark'}">
               <i data-lucide="bookmark" class="w-3.5 h-3.5" style="fill: ${isSaved ? '#f59e0b' : 'none'}; color: ${isSaved ? '#f59e0b' : 'currentColor'};"></i>
             </button>
-            <button class="ep-played-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" title="${isPlayed ? 'Mark Unplayed' : 'Mark Played'}">
+            <button class="ep-btn-icon ep-played-btn" title="${isPlayed ? 'Mark Unplayed' : 'Mark Played'}">
               <i data-lucide="check-circle-2" class="w-3.5 h-3.5" style="color: ${isPlayed ? '#10b981' : 'currentColor'};"></i>
             </button>
-            <button class="ep-play-trigger px-2.5 py-1 rounded-lg bg-red-600/90 hover:bg-red-500 text-white font-bold text-[11px] flex items-center gap-1 transition-all">
-              Play <i data-lucide="play" class="w-3 h-3 fill-white"></i>
+            <button class="ep-btn-play ep-play-trigger">
+              <span>Play</span>
+              <i data-lucide="play" class="w-3 h-3 fill-white"></i>
             </button>
           </div>
         </div>
