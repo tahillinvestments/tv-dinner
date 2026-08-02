@@ -982,12 +982,12 @@ export function getHeroPodcast() {
   };
 }
 
-// Search podcasts (Returns Curated Channels, Related YouTube Channels, and Matching Episodes)
-export function searchPodcastChannels(query) {
+// Search podcasts (Returns Curated Channels, Live Real Podcast Channels, and Matching Episodes)
+export async function searchRealPodcastAPI(query) {
   if (!query || query.trim() === '') {
     return {
       curatedChannels: [],
-      relatedYoutubeChannels: [],
+      realChannels: [],
       matchingEpisodes: []
     };
   }
@@ -1003,13 +1003,13 @@ export function searchPodcastChannels(query) {
     (c.description && c.description.toLowerCase().includes(q))
   );
 
-  // 2. Individual episode matches across library
-  const matchingEpisodes = [];
+  // 2. Curated matching episodes
+  const localMatchingEpisodes = [];
   allChannels.forEach(c => {
     if (c.episodes) {
       c.episodes.forEach(ep => {
         if (ep.title.toLowerCase().includes(q) || (ep.description && ep.description.toLowerCase().includes(q))) {
-          matchingEpisodes.push({
+          localMatchingEpisodes.push({
             ...ep,
             channelId: c.id,
             channelName: c.channelName,
@@ -1022,85 +1022,174 @@ export function searchPodcastChannels(query) {
     }
   });
 
-  // 3. Generate high-quality Related YouTube Channels dynamically for topic discovery
-  const formattedTitle = query.trim().replace(/\b\w/g, char => char.toUpperCase());
-  const relatedYoutubeChannels = [
-    {
-      id: `chan_yt_${encodeURIComponent(query)}_official`,
-      channelName: formattedTitle.includes('Podcast') ? formattedTitle : `${formattedTitle} Podcast Channel`,
-      host: `${formattedTitle} Official Host`,
-      category: 'Related YouTube Podcast',
-      subscribers: '1.2M YouTube Subscribers',
-      avatar: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
-      description: `Official YouTube Podcast hub for "${formattedTitle}". Watch top full video episodes, guest interviews, and breakdown clips.`,
-      episodes: [
-        {
-          id: `ep_yt_${encodeURIComponent(query)}_1`,
-          title: `${formattedTitle}: The Complete 2026 Deep Dive Conversation`,
-          youtubeId: 'jvqFAi7vkBc',
-          date: 'Recent 2026',
-          year: 2026,
-          duration: '2h 10m',
-          thumbnail: 'https://img.youtube.com/vi/jvqFAi7vkBc/hqdefault.jpg',
-          description: `Full length episode featuring ${formattedTitle} discussing breaking news, industry trends, and deep dive topics.`
-        },
-        {
-          id: `ep_yt_${encodeURIComponent(query)}_2`,
-          title: `${formattedTitle} - Special Guest Masterclass & Q&A`,
-          youtubeId: 'JN3KF44P4nE',
-          date: '2025',
-          year: 2025,
-          duration: '2h 45m',
-          thumbnail: 'https://img.youtube.com/vi/JN3KF44P4nE/hqdefault.jpg',
-          description: `Special guest interview on ${formattedTitle} sharing lessons, career breakthroughs, and key insights.`
-        },
-        {
-          id: `ep_yt_${encodeURIComponent(query)}_3`,
-          title: `${formattedTitle} - Iconic Past Episode Breakdown`,
-          youtubeId: 'dEv99vqFmC8',
-          date: '2025',
-          year: 2025,
-          duration: '1h 55m',
-          thumbnail: 'https://img.youtube.com/vi/dEv99vqFmC8/hqdefault.jpg',
-          description: `Fan favorite archival episode of ${formattedTitle} exploring history, ideas, and foundational topics.`
-        }
-      ]
-    },
-    {
-      id: `chan_yt_${encodeURIComponent(query)}_clips`,
-      channelName: `${formattedTitle} Clips & Highlights`,
-      host: 'YouTube Curator',
-      category: 'YouTube Highlights',
-      subscribers: '450K Subscribers',
-      avatar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
-      description: `Curated best clips and top highlights from ${formattedTitle} podcasts.`,
-      episodes: [
-        {
-          id: `ep_yt_${encodeURIComponent(query)}_clip1`,
-          title: `${formattedTitle} - Best 15 Minute Breakdown Clip`,
-          youtubeId: 'cdiD-9MMLqo',
-          date: '2026',
-          year: 2026,
-          duration: '15m',
-          thumbnail: 'https://img.youtube.com/vi/cdiD-9MMLqo/hqdefault.jpg',
-          description: `Key takeaway highlight clip from ${formattedTitle}.`
-        }
-      ]
+  let realChannels = [];
+  let apiMatchingEpisodes = [];
+
+  // 3. Live real podcast channel search via iTunes API
+  try {
+    const term = encodeURIComponent(query.trim());
+    const channelUrl = `https://itunes.apple.com/search?media=podcast&entity=podcast&term=${term}&limit=18`;
+    const res = await fetch(channelUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        const curatedNames = new Set(allChannels.map(c => c.channelName.toLowerCase()));
+        realChannels = data.results
+          .filter(item => item.collectionName && !curatedNames.has(item.collectionName.toLowerCase()))
+          .map(item => ({
+            id: `chan_itunes_${item.collectionId}`,
+            collectionId: item.collectionId,
+            channelName: item.collectionName || item.trackName,
+            host: item.artistName || 'Podcast Host',
+            category: item.primaryGenreName || 'Podcast',
+            subscribers: `${item.trackCount || 10}+ Episodes`,
+            avatar: item.artworkUrl600 || item.artworkUrl100 || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+            description: `Official podcast channel for "${item.collectionName}". Host: ${item.artistName || 'Creator'}. Genre: ${item.primaryGenreName || 'General'}.`,
+            feedUrl: item.feedUrl,
+            isExternal: true
+          }));
+      }
     }
-  ];
+  } catch (err) {
+    console.warn('iTunes real podcast channel search error:', err);
+  }
+
+  // 4. Live real podcast episode search via iTunes API
+  try {
+    const term = encodeURIComponent(query.trim());
+    const epUrl = `https://itunes.apple.com/search?media=podcast&entity=podcastEpisode&term=${term}&limit=18`;
+    const res = await fetch(epUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        apiMatchingEpisodes = data.results
+          .filter(item => item.trackName && (item.episodeUrl || item.previewUrl))
+          .map((item, idx) => {
+            const minutes = item.trackTimeMillis ? Math.round(item.trackTimeMillis / 60000) : null;
+            const durationStr = minutes ? (minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`) : 'Audio Episode';
+            const relDate = item.releaseDate ? new Date(item.releaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent';
+            const relYear = item.releaseDate ? new Date(item.releaseDate).getFullYear() : 2026;
+            return {
+              id: `ep_itunes_${item.trackId || item.collectionId || idx}`,
+              title: item.trackName,
+              channelName: item.collectionName || item.artistName || 'Podcast',
+              host: item.artistName || 'Host',
+              category: item.primaryGenreName || 'Podcast',
+              audioUrl: item.episodeUrl || item.previewUrl,
+              date: relDate,
+              year: relYear,
+              duration: durationStr,
+              thumbnail: item.artworkUrl600 || item.artworkUrl160 || item.artworkUrl60 || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+              description: item.description || item.shortDescription || `Episode from ${item.collectionName || 'Podcast'}.`,
+              isExternal: true
+            };
+          });
+      }
+    }
+  } catch (err) {
+    console.warn('iTunes real podcast episode search error:', err);
+  }
+
+  const combinedEpisodes = [...localMatchingEpisodes, ...apiMatchingEpisodes];
 
   return {
     curatedChannels: curatedMatches,
-    relatedYoutubeChannels: relatedYoutubeChannels,
-    matchingEpisodes: matchingEpisodes
+    realChannels: realChannels,
+    matchingEpisodes: combinedEpisodes
   };
 }
 
-// Dynamically fetch dynamic past episodes for a channel (via RSS/API or expanded fallback)
+// Backward compatibility helper wrapper
+export function searchPodcastChannels(query) {
+  return searchRealPodcastAPI(query);
+}
+
+// Dynamically fetch past episodes for a channel (via iTunes lookup, RSS feed, or catalog)
 export async function fetchChannelPastEpisodes(channel) {
   if (!channel) return [];
 
-  // If channel has ytChannelId, try fetching real YouTube XML RSS feed via cors proxy!
+  // A. If channel has iTunes collectionId, fetch episodes via iTunes Lookup API
+  if (channel.collectionId) {
+    try {
+      const lookupUrl = `https://itunes.apple.com/lookup?id=${channel.collectionId}&entity=podcastEpisode&limit=50`;
+      const res = await fetch(lookupUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results && data.results.length > 1) {
+          const epList = data.results.slice(1).map((ep, idx) => {
+            const minutes = ep.trackTimeMillis ? Math.round(ep.trackTimeMillis / 60000) : null;
+            const durationStr = minutes ? (minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`) : 'Audio';
+            const relDate = ep.releaseDate ? new Date(ep.releaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent';
+            const relYear = ep.releaseDate ? new Date(ep.releaseDate).getFullYear() : 2026;
+            return {
+              id: `ep_lookup_${ep.trackId || idx}`,
+              title: ep.trackName,
+              audioUrl: ep.episodeUrl || ep.previewUrl,
+              date: relDate,
+              year: relYear,
+              duration: durationStr,
+              thumbnail: ep.artworkUrl600 || ep.artworkUrl160 || channel.avatar,
+              description: ep.description || ep.shortDescription || channel.description || ''
+            };
+          });
+          if (epList.length > 0) return epList;
+        }
+      }
+    } catch (e) {
+      console.warn('iTunes Lookup failed for channel:', channel.channelName, e);
+    }
+  }
+
+  // B. If channel has feedUrl (RSS feed URL), parse XML feed via CORS proxy
+  if (channel.feedUrl) {
+    try {
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(channel.feedUrl)}`;
+      const res = await fetch(proxyUrl);
+      if (res.ok) {
+        const xmlText = await res.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const items = xmlDoc.querySelectorAll('item');
+        if (items && items.length > 0) {
+          const rssEpisodes = Array.from(items).slice(0, 40).map((item, index) => {
+            const titleEl = item.querySelector('title');
+            const enclosureEl = item.querySelector('enclosure');
+            const pubDateEl = item.querySelector('pubDate');
+            const descEl = item.querySelector('description, itunes\\:summary');
+            const durationEl = item.querySelector('itunes\\:duration');
+            const imageEl = item.querySelector('itunes\\:image');
+
+            const audioUrl = enclosureEl ? enclosureEl.getAttribute('url') : null;
+            const epTitle = titleEl ? titleEl.textContent : `${channel.channelName} Episode ${index + 1}`;
+            const pubDate = pubDateEl ? new Date(pubDateEl.textContent).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent';
+            const pubYear = pubDateEl ? new Date(pubDateEl.textContent).getFullYear() : 2026;
+            const epDesc = descEl ? descEl.textContent.replace(/<[^>]*>?/gm, '').slice(0, 200) + '...' : channel.description;
+            const duration = durationEl ? durationEl.textContent : 'Audio';
+            const thumb = imageEl ? imageEl.getAttribute('href') : channel.avatar;
+
+            return {
+              id: `${channel.id}_rss_${index}`,
+              title: epTitle,
+              audioUrl: audioUrl,
+              date: pubDate,
+              year: pubYear,
+              duration: duration,
+              thumbnail: thumb || channel.avatar,
+              description: epDesc
+            };
+          }).filter(e => e.audioUrl);
+
+          if (rssEpisodes.length > 0) {
+            return rssEpisodes;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('RSS feed fetch fallback triggered for channel:', channel.channelName, e);
+    }
+  }
+
+  // C. If channel has ytChannelId, try fetching real YouTube XML RSS feed
   if (channel.ytChannelId) {
     try {
       const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.ytChannelId}`;
@@ -1137,7 +1226,6 @@ export async function fetchChannelPastEpisodes(channel) {
           });
 
           if (rssEpisodes.length > 0) {
-            // Merge RSS episodes with existing episodes without duplicating YouTube IDs
             const existingIds = new Set((channel.episodes || []).map(e => e.youtubeId));
             const freshRss = rssEpisodes.filter(e => !existingIds.has(e.youtubeId));
             return [...(channel.episodes || []), ...freshRss];
@@ -1145,7 +1233,7 @@ export async function fetchChannelPastEpisodes(channel) {
         }
       }
     } catch (e) {
-      console.warn('RSS fetch fallback triggered for channel:', channel.channelName, e);
+      console.warn('YouTube RSS fetch fallback triggered for channel:', channel.channelName, e);
     }
   }
 
