@@ -3,14 +3,14 @@ export const config = {
 };
 
 const STRIP_REQ_HEADERS = new Set(['host', 'referer', 'origin', 'x-forwarded-for', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor']);
-const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us']);
 
-function rewriteM3U8(m3uText, baseUrl, proxyOrigin) {
-  const base = new URL(baseUrl);
+function rewriteM3U8(m3uText, finalUrl, proxyOrigin) {
+  const base = new URL(finalUrl);
   return m3uText.split('\n').map(line => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
     try {
+      // Resolve relative path against finalUrl (the post-redirect server URL, e.g. http://206.212.244.182:25461)
       const absolute = new URL(trimmed, base).href;
       return `${proxyOrigin}?url=${encodeURIComponent(absolute)}`;
     } catch {
@@ -62,6 +62,7 @@ export default async function handler(request) {
       redirect: 'follow',
     });
 
+    const finalUrl = response.url || targetUrl.href;
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
     const isM3U8 = contentType.includes('mpegurl') || targetUrl.pathname.endsWith('.m3u8') || targetUrl.pathname.endsWith('.m3u');
 
@@ -73,7 +74,7 @@ export default async function handler(request) {
     if (isM3U8) {
       const text = await response.text();
       const proxyOrigin = `${requestUrl.protocol}//${requestUrl.host}${requestUrl.pathname}`;
-      const rewritten = rewriteM3U8(text, targetUrl.href, proxyOrigin);
+      const rewritten = rewriteM3U8(text, finalUrl, proxyOrigin);
       outHeaders.set('Content-Type', 'application/vnd.apple.mpegurl');
       return new Response(rewritten, {
         status: response.status,
