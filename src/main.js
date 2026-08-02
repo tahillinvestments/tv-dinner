@@ -51,8 +51,8 @@ const state = {
 // Helper to construct dynamic IPTV playlist URL from localStorage or credentials
 function getPlaylistUrl() {
   const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-  const username = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
-  const password = localStorage.getItem('iptv_password') || '4WM9WVsjG';
+  const username = localStorage.getItem('iptv_username') || 'SAPPTV12';
+  const password = localStorage.getItem('iptv_password') || 'REMOTE6202';
   
   if (portalUrl && username && password) {
     return `${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
@@ -2409,8 +2409,8 @@ function setupSettingsScreen() {
   // Populate inputs on load
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
-  if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
-  if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
+  if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SAPPTV12';
+  if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || 'REMOTE6202';
 
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
@@ -2537,8 +2537,8 @@ async function loadIPTVPlaylist() {
   
   try {
     const rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-    const username = (localStorage.getItem('iptv_username') || 'SGmUC7q2U').trim();
-    const password = (localStorage.getItem('iptv_password') || '4WM9WVsjG').trim();
+    const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
+    const password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
     
     let portalUrl = rawPortalUrl.trim().replace(/\/+$/, '');
     if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {

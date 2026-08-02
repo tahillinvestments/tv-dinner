@@ -335,9 +335,6 @@ export class IPTVPlayer {
     this.resetVideoFrame();
     
     let rawUrl = channel.url || channel.src || '';
-    if (rawUrl.includes('SAPPTV12')) {
-      rawUrl = rawUrl.replace(/\/live\/SAPPTV12\/SAPPTV12\//g, '/live/SGmUC7q2U/4WM9WVsjG/');
-    }
 
     // Extract underlying raw target URL if already proxied
     let rawTargetUrl = rawUrl;

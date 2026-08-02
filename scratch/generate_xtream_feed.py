@@ -2,8 +2,8 @@ import urllib.request
 import json
 import os
 
-url_cat = 'http://portal5458.com:8080/player_api.php?username=SGmUC7q2U&password=4WM9WVsjG&action=get_live_categories'
-url_stream = 'http://portal5458.com:8080/player_api.php?username=SGmUC7q2U&password=4WM9WVsjG&action=get_live_streams'
+url_cat = 'http://portal5458.com:8080/player_api.php?username=SAPPTV12&password=REMOTE6202&action=get_live_categories'
+url_stream = 'http://portal5458.com:8080/player_api.php?username=SAPPTV12&password=REMOTE6202&action=get_live_streams'
 headers = {'User-Agent': 'VLC/3.0.21 LibVLC/3.0.21'}
 
 print("[Xtream Generator] Fetching categories from portal5458.com...")
@@ -32,7 +32,7 @@ if isinstance(streams, list):
         logo = s.get('stream_icon', '')
         cat_id = s.get('category_id')
         group = cat_map.get(cat_id, 'General').replace('"', "'")
-        url = f'http://portal5458.com:8080/live/SGmUC7q2U/4WM9WVsjG/{stream_id}.m3u8'
+        url = f'http://portal5458.com:8080/live/SAPPTV12/REMOTE6202/{stream_id}.m3u8'
         m3u_lines.append(f'#EXTINF:-1 tvg-id="" tvg-name="{name}" tvg-logo="{logo}" group-title="{group}",{name}')
         m3u_lines.append(url)
 
@@ -46,7 +46,7 @@ else:
     with open(out_path, 'r', encoding='utf-8') as f:
         content = f.read()
     import re
-    content = re.sub(r'/live/[^/]+/[^/]+/', '/live/SGmUC7q2U/4WM9WVsjG/', content)
+    content = re.sub(r'/live/[^/]+/[^/]+/', '/live/SAPPTV12/REMOTE6202/', content)
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(content)
     print("[Xtream Generator] Successfully updated xtream_feed.m3u credentials to active account!")
