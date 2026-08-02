@@ -403,6 +403,72 @@ function loadPodcastsDashboard() {
   const favoritesRow = document.getElementById('row-podcasts-favorites');
   const favoritesSection = document.getElementById('row-podcasts-favorites-section');
 
+  // Populate Podcast Spotlight Hero Banner
+  const heroChannel = PODCAST_CHANNELS.tech[0]; // Lex Fridman
+  if (heroChannel && heroChannel.episodes && heroChannel.episodes.length > 0) {
+    const heroEp = heroChannel.episodes[0]; // #420 Sam Altman
+    const heroBg = document.getElementById('podcast-hero-bg');
+    const heroTitle = document.getElementById('podcast-hero-title');
+    const heroShow = document.getElementById('podcast-hero-show');
+    const heroDesc = document.getElementById('podcast-hero-desc');
+    const heroCat = document.getElementById('podcast-hero-category');
+    const playBtn = document.getElementById('podcast-hero-play-btn');
+    const showBtn = document.getElementById('podcast-hero-show-btn');
+
+    if (heroBg) heroBg.style.backgroundImage = `url(${heroEp.thumbnail || heroChannel.avatar})`;
+    if (heroTitle) heroTitle.textContent = heroEp.title;
+    if (heroShow) heroShow.textContent = `${heroChannel.channelName} • Hosted by ${heroChannel.host}`;
+    if (heroDesc) heroDesc.textContent = heroEp.description || heroChannel.description;
+    if (heroCat) heroCat.textContent = heroChannel.category;
+
+    if (playBtn) {
+      playBtn.innerHTML = `<i data-lucide="play" class="w-4 h-4 fill-white text-white"></i> Play Episode (${heroEp.duration || 'Video'})`;
+      playBtn.onclick = () => {
+        openPodcastModal({
+          ...heroEp,
+          channelName: heroChannel.channelName,
+          category: heroChannel.category,
+          thumbnail: heroEp.thumbnail || heroChannel.avatar,
+          description: heroEp.description || heroChannel.description
+        });
+      };
+    }
+
+    if (showBtn) {
+      showBtn.onclick = () => openPodcastChannelModal(heroChannel);
+    }
+  }
+
+  // Wire Category Filter Pills
+  const pills = document.querySelectorAll('.podcast-cat-pill');
+  pills.forEach(pill => {
+    pill.onclick = () => {
+      pills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+
+      const cat = pill.getAttribute('data-cat');
+      const techWrap = document.getElementById('row-container-tech');
+      const scienceWrap = document.getElementById('row-container-science');
+      const comedyWrap = document.getElementById('row-container-comedy');
+      const sportsWrap = document.getElementById('row-container-sports');
+      const historyWrap = document.getElementById('row-container-history');
+
+      if (cat === 'all') {
+        if (techWrap) techWrap.style.display = 'block';
+        if (scienceWrap) scienceWrap.style.display = 'block';
+        if (comedyWrap) comedyWrap.style.display = 'block';
+        if (sportsWrap) sportsWrap.style.display = 'block';
+        if (historyWrap) historyWrap.style.display = 'block';
+      } else {
+        if (techWrap) techWrap.style.display = cat === 'tech' ? 'block' : 'none';
+        if (scienceWrap) scienceWrap.style.display = cat === 'science' ? 'block' : 'none';
+        if (comedyWrap) comedyWrap.style.display = cat === 'comedy' ? 'block' : 'none';
+        if (sportsWrap) sportsWrap.style.display = cat === 'sports' ? 'block' : 'none';
+        if (historyWrap) historyWrap.style.display = cat === 'history' ? 'block' : 'none';
+      }
+    };
+  });
+
   // Load Favorite Podcast Channels
   if (state.favoritePodcasts && state.favoritePodcasts.length > 0) {
     if (favoritesSection) favoritesSection.style.display = 'block';
@@ -2119,8 +2185,9 @@ function closeDetailsView() {
   }
 }
 
-// Helper to construct proxy URL (Direct by default, or Cloudflare Worker if set)
+// Helper to construct proxy URL (Direct when HTTP page, or Vercel Edge / Custom Proxy when on HTTPS / Production)
 function getProxyUrl(targetUrl) {
+  if (!targetUrl) return '';
   const mode = localStorage.getItem('proxy_mode') || 'direct';
   const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
 
@@ -2128,7 +2195,15 @@ function getProxyUrl(targetUrl) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
     return `${customProxy}${glue}${encodeURIComponent(targetUrl)}`;
   }
-  // Default: Direct connection (0 Vercel serverless / Fast Origin Transfer data)
+
+  // Automatic Production HTTPS Fix: Route HTTP target URLs through Vercel Edge Proxy (/api/proxy)
+  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const isHttpTarget = targetUrl.startsWith('http://');
+
+  if (isHttpsPage || isHttpTarget) {
+    return `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+  }
+
   return targetUrl;
 }
 

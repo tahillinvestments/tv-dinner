@@ -339,6 +339,7 @@ export class IPTVPlayer {
     }
 
     const proxyFallbacks = [
+      (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => url.includes('SAPPTV12') ? url.replace(/\/live\/SAPPTV12\/SAPPTV12\//g, '/live/SGmUC7q2U/4WM9WVsjG/') : url,
       (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
       (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,

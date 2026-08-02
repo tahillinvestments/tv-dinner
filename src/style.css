@@ -2234,3 +2234,120 @@ body.body-pseudo-fullscreen {
   color: #ffffff !important;
 }
 
+/* Podcast Spotlight Hero Banner */
+.podcast-hero-spotlight {
+  position: relative !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  min-height: 220px !important;
+  background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  box-shadow: 0 10px 30px -10px rgba(239, 68, 68, 0.25) !important;
+  display: flex !important;
+  align-items: flex-end !important;
+}
+
+.podcast-hero-bg {
+  position: absolute !important;
+  inset: 0 !important;
+  background-size: cover !important;
+  background-position: center !important;
+  opacity: 0.35 !important;
+  filter: blur(2px) !important;
+}
+
+.podcast-hero-content {
+  position: relative !important;
+  z-index: 2 !important;
+  padding: 1.5rem !important;
+  width: 100% !important;
+  background: linear-gradient(to top, rgba(7, 9, 14, 0.95) 40%, rgba(7, 9, 14, 0.4) 100%) !important;
+}
+
+.podcast-hero-title {
+  font-size: 1.35rem !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  line-height: 1.25 !important;
+  margin-bottom: 0.35rem !important;
+}
+
+.podcast-hero-desc {
+  font-size: 0.825rem !important;
+  color: #94a3b8 !important;
+  max-width: 680px !important;
+  line-clamp: 2 !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+
+.podcast-hero-play-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.6rem 1.25rem !important;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 0.85rem !important;
+  border-radius: 9999px !important;
+  border: none !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4) !important;
+  transition: all 0.2s ease !important;
+}
+
+.podcast-hero-play-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6) !important;
+}
+
+.podcast-hero-show-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.6rem 1.1rem !important;
+  background: rgba(30, 41, 59, 0.8) !important;
+  color: #e2e8f0 !important;
+  font-weight: 600 !important;
+  font-size: 0.85rem !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.podcast-hero-show-btn:hover {
+  background: rgba(51, 65, 85, 0.9) !important;
+  color: #ffffff !important;
+}
+
+/* Category Filter Pills */
+.podcast-cat-pill {
+  padding: 0.45rem 1rem !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  border-radius: 9999px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #94a3b8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition: all 0.2s ease !important;
+}
+
+.podcast-cat-pill:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.podcast-cat-pill.active {
+  background: linear-gradient(135deg, #ef4444 0%, #4f46e5 100%) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3) !important;
+}
+
