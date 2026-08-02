@@ -51,20 +51,25 @@ const state = {
 // Helper to construct dynamic IPTV playlist URL from localStorage or credentials
 function getPlaylistUrl() {
   const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-  const username = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
-  const password = localStorage.getItem('iptv_password') || '4WM9WVsjG';
+  const username = localStorage.getItem('iptv_username') || 'SAPPTV12';
+  const password = localStorage.getItem('iptv_password') || 'SAPPTV12';
   
   if (portalUrl && username && password) {
     return `${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
   }
-  return './o_all.m3u';
+  return './xtream_feed.m3u';
 }
 
 const MAX_RECENTS = 20;
 
 // Embed providers — curated to working sources only (as of 2026)
-// Primary servers tried first; fallbacks used when primary fails
+// VixSrc (Fast HD) set as default #1 source
 const EMBED_PROVIDERS = [
+  {
+    name: 'VixSrc (Fast HD)',
+    movie: (id) => `https://vixsrc.to/movie/${id}`,
+    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
+  },
   {
     name: 'VidLink PRO',
     movie: (id) => `https://vidlink.pro/movie/${id}`,
@@ -76,19 +81,14 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'VixSrc (Fast HD)',
-    movie: (id) => `https://vixsrc.to/movie/${id}`,
-    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'SuperEmbed',
-    movie: (id) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1`,
-    tv: (id, s, e) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
-  },
-  {
     name: 'VidSrc PRO',
-    movie: (id) => `https://vidsrc.cc/v2/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
+    movie: (id) => `https://vidsrc.me/embed/movie?tmdb=${id}`,
+    tv: (id, s, e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}`,
+  },
+  {
+    name: 'Embed.su',
+    movie: (id) => `https://embed.su/embed/movie/${id}`,
+    tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
   },
 ];
 
@@ -749,7 +749,7 @@ function openPodcastModal(podcast) {
   if (tvSelectors) tvSelectors.classList.add('hidden');
   if (titleEl) titleEl.textContent = podcast.title;
   if (metaEl) metaEl.innerHTML = `<span class="text-slate-300 font-semibold">${podcast.channelName || 'Podcast'}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">${podcast.category || 'YouTube Video'}</span>`;
-  if (overviewEl) overviewEl.textContent = podcast.description || 'Watch top YouTube podcast episode and channel content directly inside TVISION.';
+  if (overviewEl) overviewEl.textContent = podcast.description || 'Watch top YouTube podcast episode and channel content directly inside TV DINNER.';
   if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail})`;
 
   if (activeSourceName) activeSourceName.textContent = `YouTube Video (${podcast.channelName || 'Podcast'})`;
@@ -1385,15 +1385,23 @@ async function triggerSearchQuery(query, filterType = 'all') {
 function renderLibraryScreen() {
   const grid = document.getElementById('library-results-grid');
   const emptyState = document.getElementById('library-empty-state');
+  if (!grid) return;
   grid.innerHTML = '';
 
-  if (state.watchlist.length === 0) {
-    emptyState.classList.remove('hidden');
+  const favChannels = state.channels ? state.channels.filter(ch => state.favorites.includes(ch.id)) : [];
+  const favVOD = state.watchlist || [];
+  const favPodcasts = state.favoritePodcasts || [];
+
+  const totalFavs = favChannels.length + favVOD.length + favPodcasts.length;
+
+  if (totalFavs === 0) {
+    if (emptyState) emptyState.classList.remove('hidden');
     return;
   }
-  emptyState.classList.add('hidden');
+  if (emptyState) emptyState.classList.add('hidden');
 
-  state.watchlist.forEach(item => {
+  // 1. Render VOD Favorites (Movies & TV)
+  favVOD.forEach(item => {
     const title = item.title || item.name || 'Untitled';
     const isTV = item.media_type === 'tv';
     const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
@@ -1401,22 +1409,77 @@ function renderLibraryScreen() {
     const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
 
     const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale';
+    card.className = 'detail-item-card hover-scale cursor-pointer';
     card.innerHTML = `
       <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
       <div class="detail-item-info">
         <h4 class="detail-item-title">${title}</h4>
         <div class="detail-item-meta">
           <span class="detail-item-year">${year} • ${isTV ? 'TV' : 'Movie'}</span>
-          <span class="detail-item-rating">
+          <span class="detail-item-rating flex items-center gap-1">
             <i data-lucide="star" class="w-3 h-3 fill-amber-400 text-amber-400"></i> ${rating}
           </span>
         </div>
       </div>
     `;
-    card.addEventListener('click', () => openDetailsView(mediaItem));
+    card.addEventListener('click', () => openDetailsView(item));
     grid.appendChild(card);
   });
+
+  // 2. Render Favorite Live TV Channels
+  favChannels.forEach(channel => {
+    const card = document.createElement('div');
+    card.className = 'detail-item-card hover-scale cursor-pointer border border-amber-500/20';
+    card.innerHTML = `
+      <div class="w-full h-40 bg-slate-900/80 flex items-center justify-center p-4 relative rounded-t-xl overflow-hidden">
+        ${channel.logo ? `<img src="${channel.logo}" alt="${channel.name}" class="max-h-full max-w-full object-contain" loading="lazy" onerror="this.style.display='none'">` : `<i data-lucide="tv" class="w-12 h-12 text-amber-400/60"></i>`}
+        <span class="absolute top-2 right-2 bg-amber-500/20 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/40">LIVE</span>
+      </div>
+      <div class="detail-item-info">
+        <h4 class="detail-item-title truncate">${channel.name}</h4>
+        <div class="detail-item-meta">
+          <span class="detail-item-year">${channel.group || 'Live TV'}</span>
+          <span class="detail-item-rating flex items-center gap-1 text-amber-400">
+            <i data-lucide="play" class="w-3 h-3 fill-amber-400"></i> Play Channel
+          </span>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      switchTab('live');
+      playChannel(channel);
+    });
+    grid.appendChild(card);
+  });
+
+  // 3. Render Favorite Podcasts
+  favPodcasts.forEach(podcast => {
+    const card = document.createElement('div');
+    card.className = 'detail-item-card hover-scale cursor-pointer border border-purple-500/20';
+    card.innerHTML = `
+      <div class="w-full h-40 bg-slate-900/80 flex items-center justify-center p-4 relative rounded-t-xl overflow-hidden">
+        ${podcast.image || podcast.artwork ? `<img src="${podcast.image || podcast.artwork}" alt="${podcast.title}" class="max-h-full max-w-full object-contain" loading="lazy">` : `<i data-lucide="radio" class="w-12 h-12 text-purple-400/60"></i>`}
+        <span class="absolute top-2 right-2 bg-purple-500/20 text-purple-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-500/40">PODCAST</span>
+      </div>
+      <div class="detail-item-info">
+        <h4 class="detail-item-title truncate">${podcast.title || podcast.name}</h4>
+        <div class="detail-item-meta">
+          <span class="detail-item-year">${podcast.author || 'Podcast'}</span>
+          <span class="detail-item-rating flex items-center gap-1 text-purple-400">
+            <i data-lucide="play" class="w-3 h-3 fill-purple-400"></i> Play Audio
+          </span>
+        </div>
+      </div>
+    `;
+    card.addEventListener('click', () => {
+      switchTab('podcasts');
+      if (typeof playPodcastChannel === 'function') {
+        playPodcastChannel(podcast);
+      }
+    });
+    grid.appendChild(card);
+  });
+
   createIcons(iconConfig);
 }
 
@@ -1576,9 +1639,18 @@ async function openDetailsView(mediaItem) {
 
     createIcons(iconConfig);
 
-    // For Movies, start stream resolution immediately. For TV series, wait for user to select an episode button.
+    // Check and show resume position banner for Movies
     const isTV = mediaItem.media_type === 'tv';
     if (!isTV) {
+      const mediaKey = `movie_${mediaItem.id}`;
+      state.currentVodMediaKey = mediaKey;
+      state.currentVodTitle = title;
+      checkAndShowVodResumeBanner(mediaKey, title, (pos) => {
+        startStreamResolution({ type: 'movie', id: mediaItem.id });
+      }, () => {
+        startStreamResolution({ type: 'movie', id: mediaItem.id });
+      });
+
       startStreamResolution({
         type: 'movie',
         id: mediaItem.id
@@ -1648,7 +1720,17 @@ async function loadTVEpisodes(tvId, seasonNumber) {
         document.querySelectorAll('.episode-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         
-        // Start stream resolution on explicit episode click
+        const mediaKey = `tv_${tvId}_s${seasonNumber}_e${ep.episode_number}`;
+        const title = `${state.selectedMedia?.name || 'TV Show'} S${seasonNumber} E${ep.episode_number}`;
+        state.currentVodMediaKey = mediaKey;
+        state.currentVodTitle = title;
+
+        checkAndShowVodResumeBanner(mediaKey, title, (pos) => {
+          startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: ep.episode_number });
+        }, () => {
+          startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: ep.episode_number });
+        });
+
         document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
         startStreamResolution({ 
           type: 'tv', 
@@ -1803,30 +1885,51 @@ function selectActiveSource(index) {
       name: state.selectedMedia ? (state.selectedMedia.title || state.selectedMedia.name) : 'VOD Stream'
     });
   } else {
+    // Cleanly reset previous video frame
+    if (player && typeof player.resetVideoFrame === 'function') {
+      player.resetVideoFrame();
+    }
+
     if (videoEl) videoEl.style.display = 'none';
     if (embedWrapper) embedWrapper.style.display = 'block';
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) {
+      embedIframe.src = 'about:blank';
       embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share');
       embedIframe.setAttribute('referrerpolicy', 'no-referrer');
-      // Only apply sandbox if user explicitly enabled Strict Sandbox in Settings (some embed providers block sandboxed iframes)
+      
+      // Fix black screen (audio only): only apply sandbox if user explicitly enabled Strict Sandbox in Settings
       const useStrict = localStorage.getItem('strict_sandbox') === 'true';
       if (useStrict) {
-        embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation');
+        embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock');
       } else {
         embedIframe.removeAttribute('sandbox');
       }
-      embedIframe.src = source.url;
+      
+      // Override window.open on main window to defeat pop-up escapes
+      window.open = function() {
+        console.log('[Popup Shield] Pop-up window open blocked.');
+        return null;
+      };
+
+      let embedUrl = source.url;
+      if (state.resumePlaybackTime && state.resumePlaybackTime > 10) {
+        embedUrl += `#t=${Math.floor(state.resumePlaybackTime)}`;
+      }
+
+      setTimeout(() => {
+        embedIframe.src = embedUrl;
+      }, 50);
     }
 
-    // Activate 1-click shield overlay to intercept initial ad popup triggers
+    // Activate shield overlay to intercept initial click popups
     if (shield) {
       shield.style.display = 'block';
       shield.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
         shield.style.display = 'none';
-        console.log('[Popup Shield] First-click ad popup disarmed.');
+        console.log('[Popup Shield] Ad click popup intercepted and disarmed.');
       };
     }
   }
@@ -1853,24 +1956,135 @@ function closeActiveSse() {
     state.activeStreamSse = null;
   }
 }
+function getVodMediaKey(type, id, season = 1, episode = 1) {
+  if (type === 'movie') return `movie_${id}`;
+  return `tv_${id}_s${season}_e${episode}`;
+}
+
+// Format seconds into readable string (e.g. 1h 24m or 18:45)
+function formatPlaybackTime(seconds) {
+  if (!seconds || isNaN(seconds) || seconds <= 0) return '0:00';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  if (hrs > 0) {
+    return `${hrs}h ${mins}m ${secs}s`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Retrieve saved VOD playback position
+function getVodPlaybackPosition(mediaKey) {
+  try {
+    const data = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+    return data[mediaKey] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Save VOD playback position
+function saveVodPlaybackPosition(mediaKey, seconds, duration = 0, title = '') {
+  if (!mediaKey || isNaN(seconds) || seconds < 5) return;
+  try {
+    const data = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+    if (duration > 0 && seconds / duration > 0.95) {
+      delete data[mediaKey];
+    } else {
+      data[mediaKey] = {
+        position: Math.floor(seconds),
+        duration: Math.floor(duration),
+        timestamp: Date.now(),
+        title: title
+      };
+    }
+    localStorage.setItem('vod_resume_positions', JSON.stringify(data));
+  } catch (e) {
+    console.warn("Failed to save VOD resume position:", e);
+  }
+}
+
+// Display resume watching banner if previous position exists
+function checkAndShowVodResumeBanner(mediaKey, title, onResume, onRestart) {
+  const banner = document.getElementById('vod-resume-banner');
+  const timeText = document.getElementById('resume-time-text');
+  const playBtn = document.getElementById('resume-play-btn');
+  const restartBtn = document.getElementById('resume-restart-btn');
+
+  if (!banner) return;
+
+  const saved = getVodPlaybackPosition(mediaKey);
+  if (saved && saved.position > 10) {
+    banner.classList.remove('hidden');
+    if (timeText) timeText.textContent = formatPlaybackTime(saved.position);
+
+    const newPlayBtn = playBtn.cloneNode(true);
+    const newRestartBtn = restartBtn.cloneNode(true);
+    if (playBtn.parentNode) {
+      playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+      restartBtn.parentNode.replaceChild(newRestartBtn, restartBtn);
+    }
+
+    newPlayBtn.addEventListener('click', () => {
+      state.resumePlaybackTime = saved.position;
+      player.showToast(`Resuming ${title} at ${formatPlaybackTime(saved.position)}`);
+      if (typeof onResume === 'function') onResume(saved.position);
+    });
+
+    newRestartBtn.addEventListener('click', () => {
+      const data = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+      delete data[mediaKey];
+      localStorage.setItem('vod_resume_positions', JSON.stringify(data));
+      banner.classList.add('hidden');
+      state.resumePlaybackTime = 0;
+      player.showToast("Starting from beginning");
+      if (typeof onRestart === 'function') onRestart();
+    });
+  } else {
+    banner.classList.add('hidden');
+    state.resumePlaybackTime = 0;
+  }
+}
 
 // Close details overlay modal
 function closeDetailsView() {
   closeActiveSse();
+
+  // Save current VOD position if playing
+  const videoEl = document.getElementById('video-player');
+  if (state.currentVodMediaKey) {
+    let playedPos = 0;
+    let totalDur = 0;
+    if (videoEl && videoEl.currentTime > 5) {
+      playedPos = videoEl.currentTime;
+      totalDur = videoEl.duration || 0;
+    } else if (state.vodPlayStartTime) {
+      const elapsed = (Date.now() - state.vodPlayStartTime) / 1000;
+      if (elapsed > 10) {
+        playedPos = (state.resumePlaybackTime || 0) + elapsed;
+      }
+    }
+    if (playedPos > 10) {
+      saveVodPlaybackPosition(state.currentVodMediaKey, playedPos, totalDur, state.currentVodTitle || 'VOD Item');
+      console.log(`[VOD Resume] Position ${formatPlaybackTime(playedPos)} saved for ${state.currentVodMediaKey}`);
+    }
+  }
+
   state.selectedMedia = null;
   state.resolvedSources = [];
+  state.vodPlayStartTime = null;
 
   const embedIframe = document.getElementById('embed-iframe');
   const embedWrapper = document.getElementById('embed-player-wrapper');
-  const videoEl = document.getElementById('video-player');
   const playerWrapper = document.querySelector('.player-wrapper');
 
-  if (embedIframe) embedIframe.src = '';
+  if (embedIframe) embedIframe.src = 'about:blank';
   if (embedWrapper) embedWrapper.style.display = 'none';
   if (playerWrapper) playerWrapper.classList.remove('embed-active');
 
-  // Pause playing video tag
-  if (videoEl) {
+  if (player && typeof player.resetVideoFrame === 'function') {
+    player.resetVideoFrame();
+  } else if (videoEl) {
     videoEl.pause();
     videoEl.removeAttribute('src');
     videoEl.load();
@@ -1929,8 +2143,8 @@ function setupSettingsScreen() {
   // Populate inputs on load
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
-  if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SGmUC7q2U';
-  if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || '4WM9WVsjG';
+  if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SAPPTV12';
+  if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || 'SAPPTV12';
 
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
@@ -2057,8 +2271,8 @@ async function loadIPTVPlaylist() {
   
   try {
     const rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-    const username = (localStorage.getItem('iptv_username') || 'SGmUC7q2U').trim();
-    const password = (localStorage.getItem('iptv_password') || '4WM9WVsjG').trim();
+    const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
+    const password = (localStorage.getItem('iptv_password') || 'SAPPTV12').trim();
     
     let portalUrl = rawPortalUrl.trim().replace(/\/+$/, '');
     if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {

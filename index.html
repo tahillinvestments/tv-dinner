@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TVISION - Premium Streaming & Live TV</title>
+  <title>TV DINNER - Premium Streaming & Live TV</title>
   <meta name="description" content="A premium, ad-free streaming player for movies, TV shows, and live TV channels.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -54,7 +54,7 @@
     <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle Sidebar">
       <i data-lucide="menu"></i>
     </button>
-    <span class="mobile-title">TVISION</span>
+    <span class="mobile-title">TV DINNER</span>
     <span id="channel-count-header" class="mobile-badge-count">Loading...</span>
   </header>
 
@@ -722,6 +722,18 @@
               <span id="details-runtime" class="details-pill">-- min</span>
             </div>
             <p id="details-overview" class="details-overview">Movie overview information goes here...</p>
+
+            <!-- VOD Resume Playback Banner -->
+            <div id="vod-resume-banner" class="vod-resume-banner hidden">
+              <div class="resume-info">
+                <i data-lucide="history" class="w-4 h-4 text-amber-400"></i>
+                <span>Resume watching from <strong id="resume-time-text" class="text-amber-400 font-bold">0:00</strong></span>
+              </div>
+              <div class="resume-actions">
+                <button id="resume-play-btn" class="resume-btn primary">Resume</button>
+                <button id="resume-restart-btn" class="resume-btn secondary">Start Over</button>
+              </div>
+            </div>
           </div>
         </div>
 

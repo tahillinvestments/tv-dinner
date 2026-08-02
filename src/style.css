@@ -1,4 +1,4 @@
-/* TVISION / Streambert Redesign Stylesheet - 100% Vanilla CSS */
+/* TV DINNER / Streambert Redesign Stylesheet - 100% Vanilla CSS */
 
 :root {
   --bg-primary: #07090e;
@@ -1924,8 +1924,14 @@ body.body-pseudo-fullscreen {
 
 /* Mobile Optimization for Live TV Channels & Viewports */
 @media (max-width: 768px) {
+  html, body {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+  }
+
   .live-player-container-wrapper {
-    height: 24vh !important;
+    height: 28vh !important;
+    max-height: 260px !important;
   }
 
   .live-channels-container {
@@ -1952,8 +1958,8 @@ body.body-pseudo-fullscreen {
     width: 100% !important;
     overflow-x: auto !important;
     overflow-y: hidden !important;
-    padding: 0.35rem 0.85rem 0.5rem !important;
-    gap: 0.4rem !important;
+    padding: 0.4rem 0.85rem 0.6rem !important;
+    gap: 0.5rem !important;
     scrollbar-width: none !important;
     -webkit-overflow-scrolling: touch !important;
   }
@@ -1968,15 +1974,16 @@ body.body-pseudo-fullscreen {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    padding: 0.4rem 0.85rem !important;
-    font-size: 0.775rem !important;
+    padding: 0.5rem 0.95rem !important;
+    min-height: 44px !important;
+    font-size: 0.825rem !important;
     border-radius: 9999px !important;
     background: rgba(255, 255, 255, 0.05) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
   }
 
   .category-btn.active {
-    background: linear-gradient(135deg, var(--accent-color), #4f46e5) !important;
+    background: linear-gradient(135deg, var(--accent), #4f46e5) !important;
     border-color: rgba(255, 255, 255, 0.3) !important;
     color: #fff !important;
   }
@@ -1987,24 +1994,25 @@ body.body-pseudo-fullscreen {
 
   .live-channels-grid {
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
-    gap: 0.4rem !important;
+    gap: 0.5rem !important;
   }
 
   .channel-card {
-    padding: 0.45rem 0.55rem !important;
-    border-radius: 8px !important;
-    gap: 0.4rem !important;
+    padding: 0.55rem 0.65rem !important;
+    min-height: 44px !important;
+    border-radius: 10px !important;
+    gap: 0.5rem !important;
   }
 
   .channel-card-logo-wrap {
-    width: 26px !important;
-    height: 26px !important;
+    width: 28px !important;
+    height: 28px !important;
     border-radius: 6px !important;
   }
 
   .channel-card-name {
-    font-size: 0.7rem !important;
-    line-height: 1.1 !important;
+    font-size: 0.75rem !important;
+    line-height: 1.2 !important;
   }
 
   .live-channels-grid-header {
@@ -2166,5 +2174,63 @@ body.body-pseudo-fullscreen {
 .search-results-container.custom-scrollbar {
   max-height: 80vh;
   overflow-y: auto;
+}
+
+/* VOD Resume Playback Banner */
+.vod-resume-banner {
+  margin-top: 1rem !important;
+  padding: 0.75rem 1rem !important;
+  background: rgba(245, 158, 11, 0.12) !important;
+  border: 1px solid rgba(245, 158, 11, 0.35) !important;
+  border-radius: 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.75rem !important;
+  flex-wrap: wrap !important;
+}
+
+.resume-info {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  font-size: 0.85rem !important;
+  color: #f3f4f6 !important;
+}
+
+.resume-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.resume-btn {
+  padding: 0.45rem 0.9rem !important;
+  font-size: 0.775rem !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  transition: var(--transition-smooth) !important;
+}
+
+.resume-btn.primary {
+  background: #f59e0b !important;
+  color: #0b0e17 !important;
+  border: none !important;
+}
+
+.resume-btn.primary:hover {
+  background: #d97706 !important;
+}
+
+.resume-btn.secondary {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #cbd5e1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.resume-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
 }
 

@@ -301,8 +301,11 @@ export class IPTVPlayer {
   }
 
   playChannel(channel) {
-    this.currentUrl = channel.url;
-    this.channelTitle.textContent = channel.name;
+    this.resetVideoFrame();
+    
+    const targetUrl = channel.url || channel.src || '';
+    this.currentUrl = targetUrl;
+    this.channelTitle.textContent = channel.name || 'Live TV Stream';
     
     // Hide poster
     if (this.poster) {
@@ -318,18 +321,29 @@ export class IPTVPlayer {
       if (this.loading && !this.loading.classList.contains('hidden') && this.video.paused) {
         console.warn('[Player] Stream loading timed out.');
         this.showLoading(false);
-        this.showError(true, 'Stream load timed out. Direct stream may be blocked by browser CORS/Mixed Content. You can add a free Cloudflare Worker URL in Settings.');
+        this.showError(true, 'Stream load timed out. Direct stream may be blocked by browser CORS/Mixed Content. You can add a Cloudflare Worker URL in Settings.');
       }
     }, 12000);
-
-    // Destroy existing HLS instance
-    this.destroyHls();
 
     // Check for saved resume position
     const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
     const saved = resumeData[this.currentUrl];
 
-    let networkRetryCount = 0;
+    let networkRetryIndex = 0;
+    const originalUrl = targetUrl;
+    const activeUrl = originalUrl.includes('SAPPTV12') ? originalUrl.replace(/\/live\/SAPPTV12\/SAPPTV12\//g, '/live/SGmUC7q2U/4WM9WVsjG/') : originalUrl;
+    
+    // Auto fallback to active credentials if SAPPTV12 was used
+    if (this.currentUrl.includes('SAPPTV12')) {
+      this.currentUrl = activeUrl;
+    }
+
+    const proxyFallbacks = [
+      (url) => url.includes('SAPPTV12') ? url.replace(/\/live\/SAPPTV12\/SAPPTV12\//g, '/live/SGmUC7q2U/4WM9WVsjG/') : url,
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      (url) => `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(url)}`
+    ];
 
     // Check HLS compatibility
     if (Hls.isSupported()) {
@@ -357,22 +371,16 @@ export class IPTVPlayer {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              networkRetryCount++;
-              console.error(`Fatal network error in HLS playback (attempt ${networkRetryCount})...`);
-              if (networkRetryCount <= 2) {
+              if (networkRetryIndex < proxyFallbacks.length) {
+                const nextProxyFunc = proxyFallbacks[networkRetryIndex++];
+                const fallbackUrl = nextProxyFunc(originalUrl);
+                console.log(`[Player] HLS network error. Retrying stream via proxy fallback #${networkRetryIndex}:`, fallbackUrl);
+                this.currentUrl = fallbackUrl;
+                this.hls.loadSource(fallbackUrl);
                 this.hls.startLoad();
               } else {
-                // Try fallback proxy if direct fetch fails
-                if (!this.currentUrl.includes('corsproxy.io') && !this.currentUrl.includes('allorigins')) {
-                  const fallbackUrl = `https://corsproxy.io/?${encodeURIComponent(channel.url)}`;
-                  console.log('[Player] Retrying stream via public CORS proxy:', fallbackUrl);
-                  this.currentUrl = fallbackUrl;
-                  this.hls.loadSource(fallbackUrl);
-                  this.hls.startLoad();
-                } else {
-                  this.showError(true, 'Stream network connection failed. Stream is offline or blocked by browser security.');
-                  this.destroyHls();
-                }
+                this.showError(true, 'Stream network connection failed. Stream is offline or blocked by browser CORS/security.');
+                this.destroyHls();
               }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
@@ -658,12 +666,23 @@ export class IPTVPlayer {
     }
   }
 
+  resetVideoFrame() {
+    this.destroyHls();
+    if (this.video) {
+      this.video.pause();
+      this.video.removeAttribute('src');
+      try { this.video.load(); } catch (e) {}
+    }
+    this.currentUrl = '';
+  }
+
   destroyHls() {
     if (this.bufferTimeout) {
       clearTimeout(this.bufferTimeout);
       this.bufferTimeout = null;
     }
     if (this.hls) {
+      try { this.hls.detachMedia(); } catch (e) {}
       this.hls.destroy();
       this.hls = null;
     }
