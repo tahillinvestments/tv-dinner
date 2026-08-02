@@ -198,36 +198,37 @@ Schedule: ${c.map(p=>Ge(p))} pos: ${this.timelinePos}`),d.length&&this.log(`Remo
         <p class="text-xs font-semibold text-slate-300">No episodes match your search or filter selection.</p>
         <p class="text-[11px] text-slate-500 mt-1">Try switching tabs or clearing your search term.</p>
       </div>
-    `,t&&(t.style.display="none"),xe(Ie);return}const a=He?He.avatar:"https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80";n.forEach(o=>{const c=o.id||o.youtubeId,l=Mt.includes(c),d=Ft.includes(c),u=document.createElement("div");u.className=`bg-slate-900/90 border ${l?"border-slate-850 opacity-80":"border-slate-800"} rounded-2xl overflow-hidden hover:border-red-500 transition-all group flex flex-col shadow-lg hover:shadow-red-950/30 relative`;const h=o.thumbnail||a;u.innerHTML=`
-      <div class="relative aspect-video overflow-hidden bg-slate-950 ep-play-trigger cursor-pointer">
-        <img src="${h}" alt="${o.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.onerror=null; this.src='${a}';">
-        <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <div class="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
-            <i data-lucide="play" class="w-6 h-6 fill-white text-white ml-0.5"></i>
+    `,t&&(t.style.display="none"),xe(Ie);return}const a=He?He.avatar:"https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80";n.forEach(o=>{const c=o.id||o.youtubeId,l=Mt.includes(c),d=Ft.includes(c),u=document.createElement("div");u.className=`podcast-episode-card ${l?"is-played":""}`;const h=o.thumbnail||a;u.innerHTML=`
+      <div class="ep-thumb-wrapper ep-play-trigger">
+        <img src="${h}" alt="${o.title}" class="ep-thumb-img" onerror="this.onerror=null; this.src='${a}';">
+        <div class="ep-play-overlay">
+          <div class="ep-play-disc">
+            <i data-lucide="play" class="w-5 h-5 fill-white text-white ml-0.5"></i>
           </div>
         </div>
-        <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/80 text-[10px] font-bold text-white border border-white/10 backdrop-blur-sm">${o.duration||"Video"}</span>
-        ${l?'<span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-emerald-600/90 text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i> PLAYED</span>':'<span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600/90 text-[10px] font-bold text-white uppercase tracking-wider">HD 🔴</span>'}
+        <span class="ep-duration-badge">${o.duration||"Video"}</span>
+        ${l?'<span class="ep-status-badge played">✓ PLAYED</span>':'<span class="ep-status-badge hd">HD 🔴</span>'}
       </div>
 
-      <div class="p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
+      <div class="ep-body">
         <div>
-          <h4 class="text-xs sm:text-sm font-bold text-white line-clamp-2 leading-snug group-hover:text-red-400 transition-colors ep-play-trigger cursor-pointer">${o.title}</h4>
-          <p class="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed">${o.description||"Full podcast episode video conversation."}</p>
+          <h4 class="ep-title ep-play-trigger">${o.title}</h4>
+          <p class="ep-desc">${o.description||"Full podcast episode video conversation."}</p>
         </div>
 
-        <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-xs">
-          <span class="text-[11px] text-slate-400 font-medium">📅 ${o.date||o.year||"Past"}</span>
+        <div class="ep-footer">
+          <span class="ep-date">📅 ${o.date||o.year||"Past"}</span>
 
-          <div class="flex items-center gap-1">
-            <button class="ep-save-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" title="${d?"Remove Bookmark":"Save Bookmark"}">
-              <i data-lucide="bookmark" class="w-3.5 h-3.5" style="fill: ${d?"#f59e0b":"none"}; color: ${d?"#f59e0b":"currentColor"};"></i>
+          <div class="ep-actions">
+            <button class="ep-btn-icon ep-save-btn" title="${d?"Remove Bookmark":"Save Bookmark"}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${d?"#f59e0b":"none"}" stroke="${d?"#f59e0b":"currentColor"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
             </button>
-            <button class="ep-played-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" title="${l?"Mark Unplayed":"Mark Played"}">
-              <i data-lucide="check-circle-2" class="w-3.5 h-3.5" style="color: ${l?"#10b981":"currentColor"};"></i>
+            <button class="ep-btn-icon ep-played-btn" title="${l?"Mark Unplayed":"Mark Played"}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${l?"#10b981":"currentColor"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             </button>
-            <button class="ep-play-trigger px-2.5 py-1 rounded-lg bg-red-600/90 hover:bg-red-500 text-white font-bold text-[11px] flex items-center gap-1 transition-all">
-              Play <i data-lucide="play" class="w-3 h-3 fill-white"></i>
+            <button class="ep-btn-play ep-play-trigger">
+              <span>Play</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             </button>
           </div>
         </div>

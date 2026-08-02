@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-BQNdQRZQ.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-BURezVy9.css">
+  <script type="module" crossorigin src="/assets/index-IWUl0H2U.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-BVHVJq92.css">
 </head>
 <body class="dark-theme">
   
@@ -788,159 +788,117 @@
         </div>
 
         <!-- Stream Server picker -->
-  <!-- VOD Item Detail Modal Overlay -->
-  <div id="details-overlay" class="details-overlay custom-scrollbar hidden">
-    <div class="details-content-sheet">
-      <div class="details-header-bar">
-        <button id="details-close-btn" class="details-close-btn">
-          <i data-lucide="arrow-left"></i> Back to Catalog
-        </button>
-      </div>
+        <div class="sources-panel">
+          <div class="sources-header-status">
+            <span class="selector-label">Stream Source Server:</span>
+            <span id="sources-status" class="sources-status-text">Choose a server to play.</span>
+          </div>
+          <div id="sources-list" class="sources-list-grid">
+            <!-- Server sources loaded dynamically -->
+          </div>
+        </div>
 
-      <div class="details-hero">
-        <div id="details-backdrop" class="details-backdrop"></div>
-        <div class="details-hero-content">
-          <h1 id="details-title" class="details-title">Title Loading...</h1>
-          <div id="details-meta-info" class="details-meta">2026 • 0h 00m</div>
-          <p id="details-overview" class="details-overview">Overview text...</p>
-        </div>
-      </div>
-
-      <!-- Video Player Insertion Container -->
-      <div id="vod-player-container" class="vod-player-box">
-        <!-- shared-player-holder content will be dynamically moved here during active playback -->
-      </div>
-
-      <!-- More Episodes From Channel Section (Inside Player View) -->
-      <div id="player-more-episodes-section" class="mt-6 p-4 bg-slate-900/90 rounded-2xl border border-slate-800 hidden">
-        <div class="flex items-center justify-between mb-3">
-          <h4 class="text-sm font-bold text-white flex items-center gap-2">
-            <i data-lucide="list-video" class="w-4 h-4 text-red-500"></i> More Episodes from <span id="player-more-episodes-channel" class="text-red-400">Channel</span>
-          </h4>
-          <span class="text-xs text-slate-400">Click to play instantly</span>
-        </div>
-        <div id="player-more-episodes-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          <!-- Dynamically populated -->
-        </div>
-      </div>
-
-      <div id="tv-selectors" class="tv-selector-container hidden">
-        <div class="selector-group">
-          <label for="season-select" class="selector-label">Season</label>
-          <select id="season-select" class="custom-select">
-            <!-- Dynamically populated -->
-          </select>
-        </div>
-        <div class="selector-group">
-          <label for="episode-select" class="selector-label">Episode</label>
-          <select id="episode-select" class="custom-select">
-            <!-- Dynamically populated -->
-          </select>
-        </div>
-      </div>
-
-      <!-- Sources Selector Panel -->
-      <div id="sources-panel" class="sources-panel">
-        <h4 class="sources-title">Select Playback Provider Source</h4>
-        <div class="active-source-badge font-semibold">
-          Active Provider: <span id="active-source-name" class="text-red-400 font-bold">VixSrc (FastHD)</span>
-        </div>
-        <div id="embed-sources-list" class="sources-list-grid">
-          <!-- Provider buttons dynamically populated -->
+        <!-- In-Player More Episodes Selector (Visible when playing podcast) -->
+        <div id="player-more-episodes-section" class="mt-6 hidden">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="list-video" class="w-4 h-4 text-red-500"></i> More Episodes from this Channel
+            </h3>
+            <span id="player-more-episodes-channel" class="text-xs text-slate-400 font-medium">Channel Name</span>
+          </div>
+          <div id="player-more-episodes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Podcast Channel Episodes Overlay Modal -->
-  <div id="podcast-channel-overlay" class="details-overlay custom-scrollbar hidden">
-    <div class="details-content-sheet max-w-5xl">
-      <div class="details-header-bar flex items-center justify-between mb-4">
-        <button id="podcast-channel-close-btn" class="details-close-btn flex items-center gap-2">
-          <i data-lucide="arrow-left"></i> Back to Podcast Showcase
+  <div id="podcast-channel-overlay" class="podcast-overlay hidden">
+    <div class="podcast-overlay-sheet custom-scrollbar">
+      
+      <!-- Top Navigation Bar -->
+      <div class="podcast-modal-header">
+        <button id="podcast-channel-close-btn" class="podcast-modal-back-btn">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i>
+          <span>Back to Podcasts</span>
         </button>
-        <div class="flex items-center gap-2">
-          <button id="podcast-channel-share-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-colors">
-            <i data-lucide="share-2" class="w-3.5 h-3.5 text-blue-400"></i> Share Show
+
+        <div class="podcast-modal-actions">
+          <button id="podcast-channel-share-btn" class="podcast-modal-action-btn share-btn">
+            <i data-lucide="share-2" class="w-3.5 h-3.5 text-blue-400"></i>
+            <span>Share Show</span>
           </button>
-          <button id="podcast-channel-favorite-btn" class="podcast-fav-toggle-btn flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all">
-            <i data-lucide="star" class="w-4 h-4"></i> Add to Favorites
+          <button id="podcast-channel-favorite-btn" class="podcast-modal-action-btn fav-btn">
+            <i data-lucide="star" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>Add to Favorites</span>
           </button>
         </div>
       </div>
 
-      <div class="details-main-body space-y-6">
-        <!-- Rich Podcast Channel Hero Header -->
-        <div class="details-meta-card relative overflow-hidden flex flex-col md:flex-row items-center md:items-start gap-6 p-6 bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-950 rounded-2xl border border-slate-800/90 shadow-2xl">
-          <div class="relative group shrink-0">
-            <img id="podcast-channel-avatar" class="w-28 h-28 md:w-32 md:h-32 rounded-2xl object-cover border-2 border-red-500/80 shadow-2xl group-hover:scale-105 transition-transform duration-300" src="" alt="Channel Avatar">
-            <div class="absolute -bottom-2 -right-2 px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-black uppercase shadow tracking-wider">
-              PODCAST
-            </div>
-          </div>
-
-          <div class="flex-1 text-center md:text-left space-y-3 min-w-0">
-            <div class="flex flex-wrap items-center justify-center md:justify-start gap-2">
-              <h2 id="podcast-channel-title" class="text-2xl sm:text-3xl font-black text-white tracking-tight">Channel Name</h2>
-              <span id="podcast-channel-subs-badge" class="px-3 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold">Subscribers</span>
-            </div>
-            <p id="podcast-channel-host" class="text-xs sm:text-sm font-bold text-red-400 flex items-center justify-center md:justify-start gap-1.5">
-              <i data-lucide="mic" class="w-3.5 h-3.5"></i> Host Name
-            </p>
-            <p id="podcast-channel-desc" class="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">Channel description...</p>
-
-            <div class="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
-              <button id="podcast-channel-play-latest-btn" class="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-950/50 hover:scale-105 transition-all">
-                <i data-lucide="play" class="w-4 h-4 fill-white"></i> Play Latest Episode
-              </button>
-            </div>
-          </div>
+      <!-- Podcast Hero Banner -->
+      <div class="podcast-hero-card">
+        <div class="podcast-hero-avatar-wrap">
+          <img id="podcast-channel-avatar" class="podcast-hero-avatar" src="" alt="Channel Avatar">
+          <span class="podcast-hero-badge">PODCAST</span>
         </div>
 
-        <!-- Filter & Status Tabs + Search & Sort Toolbar -->
-        <div class="space-y-4">
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
-            <!-- Filter Tabs -->
-            <div class="flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
-              <button id="podcast-tab-all" class="podcast-ep-tab active px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-white bg-red-600">
-                All Episodes
-              </button>
-              <button id="podcast-tab-unplayed" class="podcast-ep-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white">
-                Unplayed
-              </button>
-              <button id="podcast-tab-saved" class="podcast-ep-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white">
-                Saved 🔖
-              </button>
-            </div>
-
-            <div class="flex items-center gap-2 flex-1 sm:flex-none">
-              <span id="podcast-episodes-count" class="px-2.5 py-1 rounded-lg bg-slate-800 text-xs font-bold text-slate-300 shrink-0">0 Episodes</span>
-              
-              <div class="relative flex-1 sm:w-60">
-                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                <input type="text" id="podcast-episodes-search" placeholder="Search episodes or guests..." class="podcast-modal-input w-full pl-8 pr-3 text-xs py-1.5">
-              </div>
-              <select id="podcast-episodes-sort" class="podcast-modal-select text-xs py-1.5">
-                <option value="newest">📅 Newest First</option>
-                <option value="oldest">⏳ Oldest First</option>
-                <option value="duration">⏱️ Longest First</option>
-              </select>
-            </div>
+        <div class="podcast-hero-info">
+          <div class="podcast-hero-title-row">
+            <h2 id="podcast-channel-title" class="podcast-hero-title">Channel Name</h2>
+            <span id="podcast-channel-subs-badge" class="podcast-subs-pill">0 Subscribers</span>
           </div>
 
-          <!-- Channel episodes grid -->
-          <div id="podcast-channel-episodes-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <!-- Channel episodes loaded dynamically -->
-          </div>
+          <p id="podcast-channel-host" class="podcast-hero-host">
+            <i data-lucide="mic" class="w-3.5 h-3.5 text-red-500"></i>
+            <span>Host Name</span>
+          </p>
 
-          <!-- Pagination Load More button -->
-          <div class="text-center pt-4" id="podcast-episodes-load-more-wrap">
-            <button id="podcast-episodes-load-more" class="podcast-load-more-btn inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white border border-slate-700 transition-all">
-              <i data-lucide="chevron-down" class="w-4 h-4"></i> Load More Past Episodes
+          <p id="podcast-channel-desc" class="podcast-hero-desc">Channel description...</p>
+
+          <div class="podcast-hero-actions">
+            <button id="podcast-channel-play-latest-btn" class="podcast-hero-play-latest-btn">
+              <i data-lucide="play" class="w-4 h-4 fill-white"></i>
+              <span>Play Latest Episode</span>
             </button>
           </div>
         </div>
       </div>
+
+      <!-- Controls & Filter Toolbar -->
+      <div class="podcast-toolbar">
+        <div class="podcast-tabs-group">
+          <button id="podcast-tab-all" class="podcast-ep-tab active">All Episodes</button>
+          <button id="podcast-tab-unplayed" class="podcast-ep-tab">Unplayed</button>
+          <button id="podcast-tab-saved" class="podcast-ep-tab">Saved 🔖</button>
+        </div>
+
+        <div class="podcast-toolbar-controls">
+          <span id="podcast-episodes-count" class="podcast-count-pill">0 Episodes</span>
+
+          <div class="podcast-search-wrapper">
+            <i data-lucide="search" class="w-3.5 h-3.5 podcast-search-icon"></i>
+            <input type="text" id="podcast-episodes-search" placeholder="Search episodes..." class="podcast-search-input">
+          </div>
+
+          <select id="podcast-episodes-sort" class="podcast-sort-select">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="duration">Longest First</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Episodes Grid -->
+      <div id="podcast-channel-episodes-grid" class="podcast-episodes-grid"></div>
+
+      <!-- Pagination Load More -->
+      <div id="podcast-episodes-load-more-wrap" class="podcast-load-more-wrap">
+        <button id="podcast-episodes-load-more" class="podcast-load-more-btn">
+          <span>Load More Episodes</span>
+          <i data-lucide="chevron-down" class="w-4 h-4"></i>
+        </button>
+      </div>
+
     </div>
   </div>
 
