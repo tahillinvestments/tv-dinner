@@ -59523,6 +59523,9 @@
 	<programme channel="newtv超级综艺" start="20260802085000 +0800" stop="20260802100700 +0800">
 		<title lang="zh">全民畅舞</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260802100700 +0800" stop="20260802115600 +0800">
+		<title lang="zh">乐在旅途 第三季</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -59550,6 +59553,9 @@
 	<programme channel="newtv超级体育" start="20260802090000 +0800" stop="20260802103000 +0800">
 		<title lang="zh">实况录像-2026世界杯 1/8决赛 瑞士队-哥伦比亚队</title>
 	</programme>
+	<programme channel="newtv超级体育" start="20260802103000 +0800" stop="20260802120000 +0800">
+		<title lang="zh">实况录像-2026年世界田联钻石联赛 伦敦站</title>
+	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
 	</channel>
@@ -59573,6 +59579,9 @@
 	</programme>
 	<programme channel="newtv超级电影" start="20260802085800 +0800" stop="20260802102100 +0800">
 		<title lang="zh">疾速反击</title>
+	</programme>
+	<programme channel="newtv超级电影" start="20260802102100 +0800" stop="20260802112500 +0800">
+		<title lang="zh">无名客栈之麒麟觉醒</title>
 	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
@@ -59615,6 +59624,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260802090800 +0800" stop="20260802095400 +0800">
 		<title lang="zh">28_画眉</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260802095400 +0800" stop="20260802103900 +0800">
+		<title lang="zh">09_问心</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -60206,6 +60218,12 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260802091600 +0800" stop="20260802094600 +0800">
 		<title lang="zh">超能康糖尿病治疗仪</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260802094600 +0800" stop="20260802103100 +0800">
+		<title lang="zh">24_天堑1949</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260802103100 +0800" stop="20260802110600 +0800">
+		<title lang="zh">澳柯玛语音智能空气循环扇-渠道（右）</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
