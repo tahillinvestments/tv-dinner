@@ -393,12 +393,22 @@ export class IPTVPlayer {
     ];
 
     // Check HLS compatibility
+    let hlsRetryAttempts = 0;
+
     if (Hls.isSupported()) {
       this.destroyHls();
       this.hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
-        maxBufferSize: 30 * 1000 * 1000, // 30MB
+        lowLatencyMode: false,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 60 * 1000 * 1000, // 60MB
+        manifestLoadingTimeOut: 15000,
+        manifestLoadingMaxRetry: 5,
+        levelLoadingTimeOut: 15000,
+        levelLoadingMaxRetry: 5,
+        fragLoadingTimeOut: 20000,
+        fragLoadingMaxRetry: 8,
       });
       
       this.hls.loadSource(this.currentUrl);
@@ -407,6 +417,7 @@ export class IPTVPlayer {
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
         this.showLoading(false);
+        this.showError(false);
 
         if (saved && saved.position > 0) {
           this.video.currentTime = saved.position;
@@ -422,14 +433,26 @@ export class IPTVPlayer {
       });
 
       this.hls.on(Hls.Events.ERROR, (event, data) => {
+        console.warn('[HLS Event Error]', data.type, data.details, 'fatal:', data.fatal);
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              if (networkRetryIndex < proxyFallbacks.length) {
+              hlsRetryAttempts++;
+              if (hlsRetryAttempts <= 5) {
+                console.warn(`[Player] HLS network jitter retry #${hlsRetryAttempts}...`);
+                this.showLoading(true);
+                setTimeout(() => {
+                  if (this.hls) {
+                    this.hls.startLoad();
+                  }
+                }, 1000);
+              } else if (networkRetryIndex < proxyFallbacks.length) {
+                hlsRetryAttempts = 0;
                 const nextProxyFunc = proxyFallbacks[networkRetryIndex++];
                 const fallbackUrl = nextProxyFunc(originalUrl);
-                console.log(`[Player] HLS network error. Retrying stream via proxy fallback #${networkRetryIndex}:`, fallbackUrl);
+                console.log(`[Player] Trying proxy fallback #${networkRetryIndex}:`, fallbackUrl);
                 this.currentUrl = fallbackUrl;
+                this.showLoading(true);
                 this.hls.loadSource(fallbackUrl);
                 this.hls.startLoad();
               } else {
@@ -438,10 +461,12 @@ export class IPTVPlayer {
               }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error("Fatal media error. Attempting recovery...");
+              console.warn("[Player] Fatal media error. Attempting media recovery...");
+              this.showLoading(true);
               this.hls.recoverMediaError();
               break;
             default:
+              console.error("[Player] Unrecoverable HLS error:", data.details);
               this.showError(true, `HLS Error: ${data.details || 'Unknown fatal error'}`);
               this.destroyHls();
               break;
