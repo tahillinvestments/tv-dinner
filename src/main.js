@@ -1,15 +1,15 @@
-import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, Radio } from 'lucide';
+import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, ChevronLeft, Radio, Globe } from 'lucide';
 import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
-import { PODCAST_CHANNELS, getAllPodcastChannels, getHeroPodcast, searchPodcastChannels, fetchChannelPastEpisodes } from './podcastsData';
+import { PODCAST_CHANNELS, getAllPodcastChannels, getHeroPodcast, searchPodcastChannels, searchRealPodcastAPI, fetchChannelPastEpisodes } from './podcastsData';
 import './style.css';
 
 // Initialize Lucide icons
 const iconConfig = {
   icons: {
-    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, Radio
+    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, ChevronLeft, Radio, Globe
   }
 };
 
@@ -35,9 +35,11 @@ const state = {
   selectedCategory: 'All Channels',
   searchQuery: '',
   favorites: JSON.parse(localStorage.getItem('iptv_favorites') || '[]'),
+  favoritePodcasts: JSON.parse(localStorage.getItem('iptv_favorite_podcasts') || '[]'),
   recents: JSON.parse(localStorage.getItem('iptv_recents') || '[]'),
   watchlist: JSON.parse(localStorage.getItem('vod_watchlist') || '[]'),
   currentPlayingUrl: null,
+  usOnly: JSON.parse(localStorage.getItem('iptv_us_only') ?? 'true'),
   
   // Movies & TV Spotlight / Carousel State
   trendingItems: [],
@@ -114,6 +116,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupSearch();
   setupDetailsView();
   setupSettingsScreen();
+
+  // Setup US-Only Toggle & Channel Switcher listeners
+  setupLiveChannelControls();
 
   // Render initial icons
   createIcons(iconConfig);
@@ -1001,27 +1006,47 @@ function openPodcastModal(podcast) {
 
   if (tvSelectors) tvSelectors.classList.add('hidden');
   if (titleEl) titleEl.textContent = podcast.title;
-  if (metaEl) metaEl.innerHTML = `<span class="text-slate-300 font-semibold">${podcast.channelName || 'Podcast'}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">${podcast.category || 'YouTube Video'}</span>`;
-  if (overviewEl) overviewEl.textContent = podcast.description || 'Watch top YouTube podcast episode and channel content directly inside TV DINNER.';
-  if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail})`;
+  if (metaEl) metaEl.innerHTML = `<span class="text-slate-300 font-semibold">${podcast.channelName || 'Podcast'}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">${podcast.category || (podcast.audioUrl ? 'Audio Episode' : 'YouTube Video')}</span>`;
+  if (overviewEl) overviewEl.textContent = podcast.description || 'Watch and listen to top podcast episodes directly inside TV DINNER.';
+  if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail || podcast.avatar || ''})`;
 
-  if (activeSourceName) activeSourceName.textContent = `YouTube Video (${podcast.channelName || 'Podcast'})`;
-  if (embedSourcesList) embedSourcesList.innerHTML = `<span class="px-3 py-1.5 rounded-lg bg-red-600/30 border border-red-500/40 text-red-300 text-xs font-semibold">🔴 YouTube HD Stream</span>`;
-
-  if (poster) poster.style.display = 'none';
   if (shield) shield.style.display = 'none';
-  if (videoEl) {
-    videoEl.style.display = 'none';
-    videoEl.pause();
-    videoEl.removeAttribute('src');
-  }
 
-  if (embedWrapper) embedWrapper.style.display = 'block';
-  if (embedIframe) {
-    embedIframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; web-share');
-    embedIframe.removeAttribute('referrerpolicy');
-    embedIframe.removeAttribute('sandbox');
-    embedIframe.src = `https://www.youtube.com/embed/${podcast.youtubeId}?autoplay=1`;
+  if (podcast.audioUrl) {
+    if (activeSourceName) activeSourceName.textContent = `🎙️ Audio Stream (${podcast.channelName || 'Podcast'})`;
+    if (embedSourcesList) embedSourcesList.innerHTML = `<span class="px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold">🎙️ Direct Audio Stream</span>`;
+
+    if (embedWrapper) embedWrapper.style.display = 'none';
+    if (embedIframe) embedIframe.removeAttribute('src');
+
+    if (poster) {
+      poster.src = podcast.thumbnail || podcast.avatar || '';
+      poster.style.display = 'block';
+    }
+    if (videoEl) {
+      videoEl.style.display = 'block';
+      videoEl.poster = podcast.thumbnail || podcast.avatar || '';
+      videoEl.src = podcast.audioUrl;
+      videoEl.play().catch(e => console.warn('[Player] Audio autoplay blocked:', e));
+    }
+  } else {
+    if (activeSourceName) activeSourceName.textContent = `YouTube Video (${podcast.channelName || 'Podcast'})`;
+    if (embedSourcesList) embedSourcesList.innerHTML = `<span class="px-3 py-1.5 rounded-lg bg-red-600/30 border border-red-500/40 text-red-300 text-xs font-semibold">🔴 YouTube HD Stream</span>`;
+
+    if (poster) poster.style.display = 'none';
+    if (videoEl) {
+      videoEl.style.display = 'none';
+      videoEl.pause();
+      videoEl.removeAttribute('src');
+    }
+
+    if (embedWrapper) embedWrapper.style.display = 'block';
+    if (embedIframe) {
+      embedIframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope; web-share');
+      embedIframe.removeAttribute('referrerpolicy');
+      embedIframe.removeAttribute('sandbox');
+      embedIframe.src = `https://www.youtube.com/embed/${podcast.youtubeId || 'jvqFAi7vkBc'}?autoplay=1`;
+    }
   }
 
   // Populate In-Player "More Episodes from Channel" section
@@ -1246,14 +1271,17 @@ function setupSearch() {
     });
   }
 
-  // Podcasts Search (Curated Channels, Related YouTube Channels, and Matching Episodes)
+  // Podcasts Live Search (Curated Channels, Global Real Search Channels, and Matching Episodes)
   const podcastsSearchInput = document.getElementById('podcasts-search-input');
   const podcastsSearchResultsSection = document.getElementById('podcasts-search-results-section');
   const podcastsDefaultSection = document.getElementById('podcasts-default-section');
+  let podcastsSearchDebounceTimer;
 
   if (podcastsSearchInput) {
     podcastsSearchInput.addEventListener('input', (e) => {
       const query = e.target.value.trim();
+      clearTimeout(podcastsSearchDebounceTimer);
+
       if (!query) {
         if (podcastsSearchResultsSection) podcastsSearchResultsSection.classList.add('hidden');
         if (podcastsDefaultSection) podcastsDefaultSection.classList.remove('hidden');
@@ -1267,96 +1295,121 @@ function setupSearch() {
       const heading = document.getElementById('podcasts-search-status-heading');
       const emptyState = document.getElementById('podcasts-search-empty-state');
 
-      if (heading) heading.textContent = `Podcast Search Results for "${query}"`;
-
-      const results = searchPodcastChannels(query);
-      const { curatedChannels, relatedYoutubeChannels, matchingEpisodes } = results;
-      const totalResults = (curatedChannels.length + relatedYoutubeChannels.length + matchingEpisodes.length);
-
-      if (totalResults === 0) {
-        if (grid) grid.innerHTML = '';
-        if (emptyState) emptyState.classList.remove('hidden');
-        return;
-      }
-
+      if (heading) heading.textContent = `Searching global podcast catalog for "${query}"...`;
       if (emptyState) emptyState.classList.add('hidden');
       if (grid) {
-        grid.innerHTML = '';
-
-        // 1. Curated Channels Section
-        if (curatedChannels.length > 0) {
-          const section = document.createElement('div');
-          section.className = 'space-y-3';
-          section.innerHTML = `
-            <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-2">
-              <i data-lucide="radio" class="w-4 h-4 text-red-500"></i> Top Curated Podcast Channels (${curatedChannels.length})
-            </h3>
-            <div class="carousel-list custom-scrollbar py-2"></div>
-          `;
-          const rowContainer = section.querySelector('.carousel-list');
-          renderPodcastChannelRow(curatedChannels, rowContainer);
-          grid.appendChild(section);
-        }
-
-        // 2. Related YouTube Channels Section
-        if (relatedYoutubeChannels.length > 0) {
-          const section = document.createElement('div');
-          section.className = 'space-y-3';
-          section.innerHTML = `
-            <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-2">
-              <i data-lucide="tv" class="w-4 h-4 text-red-500"></i> Best Related YouTube Channels & Creators (${relatedYoutubeChannels.length})
-            </h3>
-            <div class="carousel-list custom-scrollbar py-2"></div>
-          `;
-          const rowContainer = section.querySelector('.carousel-list');
-          renderPodcastChannelRow(relatedYoutubeChannels, rowContainer);
-          grid.appendChild(section);
-        }
-
-        // 3. Direct Matching Episodes Section
-        if (matchingEpisodes.length > 0) {
-          const section = document.createElement('div');
-          section.className = 'space-y-3';
-          section.innerHTML = `
-            <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-2">
-              <i data-lucide="film" class="w-4 h-4 text-red-500"></i> Direct Episode Matches (${matchingEpisodes.length})
-            </h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-          `;
-          const epGrid = section.querySelector('.grid');
-          matchingEpisodes.forEach(ep => {
-            const card = document.createElement('div');
-            card.className = 'bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden hover:border-red-500 cursor-pointer transition-all flex flex-col group';
-            card.innerHTML = `
-              <div class="relative aspect-video overflow-hidden">
-                <img src="${ep.thumbnail}" alt="${ep.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-                <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div class="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
-                    <i data-lucide="play" class="w-5 h-5 fill-white text-white ml-0.5"></i>
-                  </div>
-                </div>
-                <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-semibold text-white">${ep.duration || 'Video'}</span>
-              </div>
-              <div class="p-3 flex-1 flex flex-col justify-between space-y-1">
-                <span class="text-[10px] font-bold text-red-400 uppercase tracking-wider">${ep.channelName}</span>
-                <h4 class="text-xs sm:text-sm font-bold text-white line-clamp-2 leading-snug group-hover:text-red-400">${ep.title}</h4>
-                <span class="text-[11px] text-slate-400 pt-1">📅 ${ep.date || 'Recent'}</span>
-              </div>
-            `;
-            card.onclick = () => {
-              openPodcastModal({
-                ...ep,
-                channelName: ep.channelName,
-                category: ep.category
-              });
-            };
-            epGrid.appendChild(card);
-          });
-          grid.appendChild(section);
-        }
-
-        createIcons(iconConfig);
+        grid.innerHTML = `
+          <div class="flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
+            <div class="w-7 h-7 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-sm font-semibold text-slate-300">Searching millions of real podcasts & episodes...</span>
+          </div>
+        `;
       }
+
+      podcastsSearchDebounceTimer = setTimeout(async () => {
+        try {
+          const results = await searchRealPodcastAPI(query);
+          const { curatedChannels = [], realChannels = [], matchingEpisodes = [] } = results;
+          const totalResults = curatedChannels.length + realChannels.length + matchingEpisodes.length;
+
+          if (totalResults === 0) {
+            if (grid) grid.innerHTML = '';
+            if (emptyState) emptyState.classList.remove('hidden');
+            if (heading) heading.textContent = `No podcasts found for "${query}"`;
+            return;
+          }
+
+          if (emptyState) emptyState.classList.add('hidden');
+          if (heading) heading.textContent = `Podcast Search Results for "${query}" (${totalResults} matches)`;
+          if (grid) {
+            grid.innerHTML = '';
+
+            // 1. Curated Catalog Channels
+            if (curatedChannels.length > 0) {
+              const section = document.createElement('div');
+              section.className = 'space-y-3';
+              section.innerHTML = `
+                <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-2">
+                  <i data-lucide="radio" class="w-4 h-4 text-red-500"></i> Featured Catalog Shows (${curatedChannels.length})
+                </h3>
+                <div class="carousel-list custom-scrollbar py-2"></div>
+              `;
+              const rowContainer = section.querySelector('.carousel-list');
+              renderPodcastChannelRow(curatedChannels, rowContainer);
+              grid.appendChild(section);
+            }
+
+            // 2. Global Real Podcast Channels
+            if (realChannels.length > 0) {
+              const section = document.createElement('div');
+              section.className = 'space-y-3';
+              section.innerHTML = `
+                <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-2">
+                  <i data-lucide="globe" class="w-4 h-4 text-amber-500"></i> Global Podcast Channels (${realChannels.length})
+                </h3>
+                <div class="carousel-list custom-scrollbar py-2"></div>
+              `;
+              const rowContainer = section.querySelector('.carousel-list');
+              renderPodcastChannelRow(realChannels, rowContainer);
+              grid.appendChild(section);
+            }
+
+            // 3. Direct Matching Episodes
+            if (matchingEpisodes.length > 0) {
+              const section = document.createElement('div');
+              section.className = 'space-y-3';
+              section.innerHTML = `
+                <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-2">
+                  <i data-lucide="film" class="w-4 h-4 text-red-500"></i> Direct Episode Matches (${matchingEpisodes.length})
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+              `;
+              const epGrid = section.querySelector('.grid');
+              matchingEpisodes.forEach(ep => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden hover:border-red-500 cursor-pointer transition-all flex flex-col group relative';
+
+                const isAudio = !!ep.audioUrl;
+                const badgeType = isAudio ? '🎙️ Audio' : '🔴 Video';
+                const badgeColor = isAudio ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-red-500/20 text-red-300 border-red-500/30';
+
+                card.innerHTML = `
+                  <div class="relative aspect-video overflow-hidden">
+                    <img src="${ep.thumbnail}" alt="${ep.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
+                    <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div class="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
+                        <i data-lucide="play" class="w-5 h-5 fill-white text-white ml-0.5"></i>
+                      </div>
+                    </div>
+                    <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-semibold text-white">${ep.duration || 'Episode'}</span>
+                    <span class="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold border ${badgeColor}">${badgeType}</span>
+                  </div>
+                  <div class="p-3 flex-1 flex flex-col justify-between space-y-1">
+                    <span class="text-[10px] font-bold text-red-400 uppercase tracking-wider truncate">${ep.channelName}</span>
+                    <h4 class="text-xs sm:text-sm font-bold text-white line-clamp-2 leading-snug group-hover:text-red-400">${ep.title}</h4>
+                    <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                      <span>📅 ${ep.date || 'Recent'}</span>
+                    </div>
+                  </div>
+                `;
+                card.onclick = () => {
+                  openPodcastModal({
+                    ...ep,
+                    channelName: ep.channelName,
+                    category: ep.category
+                  });
+                };
+                epGrid.appendChild(card);
+              });
+              grid.appendChild(section);
+            }
+
+            createIcons(iconConfig);
+          }
+        } catch (err) {
+          console.error('Podcast live search error:', err);
+        }
+      }, 350);
     });
   }
 
@@ -1898,16 +1951,18 @@ async function openDetailsView(mediaItem) {
       const mediaKey = `movie_${mediaItem.id}`;
       state.currentVodMediaKey = mediaKey;
       state.currentVodTitle = title;
-      checkAndShowVodResumeBanner(mediaKey, title, (pos) => {
+      const hasBanner = checkAndShowVodResumeBanner(mediaKey, title, (pos) => {
         startStreamResolution({ type: 'movie', id: mediaItem.id });
       }, () => {
         startStreamResolution({ type: 'movie', id: mediaItem.id });
       });
 
-      startStreamResolution({
-        type: 'movie',
-        id: mediaItem.id
-      });
+      if (!hasBanner) {
+        startStreamResolution({
+          type: 'movie',
+          id: mediaItem.id
+        });
+      }
     } else {
       document.getElementById('sources-status').textContent = 'Select an episode below to start streaming.';
     }
@@ -1978,19 +2033,23 @@ async function loadTVEpisodes(tvId, seasonNumber) {
         state.currentVodMediaKey = mediaKey;
         state.currentVodTitle = title;
 
-        checkAndShowVodResumeBanner(mediaKey, title, (pos) => {
+        const hasBanner = checkAndShowVodResumeBanner(mediaKey, title, (pos) => {
+          document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
           startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: ep.episode_number });
         }, () => {
+          document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
           startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: ep.episode_number });
         });
 
-        document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
-        startStreamResolution({ 
-          type: 'tv', 
-          id: tvId, 
-          season: seasonNumber, 
-          episode: ep.episode_number 
-        });
+        if (!hasBanner) {
+          document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
+          startStreamResolution({ 
+            type: 'tv', 
+            id: tvId, 
+            season: seasonNumber, 
+            episode: ep.episode_number 
+          });
+        }
       });
 
       grid.appendChild(btn);
@@ -2128,6 +2187,9 @@ function selectActiveSource(index) {
   const playerErr = document.getElementById('player-error');
   if (playerErr) playerErr.classList.add('hidden');
 
+  // Start active VOD tracking timer
+  startVodPlaybackTracking();
+
   if (source.type === 'stream') {
     if (embedIframe) embedIframe.src = '';
     if (embedWrapper) embedWrapper.style.display = 'none';
@@ -2137,8 +2199,9 @@ function selectActiveSource(index) {
 
     player.playChannel({
       url: source.url,
-      name: state.selectedMedia ? (state.selectedMedia.title || state.selectedMedia.name) : 'VOD Stream'
-    });
+      name: state.selectedMedia ? (state.selectedMedia.title || state.selectedMedia.name) : 'VOD Stream',
+      mediaKey: state.currentVodMediaKey
+    }, state.resumePlaybackTime);
   } else {
     // Cleanly reset previous video frame
     if (player && typeof player.resetVideoFrame === 'function') {
@@ -2169,7 +2232,9 @@ function selectActiveSource(index) {
 
       let embedUrl = source.url;
       if (state.resumePlaybackTime && state.resumePlaybackTime > 10) {
-        embedUrl += `#t=${Math.floor(state.resumePlaybackTime)}`;
+        const t = Math.floor(state.resumePlaybackTime);
+        const sep = embedUrl.includes('?') ? '&' : '?';
+        embedUrl += `${sep}t=${t}&start=${t}&time=${t}&progress=${t}#t=${t}`;
       }
 
       setTimeout(() => {
@@ -2259,6 +2324,51 @@ function saveVodPlaybackPosition(mediaKey, seconds, duration = 0, title = '') {
   }
 }
 
+// Continuous VOD Playback Position Tracking
+function startVodPlaybackTracking() {
+  stopVodPlaybackTracking();
+  state.vodPlayStartTime = Date.now();
+
+  state.vodSaveInterval = setInterval(() => {
+    saveCurrentVodPosition();
+  }, 3000);
+}
+
+function stopVodPlaybackTracking() {
+  if (state.vodSaveInterval) {
+    clearInterval(state.vodSaveInterval);
+    state.vodSaveInterval = null;
+  }
+}
+
+function saveCurrentVodPosition() {
+  if (!state.currentVodMediaKey) return;
+  
+  const videoEl = document.getElementById('video-player');
+  let playedPos = 0;
+  let totalDur = 0;
+
+  if (videoEl && videoEl.style.display !== 'none' && videoEl.currentTime > 5) {
+    playedPos = videoEl.currentTime;
+    totalDur = videoEl.duration || 0;
+  } else if (state.vodPlayStartTime) {
+    const elapsed = (Date.now() - state.vodPlayStartTime) / 1000;
+    if (elapsed > 5) {
+      playedPos = (state.resumePlaybackTime || 0) + elapsed;
+    }
+  }
+
+  if (playedPos > 10) {
+    saveVodPlaybackPosition(state.currentVodMediaKey, playedPos, totalDur, state.currentVodTitle || 'VOD Item');
+  }
+}
+
+// Window unload & visibility listeners for saving progress
+window.addEventListener('beforeunload', () => saveCurrentVodPosition());
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) saveCurrentVodPosition();
+});
+
 // Display resume watching banner if previous position exists
 function checkAndShowVodResumeBanner(mediaKey, title, onResume, onRestart) {
   const banner = document.getElementById('vod-resume-banner');
@@ -2266,68 +2376,60 @@ function checkAndShowVodResumeBanner(mediaKey, title, onResume, onRestart) {
   const playBtn = document.getElementById('resume-play-btn');
   const restartBtn = document.getElementById('resume-restart-btn');
 
-  if (!banner) return;
-
   const saved = getVodPlaybackPosition(mediaKey);
   if (saved && saved.position > 10) {
-    banner.classList.remove('hidden');
-    if (timeText) timeText.textContent = formatPlaybackTime(saved.position);
+    if (banner) {
+      banner.classList.remove('hidden');
+      if (timeText) timeText.textContent = formatPlaybackTime(saved.position);
 
-    const newPlayBtn = playBtn.cloneNode(true);
-    const newRestartBtn = restartBtn.cloneNode(true);
-    if (playBtn.parentNode) {
-      playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
-      restartBtn.parentNode.replaceChild(newRestartBtn, restartBtn);
+      const newPlayBtn = playBtn.cloneNode(true);
+      const newRestartBtn = restartBtn.cloneNode(true);
+      if (playBtn && playBtn.parentNode) {
+        playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+        restartBtn.parentNode.replaceChild(newRestartBtn, restartBtn);
+      }
+
+      newPlayBtn.addEventListener('click', () => {
+        banner.classList.add('hidden');
+        state.resumePlaybackTime = saved.position;
+        if (player && typeof player.showToast === 'function') {
+          player.showToast(`Resuming ${title} at ${formatPlaybackTime(saved.position)}`);
+        }
+        if (typeof onResume === 'function') onResume(saved.position);
+      });
+
+      newRestartBtn.addEventListener('click', () => {
+        const data = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+        delete data[mediaKey];
+        localStorage.setItem('vod_resume_positions', JSON.stringify(data));
+        banner.classList.add('hidden');
+        state.resumePlaybackTime = 0;
+        if (player && typeof player.showToast === 'function') {
+          player.showToast("Starting from beginning");
+        }
+        if (typeof onRestart === 'function') onRestart();
+      });
     }
-
-    newPlayBtn.addEventListener('click', () => {
-      state.resumePlaybackTime = saved.position;
-      player.showToast(`Resuming ${title} at ${formatPlaybackTime(saved.position)}`);
-      if (typeof onResume === 'function') onResume(saved.position);
-    });
-
-    newRestartBtn.addEventListener('click', () => {
-      const data = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
-      delete data[mediaKey];
-      localStorage.setItem('vod_resume_positions', JSON.stringify(data));
-      banner.classList.add('hidden');
-      state.resumePlaybackTime = 0;
-      player.showToast("Starting from beginning");
-      if (typeof onRestart === 'function') onRestart();
-    });
+    return true; // Banner active, waiting for user decision
   } else {
-    banner.classList.add('hidden');
+    if (banner) banner.classList.add('hidden');
     state.resumePlaybackTime = 0;
+    return false; // No saved position, proceed
   }
 }
 
 // Close details overlay modal
 function closeDetailsView() {
+  saveCurrentVodPosition();
+  stopVodPlaybackTracking();
   closeActiveSse();
-
-  // Save current VOD position if playing
-  const videoEl = document.getElementById('video-player');
-  if (state.currentVodMediaKey) {
-    let playedPos = 0;
-    let totalDur = 0;
-    if (videoEl && videoEl.currentTime > 5) {
-      playedPos = videoEl.currentTime;
-      totalDur = videoEl.duration || 0;
-    } else if (state.vodPlayStartTime) {
-      const elapsed = (Date.now() - state.vodPlayStartTime) / 1000;
-      if (elapsed > 10) {
-        playedPos = (state.resumePlaybackTime || 0) + elapsed;
-      }
-    }
-    if (playedPos > 10) {
-      saveVodPlaybackPosition(state.currentVodMediaKey, playedPos, totalDur, state.currentVodTitle || 'VOD Item');
-      console.log(`[VOD Resume] Position ${formatPlaybackTime(playedPos)} saved for ${state.currentVodMediaKey}`);
-    }
-  }
 
   state.selectedMedia = null;
   state.resolvedSources = [];
+  state.currentVodMediaKey = null;
+  state.currentVodTitle = null;
   state.vodPlayStartTime = null;
+  state.resumePlaybackTime = 0;
 
   const embedIframe = document.getElementById('embed-iframe');
   const embedWrapper = document.getElementById('embed-player-wrapper');
@@ -2598,19 +2700,10 @@ async function loadIPTVPlaylist() {
       throw new Error("No live channels returned from your Xtream IPTV account. Please check your credentials in Settings.");
     }
     
-    // Extract category groups
-    const groups = new Set();
-    state.channels.forEach(ch => {
-      if (ch.group) groups.add(ch.group);
-    });
-    
-    state.categories = ['All Channels', 'Favorites', 'Recents', ...Array.from(groups).sort()];
+    updateCategoriesList();
     
     const countText = `${state.channels.length} Live Channels`;
     if (headerBadge) headerBadge.textContent = countText;
-    
-    const countEl = document.getElementById('filtered-count');
-    if (countEl) countEl.textContent = countText;
 
     renderCategories();
     applyFilterAndRender();
@@ -2646,6 +2739,91 @@ async function loadIPTVPlaylist() {
   }
 }
 
+// US-Only Helper functions
+function isUSCategory(cat) {
+  if (!cat) return false;
+  if (cat === 'All Channels' || cat === 'Favorites' || cat === 'Recents') return true;
+  const upper = String(cat).toUpperCase().trim();
+  return /^USA?[\s\-_|:]/i.test(upper) || upper.startsWith('US ') || upper === 'US' || upper === 'USA';
+}
+
+function isExplicitNonUSCategory(cat) {
+  if (!cat || cat === 'All Channels' || cat === 'Favorites' || cat === 'Recents') return false;
+  if (isUSCategory(cat)) return false;
+  const upper = String(cat).toUpperCase().trim();
+  const nonUsRegex = /^(UK|CA|MX|FR|DE|ES|IT|AR|BR|TR|PL|RO|RU|AL|EX-YU|GR|NL|PT|IN|PK|ARABIC|LATINO|AFRICA|GERMANY|FRANCE|ITALY|SPAIN|TURKISH|UKRAINE|POLAND|ASIA|AU|NZ)[\s\-_|:]/i;
+  return nonUsRegex.test(upper);
+}
+
+function updateCategoriesList() {
+  const groups = new Set();
+  state.channels.forEach(ch => {
+    if (ch.group) groups.add(ch.group);
+  });
+  
+  let groupList = Array.from(groups);
+
+  if (state.usOnly) {
+    // 1. Hide explicitly non-US categories
+    groupList = groupList.filter(cat => !isExplicitNonUSCategory(cat));
+
+    // 2. Put US categories in front (sorted alphabetically), followed by remaining generic categories
+    const usCats = groupList.filter(cat => isUSCategory(cat)).sort();
+    const otherCats = groupList.filter(cat => !isUSCategory(cat)).sort();
+    groupList = [...usCats, ...otherCats];
+  } else {
+    groupList.sort();
+  }
+
+  state.categories = ['All Channels', 'Favorites', 'Recents', ...groupList];
+
+  if (!state.categories.includes(state.selectedCategory)) {
+    state.selectedCategory = 'All Channels';
+  }
+}
+
+// Setup Live Channel Controls (US Only switch & Prev/Next buttons)
+function setupLiveChannelControls() {
+  const usOnlySwitch = document.getElementById('us-only-switch');
+  if (usOnlySwitch) {
+    usOnlySwitch.checked = state.usOnly;
+    usOnlySwitch.addEventListener('change', (e) => {
+      state.usOnly = e.target.checked;
+      localStorage.setItem('iptv_us_only', JSON.stringify(state.usOnly));
+      updateCategoriesList();
+      renderCategories();
+      applyFilterAndRender();
+    });
+  }
+
+  const prevBtn = document.getElementById('ch-prev-btn');
+  const nextBtn = document.getElementById('ch-next-btn');
+  if (prevBtn) prevBtn.addEventListener('click', () => changeLiveChannel(-1));
+  if (nextBtn) nextBtn.addEventListener('click', () => changeLiveChannel(1));
+
+  const quickPrev = document.getElementById('quick-prev-ch-btn');
+  const quickNext = document.getElementById('quick-next-ch-btn');
+  if (quickPrev) quickPrev.addEventListener('click', () => changeLiveChannel(-1));
+  if (quickNext) quickNext.addEventListener('click', () => changeLiveChannel(1));
+
+  // Global Keyboard Shortcuts for Live TV Channel Switching
+  document.addEventListener('keydown', (e) => {
+    if (state.activeTab !== 'live') return;
+    
+    // Ignore keypresses if user is typing in a text field or search bar
+    const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+    if (e.key === 'PageUp' || e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      changeLiveChannel(-1);
+    } else if (e.key === 'PageDown' || e.key === 'n' || e.key === 'N') {
+      e.preventDefault();
+      changeLiveChannel(1);
+    }
+  });
+}
+
 // Render categories selection in Live TV sidebar
 function renderCategories() {
   const container = document.getElementById('categories-container');
@@ -2661,7 +2839,11 @@ function renderCategories() {
     
     if (category === 'All Channels') {
       iconName = 'tv';
-      count = state.channels.length;
+      if (state.usOnly) {
+        count = state.channels.filter(ch => isUSCategory(ch.group) || /^USA?[\s\-_|:]/i.test(ch.name) || !isExplicitNonUSCategory(ch.group)).length;
+      } else {
+        count = state.channels.length;
+      }
     } else if (category === 'Favorites') {
       iconName = 'star';
       count = state.favorites.length;
@@ -2699,7 +2881,11 @@ function applyFilterAndRender() {
   let list = [];
 
   if (state.selectedCategory === 'All Channels') {
-    list = [...state.channels];
+    if (state.usOnly) {
+      list = state.channels.filter(ch => isUSCategory(ch.group) || /^USA?[\s\-_|:]/i.test(ch.name) || !isExplicitNonUSCategory(ch.group));
+    } else {
+      list = [...state.channels];
+    }
   } else if (state.selectedCategory === 'Favorites') {
     list = state.channels.filter(ch => state.favorites.includes(ch.id));
   } else if (state.selectedCategory === 'Recents') {
@@ -2710,6 +2896,12 @@ function applyFilterAndRender() {
     list = state.channels.filter(ch => ch.group === state.selectedCategory);
   }
 
+  // Filter by Search Query if present
+  if (state.searchQuery) {
+    const q = state.searchQuery.toLowerCase().trim();
+    list = list.filter(ch => ch.name.toLowerCase().includes(q) || (ch.group && ch.group.toLowerCase().includes(q)));
+  }
+
   state.filteredChannels = list;
 
   const countEl = document.getElementById('filtered-count');
@@ -2717,7 +2909,8 @@ function applyFilterAndRender() {
   
   const subtitleEl = document.getElementById('channel-list-info');
   if (subtitleEl) {
-    subtitleEl.textContent = `Showing matching results in ${state.selectedCategory}`;
+    const usSuffix = state.usOnly ? ' (US-Only)' : '';
+    subtitleEl.textContent = `Showing matching results in ${state.selectedCategory}${usSuffix}`;
   }
 
   renderChannelsGrid();

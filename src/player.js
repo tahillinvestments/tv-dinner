@@ -331,8 +331,9 @@ export class IPTVPlayer {
     }
   }
 
-  playChannel(channel) {
+  playChannel(channel, startPosition = 0) {
     this.resetVideoFrame();
+    this.currentMediaKey = channel.mediaKey || null;
     
     let rawUrl = channel.url || channel.src || '';
 
@@ -381,7 +382,11 @@ export class IPTVPlayer {
 
     // Check for saved resume position
     const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
-    const saved = resumeData[this.currentUrl];
+    const key = this.currentMediaKey || this.currentUrl;
+    const saved = resumeData[key];
+    const resumePos = (typeof startPosition === 'number' && startPosition > 0)
+      ? startPosition
+      : (saved ? saved.position : 0);
 
     let networkRetryIndex = 0;
     const originalUrl = rawTargetUrl;
@@ -419,9 +424,13 @@ export class IPTVPlayer {
         this.showLoading(false);
         this.showError(false);
 
-        if (saved && saved.position > 0) {
-          this.video.currentTime = saved.position;
-          this.showToast(`Resumed from ${this.formatTime(saved.position)}`);
+        if (resumePos && resumePos > 0) {
+          try {
+            this.video.currentTime = resumePos;
+            this.showToast(`Resumed from ${this.formatTime(resumePos)}`);
+          } catch (e) {
+            console.warn("HLS seek error:", e);
+          }
         }
 
         this.video.play().then(() => {

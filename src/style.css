@@ -1714,6 +1714,7 @@ body.body-pseudo-fullscreen {
   
   .app-main-content {
     height: calc(100vh - 68px - var(--mobile-header-height));
+    flex: none;
   }
   
   .hero-section {
@@ -1776,7 +1777,7 @@ body.body-pseudo-fullscreen {
   align-items: center;
   flex: 1;
   max-width: 320px;
-  margin: 0 1rem;
+  margin: 0;
 }
 
 .live-search-icon {
@@ -1804,6 +1805,122 @@ body.body-pseudo-fullscreen {
 .live-search-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+/* Live Header Controls & US Only Switch */
+.live-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  justify-content: flex-end;
+  max-width: 480px;
+}
+
+.us-only-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  padding: 0.3rem 0.65rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+  transition: var(--transition-smooth);
+}
+
+.us-only-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.us-only-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.us-toggle-slider {
+  width: 28px;
+  height: 16px;
+  background-color: #334155;
+  border-radius: 9999px;
+  position: relative;
+  transition: background-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.us-toggle-slider::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.us-only-toggle input:checked + .us-toggle-slider {
+  background-color: var(--accent);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.us-only-toggle input:checked + .us-toggle-slider::before {
+  transform: translateX(12px);
+}
+
+.us-only-toggle input:checked ~ .us-toggle-label {
+  color: #ffffff;
+}
+
+/* Quick Touch Overlay Prev/Next Channel Buttons */
+.quick-ch-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 15;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.player-wrapper:hover .quick-ch-btn,
+.player-wrapper.controls-active .quick-ch-btn {
+  opacity: 0.85;
+}
+
+.quick-ch-btn:hover {
+  opacity: 1 !important;
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.quick-ch-btn.prev {
+  left: 0.75rem;
+}
+
+.quick-ch-btn.next {
+  right: 0.75rem;
 }
 
 /* VOD Curation Genre Filter Chips Bar */
@@ -1930,8 +2047,9 @@ body.body-pseudo-fullscreen {
   }
 
   .live-player-container-wrapper {
-    height: 28vh !important;
-    max-height: 260px !important;
+    height: 190px !important;
+    min-height: 0 !important;
+    max-height: 200px !important;
   }
 
   .live-channels-container {
@@ -1948,8 +2066,7 @@ body.body-pseudo-fullscreen {
   }
 
   .sidebar-section-title {
-    padding: 0.4rem 0.85rem 0.15rem !important;
-    font-size: 0.675rem !important;
+    display: none !important;
   }
 
   .live-categories-nav {
@@ -1958,7 +2075,7 @@ body.body-pseudo-fullscreen {
     width: 100% !important;
     overflow-x: auto !important;
     overflow-y: hidden !important;
-    padding: 0.4rem 0.85rem 0.6rem !important;
+    padding: 0.35rem 0.6rem !important;
     gap: 0.5rem !important;
     scrollbar-width: none !important;
     -webkit-overflow-scrolling: touch !important;
@@ -1974,9 +2091,9 @@ body.body-pseudo-fullscreen {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    padding: 0.5rem 0.95rem !important;
-    min-height: 44px !important;
-    font-size: 0.825rem !important;
+    padding: 0.35rem 0.75rem !important;
+    min-height: 36px !important;
+    font-size: 0.775rem !important;
     border-radius: 9999px !important;
     background: rgba(255, 255, 255, 0.05) !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -1989,34 +2106,79 @@ body.body-pseudo-fullscreen {
   }
 
   .live-grid-scroll {
-    padding: 0.5rem 0.6rem !important;
+    padding: 0.5rem 0.6rem 0.75rem !important;
+    overflow-x: hidden !important;
   }
 
   .live-channels-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 0.5rem !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .channel-card {
-    padding: 0.55rem 0.65rem !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    padding: 0.5rem 0.55rem !important;
     min-height: 44px !important;
     border-radius: 10px !important;
-    gap: 0.5rem !important;
+    gap: 0.4rem !important;
+  }
+
+  .channel-card-info {
+    min-width: 0 !important;
+    flex: 1 !important;
+    overflow: hidden !important;
+  }
+
+  .channel-card-title, .channel-card-name {
+    font-size: 0.75rem !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    width: 100% !important;
+    display: block !important;
   }
 
   .channel-card-logo-wrap {
     width: 28px !important;
     height: 28px !important;
     border-radius: 6px !important;
+    flex-shrink: 0 !important;
   }
 
-  .channel-card-name {
-    font-size: 0.75rem !important;
-    line-height: 1.2 !important;
+  .live-channels-grid-wrap, .live-channels-container {
+    width: 100% !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
   }
 
   .live-channels-grid-header {
-    padding: 0.6rem 0.85rem !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 0.4rem 0.65rem !important;
+    gap: 0.4rem !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .live-header-controls {
+    width: 100% !important;
+    max-width: 100% !important;
+    justify-content: space-between !important;
+    gap: 0.4rem !important;
+  }
+
+  .live-search-container {
+    flex: 1 !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
   }
 }
 
