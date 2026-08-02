@@ -850,14 +850,14 @@ function renderChannelEpisodesGrid() {
 
           <div class="ep-actions">
             <button class="ep-btn-icon ep-save-btn" title="${isSaved ? 'Remove Bookmark' : 'Save Bookmark'}">
-              <i data-lucide="bookmark" class="w-3.5 h-3.5" style="fill: ${isSaved ? '#f59e0b' : 'none'}; color: ${isSaved ? '#f59e0b' : 'currentColor'};"></i>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${isSaved ? '#f59e0b' : 'none'}" stroke="${isSaved ? '#f59e0b' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
             </button>
             <button class="ep-btn-icon ep-played-btn" title="${isPlayed ? 'Mark Unplayed' : 'Mark Played'}">
-              <i data-lucide="check-circle-2" class="w-3.5 h-3.5" style="color: ${isPlayed ? '#10b981' : 'currentColor'};"></i>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${isPlayed ? '#10b981' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             </button>
             <button class="ep-btn-play ep-play-trigger">
               <span>Play</span>
-              <i data-lucide="play" class="w-3 h-3 fill-white"></i>
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             </button>
           </div>
         </div>
