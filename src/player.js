@@ -303,12 +303,31 @@ export class IPTVPlayer {
   playChannel(channel) {
     this.resetVideoFrame();
     
-    const rawUrl = channel.url || channel.src || '';
-    const activeUrl = rawUrl.includes('SAPPTV12') ? rawUrl.replace(/\/live\/SAPPTV12\/SAPPTV12\//g, '/live/SGmUC7q2U/4WM9WVsjG/') : rawUrl;
+    let rawUrl = channel.url || channel.src || '';
+    if (rawUrl.includes('SAPPTV12')) {
+      rawUrl = rawUrl.replace(/\/live\/SAPPTV12\/SAPPTV12\//g, '/live/SGmUC7q2U/4WM9WVsjG/');
+    }
+
+    // Extract underlying raw target URL if already proxied
+    let rawTargetUrl = rawUrl;
+    if (rawUrl.startsWith('/api/proxy?url=')) {
+      try {
+        rawTargetUrl = decodeURIComponent(rawUrl.substring('/api/proxy?url='.length));
+      } catch (e) {
+        rawTargetUrl = rawUrl;
+      }
+    } else if (rawUrl.includes('corsproxy') || rawUrl.includes('allorigins') || rawUrl.includes('thingproxy')) {
+      try {
+        const param = rawUrl.split('url=')[1] || rawUrl.split('fetch/')[1];
+        if (param) rawTargetUrl = decodeURIComponent(param);
+      } catch (e) {}
+    }
     
     // Automatic HTTPS Fix: Route HTTP target URLs through Vercel Edge Proxy (/api/proxy) immediately
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    const proxiedUrl = (isHttps || activeUrl.startsWith('http://')) ? `/api/proxy?url=${encodeURIComponent(activeUrl)}` : activeUrl;
+    const proxiedUrl = (isHttps || rawTargetUrl.startsWith('http://'))
+      ? `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`
+      : rawTargetUrl;
 
     this.currentUrl = proxiedUrl;
     this.channelTitle.textContent = channel.name || 'Live TV Stream';
@@ -328,26 +347,26 @@ export class IPTVPlayer {
       if (this.loading && !this.loading.classList.contains('hidden') && this.video.paused) {
         console.warn('[Player] Stream loading timed out.');
         this.showLoading(false);
-        this.showError(true, 'Stream load timed out. Direct stream may be offline or blocked by browser CORS/security.');
+        this.showError(true, 'Stream load timed out. Stream may be offline or slow to respond.');
       }
-    }, 12000);
+    }, 15000);
 
     // Check for saved resume position
     const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
     const saved = resumeData[this.currentUrl];
 
     let networkRetryIndex = 0;
-    const originalUrl = activeUrl;
+    const originalUrl = rawTargetUrl;
 
     const proxyFallbacks = [
       (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
-      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
       (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      (url) => `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(url)}`
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
     ];
 
     // Check HLS compatibility
     if (Hls.isSupported()) {
+      this.destroyHls();
       this.hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
@@ -358,11 +377,17 @@ export class IPTVPlayer {
       this.hls.attachMedia(this.video);
       
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
+        this.showLoading(false);
+
         if (saved && saved.position > 0) {
           this.video.currentTime = saved.position;
           this.showToast(`Resumed from ${this.formatTime(saved.position)}`);
         }
-        this.video.play().catch(e => {
+
+        this.video.play().then(() => {
+          this.updatePlayPauseUI(false);
+        }).catch(e => {
           console.warn("Autoplay blocked by browser policy, waiting for user interaction.", e);
           this.updatePlayPauseUI(true); // show play icon
         });
@@ -400,14 +425,20 @@ export class IPTVPlayer {
       this.video.src = this.currentUrl;
       
       this.video.addEventListener('loadedmetadata', () => {
+        if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
+        this.showLoading(false);
         if (saved && saved.position > 0) {
           this.video.currentTime = saved.position;
           this.showToast(`Resumed from ${this.formatTime(saved.position)}`);
         }
       }, { once: true });
 
-      this.video.play().catch(e => {
+      this.video.play().then(() => {
+        this.updatePlayPauseUI(false);
+      }).catch(e => {
         console.warn("Native HLS autoplay blocked", e);
+        if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
+        this.showLoading(false);
         this.updatePlayPauseUI(true);
       });
     } else {
