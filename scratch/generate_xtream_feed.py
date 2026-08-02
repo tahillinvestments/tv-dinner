@@ -32,7 +32,7 @@ if isinstance(streams, list):
         logo = s.get('stream_icon', '')
         cat_id = s.get('category_id')
         group = cat_map.get(cat_id, 'General').replace('"', "'")
-        url = f'http://portal5458.com:8080/live/SGmUC7q2U/4WM9WVsjG/{stream_id}.m3u8'
+        url = f'http://portal5458.com:8080/live/SGmUC7q2U/4WM9WVsjG/{stream_id}.ts'
         m3u_lines.append(f'#EXTINF:-1 tvg-id="" tvg-name="{name}" tvg-logo="{logo}" group-title="{group}",{name}')
         m3u_lines.append(url)
 

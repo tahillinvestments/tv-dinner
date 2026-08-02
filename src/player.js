@@ -303,16 +303,23 @@ export class IPTVPlayer {
   playChannel(channel) {
     this.resetVideoFrame();
     
-    const targetUrl = channel.url || channel.src || '';
-    this.currentUrl = targetUrl;
+    const rawUrl = channel.url || channel.src || '';
+    const activeUrl = rawUrl.includes('SAPPTV12') ? rawUrl.replace(/\/live\/SAPPTV12\/SAPPTV12\//g, '/live/SGmUC7q2U/4WM9WVsjG/') : rawUrl;
+    
+    // Automatic HTTPS Fix: Route HTTP target URLs through Vercel Edge Proxy (/api/proxy) immediately
+    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const proxiedUrl = (isHttps || activeUrl.startsWith('http://')) ? `/api/proxy?url=${encodeURIComponent(activeUrl)}` : activeUrl;
+
+    this.currentUrl = proxiedUrl;
     this.channelTitle.textContent = channel.name || 'Live TV Stream';
     
-    // Hide poster
+    // Hide poster & hide error overlay
     if (this.poster) {
       this.poster.classList.add('opacity-0', 'pointer-events-none');
     }
     
     this.showError(false);
+    if (this.error) this.error.classList.add('hidden');
     this.showLoading(true);
 
     // Safety timeout to prevent Buffering Stream... from getting stuck indefinitely
@@ -321,7 +328,7 @@ export class IPTVPlayer {
       if (this.loading && !this.loading.classList.contains('hidden') && this.video.paused) {
         console.warn('[Player] Stream loading timed out.');
         this.showLoading(false);
-        this.showError(true, 'Stream load timed out. Direct stream may be blocked by browser CORS/Mixed Content. You can add a Cloudflare Worker URL in Settings.');
+        this.showError(true, 'Stream load timed out. Direct stream may be offline or blocked by browser CORS/security.');
       }
     }, 12000);
 
@@ -330,17 +337,10 @@ export class IPTVPlayer {
     const saved = resumeData[this.currentUrl];
 
     let networkRetryIndex = 0;
-    const originalUrl = targetUrl;
-    const activeUrl = originalUrl.includes('SAPPTV12') ? originalUrl.replace(/\/live\/SAPPTV12\/SAPPTV12\//g, '/live/SGmUC7q2U/4WM9WVsjG/') : originalUrl;
-    
-    // Auto fallback to active credentials if SAPPTV12 was used
-    if (this.currentUrl.includes('SAPPTV12')) {
-      this.currentUrl = activeUrl;
-    }
+    const originalUrl = activeUrl;
 
     const proxyFallbacks = [
       (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
-      (url) => url.includes('SAPPTV12') ? url.replace(/\/live\/SAPPTV12\/SAPPTV12\//g, '/live/SGmUC7q2U/4WM9WVsjG/') : url,
       (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
       (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
       (url) => `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(url)}`
@@ -669,6 +669,8 @@ export class IPTVPlayer {
 
   resetVideoFrame() {
     this.destroyHls();
+    this.showError(false);
+    if (this.error) this.error.classList.add('hidden');
     if (this.video) {
       this.video.pause();
       this.video.removeAttribute('src');

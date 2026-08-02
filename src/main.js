@@ -1936,8 +1936,10 @@ function selectActiveSource(index) {
     videoEl.load();
   }
 
-  // Hide splash poster once we select a source and play
+  // Hide splash poster & connection error overlay once we select a source
   if (poster) poster.style.display = 'none';
+  const playerErr = document.getElementById('player-error');
+  if (playerErr) playerErr.classList.add('hidden');
 
   if (source.type === 'stream') {
     if (embedIframe) embedIframe.src = '';
@@ -2143,6 +2145,8 @@ function closeDetailsView() {
   const embedIframe = document.getElementById('embed-iframe');
   const embedWrapper = document.getElementById('embed-player-wrapper');
   const playerWrapper = document.querySelector('.player-wrapper');
+  const playerErr = document.getElementById('player-error');
+  if (playerErr) playerErr.classList.add('hidden');
 
   if (embedIframe) embedIframe.src = 'about:blank';
   if (embedWrapper) embedWrapper.style.display = 'none';
