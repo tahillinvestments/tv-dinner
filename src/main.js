@@ -685,6 +685,7 @@ async function openPodcastChannelModal(channel) {
   if (closeBtn) {
     closeBtn.onclick = () => {
       overlay.classList.add('hidden');
+      overlay.style.display = 'none';
       document.body.style.overflow = '';
     };
   }
@@ -757,6 +758,7 @@ async function openPodcastChannelModal(channel) {
   renderChannelEpisodesGrid();
 
   overlay.classList.remove('hidden');
+  overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   createIcons(iconConfig);
 }
