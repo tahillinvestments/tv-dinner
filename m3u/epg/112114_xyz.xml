@@ -60204,6 +60204,9 @@
 	<programme channel="newtv金牌综艺" start="20260802083100 +0800" stop="20260802091600 +0800">
 		<title lang="zh">23_天堑1949</title>
 	</programme>
+	<programme channel="newtv金牌综艺" start="20260802091600 +0800" stop="20260802094600 +0800">
+		<title lang="zh">超能康糖尿病治疗仪</title>
+	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
 	</channel>
