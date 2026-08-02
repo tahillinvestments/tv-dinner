@@ -16,6 +16,8 @@ export class IPTVPlayer {
     
     // Controls
     this.playPauseBtn = document.getElementById('play-pause-btn');
+    this.chPrevBtn = document.getElementById('ch-prev-btn');
+    this.chNextBtn = document.getElementById('ch-next-btn');
     this.muteBtn = document.getElementById('mute-btn');
     this.volumeSlider = document.getElementById('volume-slider');
     this.fullscreenBtn = document.getElementById('fullscreen-btn');
@@ -25,6 +27,9 @@ export class IPTVPlayer {
     this.channelTitle = document.getElementById('player-channel-title');
     this.reloadBtn = document.getElementById('reload-btn');
     this.retryBtn = document.getElementById('retry-stream-btn');
+
+    // Callback handlers
+    this.onChannelChange = options.onChannelChange || null;
 
     // Seek VOD Controls
     this.seekContainer = document.getElementById('seek-container');
@@ -42,8 +47,28 @@ export class IPTVPlayer {
 
   initEventListeners() {
     // Play/Pause toggling
-    this.playPauseBtn.addEventListener('click', () => this.togglePlay());
-    this.video.addEventListener('click', () => this.togglePlay());
+    if (this.playPauseBtn) {
+      this.playPauseBtn.addEventListener('click', () => this.togglePlay());
+    }
+    if (this.video) {
+      this.video.addEventListener('click', () => this.togglePlay());
+    }
+
+    // Channel Up / Channel Down buttons
+    if (this.chPrevBtn) {
+      this.chPrevBtn.addEventListener('click', () => {
+        if (typeof this.onChannelChange === 'function') {
+          this.onChannelChange(-1);
+        }
+      });
+    }
+    if (this.chNextBtn) {
+      this.chNextBtn.addEventListener('click', () => {
+        if (typeof this.onChannelChange === 'function') {
+          this.onChannelChange(1);
+        }
+      });
+    }
     
     // Volume & Muting
     this.muteBtn.addEventListener('click', () => this.toggleMute());
@@ -222,6 +247,12 @@ export class IPTVPlayer {
           this.video.currentTime = Math.max(0, this.video.currentTime - 10);
           this.showToast("Seeked -10s");
         }
+      } else if (key === 'pageup' || key === ']' || key === 'channelup') {
+        e.preventDefault();
+        if (typeof this.onChannelChange === 'function') this.onChannelChange(1);
+      } else if (key === 'pagedown' || key === '[' || key === 'channeldown') {
+        e.preventDefault();
+        if (typeof this.onChannelChange === 'function') this.onChannelChange(-1);
       } else if (key === 'arrowup') { // Arrow Up to increase volume
         e.preventDefault();
         const newVolume = Math.min(1, this.volume + 0.05);

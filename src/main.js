@@ -97,8 +97,10 @@ let player;
 let searchDebounceTimer;
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Init player
-  player = new IPTVPlayer('video-player');
+  // Init player with Channel Up / Channel Down handler
+  player = new IPTVPlayer('video-player', {
+    onChannelChange: (dir) => changeLiveChannel(dir)
+  });
   
   // Initially append player to live container
   const playerSection = document.getElementById('player-section');
@@ -536,6 +538,79 @@ function renderPodcastChannelRow(channels, container) {
   createIcons(iconConfig);
 }
 
+// Global state for Podcast Detail Modal & Episode filtering
+let podcastActiveTab = 'all'; // 'all', 'unplayed', 'saved'
+let podcastPlayedEpisodes = JSON.parse(localStorage.getItem('podcast_played_episodes') || '[]');
+let podcastSavedEpisodes = JSON.parse(localStorage.getItem('podcast_saved_episodes') || '[]');
+
+function toggleEpisodePlayed(epId) {
+  const idx = podcastPlayedEpisodes.indexOf(epId);
+  if (idx >= 0) {
+    podcastPlayedEpisodes.splice(idx, 1);
+  } else {
+    podcastPlayedEpisodes.push(epId);
+  }
+  localStorage.setItem('podcast_played_episodes', JSON.stringify(podcastPlayedEpisodes));
+  renderChannelEpisodesGrid();
+}
+
+function toggleEpisodeSaved(epId) {
+  const idx = podcastSavedEpisodes.indexOf(epId);
+  if (idx >= 0) {
+    podcastSavedEpisodes.splice(idx, 1);
+  } else {
+    podcastSavedEpisodes.push(epId);
+  }
+  localStorage.setItem('podcast_saved_episodes', JSON.stringify(podcastSavedEpisodes));
+  renderChannelEpisodesGrid();
+}
+
+// Channel Up (+1) and Channel Down (-1) Navigation Function for Live TV
+function changeLiveChannel(direction) {
+  const channelList = (state.filteredChannels && state.filteredChannels.length > 0) 
+    ? state.filteredChannels 
+    : (state.channels || []);
+
+  if (!channelList || channelList.length === 0) return;
+
+  let currentIndex = -1;
+  if (state.currentChannel) {
+    currentIndex = channelList.findIndex(c => c.id === state.currentChannel.id || c.name === state.currentChannel.name || c.url === state.currentChannel.url);
+  }
+
+  if (currentIndex === -1) {
+    currentIndex = 0;
+  }
+
+  let nextIndex = currentIndex + direction;
+  if (nextIndex < 0) {
+    nextIndex = channelList.length - 1;
+  } else if (nextIndex >= channelList.length) {
+    nextIndex = 0;
+  }
+
+  const targetChannel = channelList[nextIndex];
+  if (!targetChannel) return;
+
+  state.currentChannel = targetChannel;
+
+  // Highlight card in DOM grid if visible
+  const allCards = document.querySelectorAll('.channel-card');
+  allCards.forEach(c => c.classList.remove('active', 'ring-2', 'ring-red-500'));
+  const activeCard = Array.from(allCards).find(card => card.dataset.channelId === targetChannel.id);
+  if (activeCard) {
+    activeCard.classList.add('active', 'ring-2', 'ring-red-500');
+    activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  if (player && typeof player.playChannel === 'function') {
+    player.playChannel(targetChannel);
+    if (typeof player.showToast === 'function') {
+      player.showToast(`CH ${nextIndex + 1}/${channelList.length}: ${targetChannel.name}`);
+    }
+  }
+}
+
 // Open Channel Episodes View Modal (With Search, Sort & Pagination)
 async function openPodcastChannelModal(channel) {
   const overlay = document.getElementById('podcast-channel-overlay');
@@ -545,6 +620,7 @@ async function openPodcastChannelModal(channel) {
   podcastEpisodesSearchQuery = '';
   podcastEpisodesSortMode = 'newest';
   podcastEpisodesPage = 1;
+  podcastActiveTab = 'all';
 
   const avatar = document.getElementById('podcast-channel-avatar');
   const title = document.getElementById('podcast-channel-title');
@@ -553,9 +629,16 @@ async function openPodcastChannelModal(channel) {
   const subsBadge = document.getElementById('podcast-channel-subs-badge');
   const closeBtn = document.getElementById('podcast-channel-close-btn');
   const favBtn = document.getElementById('podcast-channel-favorite-btn');
+  const shareBtn = document.getElementById('podcast-channel-share-btn');
+  const playLatestBtn = document.getElementById('podcast-channel-play-latest-btn');
   const searchInput = document.getElementById('podcast-episodes-search');
   const sortSelect = document.getElementById('podcast-episodes-sort');
   const loadMoreBtn = document.getElementById('podcast-episodes-load-more');
+
+  // Tabs
+  const tabAll = document.getElementById('podcast-tab-all');
+  const tabUnplayed = document.getElementById('podcast-tab-unplayed');
+  const tabSaved = document.getElementById('podcast-tab-saved');
 
   if (avatar) avatar.src = channel.avatar;
   if (title) title.textContent = channel.channelName;
@@ -568,7 +651,13 @@ async function openPodcastChannelModal(channel) {
     const favs = state.favoritePodcasts || [];
     const isFav = favs.some(f => f.id === channel.id);
     if (favBtn) {
-      favBtn.innerHTML = `<i data-lucide="star" class="w-4 h-4" style="fill: ${isFav ? '#f59e0b' : 'none'}; color: ${isFav ? '#f59e0b' : 'currentColor'};"></i> ${isFav ? 'Favorited Channel' : 'Add to Favorites'}`;
+      if (isFav) {
+        favBtn.className = 'podcast-fav-toggle-btn flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500/20 text-amber-400 border border-amber-500/30';
+        favBtn.innerHTML = `<i data-lucide="star" class="w-4 h-4 fill-amber-400 text-amber-400"></i> Favorited Show`;
+      } else {
+        favBtn.className = 'podcast-fav-toggle-btn flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700';
+        favBtn.innerHTML = `<i data-lucide="star" class="w-4 h-4 text-slate-400"></i> Add to Favorites`;
+      }
     }
   };
   updateFavBtnUI();
@@ -577,6 +666,19 @@ async function openPodcastChannelModal(channel) {
     favBtn.onclick = () => {
       togglePodcastFavorite(channel);
       updateFavBtnUI();
+    };
+  }
+
+  if (shareBtn) {
+    shareBtn.onclick = () => {
+      const showUrl = window.location.origin + '?podcast=' + encodeURIComponent(channel.id);
+      navigator.clipboard.writeText(showUrl).then(() => {
+        if (player && typeof player.showToast === 'function') {
+          player.showToast('Show link copied to clipboard!');
+        } else {
+          alert('Show link copied to clipboard!');
+        }
+      });
     };
   }
 
@@ -589,6 +691,40 @@ async function openPodcastChannelModal(channel) {
 
   // Load and fetch channel episodes (combining static catalog + dynamic RSS feeds)
   activePodcastAllEpisodes = await fetchChannelPastEpisodes(channel);
+
+  if (playLatestBtn) {
+    playLatestBtn.onclick = () => {
+      if (activePodcastAllEpisodes && activePodcastAllEpisodes.length > 0) {
+        const ep = activePodcastAllEpisodes[0];
+        openPodcastModal({
+          ...ep,
+          channelName: channel.channelName,
+          category: channel.category,
+          thumbnail: ep.thumbnail || channel.avatar,
+          description: ep.description || channel.description
+        });
+      }
+    };
+  }
+
+  // Wire Filter Tabs
+  const setTabActive = (tabName, btnEl) => {
+    podcastActiveTab = tabName;
+    podcastEpisodesPage = 1;
+    [tabAll, tabUnplayed, tabSaved].forEach(b => {
+      if (b) {
+        b.className = 'podcast-ep-tab px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white';
+      }
+    });
+    if (btnEl) {
+      btnEl.className = 'podcast-ep-tab active px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-white bg-red-600';
+    }
+    renderChannelEpisodesGrid();
+  };
+
+  if (tabAll) tabAll.onclick = () => setTabActive('all', tabAll);
+  if (tabUnplayed) tabUnplayed.onclick = () => setTabActive('unplayed', tabUnplayed);
+  if (tabSaved) tabSaved.onclick = () => setTabActive('saved', tabSaved);
 
   // Wire search input inside modal
   if (searchInput) {
@@ -635,6 +771,13 @@ function renderChannelEpisodesGrid() {
 
   let filtered = [...activePodcastAllEpisodes];
 
+  // Apply tab filter
+  if (podcastActiveTab === 'unplayed') {
+    filtered = filtered.filter(ep => !podcastPlayedEpisodes.includes(ep.id || ep.youtubeId));
+  } else if (podcastActiveTab === 'saved') {
+    filtered = filtered.filter(ep => podcastSavedEpisodes.includes(ep.id || ep.youtubeId));
+  }
+
   // Apply episode search filter
   if (podcastEpisodesSearchQuery) {
     filtered = filtered.filter(ep =>
@@ -652,7 +795,7 @@ function renderChannelEpisodesGrid() {
     filtered.sort((a, b) => (b.duration || '').localeCompare(a.duration || ''));
   }
 
-  if (countBadge) countBadge.textContent = `${filtered.length} Past Episodes`;
+  if (countBadge) countBadge.textContent = `${filtered.length} Episodes`;
 
   const totalToShow = podcastEpisodesPage * PODCAST_EPISODES_PER_PAGE;
   const visibleEpisodes = filtered.slice(0, totalToShow);
@@ -660,52 +803,93 @@ function renderChannelEpisodesGrid() {
   grid.innerHTML = '';
   if (visibleEpisodes.length === 0) {
     grid.innerHTML = `
-      <div class="col-span-full py-8 text-center text-slate-400 bg-slate-900/40 rounded-xl border border-slate-800">
+      <div class="col-span-full py-12 text-center text-slate-400 bg-slate-900/60 rounded-2xl border border-slate-800">
         <i data-lucide="alert-circle" class="w-8 h-8 mx-auto text-slate-500 mb-2"></i>
-        <p class="text-xs font-semibold">No episodes match your search criteria.</p>
+        <p class="text-xs font-semibold text-slate-300">No episodes match your search or filter selection.</p>
+        <p class="text-[11px] text-slate-500 mt-1">Try switching tabs or clearing your search term.</p>
       </div>
     `;
     if (loadMoreWrap) loadMoreWrap.style.display = 'none';
+    createIcons(iconConfig);
     return;
   }
 
   const channelAvatar = activePodcastModalChannel ? activePodcastModalChannel.avatar : 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';
 
   visibleEpisodes.forEach(ep => {
+    const epId = ep.id || ep.youtubeId;
+    const isPlayed = podcastPlayedEpisodes.includes(epId);
+    const isSaved = podcastSavedEpisodes.includes(epId);
+
     const card = document.createElement('div');
-    card.className = 'bg-slate-900/80 border border-slate-800/80 rounded-xl overflow-hidden hover:border-red-500 transition-all cursor-pointer group flex flex-col shadow-md hover:shadow-red-950/20';
+    card.className = `bg-slate-900/90 border ${isPlayed ? 'border-slate-850 opacity-80' : 'border-slate-800'} rounded-2xl overflow-hidden hover:border-red-500 transition-all group flex flex-col shadow-lg hover:shadow-red-950/30 relative`;
     const thumbUrl = ep.thumbnail || channelAvatar;
 
     card.innerHTML = `
-      <div class="relative aspect-video overflow-hidden bg-slate-950">
+      <div class="relative aspect-video overflow-hidden bg-slate-950 ep-play-trigger cursor-pointer">
         <img src="${thumbUrl}" alt="${ep.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" onerror="this.onerror=null; this.src='${channelAvatar}';">
         <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <div class="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
+          <div class="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
             <i data-lucide="play" class="w-6 h-6 fill-white text-white ml-0.5"></i>
           </div>
         </div>
-        <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-semibold text-white border border-white/10">${ep.duration || 'Video'}</span>
-        <span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600/90 text-[10px] font-bold text-white uppercase tracking-wider">HD 🔴</span>
+        <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/80 text-[10px] font-bold text-white border border-white/10 backdrop-blur-sm">${ep.duration || 'Video'}</span>
+        ${isPlayed ? '<span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-emerald-600/90 text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i> PLAYED</span>' : '<span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600/90 text-[10px] font-bold text-white uppercase tracking-wider">HD 🔴</span>'}
       </div>
-      <div class="p-3 flex-1 flex flex-col justify-between space-y-2">
-        <h4 class="text-xs sm:text-sm font-bold text-white line-clamp-2 leading-snug group-hover:text-red-400 transition-colors">${ep.title}</h4>
-        <p class="text-[11px] text-slate-400 line-clamp-2">${ep.description || 'Full podcast episode video conversation.'}</p>
-        <div class="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-slate-800/60">
-          <span class="text-[11px] text-slate-400">📅 ${ep.date || ep.year || 'Past'}</span>
-          <span class="text-red-400 font-bold text-[11px] flex items-center gap-1">Watch Now <i data-lucide="chevron-right" class="w-3 h-3"></i></span>
+
+      <div class="p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
+        <div>
+          <h4 class="text-xs sm:text-sm font-bold text-white line-clamp-2 leading-snug group-hover:text-red-400 transition-colors ep-play-trigger cursor-pointer">${ep.title}</h4>
+          <p class="text-[11px] text-slate-400 line-clamp-2 mt-1 leading-relaxed">${ep.description || 'Full podcast episode video conversation.'}</p>
+        </div>
+
+        <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-xs">
+          <span class="text-[11px] text-slate-400 font-medium">📅 ${ep.date || ep.year || 'Past'}</span>
+
+          <div class="flex items-center gap-1">
+            <button class="ep-save-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" title="${isSaved ? 'Remove Bookmark' : 'Save Bookmark'}">
+              <i data-lucide="bookmark" class="w-3.5 h-3.5" style="fill: ${isSaved ? '#f59e0b' : 'none'}; color: ${isSaved ? '#f59e0b' : 'currentColor'};"></i>
+            </button>
+            <button class="ep-played-btn p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" title="${isPlayed ? 'Mark Unplayed' : 'Mark Played'}">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5" style="color: ${isPlayed ? '#10b981' : 'currentColor'};"></i>
+            </button>
+            <button class="ep-play-trigger px-2.5 py-1 rounded-lg bg-red-600/90 hover:bg-red-500 text-white font-bold text-[11px] flex items-center gap-1 transition-all">
+              Play <i data-lucide="play" class="w-3 h-3 fill-white"></i>
+            </button>
+          </div>
         </div>
       </div>
     `;
 
-    card.addEventListener('click', () => {
-      openPodcastModal({
-        ...ep,
-        channelName: activePodcastModalChannel.channelName,
-        category: activePodcastModalChannel.category,
-        thumbnail: ep.thumbnail || channelAvatar,
-        description: ep.description || activePodcastModalChannel.description
+    // Click triggers
+    const triggers = card.querySelectorAll('.ep-play-trigger');
+    triggers.forEach(t => {
+      t.addEventListener('click', () => {
+        openPodcastModal({
+          ...ep,
+          channelName: activePodcastModalChannel.channelName,
+          category: activePodcastModalChannel.category,
+          thumbnail: ep.thumbnail || channelAvatar,
+          description: ep.description || activePodcastModalChannel.description
+        });
       });
     });
+
+    const saveBtn = card.querySelector('.ep-save-btn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleEpisodeSaved(epId);
+      });
+    }
+
+    const playedBtn = card.querySelector('.ep-played-btn');
+    if (playedBtn) {
+      playedBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleEpisodePlayed(epId);
+      });
+    }
 
     grid.appendChild(card);
   });
