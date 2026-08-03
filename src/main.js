@@ -3146,16 +3146,11 @@ function getProxyUrl(targetUrl) {
     return `${customProxy}${glue}${encodeURIComponent(targetUrl)}`;
   }
 
-  // If target URL is already HTTPS, fetch directly to avoid Vercel Fast Origin Transfer
-  if (targetUrl.startsWith('https://')) {
-    return targetUrl;
-  }
-
-  // Automatic Production HTTPS Fix: Route HTTP target URLs through proxy when page is on HTTPS (mixed content fix)
   const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
   const isHttpTarget = targetUrl.startsWith('http://');
+  const isIptv = targetUrl.includes('portal5458') || targetUrl.includes('.m3u8') || targetUrl.includes('.m3u') || targetUrl.includes('/live/') || targetUrl.includes('player_api.php');
 
-  if (isHttpsPage && isHttpTarget) {
+  if (isIptv || (isHttpsPage && isHttpTarget)) {
     return `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
   }
 

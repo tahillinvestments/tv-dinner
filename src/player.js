@@ -358,16 +358,17 @@ export class IPTVPlayer {
       } catch (e) {}
     }
     
-    // Automatic HTTPS Fix: Route HTTP target URLs through proxy when on HTTPS page or when custom proxy is defined
+    // Automatic HTTPS Fix & IPTV Proxying: Route IPTV/HTTP streams through proxy
     const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const isHttpTarget = rawTargetUrl.startsWith('http://');
+    const isIptvStream = rawTargetUrl.includes('portal5458') || rawTargetUrl.includes('.m3u8') || rawTargetUrl.includes('.m3u') || rawTargetUrl.includes('/live/') || rawTargetUrl.includes('player_api.php');
 
     let proxiedUrl = rawTargetUrl;
     if (customProxy) {
       const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
       proxiedUrl = `${customProxy}${glue}${encodeURIComponent(rawTargetUrl)}`;
-    } else if (isHttps && isHttpTarget) {
+    } else if (isIptvStream || (isHttps && isHttpTarget)) {
       proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
     }
 
@@ -417,10 +418,10 @@ export class IPTVPlayer {
           const glue = cp.includes('?') ? (cp.endsWith('?') || cp.endsWith('&') ? '' : '&') : '?url=';
           return `${cp}${glue}${encodeURIComponent(url)}`;
         }
-        return `https://corsproxy.io/?${encodeURIComponent(url)}`;
+        return `/api/proxy?url=${encodeURIComponent(url)}`;
       },
-      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-      (url) => `/api/proxy?url=${encodeURIComponent(url)}`
+      (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
+      (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
     ];
 
     // Check HLS compatibility
