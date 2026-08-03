@@ -316,7 +316,7 @@ export function getHeroPodcast() {
   };
 }
 
-// Search podcasts (Returns Curated Channels, Live Real YouTube Video Podcast Channels, and Matching Video Episodes)
+// Search podcasts (Returns Curated Channels, Live Real YouTube Video Podcast Channels, iTunes Channels, and Matching Video Episodes)
 export async function searchRealPodcastAPI(query) {
   if (!query || query.trim() === '') {
     return {
@@ -327,9 +327,10 @@ export async function searchRealPodcastAPI(query) {
   }
 
   const q = query.toLowerCase().trim();
+  const term = encodeURIComponent(query.trim());
   const allChannels = getAllPodcastChannels();
 
-  // 1. Curated channel matches
+  // 1. Curated local catalog channel matches
   const curatedMatches = allChannels.filter(c =>
     c.channelName.toLowerCase().includes(q) ||
     (c.host && c.host.toLowerCase().includes(q)) ||
@@ -340,25 +341,78 @@ export async function searchRealPodcastAPI(query) {
   let realChannels = [];
   let apiMatchingEpisodes = [];
 
-  // 2. Pure YouTube Video Podcast Search (Multi-instance failover)
-  const term = encodeURIComponent(query.trim());
-  const searchUrls = [
-    `https://inv.tux.pizza/api/v1/search?q=${term}+podcast&type=video`,
-    `https://invidious.nerdvpn.de/api/v1/search?q=${term}+podcast&type=video`,
-    `https://vid.puffyan.us/api/v1/search?q=${term}+podcast&type=video`
+  // 2. Parallel Global Search via Apple iTunes Podcast API + YouTube Search Instances
+  const itunesChannelsUrl = `https://itunes.apple.com/search?term=${term}&media=podcast&limit=15`;
+  const itunesEpisodesUrl = `https://itunes.apple.com/search?term=${term}&media=podcast&entity=podcastEpisode&limit=15`;
+  const invidiousInstances = [
+    `https://invidious.flokinet.to/api/v1/search?q=${term}&type=video`,
+    `https://inv.zoomerville.com/api/v1/search?q=${term}&type=video`,
+    `https://inv.nadeko.net/api/v1/search?q=${term}&type=video`,
+    `https://inv.tux.pizza/api/v1/search?q=${term}+podcast&type=video`
   ];
 
-  for (const sUrl of searchUrls) {
+  try {
+    const [itChanRes, itEpRes] = await Promise.allSettled([
+      fetchWithTimeout(itunesChannelsUrl, {}, 3000).then(r => r.ok ? r.json() : null),
+      fetchWithTimeout(itunesEpisodesUrl, {}, 3000).then(r => r.ok ? r.json() : null)
+    ]);
+
+    // Parse iTunes Channels
+    if (itChanRes.status === 'fulfilled' && itChanRes.value && Array.isArray(itChanRes.value.results)) {
+      itChanRes.value.results.forEach(c => {
+        if (c.collectionName) {
+          realChannels.push({
+            id: `chan_it_${c.collectionId}`,
+            channelName: c.collectionName,
+            host: c.artistName || 'Podcast Host',
+            category: c.primaryGenreName || 'Podcast',
+            subscribers: 'Apple Podcast',
+            avatar: c.artworkUrl600 || c.artworkUrl100,
+            description: `Official podcast channel by ${c.artistName || c.collectionName}.`,
+            feedUrl: c.feedUrl,
+            isExternal: true
+          });
+        }
+      });
+    }
+
+    // Parse iTunes Episodes
+    if (itEpRes.status === 'fulfilled' && itEpRes.value && Array.isArray(itEpRes.value.results)) {
+      itEpRes.value.results.forEach(ep => {
+        if (ep.trackName) {
+          apiMatchingEpisodes.push({
+            id: `ep_it_${ep.trackId}`,
+            title: ep.trackName,
+            channelName: ep.collectionName || 'Podcast',
+            host: ep.artistName || 'Host',
+            category: ep.primaryGenreName || 'Podcast',
+            date: ep.releaseDate ? new Date(ep.releaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent',
+            year: ep.releaseDate ? new Date(ep.releaseDate).getFullYear() : 2026,
+            duration: ep.trackTimeMillis ? `${Math.round(ep.trackTimeMillis / 60000)}m` : 'Podcast',
+            thumbnail: ep.artworkUrl600 || ep.artworkUrl160,
+            description: `Listen to full episode from ${ep.collectionName || ep.artistName}.`,
+            audioUrl: ep.previewUrl,
+            isExternal: true
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('[Podcasts] iTunes search fetch error:', err);
+  }
+
+  // 3. Query Live Working YouTube Instances for Video Podcasts
+  for (const sUrl of invidiousInstances) {
     try {
-      const res = await fetchWithTimeout(sUrl, {}, 3000);
+      const res = await fetchWithTimeout(sUrl, {}, 2500);
       if (res.ok) {
         const data = await res.json();
-        if (data && Array.isArray(data) && data.length > 0) {
-          apiMatchingEpisodes = data.slice(0, 25).map(item => ({
+        if (Array.isArray(data) && data.length > 0) {
+          const ytEps = data.slice(0, 20).map(item => ({
             id: `ep_yt_${item.videoId}`,
             title: item.title,
             youtubeId: item.videoId,
-            channelName: item.author || 'Video Podcast',
+            channelName: item.author || 'YouTube Video Podcast',
             host: item.author || 'Host',
             category: 'Video Podcast',
             date: 'Recent',
@@ -369,6 +423,7 @@ export async function searchRealPodcastAPI(query) {
             isExternal: true
           }));
 
+          // Add unique YouTube Channels
           const channelMap = new Map();
           data.forEach(item => {
             if (item.author && item.authorId && !channelMap.has(item.authorId)) {
@@ -385,18 +440,29 @@ export async function searchRealPodcastAPI(query) {
               });
             }
           });
-          realChannels = Array.from(channelMap.values());
-          break; // Stop loop once successful
+
+          realChannels = [...realChannels, ...Array.from(channelMap.values())];
+          apiMatchingEpisodes = [...ytEps, ...apiMatchingEpisodes];
+          break; // Stop after first successful working YouTube instance
         }
       }
     } catch (err) {
-      console.warn('[Podcasts] YouTube video search failover:', sUrl);
+      console.warn('[Podcasts] YouTube search failover:', sUrl);
     }
   }
 
+  // Deduplicate channels by name
+  const seenNames = new Set();
+  const uniqueRealChannels = realChannels.filter(c => {
+    const key = (c.channelName || '').toLowerCase().trim();
+    if (seenNames.has(key)) return false;
+    seenNames.add(key);
+    return true;
+  });
+
   return {
     curatedChannels: curatedMatches,
-    realChannels: realChannels,
+    realChannels: uniqueRealChannels,
     matchingEpisodes: apiMatchingEpisodes
   };
 }
