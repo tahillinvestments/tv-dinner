@@ -16,6 +16,10 @@ function rewriteM3U8(m3uText, finalUrl, proxyOrigin) {
     if (!trimmed || trimmed.startsWith('#')) return line;
     try {
       const absolute = new URL(trimmed, base).href;
+      // Do not proxy HTTPS segments through Vercel to save Fast Origin Transfer bandwidth
+      if (absolute.startsWith('https://')) {
+        return absolute;
+      }
       return `${proxyOrigin}?url=${encodeURIComponent(absolute)}`;
     } catch {
       return line;

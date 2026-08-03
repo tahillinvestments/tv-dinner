@@ -358,11 +358,18 @@ export class IPTVPlayer {
       } catch (e) {}
     }
     
-    // Automatic HTTPS Fix: Route HTTP target URLs through Vercel Edge Proxy (/api/proxy) immediately
+    // Automatic HTTPS Fix: Route HTTP target URLs through proxy when on HTTPS page or when custom proxy is defined
+    const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    const proxiedUrl = (isHttps || rawTargetUrl.startsWith('http://'))
-      ? `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`
-      : rawTargetUrl;
+    const isHttpTarget = rawTargetUrl.startsWith('http://');
+
+    let proxiedUrl = rawTargetUrl;
+    if (customProxy) {
+      const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
+      proxiedUrl = `${customProxy}${glue}${encodeURIComponent(rawTargetUrl)}`;
+    } else if (isHttps && isHttpTarget) {
+      proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
+    }
 
     this.currentUrl = proxiedUrl;
     this.channelTitle.textContent = channel.name || 'Live TV Stream';
@@ -404,9 +411,16 @@ export class IPTVPlayer {
     const originalUrl = rawTargetUrl;
 
     const proxyFallbacks = [
-      (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
-      (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+      (url) => {
+        const cp = (localStorage.getItem('external_proxy_url') || '').trim();
+        if (cp) {
+          const glue = cp.includes('?') ? (cp.endsWith('?') || cp.endsWith('&') ? '' : '&') : '?url=';
+          return `${cp}${glue}${encodeURIComponent(url)}`;
+        }
+        return `https://corsproxy.io/?${encodeURIComponent(url)}`;
+      },
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url) => `/api/proxy?url=${encodeURIComponent(url)}`
     ];
 
     // Check HLS compatibility

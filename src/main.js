@@ -3139,19 +3139,23 @@ function closeDetailsView() {
 // Helper to construct proxy URL (Direct when HTTP page, or Vercel Edge / Custom Proxy when on HTTPS / Production)
 function getProxyUrl(targetUrl) {
   if (!targetUrl) return '';
-  const mode = localStorage.getItem('proxy_mode') || 'direct';
   const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
 
-  if (mode === 'external' && customProxy) {
+  if (customProxy) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
     return `${customProxy}${glue}${encodeURIComponent(targetUrl)}`;
   }
 
-  // Automatic Production HTTPS Fix: Route HTTP target URLs through Vercel Edge Proxy (/api/proxy)
+  // If target URL is already HTTPS, fetch directly to avoid Vercel Fast Origin Transfer
+  if (targetUrl.startsWith('https://')) {
+    return targetUrl;
+  }
+
+  // Automatic Production HTTPS Fix: Route HTTP target URLs through proxy when page is on HTTPS (mixed content fix)
   const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
   const isHttpTarget = targetUrl.startsWith('http://');
 
-  if (isHttpsPage || isHttpTarget) {
+  if (isHttpsPage && isHttpTarget) {
     return `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
   }
 
