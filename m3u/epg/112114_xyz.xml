@@ -50082,6 +50082,9 @@
 	<programme channel="newtv超级体育" start="20260803090000 +0800" stop="20260803103000 +0800">
 		<title lang="zh">实况录像-2026世界杯 1/4决赛 法国队-摩洛哥队</title>
 	</programme>
+	<programme channel="newtv超级体育" start="20260803103000 +0800" stop="20260803120000 +0800">
+		<title lang="zh">实况录像-2026年世界男排联赛总决赛 半决赛 2</title>
+	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
 	</channel>
@@ -50747,6 +50750,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260803095200 +0800" stop="20260803102700 +0800">
 		<title lang="zh">澳柯玛语音智能空气循环扇-渠道（右）</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260803102700 +0800" stop="20260803111200 +0800">
+		<title lang="zh">29_天堑1949</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
