@@ -14322,6 +14322,9 @@
 	<programme channel="咪咕综合体育" start="20260803224000 +0800" stop="20260803224500 +0800">
 		<title lang="zh">频道宣传</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20260803224500 +0800" stop="20260803000000 +0800">
+		<title lang="zh">网球世界-2026澳大利亚网球公开赛 女单决赛 萨巴伦卡-莱巴金娜</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>
