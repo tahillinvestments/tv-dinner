@@ -208,7 +208,7 @@ Schedule: ${c.map(p=>Ve(p))} pos: ${this.timelinePos}`),d.length&&this.log(`Remo
             <img src="${m.thumbnail||m.channelAvatar||""}" class="w-10 h-10 rounded-lg object-cover flex-shrink-0" onerror="this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
             <div class="overflow-hidden">
               <h4 class="text-xs font-bold text-white truncate">${m.title}</h4>
-              <p class="text-[11px] text-red-400 font-semibold truncate">${m.channelName||"Podcast Episode"}</p>
+              <p class="text-[11px] text-red-400 font-semibold truncate flex items-center gap-1.5"><span>${m.channelName||"Podcast Episode"}</span> <span class="text-slate-400 font-normal">• 📅 ${m.date||m.year||"Recent"}</span></p>
             </div>
           </div>
           <button class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1">
@@ -262,6 +262,7 @@ Schedule: ${c.map(p=>Ve(p))} pos: ${this.timelinePos}`),d.length&&this.log(`Remo
           </div>
         </div>
         <span class="ep-duration-badge">${o.duration||"Video"}</span>
+        <span class="ep-date-badge">📅 ${o.date||o.year||"Recent"}</span>
         ${l?'<span class="ep-status-badge played">✓ PLAYED</span>':'<span class="ep-status-badge hd">HD 🔴</span>'}
       </div>
 
@@ -272,7 +273,7 @@ Schedule: ${c.map(p=>Ve(p))} pos: ${this.timelinePos}`),d.length&&this.log(`Remo
         </div>
 
         <div class="ep-footer">
-          <span class="ep-date">📅 ${o.date||o.year||"Past"}</span>
+          <span class="ep-date">📅 Published ${o.date||o.year||"Recent"}</span>
 
           <div class="ep-actions">
             <button class="ep-btn-icon ep-save-btn" title="${d?"Remove Bookmark":"Save Bookmark"}">
