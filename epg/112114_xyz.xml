@@ -48780,6 +48780,9 @@
 	<programme channel="newtv超级体育" start="20260803070000 +0800" stop="20260803080300 +0800">
 		<title lang="zh">体坛晨报</title>
 	</programme>
+	<programme channel="newtv超级体育" start="20260803080300 +0800" stop="20260803090000 +0800">
+		<title lang="zh">实况录像-2026年赛艇世界杯 保加利亚 普罗夫迪夫站</title>
+	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
 	</channel>
@@ -49418,6 +49421,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260803070700 +0800" stop="20260803075200 +0800">
 		<title lang="zh">博可麦记麦绿素片-渠道（右）</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260803075200 +0800" stop="20260803083700 +0800">
+		<title lang="zh">27_天堑1949</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
