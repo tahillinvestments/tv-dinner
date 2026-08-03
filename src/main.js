@@ -3136,10 +3136,12 @@ function closeDetailsView() {
   }
 }
 
+const DEFAULT_CLOUDFLARE_WORKER_PROXY = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+
 // Helper to construct proxy URL (Direct when HTTP page, or Vercel Edge / Custom Proxy when on HTTPS / Production)
 function getProxyUrl(targetUrl) {
   if (!targetUrl) return '';
-  const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
+  const customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_CLOUDFLARE_WORKER_PROXY).trim();
 
   if (customProxy) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
@@ -3163,6 +3165,7 @@ function setupSettingsScreen() {
   const sandboxInput = document.getElementById('settings-strict-sandbox');
   const usernameInput = document.getElementById('settings-iptv-username');
   const passwordInput = document.getElementById('settings-iptv-password');
+  const proxyInput = document.getElementById('settings-custom-proxy');
   const saveBtn = document.getElementById('settings-save-btn');
 
   // Populate inputs on load
@@ -3170,6 +3173,7 @@ function setupSettingsScreen() {
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
   if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SAPPTV12';
   if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || 'REMOTE6202';
+  if (proxyInput) proxyInput.value = localStorage.getItem('external_proxy_url') || DEFAULT_CLOUDFLARE_WORKER_PROXY;
 
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
@@ -3184,20 +3188,23 @@ function setupSettingsScreen() {
 
       const oldUsername = localStorage.getItem('iptv_username');
       const oldPassword = localStorage.getItem('iptv_password');
+      const oldProxy = localStorage.getItem('external_proxy_url');
 
-      const newUsername = usernameInput.value.trim();
-      const newPassword = passwordInput.value.trim();
+      const newUsername = usernameInput ? usernameInput.value.trim() : 'SAPPTV12';
+      const newPassword = passwordInput ? passwordInput.value.trim() : 'REMOTE6202';
+      const newProxy = proxyInput ? proxyInput.value.trim() : DEFAULT_CLOUDFLARE_WORKER_PROXY;
 
       localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
       localStorage.setItem('iptv_username', newUsername);
       localStorage.setItem('iptv_password', newPassword);
+      localStorage.setItem('external_proxy_url', newProxy);
       localStorage.setItem('iptv_epg', `http://portal5458.com:8080/xmltv.php?username=${newUsername}&password=${newPassword}`);
 
       player.showToast("Settings Saved Successfully");
 
-      // Reload IPTV channels if credentials changed
-      if (newUsername !== oldUsername || newPassword !== oldPassword) {
-        console.log("[IPTV] Credentials changed, reloading channels...");
+      // Reload IPTV channels if credentials or proxy changed
+      if (newUsername !== oldUsername || newPassword !== oldPassword || newProxy !== oldProxy) {
+        console.log("[IPTV] Settings/Proxy changed, reloading channels...");
         loadIPTVPlaylist();
       }
     });

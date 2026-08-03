@@ -358,8 +358,9 @@ export class IPTVPlayer {
       } catch (e) {}
     }
     
-    // Automatic HTTPS Fix & IPTV Proxying: Route IPTV/HTTP streams through proxy
-    const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
+    // Automatic HTTPS Fix & IPTV Proxying: Route IPTV/HTTP streams through Cloudflare Worker or fallback proxy
+    const DEFAULT_CLOUDFLARE_WORKER_PROXY = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+    const customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_CLOUDFLARE_WORKER_PROXY).trim();
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const isHttpTarget = rawTargetUrl.startsWith('http://');
     const isIptvStream = rawTargetUrl.includes('portal5458') || rawTargetUrl.includes('.m3u8') || rawTargetUrl.includes('.m3u') || rawTargetUrl.includes('/live/') || rawTargetUrl.includes('player_api.php');
@@ -413,7 +414,7 @@ export class IPTVPlayer {
 
     const proxyFallbacks = [
       (url) => {
-        const cp = (localStorage.getItem('external_proxy_url') || '').trim();
+        const cp = (localStorage.getItem('external_proxy_url') || DEFAULT_CLOUDFLARE_WORKER_PROXY).trim();
         if (cp) {
           const glue = cp.includes('?') ? (cp.endsWith('?') || cp.endsWith('&') ? '' : '&') : '?url=';
           return `${cp}${glue}${encodeURIComponent(url)}`;
