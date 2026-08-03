@@ -405,6 +405,7 @@ const PODCAST_EPISODES_PER_PAGE = 9;
 // ==========================================================================
 let pocketcastsState = {
   subscribedShowIds: JSON.parse(localStorage.getItem('pocketcasts_subscribed_ids') || '[]'),
+  subscribedShows: JSON.parse(localStorage.getItem('pocketcasts_subscribed_shows') || '[]'),
   queue: JSON.parse(localStorage.getItem('pocketcasts_queue') || '[]'),
   history: JSON.parse(localStorage.getItem('pocketcasts_history') || '[]'),
   currentView: 'discover',
@@ -630,8 +631,16 @@ function renderPocketCastsSubscribed() {
 
   if (!grid) return;
 
-  const allChannels = getAllPodcastChannels();
-  const subscribedChannels = allChannels.filter(c => pocketcastsState.subscribedShowIds.includes(c.id));
+  // Combine curated channels with all dynamically saved subscribed show objects
+  const allCurated = getAllPodcastChannels();
+  const showMap = new Map();
+
+  allCurated.forEach(c => { if (c && c.id) showMap.set(c.id, c); });
+  (pocketcastsState.subscribedShows || []).forEach(c => { if (c && c.id) showMap.set(c.id, c); });
+
+  const subscribedChannels = pocketcastsState.subscribedShowIds
+    .map(id => showMap.get(id))
+    .filter(Boolean);
 
   if (countText) countText.textContent = `${subscribedChannels.length} Shows`;
 
@@ -661,10 +670,11 @@ function createPocketCastsShowCard(channel, isSubscribedView = false) {
   card.className = 'podcast-show-card';
   const isSubscribed = pocketcastsState.subscribedShowIds.includes(channel.id);
   const epCount = channel.episodes ? channel.episodes.length : 12;
+  const avatarUrl = channel.avatar || channel.thumbnail || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';
 
   card.innerHTML = `
     <div class="podcast-show-thumb-wrap">
-      <img src="${channel.avatar}" alt="${channel.channelName}" class="podcast-show-thumb" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
+      <img src="${avatarUrl}" alt="${channel.channelName}" class="podcast-show-thumb" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
       ${isSubscribed ? `<span class="podcast-show-unplayed-badge">${epCount} eps</span>` : ''}
     </div>
     <div class="podcast-show-info">
@@ -694,13 +704,20 @@ function createPocketCastsShowCard(channel, isSubscribedView = false) {
 }
 
 function togglePodcastSubscription(channel) {
+  if (!channel || !channel.id) return;
   const idx = pocketcastsState.subscribedShowIds.indexOf(channel.id);
   if (idx >= 0) {
     pocketcastsState.subscribedShowIds.splice(idx, 1);
+    pocketcastsState.subscribedShows = (pocketcastsState.subscribedShows || []).filter(s => s.id !== channel.id);
   } else {
     pocketcastsState.subscribedShowIds.push(channel.id);
+    if (!pocketcastsState.subscribedShows) pocketcastsState.subscribedShows = [];
+    if (!pocketcastsState.subscribedShows.some(s => s.id === channel.id)) {
+      pocketcastsState.subscribedShows.push(channel);
+    }
   }
   localStorage.setItem('pocketcasts_subscribed_ids', JSON.stringify(pocketcastsState.subscribedShowIds));
+  localStorage.setItem('pocketcasts_subscribed_shows', JSON.stringify(pocketcastsState.subscribedShows));
   updatePocketCastsBadges();
   if (pocketcastsState.currentView === 'subscribed') renderPocketCastsSubscribed();
   else if (pocketcastsState.currentView === 'discover') renderPocketCastsDiscover();
@@ -1584,34 +1601,67 @@ async function openPodcastModal(podcast) {
   const shield = document.getElementById('embed-shield');
 
   if (titleEl) titleEl.textContent = podcast.title;
-  const ytId = podcast.youtubeId || 'jvqFAi7vkBc';
-  const ytFallbackBtn = `
-    <a href="https://www.youtube.com/watch?v=${ytId}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md ml-2">
+
+  const ytFallbackBtn = podcast.youtubeId ? `
+    <a href="https://www.youtube.com/watch?v=${podcast.youtubeId}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition-all shadow-md ml-2">
       <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
       <span>Watch on YouTube</span>
     </a>
-  `;
+  ` : '';
 
-  if (metaEl) metaEl.innerHTML = `<span class="text-slate-300 font-semibold">${podcast.channelName || 'Video Podcast'}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">🔴 HD Video Episode</span>${ytFallbackBtn}`;
-  if (overviewEl) overviewEl.textContent = podcast.description || 'Watch top video podcast episodes directly inside TV DINNER.';
+  const mediaTag = podcast.youtubeId ? '🔴 HD Video Episode' : '🎙️ Audio Episode';
+  if (metaEl) metaEl.innerHTML = `<span class="text-slate-300 font-semibold">${podcast.channelName || 'Podcast'}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">${mediaTag}</span>${ytFallbackBtn}`;
+  if (overviewEl) overviewEl.textContent = podcast.description || 'Watch and listen to top podcast episodes directly inside TV DINNER.';
   if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail || podcast.avatar || ''})`;
 
   if (shield) shield.style.display = 'none';
-  if (poster) poster.style.display = 'none';
 
-  if (videoEl) {
-    videoEl.style.display = 'none';
-    videoEl.pause();
-    videoEl.removeAttribute('src');
-  }
+  if (podcast.youtubeId) {
+    if (poster) poster.style.display = 'none';
+    if (videoEl) {
+      videoEl.style.display = 'none';
+      videoEl.pause();
+      videoEl.removeAttribute('src');
+    }
+    if (embedWrapper) embedWrapper.style.display = 'block';
+    if (embedIframe) {
+      const origin = encodeURIComponent(window.location.origin);
+      embedIframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+      embedIframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+      embedIframe.src = `https://www.youtube.com/embed/${podcast.youtubeId}?autoplay=1&enablejsapi=1&origin=${origin}&rel=0`;
+    }
+  } else if (podcast.audioUrl) {
+    if (embedWrapper) embedWrapper.style.display = 'none';
+    if (embedIframe) embedIframe.removeAttribute('src');
 
-  // Force HD Video Player embed
-  if (embedWrapper) embedWrapper.style.display = 'block';
-  if (embedIframe) {
-    const origin = encodeURIComponent(window.location.origin);
-    embedIframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
-    embedIframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-    embedIframe.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&enablejsapi=1&origin=${origin}&rel=0`;
+    if (poster) {
+      poster.src = podcast.thumbnail || podcast.avatar || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';
+      poster.style.display = 'block';
+    }
+    if (videoEl) {
+      videoEl.style.display = 'block';
+      videoEl.poster = podcast.thumbnail || podcast.avatar || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';
+      videoEl.src = podcast.audioUrl;
+      videoEl.play().catch(e => console.warn('[Player] Audio autoplay blocked:', e));
+
+      videoEl.ontimeupdate = () => {
+        if (videoEl.duration && !isNaN(videoEl.duration)) {
+          const pct = (videoEl.currentTime / videoEl.duration) * 100;
+          if (seekSlider) seekSlider.value = pct;
+          if (currentTimeEl) currentTimeEl.textContent = formatTime(videoEl.currentTime);
+          if (durationTimeEl) durationTimeEl.textContent = formatTime(videoEl.duration);
+        }
+      };
+
+      if (seekSlider) {
+        seekSlider.oninput = (e) => {
+          if (videoEl && videoEl.duration) {
+            const targetSec = (e.target.value / 100) * videoEl.duration;
+            videoEl.currentTime = targetSec;
+          }
+        };
+      }
+    }
   }
 
   // Populate In-Player "More Episodes from Channel" section
