@@ -315,7 +315,7 @@ export function getHeroPodcast() {
   };
 }
 
-// Search podcasts (Returns Curated Channels, Live Real iTunes/YouTube Channels, and Matching Video Episodes)
+// Search podcasts (Returns Curated Channels, Live Real YouTube Video Podcast Channels, and Matching Video Episodes)
 export async function searchRealPodcastAPI(query) {
   if (!query || query.trim() === '') {
     return {
@@ -339,61 +339,35 @@ export async function searchRealPodcastAPI(query) {
   let realChannels = [];
   let apiMatchingEpisodes = [];
 
-  // 2. Global Podcast Search via iTunes API
-  try {
-    const term = encodeURIComponent(query.trim());
-    const channelUrl = `https://itunes.apple.com/search?media=podcast&entity=podcast&term=${term}&limit=30`;
-    const res = await fetch(channelUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.results && data.results.length > 0) {
-        const curatedNames = new Set(allChannels.map(c => c.channelName.toLowerCase()));
-        realChannels = data.results
-          .filter(item => item.collectionName && !curatedNames.has(item.collectionName.toLowerCase()))
-          .map(item => ({
-            id: `chan_itunes_${item.collectionId}`,
-            collectionId: item.collectionId,
-            channelName: item.collectionName || item.trackName,
-            host: item.artistName || 'Podcast Host',
-            category: item.primaryGenreName || 'Podcast',
-            subscribers: `${item.trackCount || 10}+ Episodes`,
-            avatar: item.artworkUrl600 || item.artworkUrl100 || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
-            description: `Official podcast channel for "${item.collectionName}". Host: ${item.artistName || 'Creator'}.`,
-            feedUrl: item.feedUrl,
+  // 2. Pure YouTube Video Podcast Search (Multi-instance failover)
+  const term = encodeURIComponent(query.trim());
+  const searchUrls = [
+    `https://inv.tux.pizza/api/v1/search?q=${term}+podcast&type=video`,
+    `https://invidious.nerdvpn.de/api/v1/search?q=${term}+podcast&type=video`,
+    `https://vid.puffyan.us/api/v1/search?q=${term}+podcast&type=video`
+  ];
+
+  for (const sUrl of searchUrls) {
+    try {
+      const res = await fetchWithTimeout(sUrl, {}, 3000);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data) && data.length > 0) {
+          apiMatchingEpisodes = data.slice(0, 25).map(item => ({
+            id: `ep_yt_${item.videoId}`,
+            title: item.title,
+            youtubeId: item.videoId,
+            channelName: item.author || 'Video Podcast',
+            host: item.author || 'Host',
+            category: 'Video Podcast',
+            date: 'Recent',
+            year: 2026,
+            duration: item.lengthSeconds ? `${Math.round(item.lengthSeconds / 60)}m` : 'HD Video',
+            thumbnail: `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`,
+            description: item.description || `Watch full video episode from ${item.author || 'YouTube'}.`,
             isExternal: true
           }));
-      }
-    }
-  } catch (err) {
-    console.warn('[Podcasts] iTunes channel search error:', err);
-  }
 
-  // 3. Live YouTube Video Podcast search via Invidious API
-  try {
-    const term = encodeURIComponent(query.trim());
-    const res = await fetch(`https://inv.tux.pizza/api/v1/search?q=${term}&type=video`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.length > 0) {
-        const ytEpisodes = data.slice(0, 20).map(item => ({
-          id: `ep_yt_${item.videoId}`,
-          title: item.title,
-          youtubeId: item.videoId,
-          channelName: item.author || 'Video Podcast',
-          host: item.author || 'Host',
-          category: 'Video Podcast',
-          date: 'Recent',
-          year: 2026,
-          duration: item.lengthSeconds ? `${Math.round(item.lengthSeconds / 60)}m` : 'HD Video',
-          thumbnail: `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`,
-          description: item.description || `Watch video episode from ${item.author || 'YouTube'}.`,
-          isExternal: true
-        }));
-
-        apiMatchingEpisodes = ytEpisodes;
-
-        // If no iTunes channels found, generate channels from YouTube search authors
-        if (realChannels.length === 0) {
           const channelMap = new Map();
           data.forEach(item => {
             if (item.author && item.authorId && !channelMap.has(item.authorId)) {
@@ -411,11 +385,12 @@ export async function searchRealPodcastAPI(query) {
             }
           });
           realChannels = Array.from(channelMap.values());
+          break; // Stop loop once successful
         }
       }
+    } catch (err) {
+      console.warn('[Podcasts] YouTube video search failover:', sUrl);
     }
-  } catch (err) {
-    console.warn('[Podcasts] Live video search error:', err);
   }
 
   return {
@@ -546,38 +521,7 @@ export async function fetchChannelPastEpisodes(channel) {
     }
   }
 
-  // C. Fallback: iTunes collection lookup (2.5s timeout)
-  if (channel.collectionId) {
-    try {
-      const epUrl = `https://itunes.apple.com/lookup?id=${channel.collectionId}&entity=podcastEpisode&limit=30`;
-      const res = await fetchWithTimeout(epUrl, {}, 2500);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.results && data.results.length > 1) {
-          return data.results.slice(1).map((item, idx) => {
-            const minutes = item.trackTimeMillis ? Math.round(item.trackTimeMillis / 60000) : null;
-            return {
-              id: `ep_itunes_${item.trackId || idx}`,
-              title: item.trackName || `${channel.channelName} Episode ${idx + 1}`,
-              channelName: channel.channelName,
-              host: channel.host || item.artistName,
-              category: channel.category || item.primaryGenreName,
-              audioUrl: item.episodeUrl || item.previewUrl,
-              date: item.releaseDate ? new Date(item.releaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent',
-              year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : 2026,
-              duration: minutes ? `${minutes}m` : 'Episode',
-              thumbnail: item.artworkUrl600 || item.artworkUrl160 || channel.avatar,
-              description: item.description || item.shortDescription || channel.description
-            };
-          });
-        }
-      }
-    } catch (err) {
-      console.warn('[Podcasts] iTunes lookup error:', err);
-    }
-  }
-
-  // D. Channel-Specific Video Fallbacks (Prevents wrong video links across all curated shows)
+  // C. Channel-Specific Video Fallbacks (Prevents wrong video links across all curated shows)
   const isWaveform = channel.id === 'chan_mkbhd_waveform' || channel.channelName.toLowerCase().includes('waveform');
   const isStarTalk = channel.id === 'chan_startalk' || channel.channelName.toLowerCase().includes('startalk');
 
