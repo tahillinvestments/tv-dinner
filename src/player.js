@@ -345,22 +345,24 @@ export class IPTVPlayer {
 
     // Extract underlying raw target URL if already proxied
     let rawTargetUrl = rawUrl;
-    if (rawUrl.startsWith('/api/proxy?url=')) {
+    if (rawUrl.includes('url=')) {
       try {
-        rawTargetUrl = decodeURIComponent(rawUrl.substring('/api/proxy?url='.length));
-      } catch (e) {
-        rawTargetUrl = rawUrl;
-      }
-    } else if (rawUrl.includes('corsproxy') || rawUrl.includes('allorigins') || rawUrl.includes('thingproxy')) {
-      try {
-        const param = rawUrl.split('url=')[1] || rawUrl.split('fetch/')[1];
-        if (param) rawTargetUrl = decodeURIComponent(param);
+        const parts = rawUrl.split('url=');
+        const extracted = decodeURIComponent(parts[parts.length - 1]);
+        if (extracted.startsWith('http://') || extracted.startsWith('https://')) {
+          rawTargetUrl = extracted;
+        }
       } catch (e) {}
     }
     
     // Automatic HTTPS Fix & IPTV Proxying: Route streams through external Render Node Proxy or fallback proxy
     const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com';
-    const customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
+    let customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
+    if (customProxy.includes('workers.dev') || customProxy.includes('api.codetabs.com')) {
+      customProxy = DEFAULT_RENDER_PROXY;
+      localStorage.setItem('external_proxy_url', DEFAULT_RENDER_PROXY);
+    }
+
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const isHttpTarget = rawTargetUrl.startsWith('http://');
     const isIptvStream = rawTargetUrl.includes('portal5458') || rawTargetUrl.includes('.m3u8') || rawTargetUrl.includes('.m3u') || rawTargetUrl.includes('/live/') || rawTargetUrl.includes('player_api.php');

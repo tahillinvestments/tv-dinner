@@ -3141,22 +3141,38 @@ const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com';
 // Helper to construct proxy URL (Direct when HTTP page, or Custom Node Proxy / Vercel Edge when on HTTPS / Production)
 function getProxyUrl(targetUrl) {
   if (!targetUrl) return '';
-  const customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
+
+  let cleanTarget = targetUrl;
+  if (targetUrl.includes('url=')) {
+    try {
+      const parts = targetUrl.split('url=');
+      const extracted = decodeURIComponent(parts[parts.length - 1]);
+      if (extracted.startsWith('http://') || extracted.startsWith('https://')) {
+        cleanTarget = extracted;
+      }
+    } catch (e) {}
+  }
+
+  let customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
+  if (customProxy.includes('workers.dev') || customProxy.includes('api.codetabs.com')) {
+    customProxy = DEFAULT_RENDER_PROXY;
+    localStorage.setItem('external_proxy_url', DEFAULT_RENDER_PROXY);
+  }
 
   if (customProxy) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
-    return `${customProxy}${glue}${encodeURIComponent(targetUrl)}`;
+    return `${customProxy}${glue}${encodeURIComponent(cleanTarget)}`;
   }
 
   const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
-  const isHttpTarget = targetUrl.startsWith('http://');
-  const isIptv = targetUrl.includes('portal5458') || targetUrl.includes('.m3u8') || targetUrl.includes('.m3u') || targetUrl.includes('/live/') || targetUrl.includes('player_api.php');
+  const isHttpTarget = cleanTarget.startsWith('http://');
+  const isIptv = cleanTarget.includes('portal5458') || cleanTarget.includes('.m3u8') || cleanTarget.includes('.m3u') || cleanTarget.includes('/live/') || cleanTarget.includes('player_api.php');
 
   if (isIptv || (isHttpsPage && isHttpTarget)) {
-    return `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+    return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
   }
 
-  return targetUrl;
+  return cleanTarget;
 }
 
 // Load settings form credentials
