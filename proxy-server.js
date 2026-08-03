@@ -32,6 +32,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   const host = req.headers.host || `localhost:${PORT}`;
+  const parsedUrl = new URL(req.url, `http://${host}`);
   const targetUrlStr = parsedUrl.searchParams.get('url');
 
   if ((parsedUrl.pathname === '/health' || parsedUrl.pathname === '/') && !targetUrlStr) {
