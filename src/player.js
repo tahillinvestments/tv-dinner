@@ -358,19 +358,18 @@ export class IPTVPlayer {
       } catch (e) {}
     }
     
-    // Automatic HTTPS Fix & IPTV Proxying: Route IPTV/HTTP streams through Cloudflare Worker or fallback proxy
-    const DEFAULT_CLOUDFLARE_WORKER_PROXY = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
-    const customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_CLOUDFLARE_WORKER_PROXY).trim();
+    // Automatic HTTPS Fix & IPTV Proxying: Route IPTV streams through Node.js proxy to support IP redirects (Error 1003 fix)
+    const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const isHttpTarget = rawTargetUrl.startsWith('http://');
     const isIptvStream = rawTargetUrl.includes('portal5458') || rawTargetUrl.includes('.m3u8') || rawTargetUrl.includes('.m3u') || rawTargetUrl.includes('/live/') || rawTargetUrl.includes('player_api.php');
 
     let proxiedUrl = rawTargetUrl;
-    if (customProxy) {
+    if (isIptvStream || (isHttps && isHttpTarget)) {
+      proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
+    } else if (customProxy) {
       const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
       proxiedUrl = `${customProxy}${glue}${encodeURIComponent(rawTargetUrl)}`;
-    } else if (isIptvStream || (isHttps && isHttpTarget)) {
-      proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
     }
 
     this.currentUrl = proxiedUrl;
@@ -413,15 +412,15 @@ export class IPTVPlayer {
     const originalUrl = rawTargetUrl;
 
     const proxyFallbacks = [
+      (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => {
-        const cp = (localStorage.getItem('external_proxy_url') || DEFAULT_CLOUDFLARE_WORKER_PROXY).trim();
+        const cp = (localStorage.getItem('external_proxy_url') || '').trim();
         if (cp) {
           const glue = cp.includes('?') ? (cp.endsWith('?') || cp.endsWith('&') ? '' : '&') : '?url=';
           return `${cp}${glue}${encodeURIComponent(url)}`;
         }
-        return `/api/proxy?url=${encodeURIComponent(url)}`;
+        return `https://corsproxy.io/?${encodeURIComponent(url)}`;
       },
-      (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
     ];
 
