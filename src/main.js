@@ -1553,6 +1553,14 @@ function resetPlayerWindow() {
 
   if (sourcesList) sourcesList.innerHTML = '';
   if (statusText) statusText.textContent = 'Select a stream or episode to play.';
+
+  // Hide podcast-specific in-player tray
+  const moreSection = document.getElementById('player-more-episodes-section');
+  if (moreSection) moreSection.classList.add('hidden');
+
+  // Restore video controls bar visibility for standard media
+  const videoControls = document.getElementById('video-controls');
+  if (videoControls) videoControls.style.display = '';
 }
 
 // Open HD Video Player Modal (Podcast Episode)
@@ -1645,7 +1653,14 @@ async function openPodcastModal(podcast) {
     </a>
   `;
 
-  if (metaEl) metaEl.innerHTML = `<span class="text-slate-300 font-semibold">${podcast.channelName || 'Podcast'}</span> • <span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">🔴 HD Video Episode</span>${ytFallbackBtn}`;
+  const yearEl = document.getElementById('details-year');
+  const ratingEl = document.getElementById('details-rating');
+  const runtimeEl = document.getElementById('details-runtime');
+
+  if (yearEl) yearEl.textContent = `📅 ${podcast.date || 'Recent'}`;
+  if (ratingEl) ratingEl.innerHTML = `🎙️ ${podcast.channelName || 'Podcast'}`;
+  if (runtimeEl) runtimeEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">🔴 HD Video Episode</span>`;
+
   if (overviewEl) overviewEl.textContent = podcast.description || 'Watch full video podcast episodes directly inside TV DINNER.';
   if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail || podcast.avatar || ''})`;
 

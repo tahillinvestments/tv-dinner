@@ -396,7 +396,7 @@ export async function searchRealPodcastAPI(query) {
             channelName: ep.collectionName || 'Podcast',
             host: ep.artistName || 'Host',
             category: ep.primaryGenreName || 'Podcast',
-            date: ep.releaseDate ? new Date(ep.releaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent',
+            date: ep.releaseDate ? new Date(ep.releaseDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent',
             year: ep.releaseDate ? new Date(ep.releaseDate).getFullYear() : 2026,
             duration: ep.trackTimeMillis ? `${Math.round(ep.trackTimeMillis / 60000)}m` : 'Podcast',
             thumbnail: ep.artworkUrl600 || ep.artworkUrl160,
@@ -854,7 +854,7 @@ export async function fetchChannelPastEpisodes(channel) {
 
           const pubRaw = dateMatches[i] ? dateMatches[i][1] : null;
           const pubDate = pubRaw
-            ? new Date(pubRaw).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+            ? new Date(pubRaw).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
             : 'Recent';
           const pubYear = pubRaw ? new Date(pubRaw).getFullYear() : 2026;
 
@@ -907,7 +907,7 @@ export async function fetchChannelPastEpisodes(channel) {
 
             const title = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : `${channel.channelName} Episode ${i + 1}`;
             const audioUrl = encMatch ? encMatch[1] : null;
-            const pubDate = pubMatch ? new Date(pubMatch[1]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent';
+            const pubDate = pubMatch ? new Date(pubMatch[1]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
 
             return {
               id: `ep_rss_${i}_${Date.now()}`,
