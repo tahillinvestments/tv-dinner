@@ -1671,7 +1671,10 @@ async function openPodcastModal(podcast) {
   if (embedWrapper) {
     embedWrapper.style.display = 'block';
     embedWrapper.style.pointerEvents = 'auto';
-    embedWrapper.style.position = 'relative';
+    embedWrapper.style.position = 'absolute';
+    embedWrapper.style.inset = '0';
+    embedWrapper.style.width = '100%';
+    embedWrapper.style.height = '100%';
   }
 
   // Load YouTube Video Player embed
