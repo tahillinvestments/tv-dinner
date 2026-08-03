@@ -1660,11 +1660,13 @@ async function openPodcastModal(podcast) {
     videoEl.removeAttribute('src');
   }
 
+  // Hide custom video controls bar for podcasts (YouTube provides native interactive controls)
+  const videoControls = document.getElementById('video-controls');
+  if (videoControls) videoControls.style.display = 'none';
+
   // Clear any previous embed error overlay
   const existingEmbedError = document.getElementById('embed-error-overlay');
   if (existingEmbedError) existingEmbedError.remove();
-
-  const ytUrl = `https://www.youtube.com/watch?v=${podcast.youtubeId}`;
 
   if (embedWrapper) {
     embedWrapper.style.display = 'block';
@@ -1672,54 +1674,15 @@ async function openPodcastModal(podcast) {
     embedWrapper.style.position = 'relative';
   }
 
-  // Load iframe IMMEDIATELY — no enablejsapi=1 (it conflicts with autoplay and broke working embeds)
+  // Load YouTube Video Player embed
   if (embedIframe) {
     embedIframe.style.pointerEvents = 'auto';
     embedIframe.style.display = 'block';
+    embedIframe.removeAttribute('referrerpolicy'); // Critical for YouTube referrer check
     embedIframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
     embedIframe.setAttribute('allowfullscreen', 'true');
-    embedIframe.src = `https://www.youtube-nocookie.com/embed/${podcast.youtubeId}?autoplay=1&rel=0`;
+    embedIframe.src = `https://www.youtube.com/embed/${podcast.youtubeId}?autoplay=1&rel=0&playsinline=1`;
   }
-
-  // Background embeddability check via YouTube oEmbed (CORS-enabled — no proxy needed)
-  // Runs AFTER iframe is already loading so working videos (Lex Fridman etc.) play instantly.
-  // If oEmbed returns 401/403 the video is embedding-restricted — swap iframe for our clean fallback.
-  const _oembedVideoId = podcast.youtubeId;
-  fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(ytUrl)}&format=json`)
-    .then(res => {
-      if (res.ok) return; // Embeddable — iframe already loading fine
-      if (res.status !== 401 && res.status !== 403) return; // Unknown status — leave iframe alone
-
-      // Embedding restricted — replace iframe with our styled fallback
-      const curIframe = document.getElementById('embed-iframe');
-      const curWrapper = document.getElementById('embed-player-wrapper');
-      if (curIframe) curIframe.style.display = 'none';
-      if (document.getElementById('embed-error-overlay')) return; // Already shown
-
-      if (curWrapper) {
-        const errDiv = document.createElement('div');
-        errDiv.id = 'embed-error-overlay';
-        errDiv.style.cssText = 'position:absolute;inset:0;background:#08101e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:20;border-radius:inherit;';
-        errDiv.innerHTML = `
-          <div style="width:68px;height:68px;background:#ef4444;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 32px rgba(239,68,68,0.4);">
-            <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-          </div>
-          <div style="text-align:center;padding:0 28px;">
-            <p style="color:#fff;font-size:16px;font-weight:800;margin:0 0 8px;letter-spacing:-0.01em;">Can't Play Here</p>
-            <p style="color:#94a3b8;font-size:13px;margin:0;line-height:1.5;">This episode is restricted from embedded playback.<br>Opening in YouTube now...</p>
-          </div>
-          <a href="${ytUrl}" target="_blank" rel="noopener noreferrer"
-            style="display:inline-flex;align-items:center;gap:8px;padding:13px 28px;background:#ef4444;color:#fff;border-radius:12px;font-weight:700;font-size:14px;text-decoration:none;box-shadow:0 4px 20px rgba(239,68,68,0.3);"
-            onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-            Watch on YouTube
-          </a>
-        `;
-        curWrapper.appendChild(errDiv);
-        setTimeout(() => window.open(ytUrl, '_blank'), 600);
-      }
-    })
-    .catch(() => {}); // Network error — leave iframe alone (fail open)
 
   // Populate In-Player "More Episodes from Channel" section
   const moreSection = document.getElementById('player-more-episodes-section');
