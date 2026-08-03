@@ -1624,14 +1624,16 @@ async function openPodcastModal(podcast) {
 
   if (titleEl) titleEl.textContent = podcast.title;
 
-  // Guarantee valid YouTube Video ID for every podcast episode
+  // Guarantee valid YouTube Video ID for every podcast episode (uses real verified IDs only)
   if (!podcast.youtubeId) {
     if (podcast.id === 'chan_mkbhd_waveform' || (podcast.channelName && podcast.channelName.toLowerCase().includes('waveform'))) {
-      podcast.youtubeId = 'bA3q8W6D2W4';
+      podcast.youtubeId = 'PtCMsXYAPyc'; // Waveform: Framework Laptops & Robot Cleaner (verified Jul 2026)
     } else if (podcast.id === 'chan_startalk' || (podcast.channelName && podcast.channelName.toLowerCase().includes('startalk'))) {
-      podcast.youtubeId = 'sF2fLhSg5m8';
+      podcast.youtubeId = 'E8cXOJlyMZY'; // StarTalk: Your brain wasn't built to find the truth (verified Jul 2026)
+    } else if (podcast.id === 'chan_kill_tony' || (podcast.channelName && podcast.channelName.toLowerCase().includes('kill tony'))) {
+      podcast.youtubeId = 'ZHLhms7ceMs'; // Kill Tony #778 - JIMMY CARR (verified Jul 2026)
     } else {
-      podcast.youtubeId = 'JN3KF44P4nE';
+      podcast.youtubeId = 'vif8NQcjVf0'; // Lex Fridman: Jensen Huang / NVIDIA (verified Apr 2026)
     }
   }
 
