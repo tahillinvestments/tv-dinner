@@ -48756,6 +48756,9 @@
 	<programme channel="newtv超级综艺" start="20260803061700 +0800" stop="20260803073600 +0800">
 		<title lang="zh">信马游疆</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260803073600 +0800" stop="20260803085300 +0800">
+		<title lang="zh">开门大吉</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -48830,6 +48833,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260803065100 +0800" stop="20260803073600 +0800">
 		<title lang="zh">29_画眉</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260803073600 +0800" stop="20260803082200 +0800">
+		<title lang="zh">30_画眉</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
