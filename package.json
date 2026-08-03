@@ -8,6 +8,8 @@
     "update-feed": "python scratch/generate_xtream_feed.py",
     "build": "vite build",
     "preview": "vite preview",
+    "proxy:server": "node proxy-server.js",
+    "start:proxy": "node proxy-server.js",
     "sources:build": "tsup",
     "sources:run": "node ./dist-updater/index.js",
     "sources:serve": "node ./dist-updater/serve.js",
