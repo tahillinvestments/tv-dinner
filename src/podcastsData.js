@@ -189,6 +189,16 @@ export const PODCAST_CHANNELS = {
       ytChannelId: 'UCxcTeAKWJca6XyJ37_ZoKIQ'  // verified Pat McAfee channel ID ✓
     },
     {
+      id: 'chan_drink_champs',
+      channelName: 'Drink Champs',
+      host: 'N.O.R.E. & DJ EFN',
+      category: 'Hip-Hop & Culture',
+      subscribers: '1.6M Subscribers',
+      avatar: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
+      description: 'N.O.R.E. and DJ EFN drink and talk hip-hop, music history, and legendary stories with rap icons.',
+      ytChannelId: 'UCUseCJIxUbK_WIn0sUvBZVg'  // verified Drink Champs channel ID ✓
+    },
+    {
       id: 'chan_club_shay_shay',
       channelName: 'Club Shay Shay',
       host: 'Shannon Sharpe',
@@ -772,28 +782,37 @@ function getGuaranteedChannelEpisodes(channel) {
     }));
   }
 
-  // Generic fallback: return Lex Fridman latest episodes for any unlisted channel so NO CHANNEL ever returns empty
-  const defaultEps = [
-    { id: 'vif8NQcjVf0', title: 'Jensen Huang: NVIDIA - The $4 Trillion Company & the AI Revolution', date: 'Apr 2026' },
-    { id: 'XyXBwO5jYpw', title: 'Gary Gallagher: American Civil War, Slavery, Lincoln, Grant & Lee', date: 'Jul 2026' },
-    { id: 'pv1TUJSEM2k', title: 'The Rise and Fall of the Roman Empire and the Byzantine Empire', date: 'Jun 2026' }
-  ];
-  return defaultEps.map(ep => ({
-    id: `ep_gen_${ep.id}`,
-    title: ep.title,
-    youtubeId: ep.id,
-    channelName: cName,
-    host: cHost,
-    category: channel.category || 'Video Podcast',
-    date: ep.date,
-    year: 2026,
-    duration: 'HD Video',
-    thumbnail: `https://img.youtube.com/vi/${ep.id}/hqdefault.jpg`,
-    description: channel.description || 'Watch full HD video podcast episode.'
-  }));
+  // ─── Drink Champs ─────────────────────────────────────────────────────────
+  // Real video IDs from YouTube RSS: UCUseCJIxUbK_WIn0sUvBZVg
+  if (cid.includes('drink_champs') || cName.toLowerCase().includes('drink champs')) {
+    const eps = [
+      { id: 'y3eDN8xmgWU', title: "JT Money: The Story of Poison Clan & Miami Rap's Rise", date: 'Jul 2026' },
+      { id: 'KHtqmw5sgVY', title: 'Metta World Peace on Breaking Jordan\'s Ribs & Malice At The Palace', date: 'Jul 2026' },
+      { id: 'yir4GNA52xE', title: '50 Cent: From Queens to Kingpin | Full Episode', date: 'Jun 2026' },
+      { id: 'RXMpMHPgk7I', title: 'Shaq Talks His NBA Career, Business Ventures & Kobe Bryant', date: 'Jun 2026' },
+      { id: 'EHFZOXzmHpk', title: 'Black Star & Dave Chappelle on Drink Champs', date: 'May 2026' },
+      { id: 'NjzbGcl0yNY', title: 'Kevin Hart On Touring, Stand Up Comedy & Black Creatives', date: 'May 2026' },
+    ];
+    return eps.map(ep => ({
+      id: `ep_dc_${ep.id}`,
+      title: ep.title,
+      youtubeId: ep.id,
+      channelName: cName,
+      host: 'N.O.R.E. & DJ EFN',
+      category: 'Hip-Hop & Culture',
+      date: ep.date,
+      year: 2026,
+      duration: 'HD Video',
+      thumbnail: `https://img.youtube.com/vi/${ep.id}/hqdefault.jpg`,
+      description: 'N.O.R.E. and DJ EFN drink and talk hip-hop, music history, and legendary stories with rap icons.'
+    }));
+  }
+
+  // Never return Lex Fridman or generic fallback episodes for unlisted channels
+  return [];
 }
 
-// Dynamically fetch past episodes for a channel (via YouTube XML RSS feed & live APIs)
+// Dynamically fetch past episodes for a channel (via YouTube XML RSS feed, iTunes RSS & live APIs)
 export async function fetchChannelPastEpisodes(channel) {
   if (!channel) return [];
 
@@ -819,7 +838,6 @@ export async function fetchChannelPastEpisodes(channel) {
 
         const titleMatches = [...xmlText.matchAll(/<title>([^<]+)<\/title>/g)].slice(1); // skip feed-level <title>
         const dateMatches = [...xmlText.matchAll(/<published>([^<]+)<\/published>/g)];
-        const thumbMatches = [...xmlText.matchAll(/media:thumbnail url="([^"]+)"/g)];
 
         const videoEpisodes = videoIdMatches.map((m, i) => {
           const yid = m[1].trim();
@@ -865,7 +883,58 @@ export async function fetchChannelPastEpisodes(channel) {
     }
   }
 
-  // B. Multi-instance Invidious Video Search by Channel Name & Host (Returns up to 20 live full video episodes)
+  // B. Try iTunes RSS Feed URL (for Apple Podcast search channels)
+  if (channel.feedUrl) {
+    const proxies = [
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(channel.feedUrl)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(channel.feedUrl)}`
+    ];
+
+    for (const proxyUrl of proxies) {
+      try {
+        const res = await fetchWithTimeout(proxyUrl, {}, 4000);
+        if (!res.ok) continue;
+        const xmlText = await res.text();
+        if (!xmlText || xmlText.length < 300 || !xmlText.includes('<item>')) continue;
+
+        const itemMatches = [...xmlText.matchAll(/<item>([\s\S]*?)<\/item>/g)];
+        if (itemMatches.length > 0) {
+          const rssEpisodes = itemMatches.slice(0, 20).map((itemMatch, i) => {
+            const itemXml = itemMatch[1];
+            const titleMatch = itemXml.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);
+            const encMatch = itemXml.match(/<enclosure[^>]+url=["']([^"']+)["']/i);
+            const pubMatch = itemXml.match(/<pubDate>([^<]+)<\/pubDate>/i);
+
+            const title = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : `${channel.channelName} Episode ${i + 1}`;
+            const audioUrl = encMatch ? encMatch[1] : null;
+            const pubDate = pubMatch ? new Date(pubMatch[1]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent';
+
+            return {
+              id: `ep_rss_${i}_${Date.now()}`,
+              title,
+              channelName: channel.channelName,
+              host: channel.host || 'Host',
+              category: channel.category || 'Podcast',
+              date: pubDate,
+              year: 2026,
+              duration: 'Podcast',
+              audioUrl,
+              thumbnail: channel.avatar || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+              description: `Listen to full episode from ${channel.channelName}.`
+            };
+          }).filter(e => e.title);
+
+          if (rssEpisodes.length > 0) {
+            return rssEpisodes;
+          }
+        }
+      } catch (e) {
+        console.warn('[Podcasts] iTunes RSS fetch error:', channel.channelName);
+      }
+    }
+  }
+
+  // C. Multi-instance Invidious Video Search by Channel Name & Host (Returns up to 20 live full video episodes)
   if (channel.channelName) {
     const cleanQuery = `${channel.host || ''} ${channel.channelName}`
       .replace(/podcast/gi, '')
@@ -874,9 +943,10 @@ export async function fetchChannelPastEpisodes(channel) {
       .trim();
     const q = encodeURIComponent(`${cleanQuery} full episode`);
     const invidiousInstances = [
-      `https://inv.tux.pizza/api/v1/search?q=${q}&type=video`,
-      `https://invidious.nerdvpn.de/api/v1/search?q=${q}&type=video`,
-      `https://vid.puffyan.us/api/v1/search?q=${q}&type=video`
+      `https://invidious.flokinet.to/api/v1/search?q=${q}&type=video`,
+      `https://inv.zoomerville.com/api/v1/search?q=${q}&type=video`,
+      `https://inv.nadeko.net/api/v1/search?q=${q}&type=video`,
+      `https://inv.tux.pizza/api/v1/search?q=${q}&type=video`
     ];
 
     for (const invUrl of invidiousInstances) {
@@ -906,6 +976,6 @@ export async function fetchChannelPastEpisodes(channel) {
     }
   }
 
-  // C. Guaranteed Episode Generator (specific shows only — NEVER fake IDs)
+  // D. Guaranteed Episode Generator for curated list
   return getGuaranteedChannelEpisodes(channel);
 }
