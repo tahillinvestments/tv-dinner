@@ -85,7 +85,8 @@ export default async function handler(req, res) {
       'Access-Control-Allow-Headers': '*',
     };
     for (const [k, v] of response.headers.entries()) {
-      if (!STRIP_RES_HEADERS.has(k.toLowerCase())) {
+      const lower = k.toLowerCase();
+      if (!STRIP_RES_HEADERS.has(lower) && !lower.startsWith('access-control-')) {
         outHeaders[k] = v;
       }
     }
