@@ -3136,18 +3136,12 @@ function closeDetailsView() {
   }
 }
 
-// Helper to construct proxy URL (Direct when HTTP page, or Vercel Edge / Custom Proxy when on HTTPS / Production)
+const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com';
+
+// Helper to construct proxy URL (Direct when HTTP page, or Custom Node Proxy / Vercel Edge when on HTTPS / Production)
 function getProxyUrl(targetUrl) {
   if (!targetUrl) return '';
-  const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
-
-  // IPTV streams (and redirects to raw IPs like 206.212.244.182) require Node.js runtime proxy (/api/proxy)
-  // because Cloudflare Workers and Edge runtimes block direct IP connections (Error 1003).
-  const isIptv = targetUrl.includes('portal5458') || targetUrl.includes('.m3u8') || targetUrl.includes('.m3u') || targetUrl.includes('/live/') || targetUrl.includes('player_api.php');
-
-  if (isIptv) {
-    return `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-  }
+  const customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
 
   if (customProxy) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
@@ -3156,8 +3150,9 @@ function getProxyUrl(targetUrl) {
 
   const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
   const isHttpTarget = targetUrl.startsWith('http://');
+  const isIptv = targetUrl.includes('portal5458') || targetUrl.includes('.m3u8') || targetUrl.includes('.m3u') || targetUrl.includes('/live/') || targetUrl.includes('player_api.php');
 
-  if (isHttpsPage && isHttpTarget) {
+  if (isIptv || (isHttpsPage && isHttpTarget)) {
     return `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
   }
 
@@ -3178,7 +3173,7 @@ function setupSettingsScreen() {
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
   if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SAPPTV12';
   if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || 'REMOTE6202';
-  if (proxyInput) proxyInput.value = localStorage.getItem('external_proxy_url') || '';
+  if (proxyInput) proxyInput.value = localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY;
 
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
@@ -3197,7 +3192,7 @@ function setupSettingsScreen() {
 
       const newUsername = usernameInput ? usernameInput.value.trim() : 'SAPPTV12';
       const newPassword = passwordInput ? passwordInput.value.trim() : 'REMOTE6202';
-      const newProxy = proxyInput ? proxyInput.value.trim() : '';
+      const newProxy = proxyInput ? proxyInput.value.trim() : DEFAULT_RENDER_PROXY;
 
       localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
       localStorage.setItem('iptv_username', newUsername);

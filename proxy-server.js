@@ -32,15 +32,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   const host = req.headers.host || `localhost:${PORT}`;
-  const parsedUrl = new URL(req.url, `http://${host}`);
+  const targetUrlStr = parsedUrl.searchParams.get('url');
 
-  if (parsedUrl.pathname === '/health' || parsedUrl.pathname === '/') {
+  if ((parsedUrl.pathname === '/health' || parsedUrl.pathname === '/') && !targetUrlStr) {
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
     res.end('TV Dinner Standalone Node Proxy Server Running');
     return;
   }
 
-  const targetUrlStr = parsedUrl.searchParams.get('url');
   if (!targetUrlStr) {
     res.writeHead(400, { 'Access-Control-Allow-Origin': '*' });
     res.end('Missing url parameter');

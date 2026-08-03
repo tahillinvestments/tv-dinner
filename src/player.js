@@ -358,18 +358,19 @@ export class IPTVPlayer {
       } catch (e) {}
     }
     
-    // Automatic HTTPS Fix & IPTV Proxying: Route IPTV streams through Node.js proxy to support IP redirects (Error 1003 fix)
-    const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
+    // Automatic HTTPS Fix & IPTV Proxying: Route streams through external Render Node Proxy or fallback proxy
+    const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com';
+    const customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
     const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const isHttpTarget = rawTargetUrl.startsWith('http://');
     const isIptvStream = rawTargetUrl.includes('portal5458') || rawTargetUrl.includes('.m3u8') || rawTargetUrl.includes('.m3u') || rawTargetUrl.includes('/live/') || rawTargetUrl.includes('player_api.php');
 
     let proxiedUrl = rawTargetUrl;
-    if (isIptvStream || (isHttps && isHttpTarget)) {
-      proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
-    } else if (customProxy) {
+    if (customProxy) {
       const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
       proxiedUrl = `${customProxy}${glue}${encodeURIComponent(rawTargetUrl)}`;
+    } else if (isIptvStream || (isHttps && isHttpTarget)) {
+      proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
     }
 
     this.currentUrl = proxiedUrl;
@@ -412,15 +413,15 @@ export class IPTVPlayer {
     const originalUrl = rawTargetUrl;
 
     const proxyFallbacks = [
-      (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => {
-        const cp = (localStorage.getItem('external_proxy_url') || '').trim();
+        const cp = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
         if (cp) {
           const glue = cp.includes('?') ? (cp.endsWith('?') || cp.endsWith('&') ? '' : '&') : '?url=';
           return `${cp}${glue}${encodeURIComponent(url)}`;
         }
-        return `https://corsproxy.io/?${encodeURIComponent(url)}`;
+        return `/api/proxy?url=${encodeURIComponent(url)}`;
       },
+      (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
     ];
 
