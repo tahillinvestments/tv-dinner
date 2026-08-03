@@ -79,16 +79,21 @@ export default async function handler(req, res) {
       targetUrl.pathname.endsWith('.m3u');
 
     // Set CORS + copy upstream headers
-    const outHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': '*',
-    };
+    const outHeaders = {};
     for (const [k, v] of response.headers.entries()) {
       const lower = k.toLowerCase();
-      if (!STRIP_RES_HEADERS.has(lower) && !lower.startsWith('access-control-')) {
+      if (!STRIP_RES_HEADERS.has(lower)) {
         outHeaders[k] = v;
       }
+    }
+    if (!outHeaders['access-control-allow-origin'] && !outHeaders['Access-Control-Allow-Origin']) {
+      outHeaders['Access-Control-Allow-Origin'] = '*';
+    }
+    if (!outHeaders['access-control-allow-methods'] && !outHeaders['Access-Control-Allow-Methods']) {
+      outHeaders['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
+    }
+    if (!outHeaders['access-control-allow-headers'] && !outHeaders['Access-Control-Allow-Headers']) {
+      outHeaders['Access-Control-Allow-Headers'] = '*';
     }
 
     if (isM3U8) {
