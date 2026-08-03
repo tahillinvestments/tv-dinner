@@ -39,7 +39,7 @@ export const PODCAST_CHANNELS = {
       subscribers: '1.1M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
       description: 'Consumer tech reviews, smartphone innovations, EV hardware, gadget teardowns, and tech news with MKBHD.',
-      ytChannelId: 'UCE_M8A5yxnLfW0KGHBvgU3A'
+      ytChannelId: 'UCBJycsmduvYEL83R_U4JriQ'
     },
     {
       id: 'chan_y_combinator',
@@ -81,7 +81,7 @@ export const PODCAST_CHANNELS = {
       subscribers: '3.5M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=600&q=80',
       description: 'Astrophysics, space exploration, cosmic mysteries, black holes, and pop culture with Neil deGrasse Tyson.',
-      ytChannelId: 'UC1wXnmdZ320wZ2BStlthTbg'
+      ytChannelId: 'UCrMePiHCWG4Vw03NKObi8hQ'
     },
     {
       id: 'chan_diary_ceo',
@@ -195,7 +195,7 @@ export const PODCAST_CHANNELS = {
       subscribers: '3.5M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=600&q=80',
       description: 'Pro Football Hall of Famer Shannon Sharpe sits down with athletes, hip-hop icons, and entertainers for deep conversations.',
-      ytChannelId: 'UCZgM6m2cK58wV1a4hN33J8g'
+      ytChannelId: 'UC4U2a4F2F11Xv8tD39M8J7A'
     },
     {
       id: 'chan_new_heights',
@@ -265,7 +265,7 @@ export function getAllPodcastChannels() {
 
 // Chart loader compatibility wrapper
 export async function loadTopItunesPodcasts() {
-  return getAllPodcastChannels();
+  return Promise.resolve(getAllPodcastChannels());
 }
 
 // Return healthy list of latest podcast episodes across all channels (dynamically fetched)
@@ -406,7 +406,7 @@ export function searchPodcastChannels(query) {
 }
 
 // Helper fetcher with strict timeout to prevent network hangs
-async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 3000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -423,7 +423,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
 export async function fetchChannelPastEpisodes(channel) {
   if (!channel) return [];
 
-  // A. Try YouTube XML RSS feed if channel.ytChannelId is present (with 2.5s timeout)
+  // A. Try YouTube XML RSS feed if channel.ytChannelId is present (with 3s timeout)
   if (channel.ytChannelId) {
     const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.ytChannelId}`;
     const proxies = [
@@ -433,7 +433,7 @@ export async function fetchChannelPastEpisodes(channel) {
 
     for (const proxyUrl of proxies) {
       try {
-        const res = await fetchWithTimeout(proxyUrl, {}, 2500);
+        const res = await fetchWithTimeout(proxyUrl, {}, 3000);
         if (res.ok) {
           const xmlText = await res.text();
           const parser = new DOMParser();
@@ -480,14 +480,14 @@ export async function fetchChannelPastEpisodes(channel) {
     }
   }
 
-  // B. Fallback: Multi-instance Invidious Video Search with cleaned query string (2.5s timeout)
+  // B. Multi-instance Invidious Video Search by Channel Name & Host (Returns 20 live full video episodes)
   if (channel.channelName) {
-    const cleanName = channel.channelName
+    const cleanQuery = `${channel.host || ''} ${channel.channelName}`
       .replace(/podcast/gi, '')
       .replace(/[:&–—]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    const q = encodeURIComponent(`${cleanName} podcast`);
+    const q = encodeURIComponent(`${cleanQuery} full episode`);
     const invidiousInstances = [
       `https://inv.tux.pizza/api/v1/search?q=${q}&type=video`,
       `https://invidious.nerdvpn.de/api/v1/search?q=${q}&type=video`,
@@ -496,7 +496,7 @@ export async function fetchChannelPastEpisodes(channel) {
 
     for (const invUrl of invidiousInstances) {
       try {
-        const res = await fetchWithTimeout(invUrl, {}, 2500);
+        const res = await fetchWithTimeout(invUrl, {}, 3000);
         if (res.ok) {
           const data = await res.json();
           if (data && Array.isArray(data) && data.length > 0) {
@@ -516,90 +516,10 @@ export async function fetchChannelPastEpisodes(channel) {
           }
         }
       } catch (e) {
-        console.warn('[Podcasts] Invidious instance timeout/fail:', invUrl);
+        console.warn('[Podcasts] Invidious search failover:', invUrl);
       }
     }
   }
 
-  // C. Channel-Specific Video Fallbacks (Prevents wrong video links across all curated shows)
-  const isWaveform = channel.id === 'chan_mkbhd_waveform' || channel.channelName.toLowerCase().includes('waveform');
-  const isStarTalk = channel.id === 'chan_startalk' || channel.channelName.toLowerCase().includes('startalk');
-
-  if (isWaveform) {
-    return [
-      {
-        id: 'ep_wf_1',
-        title: 'Waveform: The MKBHD Podcast – Spatial Computing & Tech Hardware',
-        youtubeId: 'bA3q8W6D2W4',
-        channelName: channel.channelName,
-        host: 'Marques Brownlee & Andrew Manganelli',
-        category: 'Tech & Gadgets',
-        date: 'Recent',
-        year: 2026,
-        duration: '1h 10m',
-        thumbnail: 'https://img.youtube.com/vi/bA3q8W6D2W4/hqdefault.jpg',
-        description: 'Marques and Andrew break down spatial computing, micro-OLED displays, EV charging infrastructure, and smartphone hardware.'
-      },
-      {
-        id: 'ep_wf_2',
-        title: 'Waveform: The MKBHD Podcast – The Electric Car Reality Check',
-        youtubeId: '6W93vV1k7l8',
-        channelName: channel.channelName,
-        host: 'Marques Brownlee & Andrew Manganelli',
-        category: 'Tech & Gadgets',
-        date: 'Recent',
-        year: 2026,
-        duration: '1h 18m',
-        thumbnail: 'https://img.youtube.com/vi/6W93vV1k7l8/hqdefault.jpg',
-        description: 'Evaluating solid-state EV batteries, autonomous taxicabs, folding smartphones, and wearable AI hardware.'
-      }
-    ];
-  }
-
-  if (isStarTalk) {
-    return [
-      {
-        id: 'ep_st_1',
-        title: 'StarTalk: Cosmic Discoveries & James Webb Space Telescope',
-        youtubeId: 'sF2fLhSg5m8',
-        channelName: channel.channelName,
-        host: 'Neil deGrasse Tyson',
-        category: 'Science & Space',
-        date: 'Recent',
-        year: 2026,
-        duration: '48m',
-        thumbnail: 'https://img.youtube.com/vi/sF2fLhSg5m8/hqdefault.jpg',
-        description: 'Neil deGrasse Tyson explores infrared deep space universe imagery, early stellar formation, and exoplanet atmospheres.'
-      },
-      {
-        id: 'ep_st_2',
-        title: 'StarTalk: What Happens Inside a Black Hole Event Horizon?',
-        youtubeId: '8p7R8s2V1k4',
-        channelName: channel.channelName,
-        host: 'Neil deGrasse Tyson',
-        category: 'Science & Space',
-        date: 'Recent',
-        year: 2026,
-        duration: '52m',
-        thumbnail: 'https://img.youtube.com/vi/8p7R8s2V1k4/hqdefault.jpg',
-        description: 'Spacetime curvature, singularity physics, Hawking radiation, supermassive black holes, and gravitational waves.'
-      }
-    ];
-  }
-
-  return [
-    {
-      id: `ep_fb_${channel.id}_1`,
-      title: `${channel.channelName} – Latest Full Video Episode`,
-      youtubeId: 'JN3KF44P4nE',
-      channelName: channel.channelName,
-      host: channel.host || 'Host',
-      category: channel.category || 'Video Podcast',
-      date: 'Recent',
-      year: 2026,
-      duration: 'HD Video',
-      thumbnail: channel.avatar || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
-      description: channel.description || `Watch latest full video podcast episode from ${channel.channelName}.`
-    }
-  ];
+  return [];
 }

@@ -1646,7 +1646,10 @@ async function openPodcastModal(podcast) {
   if (overviewEl) overviewEl.textContent = podcast.description || 'Watch full video podcast episodes directly inside TV DINNER.';
   if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail || podcast.avatar || ''})`;
 
-  if (shield) shield.style.display = 'none';
+  if (shield) {
+    shield.style.display = 'none';
+    shield.style.pointerEvents = 'none';
+  }
   if (poster) poster.style.display = 'none';
 
   if (videoEl) {
@@ -1656,8 +1659,12 @@ async function openPodcastModal(podcast) {
   }
 
   // Launch YouTube Video Player embed via youtube-nocookie domain
-  if (embedWrapper) embedWrapper.style.display = 'block';
+  if (embedWrapper) {
+    embedWrapper.style.display = 'block';
+    embedWrapper.style.pointerEvents = 'auto';
+  }
   if (embedIframe) {
+    embedIframe.style.pointerEvents = 'auto';
     embedIframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
     embedIframe.setAttribute('allowfullscreen', 'true');
     embedIframe.src = `https://www.youtube-nocookie.com/embed/${podcast.youtubeId}?autoplay=1&rel=0`;
