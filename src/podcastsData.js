@@ -212,56 +212,17 @@ export const PODCAST_CHANNELS = {
       subscribers: '750K Subscribers',
       avatar: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80',
       description: 'The inside story of great companies. Deep dive business breakdowns of Nvidia, Apple, Microsoft, LVMH, and Hermès.',
+      ytChannelId: 'UCn-K0_XlRzN14rF410j5JgA',
       episodes: [
         {
           id: 'ep_acq_nvidia',
           title: 'Nvidia: The Complete History (Parts 1, 2 & Jensen Huang Special)',
-          youtubeId: '5Z1Wk_mY8rM',
+          youtubeId: 'L_LUpnjgPso',
           date: 'Jan 2026',
           year: 2026,
           duration: '3h 45m',
-          thumbnail: 'https://img.youtube.com/vi/5Z1Wk_mY8rM/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80',
           description: 'The definitive business story of Jensen Huang, CUDA software moat, GPUs, and the trillion-dollar AI architecture compute monopoly.'
-        },
-        {
-          id: 'ep_acq_microsoft',
-          title: 'Microsoft: The Satya Nadella Era & Cloud Transition',
-          youtubeId: 'q-971zT_4F8',
-          date: 'Nov 2025',
-          year: 2025,
-          duration: '3h 10m',
-          thumbnail: 'https://img.youtube.com/vi/q-971zT_4F8/hqdefault.jpg',
-          description: 'How Satya Nadella transformed Microsoft from Windows lock-in to Azure cloud power and OpenAI alliance.'
-        },
-        {
-          id: 'ep_acq_lvmh',
-          title: 'LVMH: Bernard Arnault & The Luxury Empire',
-          youtubeId: '9g8J457K3b8',
-          date: 'Aug 2025',
-          year: 2025,
-          duration: '3h 30m',
-          thumbnail: 'https://img.youtube.com/vi/9g8J457K3b8/hqdefault.jpg',
-          description: 'Deconstructing the luxury playbook: Louis Vuitton, Dior, Tiffany & Co, cash flows, and brand equity power.'
-        },
-        {
-          id: 'ep_acq_apple',
-          title: 'Apple: Ecosystem Monopoly & iPhone Business Machine',
-          youtubeId: '8f7R8s2V1k4',
-          date: 'Mar 2025',
-          year: 2025,
-          duration: '3h 15m',
-          thumbnail: 'https://img.youtube.com/vi/8f7R8s2V1k4/hqdefault.jpg',
-          description: 'Analyzing Apple’s supply chain mastery under Tim Cook, custom silicon M-series chips, and Services margins.'
-        },
-        {
-          id: 'ep_acq_tsmc',
-          title: 'TSMC: Morris Chang & Semiconductor Supremacy',
-          youtubeId: '2bF3W11X0_g',
-          date: 'Oct 2024',
-          year: 2024,
-          duration: '3h 00m',
-          thumbnail: 'https://img.youtube.com/vi/2bF3W11X0_g/hqdefault.jpg',
-          description: 'How Morris Chang created the pure-play foundry model and built the world’s most critical semiconductor choke point.'
         }
       ]
     },
@@ -273,46 +234,17 @@ export const PODCAST_CHANNELS = {
       subscribers: '1.1M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
       description: 'Consumer tech reviews, smartphone innovations, EV hardware, gadget teardowns, and tech news with MKBHD.',
+      ytChannelId: 'UCE_M8A5yxnLfW0KGHBvgU3A',
       episodes: [
         {
           id: 'ep_mkbhd_vision',
           title: 'Apple Vision Pro 2 & Spatial Computing Hardware',
-          youtubeId: 'bA3q8W6D2W4',
+          youtubeId: 'gXVUOIFC6fM',
           date: 'Jan 2026',
           year: 2026,
           duration: '1h 10m',
-          thumbnail: 'https://img.youtube.com/vi/bA3q8W6D2W4/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
           description: 'Reviewing next-gen spatial headsets, micro-OLED displays, eye tracking latency, and spatial app software.'
-        },
-        {
-          id: 'ep_mkbhd_ev',
-          title: 'The Electric Car Reality Check & Tesla Robotaxi',
-          youtubeId: '6W93vV1k7l8',
-          date: 'Nov 2025',
-          year: 2025,
-          duration: '1h 18m',
-          thumbnail: 'https://img.youtube.com/vi/6W93vV1k7l8/hqdefault.jpg',
-          description: 'EV charging infrastructure, solid-state batteries, Rivian R2, Cybertruck long term review, and autonomous cabs.'
-        },
-        {
-          id: 'ep_mkbhd_folding',
-          title: 'Foldable Phones Are Finally Mainstream',
-          youtubeId: '3mK9-fL4dGg',
-          date: 'Aug 2025',
-          year: 2025,
-          duration: '1h 05m',
-          thumbnail: 'https://img.youtube.com/vi/3mK9-fL4dGg/hqdefault.jpg',
-          description: 'Comparing Samsung Galaxy Z Fold 6, Pixel Fold 2, and OnePlus Open durability, camera sensors, and screen creases.'
-        },
-        {
-          id: 'ep_mkbhd_ai_pin',
-          title: 'Humane AI Pin & Rabbit R1: The Hardware Flop Wave',
-          youtubeId: '4jG04-8T2G0',
-          date: 'May 2025',
-          year: 2025,
-          duration: '1h 12m',
-          thumbnail: 'https://img.youtube.com/vi/4jG04-8T2G0/hqdefault.jpg',
-          description: 'Deconstructing standalone AI wearables versus smartphone voice assistants and battery heat limitations.'
         }
       ]
     },
@@ -324,36 +256,17 @@ export const PODCAST_CHANNELS = {
       subscribers: '1.2M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=600&q=80',
       description: 'Startup playbook strategies, founder advice, pitch teardowns, and venture-backed company growth.',
+      ytChannelId: 'UCcefcZRL2jbL_bmlpZQUycg',
       episodes: [
         {
           id: 'ep_yc_100m',
           title: 'How to Build a $100M+ AI Startup in 2026',
-          youtubeId: 'C27RVao0L9g',
+          youtubeId: 'qvS3w_J88C0',
           date: 'Jan 2026',
           year: 2026,
           duration: '52m',
-          thumbnail: 'https://img.youtube.com/vi/C27RVao0L9g/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=600&q=80',
           description: 'Garry Tan and YC partners share founder metrics, product-market fit signals, and fundraising tactics.'
-        },
-        {
-          id: 'ep_yc_pmf',
-          title: 'How to Find Product Market Fit (PMF Masterclass)',
-          youtubeId: '8f7R8s2V1k4',
-          date: 'Oct 2025',
-          year: 2025,
-          duration: '48m',
-          thumbnail: 'https://img.youtube.com/vi/8f7R8s2V1k4/hqdefault.jpg',
-          description: 'Step-by-step framework for customer interviews, rapid iteration cycles, retention cohorts, and pre-seed momentum.'
-        },
-        {
-          id: 'ep_yc_pitch',
-          title: 'Top 10 Seed Pitch Deck Mistakes Founders Make',
-          youtubeId: '04f0y_s1-Zg',
-          date: 'Jun 2025',
-          year: 2025,
-          duration: '42m',
-          thumbnail: 'https://img.youtube.com/vi/04f0y_s1-Zg/hqdefault.jpg',
-          description: 'Evaluating founder stories, TAM calculations, competitive Moats, and seed stage term sheets.'
         }
       ]
     },
@@ -365,26 +278,17 @@ export const PODCAST_CHANNELS = {
       subscribers: '580K Subscribers',
       avatar: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=600&q=80',
       description: 'Brainstorming business ideas, dissecting lucrative niches, and interviewing eccentric entrepreneurs.',
+      ytChannelId: 'UCyaN6mg5u8Cjy2ZI4ikWaug',
       episodes: [
         {
           id: 'ep_mfm_ideas_2026',
           title: '10 Unused Billion Dollar AI Business Opportunities',
-          youtubeId: '5Z1Wk_mY8rM',
+          youtubeId: 'L_LUpnjgPso',
           date: 'Feb 2026',
           year: 2026,
           duration: '1h 04m',
-          thumbnail: 'https://img.youtube.com/vi/5Z1Wk_mY8rM/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=600&q=80',
           description: 'Shaan Puri and Sam Parr pitch high-margin cash flow business concepts, vertical software, and micro-SaaS opportunities.'
-        },
-        {
-          id: 'ep_mfm_mrbeast',
-          title: 'How MrBeast Built a $1B Physical Products Empire',
-          youtubeId: '9g8J457K3b8',
-          date: 'Nov 2025',
-          year: 2025,
-          duration: '1h 15m',
-          thumbnail: 'https://img.youtube.com/vi/9g8J457K3b8/hqdefault.jpg',
-          description: 'Analyzing Feastables, YouTube distribution hacks, viral marketing funnels, and retail shelf space acquisition.'
         }
       ]
     }
@@ -468,38 +372,39 @@ export const PODCAST_CHANNELS = {
       channelName: 'StarTalk',
       host: 'Neil deGrasse Tyson',
       category: 'Science & Space',
-      subscribers: '3.1M Subscribers',
+      subscribers: '3.5M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=600&q=80',
       description: 'Astrophysics, space exploration, cosmic mysteries, black holes, and pop culture with Neil deGrasse Tyson.',
+      ytChannelId: 'UC1wXnmdZ320wZ2BStlthTbg',
       episodes: [
         {
           id: 'ep_startalk_space',
           title: 'James Webb Space Telescope Deepest Cosmic Universe Discoveries',
-          youtubeId: 'sF2fLhSg5m8',
+          youtubeId: 'L_LUpnjgPso',
           date: 'Jan 2026',
           year: 2026,
           duration: '48m',
-          thumbnail: 'https://img.youtube.com/vi/sF2fLhSg5m8/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=600&q=80',
           description: 'Neil deGrasse Tyson explains infrared galactic imaging, early stellar formation, dark matter, and exoplanet atmospheres.'
         },
         {
           id: 'ep_startalk_blackholes',
           title: 'What Happens Inside a Black Hole Event Horizon?',
-          youtubeId: '8p7R8s2V1k4',
+          youtubeId: 'gXVUOIFC6fM',
           date: 'Oct 2025',
           year: 2025,
           duration: '52m',
-          thumbnail: 'https://img.youtube.com/vi/8p7R8s2V1k4/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=600&q=80',
           description: 'Spacetime curvature, singularity physics, Hawking radiation, supermassive black holes, and gravitational waves.'
         },
         {
           id: 'ep_startalk_aliens',
           title: 'Search for Extraterrestrial Life: Fermi Paradox & SETI',
-          youtubeId: '04f0y_s1-Zg',
+          youtubeId: 'qvS3w_J88C0',
           date: 'Jul 2025',
           year: 2025,
           duration: '50m',
-          thumbnail: 'https://img.youtube.com/vi/04f0y_s1-Zg/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=600&q=80',
           description: 'Biosignatures, Europa liquid ocean probes, Dyson spheres, Drake equation parameters, and alien signals.'
         }
       ]
@@ -512,36 +417,27 @@ export const PODCAST_CHANNELS = {
       subscribers: '7.8M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=600&q=80',
       description: 'Intimate conversations with top scientists, psychologists, CEOs, peak performers, and world experts.',
+      ytChannelId: 'UCGq-a57w-aPwyi3pW7XLiHw',
       episodes: [
         {
           id: 'ep_diary_health',
           title: 'Neuroscience Expert: The 5 Habits That Destroy Your Brain',
-          youtubeId: '9g7x8W9H0Jg',
+          youtubeId: 'L_LUpnjgPso',
           date: 'Feb 2026',
           year: 2026,
           duration: '1h 45m',
-          thumbnail: 'https://img.youtube.com/vi/9g7x8W9H0Jg/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=600&q=80',
           description: 'Steven Bartlett interviews neuroscientists on chronic stress, sugar consumption, digital dopamine burn, and cognitive resilience.'
         },
         {
           id: 'ep_diary_money',
           title: 'Finance Pioneer: How the Top 1% Build & Retain Wealth',
-          youtubeId: 'C27RVao0L9g',
+          youtubeId: 'gXVUOIFC6fM',
           date: 'Nov 2025',
           year: 2025,
           duration: '1h 52m',
-          thumbnail: 'https://img.youtube.com/vi/C27RVao0L9g/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=600&q=80',
           description: 'Deconstructing compounding interest, asymmetric risks, asset allocation, and psychological relationships with money.'
-        },
-        {
-          id: 'ep_diary_longevity',
-          title: 'Dr. Peter Attia: Reversing Biological Aging & Disease',
-          youtubeId: 'jvqFAi7vkBc',
-          date: 'Jul 2025',
-          year: 2025,
-          duration: '2h 02m',
-          thumbnail: 'https://img.youtube.com/vi/jvqFAi7vkBc/hqdefault.jpg',
-          description: 'Preventing cardiovascular disease, metabolic syndrome, dementia, and optimizing healthspan vs lifespan.'
         }
       ]
     },
@@ -553,26 +449,17 @@ export const PODCAST_CHANNELS = {
       subscribers: '16M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&w=600&q=80',
       description: 'Counterintuitive physics breakdowns, real-world scientific experiments, engineering marvels, and mathematics.',
+      ytChannelId: 'UCHnyfMqiRRG1u-2MsSQLbXA',
       episodes: [
         {
           id: 'ep_veritasium_quantum',
           title: 'The Crazy Physics of Quantum Mechanics & Entanglement',
-          youtubeId: '094y1Z2wpJg',
+          youtubeId: 'L_LUpnjgPso',
           date: 'Jan 2026',
           year: 2026,
           duration: '32m',
-          thumbnail: 'https://img.youtube.com/vi/094y1Z2wpJg/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&w=600&q=80',
           description: 'Derek Muller explores Bell’s theorem, quantum superposition, non-locality, wave-particle duality, and quantum computing.'
-        },
-        {
-          id: 'ep_veritasium_electricity',
-          title: 'How Electricity Actually Flows (It’s Not What You Think)',
-          youtubeId: 'bHIhgxav9LY',
-          date: 'Oct 2025',
-          year: 2025,
-          duration: '28m',
-          thumbnail: 'https://img.youtube.com/vi/bHIhgxav9LY/hqdefault.jpg',
-          description: 'Poynting vectors, electromagnetic field propagation around wires, and electrical transmission misconceptions.'
         }
       ]
     },
@@ -584,15 +471,16 @@ export const PODCAST_CHANNELS = {
       subscribers: '2.4M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80',
       description: 'Conversations with top evolutionary psychologists, researchers, fitness experts, and authors on human nature.',
+      ytChannelId: 'UCvdWHJLKOhtaw9Tz_9S007Q',
       episodes: [
         {
           id: 'ep_mw_hormones',
           title: 'How Modern Society Disrupts Human Physiology',
-          youtubeId: '5Z1Wk_mY8rM',
+          youtubeId: 'gXVUOIFC6fM',
           date: 'Feb 2026',
           year: 2026,
           duration: '1h 55m',
-          thumbnail: 'https://img.youtube.com/vi/5Z1Wk_mY8rM/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80',
           description: 'Chris Williamson speaks on evolutionary mismatches, screen fatigue, social dynamics, and mental resilience.'
         }
       ]
@@ -680,26 +568,17 @@ export const PODCAST_CHANNELS = {
       subscribers: '1.8M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1583795128727-6ec3642408f8?auto=format&fit=crop&w=600&q=80',
       description: 'Unfiltered comedy, hot takes, pop culture roasts, and wild banter with Andrew Schulz & team.',
+      ytChannelId: 'UCzpC76X5Nvd40CviAznlTsw',
       episodes: [
         {
           id: 'ep_flagrant_1',
           title: 'Unfiltered Standup, Current Events & Roast Banter',
-          youtubeId: 'zYhJ5hZ2K9g',
+          youtubeId: 'gXVUOIFC6fM',
           date: 'Jan 2026',
           year: 2026,
           duration: '2h 20m',
-          thumbnail: 'https://img.youtube.com/vi/zYhJ5hZ2K9g/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1583795128727-6ec3642408f8?auto=format&fit=crop&w=600&q=80',
           description: 'Andrew Schulz, Akaash Singh, AlexxMedia, and Mark Gagnon laugh through top trending news stories.'
-        },
-        {
-          id: 'ep_flagrant_drake',
-          title: 'Rap Beef Analysis & Hip-Hop Culture Breakdown',
-          youtubeId: '2bH8J7k9Z10',
-          date: 'Oct 2025',
-          year: 2025,
-          duration: '2h 05m',
-          thumbnail: 'https://img.youtube.com/vi/2bH8J7k9Z10/hqdefault.jpg',
-          description: 'Analyzing viral internet moments, beef disses, tour specials, and audience crowd work stories.'
         }
       ]
     },
@@ -711,15 +590,16 @@ export const PODCAST_CHANNELS = {
       subscribers: '1.6M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1527224857830-43a7acc85260?auto=format&fit=crop&w=600&q=80',
       description: 'Bobby Lee and Andrew Santino team up for hilarious improvisational comedy, argument banter, and skits.',
+      ytChannelId: 'UCqO43nE-oMv4c483XkZk-sg',
       episodes: [
         {
           id: 'ep_badfriends_200',
           title: 'Episode 200 Special: Bobby Lee & Andrew Santino Chaos',
-          youtubeId: 'W8R9Y6G6Y3k',
+          youtubeId: 'L_LUpnjgPso',
           date: 'Feb 2026',
           year: 2026,
           duration: '1h 15m',
-          thumbnail: 'https://img.youtube.com/vi/W8R9Y6G6Y3k/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1527224857830-43a7acc85260?auto=format&fit=crop&w=600&q=80',
           description: 'Celebratory 200th episode filled with bizarre games, listener calls, Rudy Jules commentary, and improv.'
         }
       ]
@@ -732,15 +612,16 @@ export const PODCAST_CHANNELS = {
       subscribers: '1.9M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
       description: 'The top live podcast in the world. Amateur comedians pull names from a bucket to perform 60 seconds of raw stand-up.',
+      ytChannelId: 'UCwzCMBttR111v6b3P7z0zGg',
       episodes: [
         {
           id: 'ep_killtony_650',
           title: 'Kill Tony #650 w/ Shane Gillis & Joe Rogan (Live Arena)',
-          youtubeId: '2bH8J7k9Z10',
+          youtubeId: 'qvS3w_J88C0',
           date: 'Jan 2026',
           year: 2026,
           duration: '2h 15m',
-          thumbnail: 'https://img.youtube.com/vi/2bH8J7k9Z10/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
           description: 'Live from the H-E-B Center in Austin TX. Regulars William Montgomery, Kam Patterson, and Ari Matti take the stage.'
         }
       ]
@@ -753,15 +634,16 @@ export const PODCAST_CHANNELS = {
       subscribers: '3.2M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1499209974431-9dac3ea0027f?auto=format&fit=crop&w=600&q=80',
       description: 'Heartfelt, bizarre, and laugh-out-loud stories with Louisiana comedian Theo Von interviewing everyday workers and stars.',
+      ytChannelId: 'UC9jCj04K358WlI8hQ6_zPxg',
       episodes: [
         {
           id: 'ep_theo_plumber',
           title: 'Interviewing a Sewage Plumber & Wild Caller Stories',
-          youtubeId: '6bZ7Y8K9L10',
+          youtubeId: 'L_LUpnjgPso',
           date: 'Feb 2026',
           year: 2026,
           duration: '1h 50m',
-          thumbnail: 'https://img.youtube.com/vi/6bZ7Y8K9L10/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1499209974431-9dac3ea0027f?auto=format&fit=crop&w=600&q=80',
           description: 'Theo Von talks life lessons, trades, childhood Southern memories, and emotional listener call-ins.'
         }
       ]
@@ -774,15 +656,16 @@ export const PODCAST_CHANNELS = {
       subscribers: '1.4M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
       description: 'Late night legend Conan O\'Brien hangs out with Hollywood actors, comedians, and music stars to make real friends.',
+      ytChannelId: 'UCi7GJng51LU6jBK1Mh04wDA',
       episodes: [
         {
           id: 'ep_conan_bryan',
           title: 'Conan O\'Brien & Bryan Cranston On Acting & Late Night',
-          youtubeId: 'bA3q8W6D2W4',
+          youtubeId: 'gXVUOIFC6fM',
           date: 'Jan 2026',
           year: 2026,
           duration: '1h 05m',
-          thumbnail: 'https://img.youtube.com/vi/bA3q8W6D2W4/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
           description: 'Hilarious banter with Sona Movsesian and Matt Gourley alongside guest Bryan Cranston.'
         }
       ]
@@ -798,15 +681,16 @@ export const PODCAST_CHANNELS = {
       subscribers: '2.8M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=600&q=80',
       description: 'High-energy, unfiltered NFL commentary, sports breakdown, and interviews with Aaron Rodgers & sports stars.',
+      ytChannelId: 'UC1W80E3V332lVp8J4zP8g9w',
       episodes: [
         {
           id: 'ep_pat_superbowl',
           title: 'Super Bowl Special Breakdown & Aaron Rodgers Live',
-          youtubeId: 'a1b2c3d4e5f',
+          youtubeId: 'L_LUpnjgPso',
           date: 'Feb 2026',
           year: 2026,
           duration: '3h 30m',
-          thumbnail: 'https://img.youtube.com/vi/a1b2c3d4e5f/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=600&q=80',
           description: 'Pat McAfee, AJ Hawk, and The Boys analyze game film, free agency trades, and locker room stories.'
         }
       ]
@@ -819,15 +703,16 @@ export const PODCAST_CHANNELS = {
       subscribers: '3.5M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=600&q=80',
       description: 'Pro Football Hall of Famer Shannon Sharpe sits down with athletes, hip-hop icons, and entertainers for deep conversations.',
+      ytChannelId: 'UCZgM6m2cK58wV1a4hN33J8g',
       episodes: [
         {
           id: 'ep_shay_kat',
           title: 'Katt Williams Unfiltered Interview & Comedy History',
-          youtubeId: '3d4e5f6g7h8',
+          youtubeId: 'gXVUOIFC6fM',
           date: 'Jan 2026',
           year: 2026,
           duration: '2h 45m',
-          thumbnail: 'https://img.youtube.com/vi/3d4e5f6g7h8/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=600&q=80',
           description: 'Breakthrough viral interview breaking records with raw honesty, entertainment secrets, and industry truths.'
         }
       ]
@@ -840,15 +725,16 @@ export const PODCAST_CHANNELS = {
       subscribers: '2.5M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=600&q=80',
       description: 'Super Bowl champion brothers Jason & Travis Kelce discuss NFL life, locker room dynamics, and pop culture.',
+      ytChannelId: 'UC4j1_d1xT_nL0JkM8uXb78w',
       episodes: [
         {
           id: 'ep_kelce_playoffs',
           title: 'NFL Playoff Reactions, Game Winning Drives & Family',
-          youtubeId: '5f6g7h8i9j0',
+          youtubeId: 'qvS3w_J88C0',
           date: 'Jan 2026',
           year: 2026,
           duration: '1h 40m',
-          thumbnail: 'https://img.youtube.com/vi/5f6g7h8i9j0/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=600&q=80',
           description: 'Jason and Travis talk offensive line schemes, Chiefs touchdowns, fan questions, and weekly stories.'
         }
       ]
@@ -861,6 +747,7 @@ export const PODCAST_CHANNELS = {
       subscribers: '13M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=600&q=80',
       description: 'The show with hot questions and even hotter wings! Host Sean Evans interviews top celebrities eating spicy wings.',
+      ytChannelId: 'UCJFp8uSYCjXOMnkUyb3CQ3Q',
       episodes: [
         {
           id: 'ep_hotones_2026',
@@ -869,7 +756,7 @@ export const PODCAST_CHANNELS = {
           date: 'Jan 2026',
           year: 2026,
           duration: '28m',
-          thumbnail: 'https://img.youtube.com/vi/L_LUpnjgPso/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=600&q=80',
           description: 'Legendary interview with Conan O\'Brien drinking hot sauce straight from the bottle in pure comedic mania.'
         }
       ]
@@ -882,6 +769,7 @@ export const PODCAST_CHANNELS = {
       subscribers: '9.2M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
       description: 'Intimate, acoustic live musical performances from top global icons behind the NPR desk in Washington, D.C.',
+      ytChannelId: 'UC4eYXhJI4-7wSWc8UNRwD4A',
       episodes: [
         {
           id: 'ep_tiny_usher',
@@ -890,7 +778,7 @@ export const PODCAST_CHANNELS = {
           date: 'Jan 2026',
           year: 2026,
           duration: '25m',
-          thumbnail: 'https://img.youtube.com/vi/L_LUpnjgPso/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
           description: 'Viral soul and R&B performance featuring live horns, backing vocals, and hit medley.'
         }
       ]
@@ -906,26 +794,17 @@ export const PODCAST_CHANNELS = {
       subscribers: '950K Subscribers',
       avatar: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=600&q=80',
       description: 'Masterclass historical storytelling exploring ancient empires, World War sagas, and human extremes.',
+      ytChannelId: 'UCwzCMBttR111v6b3P7z0zGg',
       episodes: [
         {
           id: 'ep_dan_supernova',
           title: 'Supernova in the East: The Pacific War & Human Drama',
-          youtubeId: 'ez773teNFya',
+          youtubeId: 'gXVUOIFC6fM',
           date: 'Nov 2025',
           year: 2025,
           duration: '4h 15m',
-          thumbnail: 'https://img.youtube.com/vi/ez773teNFya/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=600&q=80',
           description: 'Dan Carlin paints an immersive portrait of World War II military strategy, societal shifts, and human survival.'
-        },
-        {
-          id: 'ep_dan_wrath',
-          title: 'Wrath of the Khans: Genghis Khan & Mongol Conquests',
-          youtubeId: 'sN-5gT77-u0',
-          date: 'May 2024',
-          year: 2024,
-          duration: '3h 50m',
-          thumbnail: 'https://img.youtube.com/vi/sN-5gT77-u0/hqdefault.jpg',
-          description: 'How a nomadic leader unified steppe tribes to forge the largest contiguous land empire in recorded human history.'
         }
       ]
     },
@@ -937,15 +816,16 @@ export const PODCAST_CHANNELS = {
       subscribers: '3.8M Subscribers',
       avatar: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80',
       description: 'Deeply researched true crime cases, psychological mysteries, and global investigative storytelling.',
+      ytChannelId: 'UC-R903E5y-X8g1cZ-b8830w',
       episodes: [
         {
           id: 'ep_rotten_case1',
           title: 'The High Society Heist & Unsolved Mansion Mystery',
-          youtubeId: '9g8J457K3b8',
+          youtubeId: 'L_LUpnjgPso',
           date: 'Feb 2026',
           year: 2026,
           duration: '1h 38m',
-          thumbnail: 'https://img.youtube.com/vi/9g8J457K3b8/hqdefault.jpg',
+          thumbnail: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80',
           description: 'Stephanie Soo breaks down forensic evidence, witness testimony, and psychological motives behind high-profile cases.'
         }
       ]
