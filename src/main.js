@@ -642,6 +642,17 @@ function renderPocketCastsSubscribed() {
     .map(id => showMap.get(id))
     .filter(Boolean);
 
+  // Synchronize stored IDs with valid mapped objects so badge count and grid always match 1:1
+  pocketcastsState.subscribedShowIds = subscribedChannels.map(c => c.id);
+  localStorage.setItem('pocketcasts_subscribed_ids', JSON.stringify(pocketcastsState.subscribedShowIds));
+  
+  const subBadge = document.getElementById('podcast-subscribed-badge');
+  if (subBadge) {
+    subBadge.textContent = subscribedChannels.length;
+    if (subscribedChannels.length > 0) subBadge.classList.remove('hidden');
+    else subBadge.classList.add('hidden');
+  }
+
   if (countText) countText.textContent = `${subscribedChannels.length} Shows`;
 
   if (subscribedChannels.length === 0) {
@@ -1196,6 +1207,7 @@ async function openPodcastChannelModal(channel) {
   const searchInput = document.getElementById('podcast-episodes-search');
   const sortSelect = document.getElementById('podcast-episodes-sort');
   const loadMoreBtn = document.getElementById('podcast-episodes-load-more');
+  const grid = document.getElementById('podcast-channel-episodes-grid');
 
   // Tabs
   const tabAll = document.getElementById('podcast-tab-all');
@@ -1207,6 +1219,21 @@ async function openPodcastChannelModal(channel) {
   if (host) host.textContent = `Hosted by ${channel.host || 'YouTube Creator'} • ${channel.category}`;
   if (desc) desc.textContent = channel.description || 'Watch latest full video podcast episodes.';
   if (subsBadge) subsBadge.textContent = channel.subscribers || 'YouTube Channel';
+
+  // IMMEDIATELY open overlay modal for instant UI responsiveness
+  overlay.classList.remove('hidden');
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  createIcons(iconConfig);
+
+  if (grid) {
+    grid.innerHTML = `
+      <div class="col-span-full flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
+        <div class="w-8 h-8 border-3 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+        <span class="text-sm font-semibold text-slate-200">Loading latest video episodes for ${channel.channelName}...</span>
+      </div>
+    `;
+  }
 
   // Update Favorite button state inside modal
   const updateFavBtnUI = () => {
@@ -1252,7 +1279,7 @@ async function openPodcastChannelModal(channel) {
     };
   }
 
-  // Load and fetch channel episodes (combining static catalog + dynamic RSS feeds)
+  // Load and fetch channel episodes dynamically
   activePodcastAllEpisodes = await fetchChannelPastEpisodes(channel);
 
   if (playLatestBtn) {
@@ -1318,11 +1345,6 @@ async function openPodcastChannelModal(channel) {
   }
 
   renderChannelEpisodesGrid();
-
-  overlay.classList.remove('hidden');
-  overlay.style.display = 'flex';
-  document.body.style.overflow = 'hidden';
-  createIcons(iconConfig);
 }
 
 // Render paginated & filtered episode grid inside Channel Modal
