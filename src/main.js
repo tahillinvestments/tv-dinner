@@ -1660,17 +1660,75 @@ async function openPodcastModal(podcast) {
     videoEl.removeAttribute('src');
   }
 
+  // Clean up any previous YouTube embed error handler before loading new video
+  if (window._ytEmbedErrorHandler) {
+    window.removeEventListener('message', window._ytEmbedErrorHandler);
+    window._ytEmbedErrorHandler = null;
+  }
+  const existingEmbedError = document.getElementById('embed-error-overlay');
+  if (existingEmbedError) existingEmbedError.remove();
+
   // Launch YouTube Video Player embed via youtube-nocookie domain
+  // enablejsapi=1 activates postMessage events so we can catch Error 153 (embedding restricted)
   if (embedWrapper) {
     embedWrapper.style.display = 'block';
     embedWrapper.style.pointerEvents = 'auto';
+    embedWrapper.style.position = 'relative';
   }
   if (embedIframe) {
     embedIframe.style.pointerEvents = 'auto';
+    embedIframe.style.display = 'block';
     embedIframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
     embedIframe.setAttribute('allowfullscreen', 'true');
-    embedIframe.src = `https://www.youtube-nocookie.com/embed/${podcast.youtubeId}?autoplay=1&rel=0`;
+    embedIframe.src = `https://www.youtube-nocookie.com/embed/${podcast.youtubeId}?autoplay=1&rel=0&enablejsapi=1`;
   }
+
+  // YouTube postMessage error handler
+  // YouTube sends { event: "onError", info: <code> } when embedding is blocked
+  // 153 = video player configuration error (most common embed restriction)
+  // 150/101 = video blocked in embedded players by owner
+  // 100 = video not found / private
+  const ytErrorHandler = (event) => {
+    if (!event.data) return;
+    let data;
+    try { data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data; } catch (e) { return; }
+    if (data.event !== 'onError') return;
+    const code = data.info;
+    if (code !== 153 && code !== 150 && code !== 101 && code !== 100) return;
+
+    // Error caught — clean up handler and show our own fallback UI
+    window.removeEventListener('message', ytErrorHandler);
+    window._ytEmbedErrorHandler = null;
+    if (embedIframe) embedIframe.style.display = 'none';
+
+    if (embedWrapper) {
+      const ytUrl = `https://www.youtube.com/watch?v=${podcast.youtubeId}`;
+      const errDiv = document.createElement('div');
+      errDiv.id = 'embed-error-overlay';
+      errDiv.style.cssText = 'position:absolute;inset:0;background:#08101e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:20;border-radius:inherit;';
+      errDiv.innerHTML = `
+        <div style="width:68px;height:68px;background:#ef4444;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 32px rgba(239,68,68,0.4);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        </div>
+        <div style="text-align:center;padding:0 28px;">
+          <p style="color:#fff;font-size:16px;font-weight:800;margin:0 0 8px;letter-spacing:-0.01em;">Can't Play Here</p>
+          <p style="color:#94a3b8;font-size:13px;margin:0;line-height:1.5;">This episode is restricted from embedded playback.<br>Opening in YouTube now...</p>
+        </div>
+        <a href="${ytUrl}" target="_blank" rel="noopener noreferrer"
+          style="display:inline-flex;align-items:center;gap:8px;padding:13px 28px;background:#ef4444;color:#fff;border-radius:12px;font-weight:700;font-size:14px;text-decoration:none;box-shadow:0 4px 20px rgba(239,68,68,0.3);"
+          onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          Watch on YouTube
+        </a>
+      `;
+      embedWrapper.appendChild(errDiv);
+    }
+    // Auto-open YouTube in new tab after brief delay (gives user a moment to see the UI)
+    setTimeout(() => { window.open(`https://www.youtube.com/watch?v=${podcast.youtubeId}`, '_blank'); }, 600);
+  };
+
+  window._ytEmbedErrorHandler = ytErrorHandler;
+  window.addEventListener('message', ytErrorHandler);
 
   // Populate In-Player "More Episodes from Channel" section
   const moreSection = document.getElementById('player-more-episodes-section');
