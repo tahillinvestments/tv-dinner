@@ -793,7 +793,7 @@ async function handlePocketCastsSearch(query) {
             <img src="${ep.thumbnail || ep.channelAvatar || ''}" class="w-10 h-10 rounded-lg object-cover flex-shrink-0" onerror="this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
             <div class="overflow-hidden">
               <h4 class="text-xs font-bold text-white truncate">${ep.title}</h4>
-              <p class="text-[11px] text-red-400 font-semibold truncate">${ep.channelName || 'Podcast Episode'}</p>
+              <p class="text-[11px] text-red-400 font-semibold truncate flex items-center gap-1.5"><span>${ep.channelName || 'Podcast Episode'}</span> <span class="text-slate-400 font-normal">• 📅 ${ep.date || ep.year || 'Recent'}</span></p>
             </div>
           </div>
           <button class="flex-shrink-0 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1">
@@ -1420,6 +1420,7 @@ function renderChannelEpisodesGrid() {
           </div>
         </div>
         <span class="ep-duration-badge">${ep.duration || 'Video'}</span>
+        <span class="ep-date-badge">📅 ${ep.date || ep.year || 'Recent'}</span>
         ${isPlayed ? '<span class="ep-status-badge played">✓ PLAYED</span>' : '<span class="ep-status-badge hd">HD 🔴</span>'}
       </div>
 
@@ -1430,7 +1431,7 @@ function renderChannelEpisodesGrid() {
         </div>
 
         <div class="ep-footer">
-          <span class="ep-date">📅 ${ep.date || ep.year || 'Past'}</span>
+          <span class="ep-date">📅 Published ${ep.date || ep.year || 'Recent'}</span>
 
           <div class="ep-actions">
             <button class="ep-btn-icon ep-save-btn" title="${isSaved ? 'Remove Bookmark' : 'Save Bookmark'}">
