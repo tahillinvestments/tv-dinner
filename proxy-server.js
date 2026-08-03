@@ -12,8 +12,11 @@ function rewriteM3U8(m3uText, finalUrl, proxyOrigin) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
     try {
-      const absolute = new URL(trimmed, base).href;
-      return `${proxyOrigin}?url=${encodeURIComponent(absolute)}`;
+      const absoluteUrl = new URL(trimmed, base);
+      if (base.search && !absoluteUrl.search) {
+        absoluteUrl.search = base.search;
+      }
+      return `${proxyOrigin}?url=${encodeURIComponent(absoluteUrl.href)}`;
     } catch {
       return line;
     }
