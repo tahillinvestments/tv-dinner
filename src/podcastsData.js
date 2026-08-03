@@ -315,7 +315,7 @@ export function getHeroPodcast() {
   };
 }
 
-// Search podcasts (Returns Curated Channels, Live Real YouTube Video Podcast Channels, and Matching Video Episodes)
+// Search podcasts (Returns Curated Channels, Live Real iTunes/YouTube Channels, and Matching Video Episodes)
 export async function searchRealPodcastAPI(query) {
   if (!query || query.trim() === '') {
     return {
@@ -339,14 +339,43 @@ export async function searchRealPodcastAPI(query) {
   let realChannels = [];
   let apiMatchingEpisodes = [];
 
-  // 2. Live real YouTube Video Podcast search via Invidious API
+  // 2. Global Podcast Search via iTunes API
   try {
     const term = encodeURIComponent(query.trim());
-    const res = await fetch(`https://inv.tux.pizza/api/v1/search?q=${term}+video+podcast&type=video`);
+    const channelUrl = `https://itunes.apple.com/search?media=podcast&entity=podcast&term=${term}&limit=30`;
+    const res = await fetch(channelUrl);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        const curatedNames = new Set(allChannels.map(c => c.channelName.toLowerCase()));
+        realChannels = data.results
+          .filter(item => item.collectionName && !curatedNames.has(item.collectionName.toLowerCase()))
+          .map(item => ({
+            id: `chan_itunes_${item.collectionId}`,
+            collectionId: item.collectionId,
+            channelName: item.collectionName || item.trackName,
+            host: item.artistName || 'Podcast Host',
+            category: item.primaryGenreName || 'Podcast',
+            subscribers: `${item.trackCount || 10}+ Episodes`,
+            avatar: item.artworkUrl600 || item.artworkUrl100 || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+            description: `Official podcast channel for "${item.collectionName}". Host: ${item.artistName || 'Creator'}.`,
+            feedUrl: item.feedUrl,
+            isExternal: true
+          }));
+      }
+    }
+  } catch (err) {
+    console.warn('[Podcasts] iTunes channel search error:', err);
+  }
+
+  // 3. Live YouTube Video Podcast search via Invidious API
+  try {
+    const term = encodeURIComponent(query.trim());
+    const res = await fetch(`https://inv.tux.pizza/api/v1/search?q=${term}&type=video`);
     if (res.ok) {
       const data = await res.json();
       if (data && data.length > 0) {
-        apiMatchingEpisodes = data.slice(0, 25).map(item => ({
+        const ytEpisodes = data.slice(0, 20).map(item => ({
           id: `ep_yt_${item.videoId}`,
           title: item.title,
           youtubeId: item.videoId,
@@ -361,23 +390,28 @@ export async function searchRealPodcastAPI(query) {
           isExternal: true
         }));
 
-        const channelMap = new Map();
-        data.forEach(item => {
-          if (item.author && item.authorId && !channelMap.has(item.authorId)) {
-            channelMap.set(item.authorId, {
-              id: `chan_yt_${item.authorId}`,
-              ytChannelId: item.authorId,
-              channelName: item.author,
-              host: item.author,
-              category: 'Video Podcast',
-              subscribers: 'YouTube Video Channel',
-              avatar: `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`,
-              description: `Official YouTube Video Podcast channel for ${item.author}.`,
-              isExternal: true
-            });
-          }
-        });
-        realChannels = Array.from(channelMap.values());
+        apiMatchingEpisodes = ytEpisodes;
+
+        // If no iTunes channels found, generate channels from YouTube search authors
+        if (realChannels.length === 0) {
+          const channelMap = new Map();
+          data.forEach(item => {
+            if (item.author && item.authorId && !channelMap.has(item.authorId)) {
+              channelMap.set(item.authorId, {
+                id: `chan_yt_${item.authorId}`,
+                ytChannelId: item.authorId,
+                channelName: item.author,
+                host: item.author,
+                category: 'Video Podcast',
+                subscribers: 'YouTube Channel',
+                avatar: `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`,
+                description: `Official YouTube Video Podcast channel for ${item.author}.`,
+                isExternal: true
+              });
+            }
+          });
+          realChannels = Array.from(channelMap.values());
+        }
       }
     }
   } catch (err) {
@@ -400,23 +434,7 @@ export function searchPodcastChannels(query) {
 export async function fetchChannelPastEpisodes(channel) {
   if (!channel) return [];
 
-  // A. If channel is missing ytChannelId, attempt to resolve it live via Invidious channel search
-  if (!channel.ytChannelId && channel.channelName) {
-    try {
-      const q = encodeURIComponent(channel.channelName.trim());
-      const res = await fetch(`https://inv.tux.pizza/api/v1/search?q=${q}&type=channel`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data[0] && data[0].authorId) {
-          channel.ytChannelId = data[0].authorId;
-        }
-      }
-    } catch (err) {
-      console.warn('[Podcasts] Invidious YouTube channel resolution error:', err);
-    }
-  }
-
-  // B. Fetch real YouTube XML RSS feed (LIVE HD VIDEO EPISODES)
+  // A. Try YouTube XML RSS feed if channel.ytChannelId is present
   if (channel.ytChannelId) {
     const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.ytChannelId}`;
     const proxies = [
@@ -473,15 +491,15 @@ export async function fetchChannelPastEpisodes(channel) {
     }
   }
 
-  // C. Invidious API Fallback for live YouTube video episodes
+  // B. Fallback: Search live YouTube videos directly by channel name (Fixes Club Shay Shay & shows with missing/invalid ytChannelId)
   if (channel.channelName) {
     try {
-      const q = encodeURIComponent(`${channel.channelName} podcast`);
+      const q = encodeURIComponent(`${channel.channelName} full episode`);
       const res = await fetch(`https://inv.tux.pizza/api/v1/search?q=${q}&type=video`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.length > 0) {
-          return data.slice(0, 15).map(item => ({
+          return data.slice(0, 20).map(item => ({
             id: `ep_yt_${item.videoId}`,
             title: item.title,
             youtubeId: item.videoId,
@@ -497,7 +515,38 @@ export async function fetchChannelPastEpisodes(channel) {
         }
       }
     } catch (e) {
-      console.warn('[Podcasts] Invidious video search fallback error:', e);
+      console.warn('[Podcasts] Invidious fallback error:', e);
+    }
+  }
+
+  // C. Fallback: iTunes collection lookup
+  if (channel.collectionId) {
+    try {
+      const epUrl = `https://itunes.apple.com/lookup?id=${channel.collectionId}&entity=podcastEpisode&limit=30`;
+      const res = await fetch(epUrl);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results && data.results.length > 1) {
+          return data.results.slice(1).map((item, idx) => {
+            const minutes = item.trackTimeMillis ? Math.round(item.trackTimeMillis / 60000) : null;
+            return {
+              id: `ep_itunes_${item.trackId || idx}`,
+              title: item.trackName || `${channel.channelName} Episode ${idx + 1}`,
+              channelName: channel.channelName,
+              host: channel.host || item.artistName,
+              category: channel.category || item.primaryGenreName,
+              audioUrl: item.episodeUrl || item.previewUrl,
+              date: item.releaseDate ? new Date(item.releaseDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Recent',
+              year: item.releaseDate ? new Date(item.releaseDate).getFullYear() : 2026,
+              duration: minutes ? `${minutes}m` : 'Episode',
+              thumbnail: item.artworkUrl600 || item.artworkUrl160 || channel.avatar,
+              description: item.description || item.shortDescription || channel.description
+            };
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[Podcasts] iTunes lookup error:', err);
     }
   }
 
