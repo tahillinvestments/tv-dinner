@@ -3298,7 +3298,8 @@ function setupSettingsScreen() {
   const adminDashboardSection = document.getElementById('admin-dashboard-section');
   const adminCredentialsTable = document.getElementById('admin-credentials-table');
 
-  const ADMIN_CREDENTIALS = [
+  // Admin Credentials Storage & CRUD
+  const DEFAULT_ADMIN_CREDENTIALS = [
     { phone: '123-456-7894', user: 'SGmUC7q2U', pswd: '4WM9WVsjG' },
     { phone: '317-363-1751', user: 'MW2Y2h6e7', pswd: '5DwU7wTuA' },
     { phone: '317-900-3473', user: 'Hn9a6bus9', pswd: 'JaKXrfMP7' },
@@ -3306,6 +3307,192 @@ function setupSettingsScreen() {
     { phone: '317-795-7627', user: 'SAPPTV12', pswd: 'REMOTE6202' },
     { phone: '317-261-1596', user: 'DAMETV', pswd: '2611596317' }
   ];
+
+  function getAdminCredentials() {
+    const raw = localStorage.getItem('admin_iptv_credentials');
+    if (!raw) {
+      localStorage.setItem('admin_iptv_credentials', JSON.stringify(DEFAULT_ADMIN_CREDENTIALS));
+      return DEFAULT_ADMIN_CREDENTIALS;
+    }
+    try {
+      const list = JSON.parse(raw);
+      return Array.isArray(list) ? list : DEFAULT_ADMIN_CREDENTIALS;
+    } catch (e) {
+      return DEFAULT_ADMIN_CREDENTIALS;
+    }
+  }
+
+  function saveAdminCredentials(list) {
+    localStorage.setItem('admin_iptv_credentials', JSON.stringify(list));
+  }
+
+  function renderAdminTable() {
+    if (!adminCredentialsTable) return;
+    const credsList = getAdminCredentials();
+    adminCredentialsTable.innerHTML = '';
+
+    if (credsList.length === 0) {
+      adminCredentialsTable.innerHTML = `
+        <tr>
+          <td colspan="4" class="py-8 px-4 text-center text-xs text-slate-400">
+            No account credentials registered yet. Click "Add Account" above to create one.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    credsList.forEach((cred, idx) => {
+      const tr = document.createElement('tr');
+      tr.className = "hover:bg-slate-800/60 transition-colors group border-b border-slate-800/80";
+      tr.innerHTML = `
+        <td class="py-3 px-4 font-mono font-bold text-emerald-400 text-xs">
+          <div class="flex items-center gap-2">
+            <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i> ${cred.phone}
+          </div>
+        </td>
+        <td class="py-3 px-4">
+          <span class="bg-slate-800/90 border border-slate-700/80 px-2.5 py-1 rounded-md text-blue-400 font-mono text-xs font-semibold inline-block">
+            ${cred.user}
+          </span>
+        </td>
+        <td class="py-3 px-4">
+          <span class="bg-slate-800/90 border border-slate-700/80 px-2.5 py-1 rounded-md text-purple-400 font-mono text-xs font-semibold inline-block">
+            ${cred.pswd}
+          </span>
+        </td>
+        <td class="py-3 px-4 text-right">
+          <div class="flex items-center justify-end gap-1.5">
+            <button class="admin-edit-row-btn px-2.5 py-1 rounded-md bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-300 hover:text-white transition-all text-xs font-semibold flex items-center gap-1" data-index="${idx}" title="Edit Account">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
+            </button>
+            <button class="admin-delete-row-btn px-2.5 py-1 rounded-md bg-red-600/20 hover:bg-red-600 border border-red-500/40 text-red-300 hover:text-white transition-all text-xs font-semibold flex items-center gap-1" data-index="${idx}" title="Delete Account">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
+            </button>
+          </div>
+        </td>
+      `;
+      adminCredentialsTable.appendChild(tr);
+    });
+
+    createIcons(iconConfig);
+
+    // Attach edit / delete handlers
+    adminCredentialsTable.querySelectorAll('.admin-edit-row-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const index = parseInt(btn.getAttribute('data-index'));
+        openAdminModal(index);
+      });
+    });
+
+    adminCredentialsTable.querySelectorAll('.admin-delete-row-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const index = parseInt(btn.getAttribute('data-index'));
+        deleteAdminCredential(index);
+      });
+    });
+  }
+
+  // Admin Modal CRUD Logic
+  const credModal = document.getElementById('admin-cred-modal');
+  const modalTitle = document.getElementById('admin-modal-title');
+  const modalForm = document.getElementById('admin-cred-form');
+  const modalEditIndex = document.getElementById('admin-modal-edit-index');
+  const modalPhone = document.getElementById('admin-modal-phone');
+  const modalUser = document.getElementById('admin-modal-user');
+  const modalPass = document.getElementById('admin-modal-pass');
+  const modalCloseBtn = document.getElementById('admin-modal-close');
+  const modalCancelBtn = document.getElementById('admin-modal-cancel');
+  const adminAddBtn = document.getElementById('admin-add-btn');
+
+  if (modalPhone) {
+    modalPhone.addEventListener('input', function (e) {
+      let x = e.target.value.replace(/\D/g, '').match(/(\d{0,3})(\d{0,3})(\d{0,4})/);
+      e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+    });
+  }
+
+  function openAdminModal(editIndex = -1) {
+    if (!credModal) return;
+    modalEditIndex.value = editIndex;
+    
+    if (editIndex >= 0) {
+      const list = getAdminCredentials();
+      const item = list[editIndex];
+      if (item) {
+        if (modalTitle) modalTitle.innerHTML = `<i data-lucide="edit-3" class="w-5 h-5 text-indigo-400"></i> Edit Account Credential`;
+        if (modalPhone) modalPhone.value = item.phone;
+        if (modalUser) modalUser.value = item.user;
+        if (modalPass) modalPass.value = item.pswd;
+      }
+    } else {
+      if (modalTitle) modalTitle.innerHTML = `<i data-lucide="user-plus" class="w-5 h-5 text-emerald-400"></i> Add Account Credential`;
+      if (modalPhone) modalPhone.value = '';
+      if (modalUser) modalUser.value = '';
+      if (modalPass) modalPass.value = '';
+    }
+    
+    createIcons(iconConfig);
+    credModal.classList.remove('hidden');
+  }
+
+  function closeAdminModal() {
+    if (credModal) credModal.classList.add('hidden');
+  }
+
+  if (adminAddBtn) {
+    adminAddBtn.addEventListener('click', () => openAdminModal(-1));
+  }
+  if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeAdminModal);
+  if (modalCancelBtn) modalCancelBtn.addEventListener('click', closeAdminModal);
+
+  if (modalForm) {
+    modalForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const stripped = modalPhone.value.replace(/\D/g, '');
+      if (stripped.length !== 10) {
+        player.showToast("Please enter a valid 10-digit phone number.");
+        return;
+      }
+
+      const formattedPhone = `${stripped.substring(0, 3)}-${stripped.substring(3, 6)}-${stripped.substring(6, 10)}`;
+      const userVal = modalUser.value.trim();
+      const passVal = modalPass.value.trim();
+
+      if (!userVal || !passVal) {
+        player.showToast("Username and Password are required.");
+        return;
+      }
+
+      const idx = parseInt(modalEditIndex.value);
+      const list = getAdminCredentials();
+
+      if (idx >= 0 && idx < list.length) {
+        list[idx] = { phone: formattedPhone, user: userVal, pswd: passVal };
+        player.showToast("Account updated successfully!");
+      } else {
+        list.push({ phone: formattedPhone, user: userVal, pswd: passVal });
+        player.showToast("New account credential added!");
+      }
+
+      saveAdminCredentials(list);
+      renderAdminTable();
+      closeAdminModal();
+    });
+  }
+
+  function deleteAdminCredential(index) {
+    const list = getAdminCredentials();
+    if (index >= 0 && index < list.length) {
+      const item = list[index];
+      if (confirm(`Are you sure you want to delete credential for ${item.phone}?`)) {
+        list.splice(index, 1);
+        saveAdminCredentials(list);
+        renderAdminTable();
+        player.showToast(`Deleted credential for ${item.phone}`);
+      }
+    }
+  }
 
   // Phone Input Masking (US Format)
   if (phoneInput) {
@@ -3322,7 +3509,7 @@ function setupSettingsScreen() {
     activatedIndicatorSection.classList.remove('hidden');
   }
 
-  // Phone Activation Logic
+  // Phone Activation Logic (queries dynamic admin credentials database)
   if (activatePhoneBtn) {
     activatePhoneBtn.addEventListener('click', () => {
       const phoneVal = phoneInput.value;
@@ -3333,7 +3520,8 @@ function setupSettingsScreen() {
       }
       const formattedPhone = `${strippedPhone.substring(0, 3)}-${strippedPhone.substring(3, 6)}-${strippedPhone.substring(6, 10)}`;
       
-      const creds = ADMIN_CREDENTIALS.find(c => c.phone === formattedPhone);
+      const adminList = getAdminCredentials();
+      const creds = adminList.find(c => c.phone === formattedPhone);
       if (creds) {
         localStorage.setItem('activated_phone', formattedPhone);
         localStorage.setItem('iptv_username', creds.user);
@@ -3387,21 +3575,7 @@ function setupSettingsScreen() {
       if (adminPasswordInput.value === '5678721') {
         adminLoginSection.classList.add('hidden');
         adminDashboardSection.classList.remove('hidden');
-        
-        // Populate Admin Table
-        if (adminCredentialsTable) {
-          adminCredentialsTable.innerHTML = '';
-          ADMIN_CREDENTIALS.forEach(cred => {
-            const tr = document.createElement('tr');
-            tr.className = "hover:bg-slate-700/50 transition-colors";
-            tr.innerHTML = `
-              <td class="p-3 border-b border-slate-700/50">${cred.phone}</td>
-              <td class="p-3 border-b border-slate-700/50 font-mono text-blue-400">${cred.user}</td>
-              <td class="p-3 border-b border-slate-700/50 font-mono text-red-400">${cred.pswd}</td>
-            `;
-            adminCredentialsTable.appendChild(tr);
-          });
-        }
+        renderAdminTable();
         player.showToast("Admin access granted.");
       } else {
         player.showToast("Incorrect admin password.");

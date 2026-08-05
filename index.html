@@ -695,7 +695,7 @@
           <h3>IPTV Account Credentials</h3>
           <p class="section-desc">Configure your Xtream Codes username and password for live TV channels.</p>
 
-          <div class="settings-input-row">
+          <div class="settings-input-row" style="display: none;">
             <div class="settings-input-group">
               <label for="settings-iptv-username" class="settings-input-label">Username</label>
               <input type="text" id="settings-iptv-username" class="settings-input-control" placeholder="Xtream Username...">
@@ -710,7 +710,7 @@
             <input type="text" id="settings-custom-proxy" class="settings-input-control" placeholder="https://tv-dinner-proxy.tahillinvestments.workers.dev/">
           </div>
 
-          <div class="settings-input-group mt-4" id="phone-activation-section">
+          <div class="settings-input-group mt-2" id="phone-activation-section">
             <label for="settings-phone-number" class="settings-input-label">Phone Number Activation</label>
             <div class="flex items-center gap-2">
               <input type="text" id="settings-phone-number" class="settings-input-control flex-1" placeholder="(XXX) XXX-XXXX" maxlength="14">
@@ -729,30 +729,53 @@
 
         <div class="settings-form-section mt-6 border-t border-slate-700/50 pt-6">
           <h3 class="flex items-center justify-between cursor-pointer" id="admin-toggle-header">
-            Admin Access <i data-lucide="chevron-down" class="w-4 h-4"></i>
+            <span class="flex items-center gap-2">
+              <i data-lucide="shield-check" class="w-5 h-5 text-indigo-400"></i> Admin Credential Manager
+            </span>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
           </h3>
           <div id="admin-panel-container" class="hidden mt-4">
             <div id="admin-login-section" class="settings-input-group">
-              <label for="admin-password" class="settings-input-label">Admin Password</label>
+              <label for="admin-password" class="settings-input-label">Admin Master Password</label>
               <div class="flex items-center gap-2">
-                <input type="password" id="admin-password" class="settings-input-control flex-1" placeholder="Enter password...">
-                <button id="admin-login-btn" class="btn btn-primary">Login</button>
+                <input type="password" id="admin-password" class="settings-input-control flex-1" placeholder="Enter password (5678721)...">
+                <button id="admin-login-btn" class="btn btn-primary flex items-center gap-1.5">
+                  <i data-lucide="key" class="w-4 h-4"></i> Unlock
+                </button>
               </div>
             </div>
-            <div id="admin-dashboard-section" class="hidden mt-4">
-              <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-                <table class="w-full text-left text-sm text-slate-300">
-                  <thead class="bg-slate-900/50">
-                    <tr>
-                      <th class="p-3 border-b border-slate-700 font-semibold">Phone</th>
-                      <th class="p-3 border-b border-slate-700 font-semibold">User</th>
-                      <th class="p-3 border-b border-slate-700 font-semibold">Password</th>
-                    </tr>
-                  </thead>
-                  <tbody id="admin-credentials-table">
-                    <!-- Populated via JS -->
-                  </tbody>
-                </table>
+
+            <div id="admin-dashboard-section" class="hidden mt-4 space-y-4">
+              <!-- Admin Header Bar -->
+              <div class="flex items-center justify-between bg-slate-800/80 p-3 rounded-xl border border-slate-700/60">
+                <div>
+                  <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i data-lucide="database" class="w-4 h-4 text-emerald-400"></i> IPTV Account Database
+                  </h4>
+                  <p class="text-xs text-slate-400">Manage 10-digit phone numbers and Xtream credentials.</p>
+                </div>
+                <button id="admin-add-btn" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i> Add Account
+                </button>
+              </div>
+
+              <!-- Admin Credentials Table -->
+              <div class="bg-slate-900/90 rounded-xl border border-slate-700/70 overflow-hidden shadow-2xl">
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left text-sm text-slate-300 border-collapse">
+                    <thead class="bg-slate-800/90 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-700">
+                      <tr>
+                        <th class="py-3 px-4 font-bold">Phone Number</th>
+                        <th class="py-3 px-4 font-bold">Xtream Username</th>
+                        <th class="py-3 px-4 font-bold">Xtream Password</th>
+                        <th class="py-3 px-4 font-bold text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="admin-credentials-table" class="divide-y divide-slate-800/80">
+                      <!-- Dynamically rendered rows -->
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
@@ -1042,6 +1065,46 @@
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Admin Add/Edit Credential Modal Overlay -->
+  <div id="admin-cred-modal" class="details-overlay hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-800/95 border border-slate-700/80 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 backdrop-blur-md">
+      <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+        <h3 id="admin-modal-title" class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="user-plus" class="w-5 h-5 text-emerald-400"></i> Add Account Credential
+        </h3>
+        <button id="admin-modal-close" class="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-700">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="admin-cred-form" class="space-y-4">
+        <input type="hidden" id="admin-modal-edit-index" value="-1">
+        
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Phone Number (10-Digit US)</label>
+          <input type="text" id="admin-modal-phone" class="settings-input-control w-full" placeholder="(317) 000-0000" maxlength="14" required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Xtream Username</label>
+          <input type="text" id="admin-modal-user" class="settings-input-control w-full" placeholder="e.g. SAPPTV12" required>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Xtream Password</label>
+          <input type="text" id="admin-modal-pass" class="settings-input-control w-full" placeholder="e.g. REMOTE6202" required>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-700/60">
+          <button type="button" id="admin-modal-cancel" class="btn btn-secondary text-xs px-4 py-2">Cancel</button>
+          <button type="submit" class="btn btn-primary text-xs px-5 py-2 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500">
+            <i data-lucide="save" class="w-4 h-4"></i> Save Credential
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
