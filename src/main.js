@@ -212,6 +212,10 @@ function stopAllMediaPlayback(options = {}) {
       }
     }
   }
+
+  // Hide player loading spinner overlay
+  const loadingEl = document.getElementById('player-loading');
+  if (loadingEl) loadingEl.classList.add('hidden');
 }
 
 function stopActiveLiveTVFeed() {
@@ -3616,6 +3620,67 @@ function setupSettingsScreen() {
   }
 }
 
+// Fetch Xtream playlist dynamically using user's active credentials
+async function fetchXtreamPlaylist(portalUrl, username, password) {
+  if (!username || !password) return '';
+  console.log(`[Xtream] Fetching channel playlist for user "${username}"...`);
+
+  // Strategy 1: Fetch get.php M3U export
+  try {
+    const directM3uUrl = `${portalUrl}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus&output=ts`;
+    const proxiedM3uUrl = getProxyUrl(directM3uUrl);
+    const res = await fetch(proxiedM3uUrl);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.includes('#EXTM3U')) {
+        console.log(`[Xtream] get.php playlist fetched successfully for "${username}"`);
+        return text;
+      }
+    }
+  } catch (e) {
+    console.warn("[Xtream] get.php fetch failed:", e);
+  }
+
+  // Strategy 2: Fetch player_api.php live streams
+  try {
+    const apiUrl = getProxyUrl(`${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`);
+    const catUrl = getProxyUrl(`${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`);
+    
+    const [streamsRes, catsRes] = await Promise.all([
+      fetch(apiUrl).catch(() => null),
+      fetch(catUrl).catch(() => null)
+    ]);
+
+    if (streamsRes && streamsRes.ok) {
+      const streams = await streamsRes.json();
+      let categoriesMap = {};
+      if (catsRes && catsRes.ok) {
+        try {
+          const cats = await catsRes.json();
+          if (Array.isArray(cats)) {
+            cats.forEach(c => { categoriesMap[c.category_id] = c.category_name; });
+          }
+        } catch (e) {}
+      }
+
+      if (Array.isArray(streams) && streams.length > 0) {
+        let m3uLines = ['#EXTM3U'];
+        streams.forEach(s => {
+          const catName = categoriesMap[s.category_id] || 'Live TV';
+          const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.ts`;
+          m3uLines.push(`#EXTINF:-1 tvg-id="${s.epg_channel_id || ''}" tvg-name="${s.name || ''}" tvg-logo="${s.stream_icon || ''}" group-title="${catName}",${s.name}`);
+          m3uLines.push(streamUrl);
+        });
+        return m3uLines.join('\n');
+      }
+    }
+  } catch (e) {
+    console.warn("[Xtream] player_api.php fetch failed:", e);
+  }
+
+  return '';
+}
+
 // Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
   const isActivated = Boolean(localStorage.getItem('activated_phone'));
@@ -3643,7 +3708,7 @@ async function loadIPTVPlaylist() {
       portalUrl = 'http://' + portalUrl;
     }
 
-    console.log("[IPTV] Loading Xtream playlist from:", portalUrl);
+    console.log("[IPTV] Loading Xtream playlist for user:", username);
     let rawM3U = '';
     
     if (portalUrl && username && password) {
@@ -3651,26 +3716,6 @@ async function loadIPTVPlaylist() {
         rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
       } catch (e) {
         console.warn("[IPTV] fetchXtreamPlaylist error:", e);
-      }
-
-      // Fallback 2: Load authentic static Xtream feed fallback if remote server is unreachable
-      if (!rawM3U || rawM3U.trim().length === 0) {
-        const fallbacks = ['./xtream_feed.m3u', './all.m3u'];
-        for (const fallbackUrl of fallbacks) {
-          try {
-            console.log(`[IPTV] Fetching channel playlist fallback (${fallbackUrl})...`);
-            const res = await fetch(fallbackUrl);
-            if (res.ok) {
-              const text = await res.text();
-              if (text && text.includes('#EXTM3U')) {
-                rawM3U = text;
-                break;
-              }
-            }
-          } catch (e) {
-            console.warn(`[IPTV] Failed to fetch static ${fallbackUrl} fallback:`, e);
-          }
-        }
       }
     }
 

@@ -354,6 +354,13 @@ export class IPTVPlayer {
         }
       } catch (e) {}
     }
+
+    // Ensure stream URL uses the user's active entered credentials
+    const activeUser = (localStorage.getItem('iptv_username') || '').trim();
+    const activePass = (localStorage.getItem('iptv_password') || '').trim();
+    if (activeUser && activePass && rawTargetUrl.includes('/live/')) {
+      rawTargetUrl = rawTargetUrl.replace(/\/live\/[^/]+\/[^/]+\//, `/live/${activeUser}/${activePass}/`);
+    }
     
     // Automatic HTTPS Fix & IPTV Proxying: Route streams through external Render Node Proxy or fallback proxy
     const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com';
@@ -803,7 +810,9 @@ export class IPTVPlayer {
   resetVideoFrame() {
     this.destroyHls();
     this.showError(false);
+    this.showLoading(false);
     if (this.error) this.error.classList.add('hidden');
+    if (this.loading) this.loading.classList.add('hidden');
     if (this.video) {
       this.video.pause();
       this.video.removeAttribute('src');
