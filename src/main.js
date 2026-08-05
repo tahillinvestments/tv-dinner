@@ -3343,6 +3343,126 @@ function setupSettingsScreen() {
     localStorage.setItem('admin_iptv_credentials', JSON.stringify(list));
   }
 
+  // ── Bandwidth / Usage Tracking ─────────────────────────────────────────────
+  const BW_KEY = 'vercel_bw_stats';
+  const BW_MONTHLY_LIMIT_GB = 100;
+  const BW_LIMIT_BYTES = BW_MONTHLY_LIMIT_GB * 1024 * 1024 * 1024;
+
+  function getBWStats() {
+    try {
+      const raw = localStorage.getItem(BW_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {
+      bytesUsed: 0,
+      streamRequests: 0,
+      apiCalls: 0,
+      resetDate: new Date().toISOString()
+    };
+  }
+
+  function saveBWStats(stats) {
+    localStorage.setItem(BW_KEY, JSON.stringify(stats));
+  }
+
+  function recordProxyUsage(bytes, isStream) {
+    const stats = getBWStats();
+    stats.bytesUsed += bytes;
+    if (isStream) {
+      stats.streamRequests = (stats.streamRequests || 0) + 1;
+    } else {
+      stats.apiCalls = (stats.apiCalls || 0) + 1;
+    }
+    saveBWStats(stats);
+    updateBWDisplay(stats);
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+
+  function updateBWDisplay(stats) {
+    const usedLabel = document.getElementById('bw-used-label');
+    const progressBar = document.getElementById('bw-progress-bar');
+    const pctLabel = document.getElementById('bw-pct-label');
+    const remainingLabel = document.getElementById('bw-remaining-label');
+    const streamReqs = document.getElementById('bw-stream-requests');
+    const apiCallsEl = document.getElementById('bw-api-calls');
+    const watchTimeEl = document.getElementById('bw-watch-time');
+    const resetDateEl = document.getElementById('bw-reset-date');
+    if (!usedLabel) return;
+
+    const used = stats.bytesUsed || 0;
+    const pct = Math.min((used / BW_LIMIT_BYTES) * 100, 100);
+    const remaining = Math.max(BW_LIMIT_BYTES - used, 0);
+
+    // Estimate watch time: avg .ts segment ~3MB, ~4 segments/min = ~12MB/min
+    const estMinutes = Math.round(used / (12 * 1024 * 1024));
+    const watchStr = estMinutes >= 60
+      ? `${Math.floor(estMinutes / 60)}h ${estMinutes % 60}m`
+      : `${estMinutes} min`;
+
+    usedLabel.textContent = formatBytes(used);
+    progressBar.style.width = `${pct.toFixed(2)}%`;
+
+    // Color shift: green → yellow → red based on usage
+    if (pct < 50) {
+      progressBar.style.background = 'linear-gradient(90deg,#8b5cf6,#6366f1)';
+    } else if (pct < 80) {
+      progressBar.style.background = 'linear-gradient(90deg,#f59e0b,#d97706)';
+    } else {
+      progressBar.style.background = 'linear-gradient(90deg,#ef4444,#dc2626)';
+    }
+
+    pctLabel.textContent = `${pct.toFixed(1)}% used`;
+    remainingLabel.textContent = `${formatBytes(remaining)} remaining`;
+    if (streamReqs) streamReqs.textContent = (stats.streamRequests || 0).toLocaleString();
+    if (apiCallsEl) apiCallsEl.textContent = (stats.apiCalls || 0).toLocaleString();
+    if (watchTimeEl) watchTimeEl.textContent = watchStr;
+    if (resetDateEl && stats.resetDate) {
+      const d = new Date(stats.resetDate);
+      resetDateEl.textContent = `Since ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    }
+  }
+
+  // Intercept fetch to track /api/proxy usage
+  (function installBWTracker() {
+    const _origFetch = window.fetch.bind(window);
+    window.fetch = async function(input, init) {
+      const url = typeof input === 'string' ? input : (input?.url || '');
+      const isProxyCall = url.startsWith('/api/proxy');
+      const isStream = isProxyCall && (url.includes('.ts') || url.includes('.m3u8') || url.includes('/live/'));
+
+      const res = await _origFetch(input, init);
+
+      if (isProxyCall) {
+        const cl = res.headers.get('content-length');
+        if (cl) {
+          recordProxyUsage(parseInt(cl, 10), isStream);
+        } else {
+          // Estimate: stream segments ~3MB, API calls ~50KB
+          recordProxyUsage(isStream ? 3 * 1024 * 1024 : 50 * 1024, isStream);
+        }
+      }
+      return res;
+    };
+  })();
+
+  // Reset button handler (wired after DOM ready)
+  const bwResetBtn = document.getElementById('bw-reset-btn');
+  if (bwResetBtn) {
+    bwResetBtn.addEventListener('click', () => {
+      saveBWStats({ bytesUsed: 0, streamRequests: 0, apiCalls: 0, resetDate: new Date().toISOString() });
+      updateBWDisplay(getBWStats());
+    });
+  }
+
+  // Initial display
+  updateBWDisplay(getBWStats());
+
   function renderAdminTable() {
     if (!adminCredentialsTable) return;
     const credsList = getAdminCredentials();
