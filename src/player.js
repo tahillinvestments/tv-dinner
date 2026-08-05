@@ -436,15 +436,18 @@ export class IPTVPlayer {
         enableWorker: true,
         lowLatencyMode: false,
         startPosition: (resumePos && resumePos > 0) ? resumePos : -1,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
+        maxBufferLength: 45,
+        maxMaxBufferLength: 90,
         maxBufferSize: 60 * 1000 * 1000, // 60MB
-        manifestLoadingTimeOut: 15000,
-        manifestLoadingMaxRetry: 5,
-        levelLoadingTimeOut: 15000,
-        levelLoadingMaxRetry: 5,
-        fragLoadingTimeOut: 20000,
+        manifestLoadingTimeOut: 20000,
+        manifestLoadingMaxRetry: 6,
+        levelLoadingTimeOut: 20000,
+        levelLoadingMaxRetry: 6,
+        fragLoadingTimeOut: 25000,
         fragLoadingMaxRetry: 8,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 10,
+        capLevelToPlayerSize: true,
       });
       
       this.hls.loadSource(this.currentUrl);

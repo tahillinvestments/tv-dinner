@@ -52,14 +52,17 @@ const state = {
 
 // Helper to construct dynamic IPTV playlist URL from localStorage or credentials
 function getPlaylistUrl() {
+  const isActivated = Boolean(localStorage.getItem('activated_phone'));
+  if (!isActivated) return '';
+
   const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-  const username = localStorage.getItem('iptv_username') || 'SAPPTV12';
-  const password = localStorage.getItem('iptv_password') || 'REMOTE6202';
+  const username = (localStorage.getItem('iptv_username') || '').trim();
+  const password = (localStorage.getItem('iptv_password') || '').trim();
   
   if (portalUrl && username && password) {
     return `${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
   }
-  return './xtream_feed.m3u';
+  return '';
 }
 
 const MAX_RECENTS = 20;
@@ -162,26 +165,77 @@ function setupNavigation() {
   }
 }
 
-// Stop and discontinue any active Live TV stream feed to prevent playback & audio conflicts
+// Stop and discontinue all active streams, audio playback, embed frames, and leftover artifacts
+function stopAllMediaPlayback(options = {}) {
+  const { keepPodcast = false, keepLive = false, keepVod = false } = options;
+  console.log('[Player Cleanup] Executing media reset...');
+
+  // 1. Reset Live TV / Shared Video Player
+  if (!keepLive && !keepVod) {
+    if (typeof player !== 'undefined' && player) {
+      try {
+        player.resetVideoFrame();
+      } catch (e) {}
+    } else {
+      const videoEl = document.getElementById('video-player');
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.removeAttribute('src');
+        try { videoEl.load(); } catch (e) {}
+      }
+    }
+    state.currentPlayingUrl = null;
+  }
+
+  // 2. Clear VOD Embed Iframe & Wrapper
+  if (!keepVod) {
+    const embedIframe = document.getElementById('embed-iframe');
+    if (embedIframe) embedIframe.src = '';
+    const embedWrapper = document.getElementById('embed-player-wrapper');
+    if (embedWrapper) embedWrapper.style.display = 'none';
+    const playerWrapper = document.querySelector('.player-wrapper');
+    if (playerWrapper) playerWrapper.classList.remove('embed-active');
+  }
+
+  // 3. Stop PocketCasts Audio Player
+  if (!keepPodcast) {
+    if (typeof pocketcastsState !== 'undefined' && pocketcastsState) {
+      if (pocketcastsState.audioElement) {
+        try {
+          pocketcastsState.audioElement.pause();
+          pocketcastsState.audioElement.removeAttribute('src');
+        } catch (e) {}
+      }
+      pocketcastsState.isPlaying = false;
+      if (typeof updateDockPlayerUI === 'function') {
+        updateDockPlayerUI();
+      }
+    }
+  }
+
+  // 4. Close any open overlays if switching context
+  if (!keepVod) {
+    const detailsOverlay = document.getElementById('details-overlay');
+    if (detailsOverlay && !detailsOverlay.classList.contains('hidden')) {
+      detailsOverlay.classList.add('hidden');
+    }
+  }
+}
+
 function stopActiveLiveTVFeed() {
-  console.log('[IPTV] Discontinuing active Live TV stream feed');
-  if (typeof player !== 'undefined' && player) {
-    try {
-      player.destroyHls();
-    } catch (e) {}
-  }
-  const videoEl = document.getElementById('video-player');
-  if (videoEl) {
-    videoEl.pause();
-    videoEl.removeAttribute('src');
-    try { videoEl.load(); } catch (e) {}
-  }
-  state.currentPlayingUrl = null;
+  stopAllMediaPlayback();
 }
 
 // Switch between tabs
 function switchTab(tabName) {
   state.activeTab = tabName;
+
+  // Clean up any playing media from previous context
+  if (tabName !== 'podcasts') {
+    stopAllMediaPlayback({ keepLive: tabName === 'live' });
+  } else {
+    stopAllMediaPlayback({ keepPodcast: true });
+  }
   
   // Update buttons state
   document.querySelectorAll('.nav-links .nav-link, .mobile-drawer-link').forEach(btn => {
@@ -212,18 +266,14 @@ function switchTab(tabName) {
     if (liveContainer && playerSection) {
       liveContainer.appendChild(playerSection);
     }
-    // Pause embed player if active
-    const embedIframe = document.getElementById('embed-iframe');
-    if (embedIframe) embedIframe.src = '';
-    const embedWrapper = document.getElementById('embed-player-wrapper');
-    if (embedWrapper) embedWrapper.style.display = 'none';
-    const playerWrapper = document.querySelector('.player-wrapper');
-    if (playerWrapper) playerWrapper.classList.remove('embed-active');
-
-    renderCategories();
-    applyFilterAndRender();
+    const isAct = Boolean(localStorage.getItem('activated_phone'));
+    if (!isAct) {
+      renderUnactivatedState();
+    } else {
+      renderCategories();
+      applyFilterAndRender();
+    }
   } else {
-    stopActiveLiveTVFeed();
     if (tabName === 'movies') {
       loadMoviesDashboard();
     } else if (tabName === 'series') {
@@ -3175,6 +3225,55 @@ function getProxyUrl(targetUrl) {
   return cleanTarget;
 }
 
+function renderUnactivatedState() {
+  const headerBadge = document.getElementById('channel-count-header');
+  if (headerBadge) headerBadge.textContent = 'Activation Required';
+
+  if (state.activeTab === 'live') {
+    const catContainer = document.getElementById('categories-container');
+    const catName = document.getElementById('current-category-name');
+    const catInfo = document.getElementById('channel-list-info');
+    const grid = document.getElementById('channels-grid');
+
+    if (catName) catName.textContent = 'Live TV (Sign In Required)';
+    if (catInfo) catInfo.textContent = 'Activate your account in Settings using your 10-digit phone number.';
+
+    if (catContainer) {
+      catContainer.innerHTML = `
+        <button class="category-btn active">
+          <i data-lucide="lock" class="w-4 h-4 text-amber-400"></i>
+          <span class="cat-name">Sign In Required</span>
+        </button>
+      `;
+    }
+
+    if (grid) {
+      grid.innerHTML = `
+        <div class="col-span-full py-16 px-6 text-center bg-slate-800/40 rounded-2xl border border-slate-700/60 shadow-xl max-w-md mx-auto my-8">
+          <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4 shadow-inner">
+            <i data-lucide="lock" class="w-8 h-8"></i>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-2">Account Sign In Required</h3>
+          <p class="text-sm text-slate-300 mb-6 leading-relaxed">
+            Please sign in with your 10-digit phone number in Settings to unlock and watch Live TV channels.
+          </p>
+          <button id="go-to-settings-btn" class="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-900/30 inline-flex items-center gap-2 transition-all transform hover:-translate-y-0.5">
+            <i data-lucide="log-in" class="w-4 h-4"></i> Go to Sign In / Settings
+          </button>
+        </div>
+      `;
+      createIcons(iconConfig);
+
+      const btn = document.getElementById('go-to-settings-btn');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          switchTab('settings');
+        });
+      }
+    }
+  }
+}
+
 // Load settings form credentials
 function setupSettingsScreen() {
   const tmdbKeyInput = document.getElementById('settings-tmdb-key');
@@ -3200,12 +3299,12 @@ function setupSettingsScreen() {
   const adminCredentialsTable = document.getElementById('admin-credentials-table');
 
   const ADMIN_CREDENTIALS = [
-    { phone: '123-456-7894', user: 'user_1', pswd: 'pass_1' },
-    { phone: '317-363-1751', user: 'user_2', pswd: 'pass_2' },
-    { phone: '317-900-3473', user: 'user_3', pswd: 'pass_3' },
-    { phone: '317-902-1240', user: 'user_4', pswd: 'pass_4' },
-    { phone: '317-795-7627', user: 'user_5', pswd: 'pass_5' },
-    { phone: '317-261-1596', user: 'user_6', pswd: 'pass_6' }
+    { phone: '123-456-7894', user: 'SGmUC7q2U', pswd: '4WM9WVsjG' },
+    { phone: '317-363-1751', user: 'MW2Y2h6e7', pswd: '5DwU7wTuA' },
+    { phone: '317-900-3473', user: 'Hn9a6bus9', pswd: 'JaKXrfMP7' },
+    { phone: '317-902-1240', user: 'TONE01', pswd: 'TV4LIFE' },
+    { phone: '317-795-7627', user: 'SAPPTV12', pswd: 'REMOTE6202' },
+    { phone: '317-261-1596', user: 'DAMETV', pswd: '2611596317' }
   ];
 
   // Phone Input Masking (US Format)
@@ -3246,10 +3345,11 @@ function setupSettingsScreen() {
         activatedIndicatorSection.classList.remove('hidden');
         player.showToast("Account Activated!");
         
-        // Reload IPTV channels with new credentials
+        // Reload IPTV channels with new credentials and switch to Live TV
         loadIPTVPlaylist();
+        switchTab('live');
       } else {
-        player.showToast("Phone number not recognized.");
+        player.showToast("Phone number not recognized in activation table.");
       }
     });
   }
@@ -3263,10 +3363,14 @@ function setupSettingsScreen() {
       if (usernameInput) usernameInput.value = '';
       if (passwordInput) passwordInput.value = '';
       if (phoneInput) phoneInput.value = '';
+      state.channels = [];
       
+      stopAllMediaPlayback();
+
       activatedIndicatorSection.classList.add('hidden');
       phoneActivationSection.classList.remove('hidden');
       player.showToast("Signed out.");
+      renderUnactivatedState();
     });
   }
 
@@ -3305,11 +3409,12 @@ function setupSettingsScreen() {
     });
   }
 
-  // Populate inputs on load
+  // Populate inputs on load (only if activated)
+  const isAct = Boolean(localStorage.getItem('activated_phone'));
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
-  if (usernameInput) usernameInput.value = localStorage.getItem('iptv_username') || 'SAPPTV12';
-  if (passwordInput) passwordInput.value = localStorage.getItem('iptv_password') || 'REMOTE6202';
+  if (usernameInput) usernameInput.value = isAct ? (localStorage.getItem('iptv_username') || '') : '';
+  if (passwordInput) passwordInput.value = isAct ? (localStorage.getItem('iptv_password') || '') : '';
   if (proxyInput) proxyInput.value = localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY;
 
   if (saveBtn) {
@@ -3327,21 +3432,20 @@ function setupSettingsScreen() {
       const oldPassword = localStorage.getItem('iptv_password');
       const oldProxy = localStorage.getItem('external_proxy_url');
 
-      const newUsername = usernameInput ? usernameInput.value.trim() : 'SAPPTV12';
-      const newPassword = passwordInput ? passwordInput.value.trim() : 'REMOTE6202';
+      const newUsername = usernameInput ? usernameInput.value.trim() : '';
+      const newPassword = passwordInput ? passwordInput.value.trim() : '';
       const newProxy = proxyInput ? proxyInput.value.trim() : DEFAULT_RENDER_PROXY;
 
       localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
-      localStorage.setItem('iptv_username', newUsername);
-      localStorage.setItem('iptv_password', newPassword);
+      if (newUsername) localStorage.setItem('iptv_username', newUsername);
+      if (newPassword) localStorage.setItem('iptv_password', newPassword);
       localStorage.setItem('external_proxy_url', newProxy);
-      localStorage.setItem('iptv_epg', `http://portal5458.com:8080/xmltv.php?username=${newUsername}&password=${newPassword}`);
 
       player.showToast("Settings Saved Successfully");
 
-      // Reload IPTV channels if credentials or proxy changed
-      if (newUsername !== oldUsername || newPassword !== oldPassword || newProxy !== oldProxy) {
-        console.log("[IPTV] Settings/Proxy changed, reloading channels...");
+      // Reload IPTV channels if activated & credentials changed
+      if (isAct && (newUsername !== oldUsername || newPassword !== oldPassword || newProxy !== oldProxy)) {
+        console.log("[IPTV] Settings changed, reloading channels...");
         loadIPTVPlaylist();
       }
     });
@@ -3349,100 +3453,27 @@ function setupSettingsScreen() {
 }
 
 // Load IPTV playlist from credentials
-// Fetch playlist via Xtream Codes player API and dynamically format as M3U
-async function fetchXtreamPlaylist(portalUrl, username, password) {
-  let cleanPortalUrl = (portalUrl || 'http://portal5458.com:8080').trim().replace(/\/+$/, '');
-  if (!cleanPortalUrl.startsWith('http://') && !cleanPortalUrl.startsWith('https://')) {
-    cleanPortalUrl = 'http://' + cleanPortalUrl;
-  }
-
-  const catTarget = `${cleanPortalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_categories`;
-  const streamTarget = `${cleanPortalUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams`;
-
-  async function fetchJsonWithFallback(targetUrl) {
-    // 1. Try direct fetch first
-    try {
-      const res = await fetch(targetUrl);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          console.log(`[Xtream] Direct API fetch succeeded (${data.length} items)`);
-          return data;
-        }
-      }
-    } catch (e) {
-      console.warn(`[Xtream] Direct fetch failed for ${targetUrl}, trying proxy...`, e);
-    }
-
-    // 2. Try proxy options (Cloudflare Worker or public CORS proxies)
-    const customProxy = getProxyUrl(targetUrl);
-    const proxies = [
-      customProxy !== targetUrl ? customProxy : null,
-      `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`
-    ].filter(Boolean);
-
-    for (const pUrl of proxies) {
-      try {
-        const res = await fetch(pUrl);
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            console.log(`[Xtream] Successfully fetched API payload via ${pUrl} (${data.length} items)`);
-            return data;
-          }
-        }
-      } catch (e) {
-        console.warn(`[Xtream] Proxy attempt failed for ${pUrl}:`, e);
-      }
-    }
-
-    return [];
-  }
-
-  console.log("[Xtream] Fetching categories from API...");
-  const categories = await fetchJsonWithFallback(catTarget);
-
-  console.log("[Xtream] Fetching streams from API...");
-  const streams = await fetchJsonWithFallback(streamTarget);
-
-  // Create category map
-  const catMap = {};
-  if (Array.isArray(categories)) {
-    categories.forEach(cat => {
-      catMap[cat.category_id] = cat.category_name;
-    });
-  }
-
-  // Convert streams to M3U format — stream URL goes through getProxyUrl()
-  let m3uLines = ['#EXTM3U'];
-  if (Array.isArray(streams) && streams.length > 0) {
-    streams.forEach(stream => {
-      const streamName = stream.name || 'Unknown Channel';
-      const streamId = stream.stream_id;
-      const logo = stream.stream_icon || '';
-      const categoryName = catMap[stream.category_id] || 'General';
-      const rawStreamUrl = `${cleanPortalUrl}/live/${username}/${password}/${streamId}.m3u8`;
-      const streamUrl = getProxyUrl(rawStreamUrl);
-
-      m3uLines.push(`#EXTINF:-1 tvg-id="" tvg-name="${streamName}" tvg-logo="${logo}" group-title="${categoryName}",${streamName}`);
-      m3uLines.push(streamUrl);
-    });
-    return m3uLines.join('\n');
-  }
-
-  return '';
-}
-
-// Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
+  const isActivated = Boolean(localStorage.getItem('activated_phone'));
   const headerBadge = document.getElementById('channel-count-header');
   
+  if (!isActivated) {
+    console.log("[IPTV] Account not activated. Skipping automatic playlist load.");
+    state.channels = [];
+    renderUnactivatedState();
+    return;
+  }
+
   try {
     const rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-    const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
-    const password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
+    const username = (localStorage.getItem('iptv_username') || '').trim();
+    const password = (localStorage.getItem('iptv_password') || '').trim();
     
+    if (!username || !password) {
+      renderUnactivatedState();
+      return;
+    }
+
     let portalUrl = rawPortalUrl.trim().replace(/\/+$/, '');
     if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {
       portalUrl = 'http://' + portalUrl;
@@ -3472,33 +3503,13 @@ async function loadIPTVPlaylist() {
         }
       }
     }
-    
-    // Fallback 2: Load authentic Xtream feed (2,396 channels) or all.m3u
-    if (!rawM3U || rawM3U.trim().length === 0) {
-      const fallbacks = ['./xtream_feed.m3u', './all.m3u'];
-      for (const fallbackUrl of fallbacks) {
-        try {
-          console.log(`[IPTV] Loading authentic Xtream M3U channel playlist fallback (${fallbackUrl})...`);
-          const res = await fetch(fallbackUrl);
-          if (res.ok) {
-            const text = await res.text();
-            if (text && text.includes('#EXTM3U')) {
-              rawM3U = text;
-              break;
-            }
-          }
-        } catch (e) {
-          console.warn(`[IPTV] Failed to fetch static ${fallbackUrl} fallback:`, e);
-        }
-      }
-    }
 
     if (rawM3U) {
       state.channels = parseM3U(rawM3U);
     }
 
     if (!state.channels || state.channels.length === 0) {
-      throw new Error("No live channels returned from your Xtream IPTV account. Please check your credentials in Settings.");
+      throw new Error("No live channels returned. Please verify account activation.");
     }
     
     updateCategoriesList();
