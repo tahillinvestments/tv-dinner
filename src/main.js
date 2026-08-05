@@ -3257,7 +3257,7 @@ function renderUnactivatedState() {
           <p class="text-sm text-slate-300 mb-6 leading-relaxed">
             Please sign in with your 10-digit phone number in Settings to unlock and watch Live TV channels.
           </p>
-          <button id="go-to-settings-btn" class="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-900/30 inline-flex items-center gap-2 transition-all transform hover:-translate-y-0.5">
+          <button id="go-to-settings-btn" class="btn btn-primary mt-4 font-bold shadow-lg shadow-red-900/30 flex items-center gap-2">
             <i data-lucide="log-in" class="w-4 h-4"></i> Go to Sign In / Settings
           </button>
         </div>
@@ -3363,10 +3363,10 @@ function setupSettingsScreen() {
         </td>
         <td class="py-3 px-4 text-right">
           <div class="flex items-center justify-end gap-1.5">
-            <button class="admin-edit-row-btn px-2.5 py-1 rounded-md bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-300 hover:text-white transition-all text-xs font-semibold flex items-center gap-1" data-index="${idx}" title="Edit Account">
+            <button class="admin-edit-row-btn btn btn-indigo btn-sm" data-index="${idx}" title="Edit Account">
               <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
             </button>
-            <button class="admin-delete-row-btn px-2.5 py-1 rounded-md bg-red-600/20 hover:bg-red-600 border border-red-500/40 text-red-300 hover:text-white transition-all text-xs font-semibold flex items-center gap-1" data-index="${idx}" title="Delete Account">
+            <button class="admin-delete-row-btn btn btn-danger btn-sm" data-index="${idx}" title="Delete Account">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
             </button>
           </div>
@@ -3591,35 +3591,33 @@ function setupSettingsScreen() {
   if (passwordInput) passwordInput.value = isAct ? (localStorage.getItem('iptv_password') || '') : '';
   if (proxyInput) proxyInput.value = localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY;
 
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
+  // Auto-save logic on input change
+  if (tmdbKeyInput) {
+    tmdbKeyInput.addEventListener('input', () => {
       const key = tmdbKeyInput.value.trim();
       if (key) {
         localStorage.setItem('tmdb_api_key', key);
       } else {
         localStorage.removeItem('tmdb_api_key');
       }
+    });
+  }
 
+  if (sandboxInput) {
+    sandboxInput.addEventListener('change', () => {
       localStorage.setItem('strict_sandbox', sandboxInput.checked ? 'true' : 'false');
+    });
+  }
 
-      const oldUsername = localStorage.getItem('iptv_username');
-      const oldPassword = localStorage.getItem('iptv_password');
+  if (proxyInput) {
+    proxyInput.addEventListener('change', () => {
       const oldProxy = localStorage.getItem('external_proxy_url');
-
-      const newUsername = usernameInput ? usernameInput.value.trim() : '';
-      const newPassword = passwordInput ? passwordInput.value.trim() : '';
-      const newProxy = proxyInput ? proxyInput.value.trim() : DEFAULT_RENDER_PROXY;
-
-      localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
-      if (newUsername) localStorage.setItem('iptv_username', newUsername);
-      if (newPassword) localStorage.setItem('iptv_password', newPassword);
+      const newProxy = proxyInput.value.trim() || DEFAULT_RENDER_PROXY;
       localStorage.setItem('external_proxy_url', newProxy);
+      localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
 
-      player.showToast("Settings Saved Successfully");
-
-      // Reload IPTV channels if activated & credentials changed
-      if (isAct && (newUsername !== oldUsername || newPassword !== oldPassword || newProxy !== oldProxy)) {
-        console.log("[IPTV] Settings changed, reloading channels...");
+      if (isAct && newProxy !== oldProxy) {
+        console.log("[IPTV] Proxy changed, reloading channels...");
         loadIPTVPlaylist();
       }
     });
