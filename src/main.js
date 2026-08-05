@@ -212,14 +212,6 @@ function stopAllMediaPlayback(options = {}) {
       }
     }
   }
-
-  // 4. Close any open overlays if switching context
-  if (!keepVod) {
-    const detailsOverlay = document.getElementById('details-overlay');
-    if (detailsOverlay && !detailsOverlay.classList.contains('hidden')) {
-      detailsOverlay.classList.add('hidden');
-    }
-  }
 }
 
 function stopActiveLiveTVFeed() {
@@ -2882,8 +2874,8 @@ function selectActiveSource(index) {
   const shield = document.getElementById('embed-shield');
   const poster = document.getElementById('player-poster');
 
-  // Stop video element playback and reset it
-  stopActiveLiveTVFeed();
+  // Stop video element playback and reset it without closing VOD modal
+  stopAllMediaPlayback({ keepVod: true });
   if (videoEl) {
     videoEl.pause();
     videoEl.removeAttribute('src');
@@ -3661,17 +3653,23 @@ async function loadIPTVPlaylist() {
         console.warn("[IPTV] fetchXtreamPlaylist error:", e);
       }
 
-      // Fallback 1: Try get.php m3u_plus export URL
+      // Fallback 2: Load authentic static Xtream feed fallback if remote server is unreachable
       if (!rawM3U || rawM3U.trim().length === 0) {
-        try {
-          const directM3uUrl = getProxyUrl(`${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=m3u8`);
-          console.log("[IPTV] Fetching fallback M3U export from get.php:", directM3uUrl);
-          const res = await fetch(directM3uUrl);
-          if (res.ok) {
-            rawM3U = await res.text();
+        const fallbacks = ['./xtream_feed.m3u', './all.m3u'];
+        for (const fallbackUrl of fallbacks) {
+          try {
+            console.log(`[IPTV] Fetching channel playlist fallback (${fallbackUrl})...`);
+            const res = await fetch(fallbackUrl);
+            if (res.ok) {
+              const text = await res.text();
+              if (text && text.includes('#EXTM3U')) {
+                rawM3U = text;
+                break;
+              }
+            }
+          } catch (e) {
+            console.warn(`[IPTV] Failed to fetch static ${fallbackUrl} fallback:`, e);
           }
-        } catch (e) {
-          console.warn("[IPTV] Direct get.php M3U fallback failed:", e);
         }
       }
     }
