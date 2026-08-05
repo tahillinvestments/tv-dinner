@@ -362,20 +362,14 @@ export class IPTVPlayer {
       rawTargetUrl = rawTargetUrl.replace(/\/live\/[^/]+\/[^/]+\//, `/live/${activeUser}/${activePass}/`);
     }
     
-    // Route streams: prefer Render proxy (saves Vercel bandwidth for large video data)
-    // Falls back to native /api/proxy if Render is suspended/unreachable
-    const RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com';
+    // Video streams always go through native /api/proxy (Vercel Node.js runtime)
+    // CF Worker cannot proxy IPTV stream IPs — returns error 1003
     const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
-
     let proxiedUrl;
     if (customProxy) {
       const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
       proxiedUrl = `${customProxy}${glue}${encodeURIComponent(rawTargetUrl)}`;
-    } else if (typeof _renderProxyHealthy !== 'undefined' && _renderProxyHealthy === true) {
-      // Render is healthy — use it for video streams to save Vercel fast-transfer bandwidth
-      proxiedUrl = `${RENDER_PROXY}/?url=${encodeURIComponent(rawTargetUrl)}`;
     } else {
-      // Render suspended/unknown — fall back to native Vercel proxy
       proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
     }
 

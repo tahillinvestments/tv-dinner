@@ -3182,27 +3182,32 @@ function closeDetailsView() {
   }
 }
 
-// Track Render proxy health in memory (reset each page load)
-let _renderProxyHealthy = null; // null=unknown, true=ok, false=suspended
+// Known working Cloudflare Worker (free, no bandwidth limit, but can't proxy direct IPs)
+const CF_WORKER_PROXY = 'https://tv-dinner-proxy.tahillinvestments.workers.dev';
 
-// Quick health check for Render proxy (non-blocking, cached per session)
-async function checkRenderProxy() {
-  if (_renderProxyHealthy !== null) return _renderProxyHealthy;
+// Track CF worker health per session
+let _cfWorkerHealthy = null;
+async function checkCFWorker() {
+  if (_cfWorkerHealthy !== null) return _cfWorkerHealthy;
   try {
-    const res = await fetch(`${DEFAULT_RENDER_PROXY}/health`, {
-      signal: AbortSignal.timeout(4000)
+    const res = await fetch(`${CF_WORKER_PROXY}/?url=${encodeURIComponent('http://portal5458.com:8080/player_api.php?username=test&password=test')}`, {
+      signal: AbortSignal.timeout(5000)
     });
-    _renderProxyHealthy = res.ok;
-    console.log('[Proxy] Render proxy health:', _renderProxyHealthy ? 'OK' : `HTTP ${res.status}`);
+    // 200 or 4xx from the portal = CF Worker is alive and routing
+    _cfWorkerHealthy = res.status < 502;
+    console.log('[Proxy] CF Worker health:', _cfWorkerHealthy ? 'OK' : `HTTP ${res.status}`);
   } catch (e) {
-    _renderProxyHealthy = false;
-    console.warn('[Proxy] Render proxy unreachable:', e.message);
+    _cfWorkerHealthy = false;
+    console.warn('[Proxy] CF Worker unreachable:', e.message);
   }
-  return _renderProxyHealthy;
+  return _cfWorkerHealthy;
 }
 
-// Build proxy URL: prefer Render for video/streams (saves Vercel bandwidth), native for metadata
-// isStream=true → always try Render (large data); isStream=false → native /api/proxy (tiny JSON)
+/**
+ * getProxyUrl - Smart proxy selection:
+ *   isStream=false (JSON metadata) → try CF Worker first (free bandwidth), fallback to /api/proxy
+ *   isStream=true  (video segments) → always /api/proxy (CF Worker can't reach IPTV IPs)
+ */
 function getProxyUrl(targetUrl, isStream = false) {
   if (!targetUrl) return '';
 
@@ -3217,19 +3222,23 @@ function getProxyUrl(targetUrl, isStream = false) {
     } catch (e) {}
   }
 
-  // Custom proxy overrides everything
+  // Custom proxy override
   const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
   if (customProxy) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
     return `${customProxy}${glue}${encodeURIComponent(cleanTarget)}`;
   }
 
-  // For streams, use Render if healthy (saves Vercel bandwidth); native proxy otherwise
-  if (isStream && _renderProxyHealthy === true) {
-    return `${DEFAULT_RENDER_PROXY}/?url=${encodeURIComponent(cleanTarget)}`;
+  // Video streams (.ts, .m3u8) → native Vercel proxy only (CF Worker gets error 1003 on IPs)
+  if (isStream) {
+    return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
   }
 
-  // Always use native /api/proxy for metadata (JSON requests) — they're tiny
+  // Metadata (JSON) → CF Worker if healthy (saves Vercel bandwidth), else native proxy
+  if (_cfWorkerHealthy === true) {
+    return `${CF_WORKER_PROXY}/?url=${encodeURIComponent(cleanTarget)}`;
+  }
+
   return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
 }
 
@@ -3636,52 +3645,63 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   if (!username || !password) return '';
   console.log(`[Xtream] Fetching channel playlist for user "${username}"...`);
 
-  // Kick off Render proxy health check in background (for video stream routing)
-  checkRenderProxy().catch(() => {});
+  // Probe CF Worker health in background (non-blocking) — used for future metadata requests
+  checkCFWorker().catch(() => {});
 
   const primaryApi = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
   const primaryCat = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`;
 
-  // Metadata (JSON) is tiny — always use native /api/proxy, no bandwidth concern
-  const apiUrl = `/api/proxy?url=${encodeURIComponent(primaryApi)}`;
-  const catUrl = `/api/proxy?url=${encodeURIComponent(primaryCat)}`;
+  // Try CF Worker first (free bandwidth), then native proxy fallback
+  const apiProxies = [
+    `${CF_WORKER_PROXY}/?url=${encodeURIComponent(primaryApi)}`,
+    `/api/proxy?url=${encodeURIComponent(primaryApi)}`
+  ];
 
-  try {
-    console.log('[Xtream] Fetching live streams + categories via native proxy...');
-    const [streamsRes, catsRes] = await Promise.all([
-      fetch(apiUrl).catch(() => null),
-      fetch(catUrl).catch(() => null)
-    ]);
+  for (const apiUrl of apiProxies) {
+    try {
+      console.log('[Xtream] Trying streams via:', apiUrl.startsWith('/') ? '/api/proxy' : 'CF Worker');
+      const catUrl = apiUrl.startsWith(CF_WORKER_PROXY)
+        ? `${CF_WORKER_PROXY}/?url=${encodeURIComponent(primaryCat)}`
+        : `/api/proxy?url=${encodeURIComponent(primaryCat)}`;
 
-    if (streamsRes && streamsRes.ok) {
-      const streams = await streamsRes.json();
-      if (Array.isArray(streams) && streams.length > 0) {
-        console.log(`[Xtream] Loaded ${streams.length} channels for "${username}"`);
+      const [streamsRes, catsRes] = await Promise.all([
+        fetch(apiUrl, { signal: AbortSignal.timeout(10000) }).catch(() => null),
+        fetch(catUrl, { signal: AbortSignal.timeout(10000) }).catch(() => null)
+      ]);
 
-        let categoriesMap = {};
-        if (catsRes && catsRes.ok) {
-          try {
-            const cats = await catsRes.json();
-            if (Array.isArray(cats)) {
-              cats.forEach(c => { categoriesMap[c.category_id] = c.category_name; });
-            }
-          } catch (e) {}
+      if (streamsRes && streamsRes.ok) {
+        const streams = await streamsRes.json();
+        if (Array.isArray(streams) && streams.length > 0) {
+          console.log(`[Xtream] Loaded ${streams.length} channels for "${username}"`);
+          _cfWorkerHealthy = apiUrl.startsWith(CF_WORKER_PROXY) ? true : _cfWorkerHealthy;
+
+          let categoriesMap = {};
+          if (catsRes && catsRes.ok) {
+            try {
+              const cats = await catsRes.json();
+              if (Array.isArray(cats)) {
+                cats.forEach(c => { categoriesMap[c.category_id] = c.category_name; });
+              }
+            } catch (e) {}
+          }
+
+          let m3uLines = ['#EXTM3U'];
+          streams.forEach(s => {
+            const catName = categoriesMap[s.category_id] || 'Live TV';
+            const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.ts`;
+            m3uLines.push(`#EXTINF:-1 tvg-id="${s.epg_channel_id || ''}" tvg-name="${s.name || ''}" tvg-logo="${s.stream_icon || ''}" group-title="${catName}",${s.name}`);
+            m3uLines.push(streamUrl);
+          });
+          return m3uLines.join('\n');
         }
-
-        let m3uLines = ['#EXTM3U'];
-        streams.forEach(s => {
-          const catName = categoriesMap[s.category_id] || 'Live TV';
-          const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.ts`;
-          m3uLines.push(`#EXTINF:-1 tvg-id="${s.epg_channel_id || ''}" tvg-name="${s.name || ''}" tvg-logo="${s.stream_icon || ''}" group-title="${catName}",${s.name}`);
-          m3uLines.push(streamUrl);
-        });
-        return m3uLines.join('\n');
+      } else {
+        console.warn('[Xtream] Failed via', apiUrl.startsWith('/') ? '/api/proxy' : 'CF Worker', '- status:', streamsRes?.status);
+        if (apiUrl.startsWith(CF_WORKER_PROXY)) _cfWorkerHealthy = false;
       }
-    } else {
-      console.error('[Xtream] Streams fetch failed, status:', streamsRes?.status);
+    } catch (e) {
+      console.warn('[Xtream] Fetch error:', e.message);
+      if (apiUrl.startsWith(CF_WORKER_PROXY)) _cfWorkerHealthy = false;
     }
-  } catch (e) {
-    console.error('[Xtream] Fetch error:', e);
   }
 
   return '';
