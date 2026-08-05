@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-C4x4vbPo.js"></script>
+  <script type="module" crossorigin src="/assets/index-CX8DGiMN.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-DT8j4yEc.css">
 </head>
 <body class="dark-theme">
@@ -748,6 +748,64 @@
             </div>
 
             <div id="admin-dashboard-section" class="hidden mt-4 space-y-4">
+
+              <!-- Vercel Bandwidth Usage Counter -->
+              <div class="bg-slate-900/90 rounded-xl border border-slate-700/70 shadow-2xl overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 bg-slate-800/80 border-b border-slate-700/60">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="activity" class="w-4 h-4 text-violet-400"></i>
+                    <h4 class="text-sm font-bold text-white">Vercel Proxy Usage</h4>
+                    <span class="text-xs text-slate-400">(this device, this month)</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span id="bw-reset-date" class="text-xs text-slate-500"></span>
+                    <button id="bw-reset-btn" class="btn btn-sm" style="background:rgba(100,116,139,0.25);color:#94a3b8;border:1px solid rgba(100,116,139,0.35);font-size:11px;padding:3px 10px;">
+                      <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Reset
+                    </button>
+                  </div>
+                </div>
+
+                <div class="p-4 space-y-4">
+                  <!-- Progress Bar -->
+                  <div>
+                    <div class="flex items-end justify-between mb-1.5">
+                      <span id="bw-used-label" class="text-2xl font-bold text-white">0 MB</span>
+                      <span class="text-xs text-slate-400">of 100 GB free</span>
+                    </div>
+                    <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+                      <div id="bw-progress-bar" class="h-full rounded-full transition-all duration-500"
+                           style="width:0%;background:linear-gradient(90deg,#8b5cf6,#6366f1)"></div>
+                    </div>
+                    <div class="flex justify-between mt-1">
+                      <span id="bw-pct-label" class="text-xs text-slate-400">0% used</span>
+                      <span id="bw-remaining-label" class="text-xs text-slate-400">100 GB remaining</span>
+                    </div>
+                  </div>
+
+                  <!-- Stats Row -->
+                  <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-slate-800/60 rounded-lg p-3 text-center border border-slate-700/40">
+                      <p class="text-xs text-slate-400 mb-1">Stream Requests</p>
+                      <p id="bw-stream-requests" class="text-lg font-bold text-violet-300">0</p>
+                    </div>
+                    <div class="bg-slate-800/60 rounded-lg p-3 text-center border border-slate-700/40">
+                      <p class="text-xs text-slate-400 mb-1">API Calls</p>
+                      <p id="bw-api-calls" class="text-lg font-bold text-blue-300">0</p>
+                    </div>
+                    <div class="bg-slate-800/60 rounded-lg p-3 text-center border border-slate-700/40">
+                      <p class="text-xs text-slate-400 mb-1">Est. Watch Time</p>
+                      <p id="bw-watch-time" class="text-lg font-bold text-emerald-300">0 min</p>
+                    </div>
+                  </div>
+
+                  <!-- Note -->
+                  <p class="text-xs text-slate-500 leading-relaxed">
+                    <i data-lucide="info" class="w-3 h-3 inline mr-1 text-slate-500"></i>
+                    Tracked locally per device. Stream segments use Vercel; channel/metadata calls use Cloudflare (free, unlimited).
+                  </p>
+                </div>
+              </div>
+
               <!-- Admin Header Bar -->
               <div class="flex items-center justify-between bg-slate-800/80 p-3 rounded-xl border border-slate-700/60">
                 <div>
