@@ -362,23 +362,13 @@ export class IPTVPlayer {
       rawTargetUrl = rawTargetUrl.replace(/\/live\/[^/]+\/[^/]+\//, `/live/${activeUser}/${activePass}/`);
     }
     
-    // Automatic HTTPS Fix & IPTV Proxying: Route streams through external Render Node Proxy or fallback proxy
-    const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com';
-    let customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
-    if (customProxy.includes('workers.dev') || customProxy.includes('api.codetabs.com')) {
-      customProxy = DEFAULT_RENDER_PROXY;
-      localStorage.setItem('external_proxy_url', DEFAULT_RENDER_PROXY);
-    }
-
-    const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-    const isHttpTarget = rawTargetUrl.startsWith('http://');
-    const isIptvStream = rawTargetUrl.includes('portal5458') || rawTargetUrl.includes('.m3u8') || rawTargetUrl.includes('.m3u') || rawTargetUrl.includes('/live/') || rawTargetUrl.includes('player_api.php');
-
+    // Route streams through native /api/proxy (or custom non-broken proxy if explicitly configured)
+    const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
     let proxiedUrl = rawTargetUrl;
-    if (customProxy) {
+    if (customProxy && !customProxy.includes('onrender.com') && !customProxy.includes('workers.dev') && !customProxy.includes('api.codetabs.com')) {
       const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
       proxiedUrl = `${customProxy}${glue}${encodeURIComponent(rawTargetUrl)}`;
-    } else if (isIptvStream || (isHttps && isHttpTarget)) {
+    } else {
       proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
     }
 

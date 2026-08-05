@@ -3184,7 +3184,7 @@ function closeDetailsView() {
 
 const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com';
 
-// Helper to construct proxy URL (Direct when HTTP page, or Custom Node Proxy / Vercel Edge when on HTTPS / Production)
+// Helper to construct proxy URL (Uses native app proxy endpoint for zero 503 errors)
 function getProxyUrl(targetUrl) {
   if (!targetUrl) return '';
 
@@ -3199,26 +3199,13 @@ function getProxyUrl(targetUrl) {
     } catch (e) {}
   }
 
-  let customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
-  if (customProxy.includes('workers.dev') || customProxy.includes('api.codetabs.com')) {
-    customProxy = DEFAULT_RENDER_PROXY;
-    localStorage.setItem('external_proxy_url', DEFAULT_RENDER_PROXY);
-  }
-
-  if (customProxy) {
+  const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
+  if (customProxy && !customProxy.includes('onrender.com') && !customProxy.includes('workers.dev') && !customProxy.includes('api.codetabs.com')) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
     return `${customProxy}${glue}${encodeURIComponent(cleanTarget)}`;
   }
 
-  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
-  const isHttpTarget = cleanTarget.startsWith('http://');
-  const isIptv = cleanTarget.includes('portal5458') || cleanTarget.includes('.m3u8') || cleanTarget.includes('.m3u') || cleanTarget.includes('/live/') || cleanTarget.includes('player_api.php');
-
-  if (isIptv || (isHttpsPage && isHttpTarget)) {
-    return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
-  }
-
-  return cleanTarget;
+  return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
 }
 
 function renderUnactivatedState() {
