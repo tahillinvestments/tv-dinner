@@ -3182,8 +3182,28 @@ function closeDetailsView() {
   }
 }
 
-// Helper to construct proxy URL (Uses Render proxy as primary to save Vercel bandwidth)
-function getProxyUrl(targetUrl) {
+// Track Render proxy health in memory (reset each page load)
+let _renderProxyHealthy = null; // null=unknown, true=ok, false=suspended
+
+// Quick health check for Render proxy (non-blocking, cached per session)
+async function checkRenderProxy() {
+  if (_renderProxyHealthy !== null) return _renderProxyHealthy;
+  try {
+    const res = await fetch(`${DEFAULT_RENDER_PROXY}/health`, {
+      signal: AbortSignal.timeout(4000)
+    });
+    _renderProxyHealthy = res.ok;
+    console.log('[Proxy] Render proxy health:', _renderProxyHealthy ? 'OK' : `HTTP ${res.status}`);
+  } catch (e) {
+    _renderProxyHealthy = false;
+    console.warn('[Proxy] Render proxy unreachable:', e.message);
+  }
+  return _renderProxyHealthy;
+}
+
+// Build proxy URL: prefer Render for video/streams (saves Vercel bandwidth), native for metadata
+// isStream=true → always try Render (large data); isStream=false → native /api/proxy (tiny JSON)
+function getProxyUrl(targetUrl, isStream = false) {
   if (!targetUrl) return '';
 
   let cleanTarget = targetUrl;
@@ -3197,12 +3217,19 @@ function getProxyUrl(targetUrl) {
     } catch (e) {}
   }
 
-  const customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
+  // Custom proxy overrides everything
+  const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
   if (customProxy) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
     return `${customProxy}${glue}${encodeURIComponent(cleanTarget)}`;
   }
 
+  // For streams, use Render if healthy (saves Vercel bandwidth); native proxy otherwise
+  if (isStream && _renderProxyHealthy === true) {
+    return `${DEFAULT_RENDER_PROXY}/?url=${encodeURIComponent(cleanTarget)}`;
+  }
+
+  // Always use native /api/proxy for metadata (JSON requests) — they're tiny
   return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
 }
 
@@ -3609,14 +3636,18 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   if (!username || !password) return '';
   console.log(`[Xtream] Fetching channel playlist for user "${username}"...`);
 
+  // Kick off Render proxy health check in background (for video stream routing)
+  checkRenderProxy().catch(() => {});
+
   const primaryApi = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
   const primaryCat = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`;
 
-  try {
-    const apiUrl = `/api/proxy?url=${encodeURIComponent(primaryApi)}`;
-    const catUrl = `/api/proxy?url=${encodeURIComponent(primaryCat)}`;
+  // Metadata (JSON) is tiny — always use native /api/proxy, no bandwidth concern
+  const apiUrl = `/api/proxy?url=${encodeURIComponent(primaryApi)}`;
+  const catUrl = `/api/proxy?url=${encodeURIComponent(primaryCat)}`;
 
-    console.log("[Xtream] Fetching live streams via:", apiUrl);
+  try {
+    console.log('[Xtream] Fetching live streams + categories via native proxy...');
     const [streamsRes, catsRes] = await Promise.all([
       fetch(apiUrl).catch(() => null),
       fetch(catUrl).catch(() => null)
@@ -3625,8 +3656,8 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
     if (streamsRes && streamsRes.ok) {
       const streams = await streamsRes.json();
       if (Array.isArray(streams) && streams.length > 0) {
-        console.log(`[Xtream] Successfully loaded ${streams.length} channels using active credentials for "${username}"`);
-        
+        console.log(`[Xtream] Loaded ${streams.length} channels for "${username}"`);
+
         let categoriesMap = {};
         if (catsRes && catsRes.ok) {
           try {
@@ -3646,9 +3677,11 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
         });
         return m3uLines.join('\n');
       }
+    } else {
+      console.error('[Xtream] Streams fetch failed, status:', streamsRes?.status);
     }
   } catch (e) {
-    console.warn("[Xtream] Fetch failed via /api/proxy:", e);
+    console.error('[Xtream] Fetch error:', e);
   }
 
   return '';
