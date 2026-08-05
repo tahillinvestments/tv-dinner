@@ -3182,9 +3182,7 @@ function closeDetailsView() {
   }
 }
 
-const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com';
-
-// Helper to construct proxy URL (Uses native app proxy endpoint for zero 503 errors)
+// Helper to construct proxy URL (Uses Render proxy as primary to save Vercel bandwidth)
 function getProxyUrl(targetUrl) {
   if (!targetUrl) return '';
 
@@ -3199,8 +3197,8 @@ function getProxyUrl(targetUrl) {
     } catch (e) {}
   }
 
-  const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
-  if (customProxy && !customProxy.includes('onrender.com') && !customProxy.includes('workers.dev') && !customProxy.includes('api.codetabs.com')) {
+  const customProxy = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
+  if (customProxy) {
     const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
     return `${customProxy}${glue}${encodeURIComponent(cleanTarget)}`;
   }
@@ -3597,7 +3595,6 @@ function setupSettingsScreen() {
       const oldProxy = localStorage.getItem('external_proxy_url');
       const newProxy = proxyInput.value.trim() || DEFAULT_RENDER_PROXY;
       localStorage.setItem('external_proxy_url', newProxy);
-      localStorage.setItem('iptv_portal_url', 'http://portal5458.com:8080');
 
       if (isAct && newProxy !== oldProxy) {
         console.log("[IPTV] Proxy changed, reloading channels...");
@@ -3612,57 +3609,49 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   if (!username || !password) return '';
   console.log(`[Xtream] Fetching channel playlist for user "${username}"...`);
 
-  // Strategy 1: Fetch get.php M3U export
-  try {
-    const directM3uUrl = `${portalUrl}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus&output=ts`;
-    const proxiedM3uUrl = getProxyUrl(directM3uUrl);
-    const res = await fetch(proxiedM3uUrl);
-    if (res.ok) {
-      const text = await res.text();
-      if (text && text.includes('#EXTM3U')) {
-        console.log(`[Xtream] get.php playlist fetched successfully for "${username}"`);
-        return text;
+  const primaryApi = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
+  const primaryCat = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`;
+
+  // Try Primary Render Proxy first (to save Vercel bandwidth), fallback to native proxy
+  const proxyUrlsToTry = [
+    getProxyUrl(primaryApi),
+    `/api/proxy?url=${encodeURIComponent(primaryApi)}`
+  ];
+
+  for (const apiUrl of proxyUrlsToTry) {
+    try {
+      console.log("[Xtream] Trying live stream fetch via:", apiUrl);
+      const streamsRes = await fetch(apiUrl);
+      if (streamsRes.ok) {
+        const streams = await streamsRes.json();
+        if (Array.isArray(streams) && streams.length > 0) {
+          console.log(`[Xtream] Loaded ${streams.length} channels using active credentials for "${username}"`);
+          
+          let categoriesMap = {};
+          try {
+            const catUrl = getProxyUrl(primaryCat);
+            const catsRes = await fetch(catUrl).catch(() => null);
+            if (catsRes && catsRes.ok) {
+              const cats = await catsRes.json();
+              if (Array.isArray(cats)) {
+                cats.forEach(c => { categoriesMap[c.category_id] = c.category_name; });
+              }
+            }
+          } catch (e) {}
+
+          let m3uLines = ['#EXTM3U'];
+          streams.forEach(s => {
+            const catName = categoriesMap[s.category_id] || 'Live TV';
+            const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.ts`;
+            m3uLines.push(`#EXTINF:-1 tvg-id="${s.epg_channel_id || ''}" tvg-name="${s.name || ''}" tvg-logo="${s.stream_icon || ''}" group-title="${catName}",${s.name}`);
+            m3uLines.push(streamUrl);
+          });
+          return m3uLines.join('\n');
+        }
       }
+    } catch (e) {
+      console.warn("[Xtream] Fetch failed via:", apiUrl, e);
     }
-  } catch (e) {
-    console.warn("[Xtream] get.php fetch failed:", e);
-  }
-
-  // Strategy 2: Fetch player_api.php live streams
-  try {
-    const apiUrl = getProxyUrl(`${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`);
-    const catUrl = getProxyUrl(`${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`);
-    
-    const [streamsRes, catsRes] = await Promise.all([
-      fetch(apiUrl).catch(() => null),
-      fetch(catUrl).catch(() => null)
-    ]);
-
-    if (streamsRes && streamsRes.ok) {
-      const streams = await streamsRes.json();
-      let categoriesMap = {};
-      if (catsRes && catsRes.ok) {
-        try {
-          const cats = await catsRes.json();
-          if (Array.isArray(cats)) {
-            cats.forEach(c => { categoriesMap[c.category_id] = c.category_name; });
-          }
-        } catch (e) {}
-      }
-
-      if (Array.isArray(streams) && streams.length > 0) {
-        let m3uLines = ['#EXTM3U'];
-        streams.forEach(s => {
-          const catName = categoriesMap[s.category_id] || 'Live TV';
-          const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.ts`;
-          m3uLines.push(`#EXTINF:-1 tvg-id="${s.epg_channel_id || ''}" tvg-name="${s.name || ''}" tvg-logo="${s.stream_icon || ''}" group-title="${catName}",${s.name}`);
-          m3uLines.push(streamUrl);
-        });
-        return m3uLines.join('\n');
-      }
-    }
-  } catch (e) {
-    console.warn("[Xtream] player_api.php fetch failed:", e);
   }
 
   return '';
