@@ -3612,46 +3612,43 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   const primaryApi = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
   const primaryCat = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`;
 
-  // Try Primary Render Proxy first (to save Vercel bandwidth), fallback to native proxy
-  const proxyUrlsToTry = [
-    getProxyUrl(primaryApi),
-    `/api/proxy?url=${encodeURIComponent(primaryApi)}`
-  ];
+  try {
+    const apiUrl = `/api/proxy?url=${encodeURIComponent(primaryApi)}`;
+    const catUrl = `/api/proxy?url=${encodeURIComponent(primaryCat)}`;
 
-  for (const apiUrl of proxyUrlsToTry) {
-    try {
-      console.log("[Xtream] Trying live stream fetch via:", apiUrl);
-      const streamsRes = await fetch(apiUrl);
-      if (streamsRes.ok) {
-        const streams = await streamsRes.json();
-        if (Array.isArray(streams) && streams.length > 0) {
-          console.log(`[Xtream] Loaded ${streams.length} channels using active credentials for "${username}"`);
-          
-          let categoriesMap = {};
+    console.log("[Xtream] Fetching live streams via:", apiUrl);
+    const [streamsRes, catsRes] = await Promise.all([
+      fetch(apiUrl).catch(() => null),
+      fetch(catUrl).catch(() => null)
+    ]);
+
+    if (streamsRes && streamsRes.ok) {
+      const streams = await streamsRes.json();
+      if (Array.isArray(streams) && streams.length > 0) {
+        console.log(`[Xtream] Successfully loaded ${streams.length} channels using active credentials for "${username}"`);
+        
+        let categoriesMap = {};
+        if (catsRes && catsRes.ok) {
           try {
-            const catUrl = getProxyUrl(primaryCat);
-            const catsRes = await fetch(catUrl).catch(() => null);
-            if (catsRes && catsRes.ok) {
-              const cats = await catsRes.json();
-              if (Array.isArray(cats)) {
-                cats.forEach(c => { categoriesMap[c.category_id] = c.category_name; });
-              }
+            const cats = await catsRes.json();
+            if (Array.isArray(cats)) {
+              cats.forEach(c => { categoriesMap[c.category_id] = c.category_name; });
             }
           } catch (e) {}
-
-          let m3uLines = ['#EXTM3U'];
-          streams.forEach(s => {
-            const catName = categoriesMap[s.category_id] || 'Live TV';
-            const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.ts`;
-            m3uLines.push(`#EXTINF:-1 tvg-id="${s.epg_channel_id || ''}" tvg-name="${s.name || ''}" tvg-logo="${s.stream_icon || ''}" group-title="${catName}",${s.name}`);
-            m3uLines.push(streamUrl);
-          });
-          return m3uLines.join('\n');
         }
+
+        let m3uLines = ['#EXTM3U'];
+        streams.forEach(s => {
+          const catName = categoriesMap[s.category_id] || 'Live TV';
+          const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.ts`;
+          m3uLines.push(`#EXTINF:-1 tvg-id="${s.epg_channel_id || ''}" tvg-name="${s.name || ''}" tvg-logo="${s.stream_icon || ''}" group-title="${catName}",${s.name}`);
+          m3uLines.push(streamUrl);
+        });
+        return m3uLines.join('\n');
       }
-    } catch (e) {
-      console.warn("[Xtream] Fetch failed via:", apiUrl, e);
     }
+  } catch (e) {
+    console.warn("[Xtream] Fetch failed via /api/proxy:", e);
   }
 
   return '';
