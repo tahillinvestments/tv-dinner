@@ -3184,6 +3184,127 @@ function setupSettingsScreen() {
   const proxyInput = document.getElementById('settings-custom-proxy');
   const saveBtn = document.getElementById('settings-save-btn');
 
+  // Phone Auth & Admin Panel Elements
+  const phoneInput = document.getElementById('settings-phone-number');
+  const activatePhoneBtn = document.getElementById('activate-phone-btn');
+  const phoneActivationSection = document.getElementById('phone-activation-section');
+  const activatedIndicatorSection = document.getElementById('activated-indicator-section');
+  const signOutBtn = document.getElementById('sign-out-btn');
+
+  const adminToggleHeader = document.getElementById('admin-toggle-header');
+  const adminPanelContainer = document.getElementById('admin-panel-container');
+  const adminPasswordInput = document.getElementById('admin-password');
+  const adminLoginBtn = document.getElementById('admin-login-btn');
+  const adminLoginSection = document.getElementById('admin-login-section');
+  const adminDashboardSection = document.getElementById('admin-dashboard-section');
+  const adminCredentialsTable = document.getElementById('admin-credentials-table');
+
+  const ADMIN_CREDENTIALS = [
+    { phone: '123-456-7894', user: 'user_1', pswd: 'pass_1' },
+    { phone: '317-363-1751', user: 'user_2', pswd: 'pass_2' },
+    { phone: '317-900-3473', user: 'user_3', pswd: 'pass_3' },
+    { phone: '317-902-1240', user: 'user_4', pswd: 'pass_4' },
+    { phone: '317-795-7627', user: 'user_5', pswd: 'pass_5' },
+    { phone: '317-261-1596', user: 'user_6', pswd: 'pass_6' }
+  ];
+
+  // Phone Input Masking (US Format)
+  if (phoneInput) {
+    phoneInput.addEventListener('input', function (e) {
+      let x = e.target.value.replace(/\D/g, '').match(/(\d{0,3})(\d{0,3})(\d{0,4})/);
+      e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
+    });
+  }
+
+  // Check if phone is already activated
+  const savedPhone = localStorage.getItem('activated_phone');
+  if (savedPhone && phoneActivationSection && activatedIndicatorSection) {
+    phoneActivationSection.classList.add('hidden');
+    activatedIndicatorSection.classList.remove('hidden');
+  }
+
+  // Phone Activation Logic
+  if (activatePhoneBtn) {
+    activatePhoneBtn.addEventListener('click', () => {
+      const phoneVal = phoneInput.value;
+      const strippedPhone = phoneVal.replace(/\D/g, '');
+      if (strippedPhone.length !== 10) {
+        player.showToast("Please enter a valid 10-digit phone number.");
+        return;
+      }
+      const formattedPhone = `${strippedPhone.substring(0, 3)}-${strippedPhone.substring(3, 6)}-${strippedPhone.substring(6, 10)}`;
+      
+      const creds = ADMIN_CREDENTIALS.find(c => c.phone === formattedPhone);
+      if (creds) {
+        localStorage.setItem('activated_phone', formattedPhone);
+        localStorage.setItem('iptv_username', creds.user);
+        localStorage.setItem('iptv_password', creds.pswd);
+        if (usernameInput) usernameInput.value = creds.user;
+        if (passwordInput) passwordInput.value = creds.pswd;
+        
+        phoneActivationSection.classList.add('hidden');
+        activatedIndicatorSection.classList.remove('hidden');
+        player.showToast("Account Activated!");
+        
+        // Reload IPTV channels with new credentials
+        loadIPTVPlaylist();
+      } else {
+        player.showToast("Phone number not recognized.");
+      }
+    });
+  }
+
+  // Sign Out Logic
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', () => {
+      localStorage.removeItem('activated_phone');
+      localStorage.removeItem('iptv_username');
+      localStorage.removeItem('iptv_password');
+      if (usernameInput) usernameInput.value = '';
+      if (passwordInput) passwordInput.value = '';
+      if (phoneInput) phoneInput.value = '';
+      
+      activatedIndicatorSection.classList.add('hidden');
+      phoneActivationSection.classList.remove('hidden');
+      player.showToast("Signed out.");
+    });
+  }
+
+  // Admin Toggle
+  if (adminToggleHeader) {
+    adminToggleHeader.addEventListener('click', () => {
+      adminPanelContainer.classList.toggle('hidden');
+    });
+  }
+
+  // Admin Login Logic
+  if (adminLoginBtn) {
+    adminLoginBtn.addEventListener('click', () => {
+      if (adminPasswordInput.value === '5678721') {
+        adminLoginSection.classList.add('hidden');
+        adminDashboardSection.classList.remove('hidden');
+        
+        // Populate Admin Table
+        if (adminCredentialsTable) {
+          adminCredentialsTable.innerHTML = '';
+          ADMIN_CREDENTIALS.forEach(cred => {
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-slate-700/50 transition-colors";
+            tr.innerHTML = `
+              <td class="p-3 border-b border-slate-700/50">${cred.phone}</td>
+              <td class="p-3 border-b border-slate-700/50 font-mono text-blue-400">${cred.user}</td>
+              <td class="p-3 border-b border-slate-700/50 font-mono text-red-400">${cred.pswd}</td>
+            `;
+            adminCredentialsTable.appendChild(tr);
+          });
+        }
+        player.showToast("Admin access granted.");
+      } else {
+        player.showToast("Incorrect admin password.");
+      }
+    });
+  }
+
   // Populate inputs on load
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';

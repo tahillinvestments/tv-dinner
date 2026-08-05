@@ -705,9 +705,56 @@
               <input type="password" id="settings-iptv-password" class="settings-input-control" placeholder="Xtream Password...">
             </div>
           </div>
-          <div class="settings-input-group mt-3">
+          <div class="settings-input-group mt-3" style="display: none;">
             <label for="settings-custom-proxy" class="settings-input-label">Custom Proxy URL (Cloudflare Worker)</label>
             <input type="text" id="settings-custom-proxy" class="settings-input-control" placeholder="https://tv-dinner-proxy.tahillinvestments.workers.dev/">
+          </div>
+
+          <div class="settings-input-group mt-4" id="phone-activation-section">
+            <label for="settings-phone-number" class="settings-input-label">Phone Number Activation</label>
+            <div class="flex items-center gap-2">
+              <input type="text" id="settings-phone-number" class="settings-input-control flex-1" placeholder="(XXX) XXX-XXXX" maxlength="14">
+              <button id="activate-phone-btn" class="btn btn-secondary">Activate</button>
+            </div>
+          </div>
+          
+          <div id="activated-indicator-section" class="hidden mt-4 p-4 bg-green-900/20 border border-green-600 rounded-lg flex items-center justify-between">
+            <div class="flex items-center gap-2 text-green-400 font-bold">
+              <i data-lucide="check-circle"></i>
+              <span>Account Activated</span>
+            </div>
+            <button id="sign-out-btn" class="btn btn-secondary text-sm">Sign Out</button>
+          </div>
+        </div>
+
+        <div class="settings-form-section mt-6 border-t border-slate-700/50 pt-6">
+          <h3 class="flex items-center justify-between cursor-pointer" id="admin-toggle-header">
+            Admin Access <i data-lucide="chevron-down" class="w-4 h-4"></i>
+          </h3>
+          <div id="admin-panel-container" class="hidden mt-4">
+            <div id="admin-login-section" class="settings-input-group">
+              <label for="admin-password" class="settings-input-label">Admin Password</label>
+              <div class="flex items-center gap-2">
+                <input type="password" id="admin-password" class="settings-input-control flex-1" placeholder="Enter password...">
+                <button id="admin-login-btn" class="btn btn-primary">Login</button>
+              </div>
+            </div>
+            <div id="admin-dashboard-section" class="hidden mt-4">
+              <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+                <table class="w-full text-left text-sm text-slate-300">
+                  <thead class="bg-slate-900/50">
+                    <tr>
+                      <th class="p-3 border-b border-slate-700 font-semibold">Phone</th>
+                      <th class="p-3 border-b border-slate-700 font-semibold">User</th>
+                      <th class="p-3 border-b border-slate-700 font-semibold">Password</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-credentials-table">
+                    <!-- Populated via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
 
