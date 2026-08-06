@@ -21,7 +21,11 @@
     </div>
 
     <nav class="nav-links">
-      <button class="nav-link active" data-tab="live" title="Live TV">
+      <button class="nav-link active" data-tab="home" title="Home Hub">
+        <i data-lucide="home"></i>
+        <span>Home</span>
+      </button>
+      <button class="nav-link" data-tab="live" title="Live TV">
         <i data-lucide="tv"></i>
         <span>Live TV</span>
       </button>
@@ -73,7 +77,10 @@
         </button>
       </div>
       <nav class="mobile-drawer-nav">
-        <button class="mobile-drawer-link active" data-tab="live">
+        <button class="mobile-drawer-link active" data-tab="home">
+          <i data-lucide="home"></i> <span>Home</span>
+        </button>
+        <button class="mobile-drawer-link" data-tab="live">
           <i data-lucide="tv"></i> <span>Live TV</span>
         </button>
         <button class="mobile-drawer-link" data-tab="movies">
@@ -98,8 +105,184 @@
   <!-- Main Scrollable App Container -->
   <main class="app-main-content">
     
-    <!-- Tab 1: Live TV Screen (Default View) -->
-    <div id="tab-live" class="tab-screen">
+    <!-- Tab 0: Home / Select Hub Screen (Default Landing View) -->
+    <div id="tab-home" class="tab-screen">
+      <div class="max-w-6xl mx-auto px-4 py-8 space-y-8">
+        
+        <!-- Welcome Hero Banner -->
+        <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950/80 to-slate-900 border border-slate-800 p-8 shadow-2xl">
+          <div class="absolute -right-12 -bottom-12 w-64 h-64 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div class="absolute -left-12 -top-12 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+          
+          <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div class="space-y-2">
+              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                TV DINNER MEDIA HUB
+              </div>
+              <h1 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
+                Select Your Entertainment
+              </h1>
+              <p class="text-slate-400 text-sm max-w-xl">
+                Choose a category below to start streaming Live TV, Movies, Series, or Podcasts.
+              </p>
+            </div>
+            
+            <div id="home-status-badge" class="px-4 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 flex items-center gap-2">
+              <i data-lucide="tv" class="w-4 h-4 text-indigo-400"></i>
+              <span id="home-status-text">System Ready</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selection Cards Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          
+          <!-- 1. Live TV Card -->
+          <div class="home-select-card group relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-6 hover:border-red-500/50 hover:bg-slate-900/90 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-red-950/20" data-nav="live">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+              <i data-lucide="tv" class="w-24 h-24 text-red-500"></i>
+            </div>
+            <div class="space-y-4">
+              <div class="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 group-hover:scale-110 transition-transform">
+                <i data-lucide="tv" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <span class="text-xs font-bold tracking-wider text-red-400 uppercase">Live Broadcasts</span>
+                <h3 class="text-xl font-bold text-white mt-1 group-hover:text-red-400 transition-colors">Live TV</h3>
+                <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+                  Stream 2,300+ channels including Live Sports, Cable News, Entertainment, and PPV Events.
+                </p>
+              </div>
+              <div class="pt-2 flex items-center gap-2 text-xs font-semibold text-red-400 group-hover:translate-x-1 transition-transform">
+                <span>Watch Live TV</span>
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Movies Card -->
+          <div class="home-select-card group relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-6 hover:border-indigo-500/50 hover:bg-slate-900/90 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-indigo-950/20" data-nav="movies">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+              <i data-lucide="film" class="w-24 h-24 text-indigo-500"></i>
+            </div>
+            <div class="space-y-4">
+              <div class="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                <i data-lucide="film" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <span class="text-xs font-bold tracking-wider text-indigo-400 uppercase">On Demand</span>
+                <h3 class="text-xl font-bold text-white mt-1 group-hover:text-indigo-400 transition-colors">Movies</h3>
+                <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+                  Browse trending feature films, cinema releases, and search your favorite blockbusters.
+                </p>
+              </div>
+              <div class="pt-2 flex items-center gap-2 text-xs font-semibold text-indigo-400 group-hover:translate-x-1 transition-transform">
+                <span>Browse Movies</span>
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. TV Series Card -->
+          <div class="home-select-card group relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-6 hover:border-cyan-500/50 hover:bg-slate-900/90 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-cyan-950/20" data-nav="series">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+              <i data-lucide="monitor" class="w-24 h-24 text-cyan-500"></i>
+            </div>
+            <div class="space-y-4">
+              <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform">
+                <i data-lucide="monitor" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <span class="text-xs font-bold tracking-wider text-cyan-400 uppercase">Binge Shows</span>
+                <h3 class="text-xl font-bold text-white mt-1 group-hover:text-cyan-400 transition-colors">TV Series</h3>
+                <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+                  Binge popular TV shows, season episode guides, and full streaming series.
+                </p>
+              </div>
+              <div class="pt-2 flex items-center gap-2 text-xs font-semibold text-cyan-400 group-hover:translate-x-1 transition-transform">
+                <span>Browse TV Series</span>
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Podcasts Card -->
+          <div class="home-select-card group relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-6 hover:border-amber-500/50 hover:bg-slate-900/90 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-amber-950/20" data-nav="podcasts">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+              <i data-lucide="radio" class="w-24 h-24 text-amber-500"></i>
+            </div>
+            <div class="space-y-4">
+              <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
+                <i data-lucide="radio" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <span class="text-xs font-bold tracking-wider text-amber-400 uppercase">Audio & Video</span>
+                <h3 class="text-xl font-bold text-white mt-1 group-hover:text-amber-400 transition-colors">Podcasts</h3>
+                <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+                  Listen to top audio podcasts, news broadcasts, and video show episodes.
+                </p>
+              </div>
+              <div class="pt-2 flex items-center gap-2 text-xs font-semibold text-amber-400 group-hover:translate-x-1 transition-transform">
+                <span>Listen to Podcasts</span>
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Favorites & Library Card -->
+          <div class="home-select-card group relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-6 hover:border-emerald-500/50 hover:bg-slate-900/90 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-emerald-950/20" data-nav="library">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+              <i data-lucide="star" class="w-24 h-24 text-emerald-500"></i>
+            </div>
+            <div class="space-y-4">
+              <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                <i data-lucide="star" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <span class="text-xs font-bold tracking-wider text-emerald-400 uppercase">Personalized</span>
+                <h3 class="text-xl font-bold text-white mt-1 group-hover:text-emerald-400 transition-colors">My Favorites</h3>
+                <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+                  Quick access to your bookmarked channels, watchlists, and recently played media.
+                </p>
+              </div>
+              <div class="pt-2 flex items-center gap-2 text-xs font-semibold text-emerald-400 group-hover:translate-x-1 transition-transform">
+                <span>Open Favorites</span>
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. Settings Card -->
+          <div class="home-select-card group relative overflow-hidden rounded-2xl bg-slate-900/60 border border-slate-800/80 p-6 hover:border-slate-500/50 hover:bg-slate-900/90 transition-all duration-300 cursor-pointer shadow-lg" data-nav="settings">
+            <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+              <i data-lucide="settings" class="w-24 h-24 text-slate-400"></i>
+            </div>
+            <div class="space-y-4">
+              <div class="w-12 h-12 rounded-xl bg-slate-500/10 border border-slate-500/20 flex items-center justify-center text-slate-400 group-hover:scale-110 transition-transform">
+                <i data-lucide="settings" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <span class="text-xs font-bold tracking-wider text-slate-400 uppercase">Configuration</span>
+                <h3 class="text-xl font-bold text-white mt-1 group-hover:text-slate-300 transition-colors">Settings</h3>
+                <p class="text-xs text-slate-400 mt-2 leading-relaxed">
+                  Manage IPTV credentials, custom proxy servers, and account options.
+                </p>
+              </div>
+              <div class="pt-2 flex items-center gap-2 text-xs font-semibold text-slate-400 group-hover:translate-x-1 transition-transform">
+                <span>Open Settings</span>
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Tab 1: Live TV Screen -->
+    <div id="tab-live" class="tab-screen hidden">
       <!-- Live split-screen layout -->
       <div class="live-tv-layout">
         <!-- Top Half: Dedicated Live Video player container -->

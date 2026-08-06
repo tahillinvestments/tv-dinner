@@ -123,8 +123,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Render initial icons
   createIcons(iconConfig);
 
-  // Set default tab to Live TV
-  switchTab('live');
+  // Set default landing tab to Home Select Screen
+  switchTab('home');
 
   // Load playlist (Live TV mode data) in background
   loadIPTVPlaylist();
@@ -141,6 +141,14 @@ function setupNavigation() {
       // Close mobile drawer overlay if open
       const mobileDrawer = document.getElementById('mobile-drawer-overlay');
       if (mobileDrawer) mobileDrawer.classList.add('hidden');
+    });
+  });
+
+  // Home Selection Cards Click Handler
+  document.querySelectorAll('.home-select-card[data-nav]').forEach(card => {
+    card.addEventListener('click', () => {
+      const targetTab = card.getAttribute('data-nav');
+      if (targetTab) switchTab(targetTab);
     });
   });
 
@@ -3806,6 +3814,11 @@ async function loadIPTVPlaylist() {
 
     const countText = `${state.channels.length} Live Channels`;
     if (headerBadge) headerBadge.textContent = countText;
+
+    const homeStatusText = document.getElementById('home-status-text');
+    if (homeStatusText) {
+      homeStatusText.textContent = `${state.channels.length} Channels Loaded & Ready`;
+    }
 
     renderCategories();
     applyFilterAndRender();
