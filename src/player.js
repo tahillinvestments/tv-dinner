@@ -366,15 +366,7 @@ export class IPTVPlayer {
     }
     
     // Video streams always go through native /api/proxy (Vercel Node.js runtime)
-    // CF Worker cannot proxy IPTV stream IPs — returns error 1003
-    const customProxy = (localStorage.getItem('external_proxy_url') || '').trim();
-    let proxiedUrl;
-    if (customProxy) {
-      const glue = customProxy.includes('?') ? (customProxy.endsWith('?') || customProxy.endsWith('&') ? '' : '&') : '?url=';
-      proxiedUrl = `${customProxy}${glue}${encodeURIComponent(rawTargetUrl)}`;
-    } else {
-      proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
-    }
+    const proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
 
     this.currentUrl = proxiedUrl;
     this.channelTitle.textContent = channel.name || 'Live TV Stream';
@@ -416,14 +408,6 @@ export class IPTVPlayer {
     const originalUrl = rawTargetUrl;
 
     const proxyFallbacks = [
-      (url) => {
-        const cp = (localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY).trim();
-        if (cp) {
-          const glue = cp.includes('?') ? (cp.endsWith('?') || cp.endsWith('&') ? '' : '&') : '?url=';
-          return `${cp}${glue}${encodeURIComponent(url)}`;
-        }
-        return `/api/proxy?url=${encodeURIComponent(url)}`;
-      },
       (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
     ];
