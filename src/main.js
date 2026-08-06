@@ -3808,7 +3808,7 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
           let m3uLines = ['#EXTM3U'];
           streams.forEach(s => {
             const catName = categoriesMap[s.category_id] || 'Live TV';
-            const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.ts`;
+            const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.m3u8`;
             m3uLines.push(`#EXTINF:-1 tvg-id="${s.epg_channel_id || ''}" tvg-name="${s.name || ''}" tvg-logo="${s.stream_icon || ''}" group-title="${catName}",${s.name}`);
             m3uLines.push(streamUrl);
           });
@@ -3829,6 +3829,18 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
 
 // Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
+  // Auto-sync active phone credentials from admin table if phone is saved
+  const savedPhone = localStorage.getItem('activated_phone');
+  if (savedPhone) {
+    const cleanSaved = savedPhone.replace(/\D/g, '');
+    const adminList = getAdminCredentials();
+    const creds = adminList.find(c => (c.phone || '').replace(/\D/g, '') === cleanSaved);
+    if (creds) {
+      localStorage.setItem('iptv_username', creds.user);
+      localStorage.setItem('iptv_password', creds.pswd);
+    }
+  }
+
   const isActivated = Boolean(localStorage.getItem('activated_phone'));
   const headerBadge = document.getElementById('channel-count-header');
   

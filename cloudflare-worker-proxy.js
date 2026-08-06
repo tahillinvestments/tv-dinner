@@ -16,7 +16,7 @@ const STRIP_RES_HEADERS = new Set([
 /** Rewrite M3U8 segment URLs to go back through this proxy */
 function rewriteM3U8(text, finalUrl, workerOrigin) {
   const base = new URL(finalUrl);
-  return text.split('\n').map(line => {
+  return text.split(/\r?\n|\r/).map(line => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
     try {

@@ -355,11 +355,14 @@ export class IPTVPlayer {
       } catch (e) {}
     }
 
-    // Ensure stream URL uses the user's active entered credentials
+    // Ensure stream URL uses the user's active entered credentials & .m3u8 format for HLS
     const activeUser = (localStorage.getItem('iptv_username') || '').trim();
     const activePass = (localStorage.getItem('iptv_password') || '').trim();
     if (activeUser && activePass && rawTargetUrl.includes('/live/')) {
       rawTargetUrl = rawTargetUrl.replace(/\/live\/[^/]+\/[^/]+\//, `/live/${activeUser}/${activePass}/`);
+    }
+    if (rawTargetUrl.includes('/live/') && rawTargetUrl.endsWith('.ts')) {
+      rawTargetUrl = rawTargetUrl.replace(/\.ts$/, '.m3u8');
     }
     
     // Video streams always go through native /api/proxy (Vercel Node.js runtime)

@@ -11,7 +11,7 @@ const STRIP_RES_HEADERS = new Set([
 
 function rewriteM3U8(m3uText, finalUrl, proxyOrigin) {
   const base = new URL(finalUrl);
-  return m3uText.split('\n').map(line => {
+  return m3uText.split(/\r?\n|\r/).map(line => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) return line;
     try {
@@ -72,11 +72,15 @@ export default async function handler(req, res) {
     });
 
     const finalUrl = response.url || targetUrl.href;
+    const finalUrlObj = new URL(finalUrl);
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
     const isM3U8 =
       contentType.includes('mpegurl') ||
+      contentType.includes('m3u') ||
       targetUrl.pathname.endsWith('.m3u8') ||
-      targetUrl.pathname.endsWith('.m3u');
+      targetUrl.pathname.endsWith('.m3u') ||
+      finalUrlObj.pathname.endsWith('.m3u8') ||
+      finalUrlObj.pathname.endsWith('.m3u');
 
     // Set CORS + copy upstream headers
     const outHeaders = {};
