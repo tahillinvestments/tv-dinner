@@ -52,12 +52,9 @@ const state = {
 
 // Helper to construct dynamic IPTV playlist URL from localStorage or credentials
 function getPlaylistUrl() {
-  const isActivated = Boolean(localStorage.getItem('activated_phone'));
-  if (!isActivated) return '';
-
   const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-  const username = (localStorage.getItem('iptv_username') || '').trim();
-  const password = (localStorage.getItem('iptv_password') || '').trim();
+  const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
+  const password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
   
   if (portalUrl && username && password) {
     return `${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
@@ -262,13 +259,8 @@ function switchTab(tabName) {
     if (liveContainer && playerSection) {
       liveContainer.appendChild(playerSection);
     }
-    const isAct = Boolean(localStorage.getItem('activated_phone'));
-    if (!isAct) {
-      renderUnactivatedState();
-    } else {
-      renderCategories();
-      applyFilterAndRender();
-    }
+    renderCategories();
+    applyFilterAndRender();
   } else {
     if (tabName === 'movies') {
       loadMoviesDashboard();
@@ -3680,12 +3672,13 @@ function setupSettingsScreen() {
     });
   }
 
-  // Populate inputs on load (only if activated)
-  const isAct = Boolean(localStorage.getItem('activated_phone'));
+  // Populate inputs on load
+  const activeUser = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
+  const activePass = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
-  if (usernameInput) usernameInput.value = isAct ? (localStorage.getItem('iptv_username') || '') : '';
-  if (passwordInput) passwordInput.value = isAct ? (localStorage.getItem('iptv_password') || '') : '';
+  if (usernameInput) usernameInput.value = activeUser;
+  if (passwordInput) passwordInput.value = activePass;
   if (proxyInput) proxyInput.value = localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY;
 
   // Auto-save logic on input change
@@ -3775,8 +3768,8 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
 // Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
   const rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-  const username = (localStorage.getItem('iptv_username') || '').trim();
-  const password = (localStorage.getItem('iptv_password') || '').trim();
+  const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
+  const password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
   const headerBadge = document.getElementById('channel-count-header');
 
   if (!username || !password) {
@@ -3943,6 +3936,17 @@ function renderCategories() {
   if (!container) return;
   container.innerHTML = '';
 
+  if (!state.categories || state.categories.length === 0) {
+    container.innerHTML = `
+      <div class="p-3 text-xs text-slate-400 flex items-center gap-2 animate-pulse">
+        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin"></i>
+        <span>Loading categories...</span>
+      </div>
+    `;
+    createIcons(iconConfig);
+    return;
+  }
+
   state.categories.forEach(category => {
     const btn = document.createElement('button');
     btn.className = `category-btn ${state.selectedCategory === category ? 'active' : ''}`;
@@ -4035,6 +4039,17 @@ function renderChannelsGrid() {
   const emptyState = document.getElementById('no-channels-found');
   if (!container) return;
   container.innerHTML = '';
+
+  if (state.channels.length === 0) {
+    container.innerHTML = `
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+      <div class="skeleton-card"></div>
+    `;
+    if (emptyState) emptyState.classList.add('hidden');
+    return;
+  }
 
   if (state.filteredChannels.length === 0) {
     if (emptyState) emptyState.classList.remove('hidden');
