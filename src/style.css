@@ -3588,13 +3588,13 @@ body.body-pseudo-fullscreen {
   background: linear-gradient(135deg, rgba(13, 16, 23, 0.95), rgba(27, 32, 46, 0.85));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
-  padding: 2.25rem 2rem;
+  padding: 2.25rem 2.25rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-  overflow: hidden;
   backdrop-filter: blur(12px);
+  min-height: fit-content;
 }
 
 .home-hero-card::before {
@@ -3606,19 +3606,21 @@ body.body-pseudo-fullscreen {
   height: 250px;
   background: radial-gradient(circle, rgba(239, 68, 68, 0.25), transparent 70%);
   pointer-events: none;
+  border-radius: 50%;
 }
 
 .home-hero-content {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.65rem;
+  z-index: 2;
 }
 
 .home-hero-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.35rem 0.85rem;
+  padding: 0.4rem 0.85rem;
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 99px;
@@ -3627,6 +3629,8 @@ body.body-pseudo-fullscreen {
   font-weight: 700;
   letter-spacing: 0.06em;
   width: fit-content;
+  margin-top: 0.25rem;
+  line-height: 1;
 }
 
 .home-hero-badge .pulse-dot {

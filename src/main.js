@@ -267,8 +267,21 @@ function switchTab(tabName) {
     if (liveContainer && playerSection) {
       liveContainer.appendChild(playerSection);
     }
-    renderCategories();
-    applyFilterAndRender();
+    const username = (localStorage.getItem('iptv_username') || '').trim();
+    const password = (localStorage.getItem('iptv_password') || '').trim();
+    if (!username || !password) {
+      renderUnactivatedState();
+    } else {
+      renderCategories();
+      applyFilterAndRender();
+    }
+  } else if (tabName === 'home') {
+    const username = (localStorage.getItem('iptv_username') || '').trim();
+    const password = (localStorage.getItem('iptv_password') || '').trim();
+    if (!username || !password) {
+      const homeStatusText = document.getElementById('home-status-text');
+      if (homeStatusText) homeStatusText.textContent = 'Sign In Required';
+    }
   } else {
     if (tabName === 'movies') {
       loadMoviesDashboard();
@@ -3204,49 +3217,52 @@ function getProxyUrl(targetUrl) {
 
 function renderUnactivatedState() {
   const headerBadge = document.getElementById('channel-count-header');
-  if (headerBadge) headerBadge.textContent = 'Activation Required';
+  if (headerBadge) headerBadge.textContent = 'Sign In Required';
 
-  if (state.activeTab === 'live') {
-    const catContainer = document.getElementById('categories-container');
-    const catName = document.getElementById('current-category-name');
-    const catInfo = document.getElementById('channel-list-info');
-    const grid = document.getElementById('channels-grid');
+  const homeStatusText = document.getElementById('home-status-text');
+  if (homeStatusText) {
+    homeStatusText.textContent = 'Sign In Required';
+  }
 
-    if (catName) catName.textContent = 'Live TV (Sign In Required)';
-    if (catInfo) catInfo.textContent = 'Activate your account in Settings using your 10-digit phone number.';
+  const catContainer = document.getElementById('categories-container');
+  const catName = document.getElementById('current-category-name');
+  const catInfo = document.getElementById('channel-list-info');
+  const grid = document.getElementById('channels-grid');
 
-    if (catContainer) {
-      catContainer.innerHTML = `
-        <button class="category-btn active">
-          <i data-lucide="lock" class="w-4 h-4 text-amber-400"></i>
-          <span class="cat-name">Sign In Required</span>
-        </button>
-      `;
-    }
+  if (catName) catName.textContent = 'Live TV (Sign In Required)';
+  if (catInfo) catInfo.textContent = 'Sign in with your credentials or 10-digit phone number in Settings to start streaming.';
 
-    if (grid) {
-      grid.innerHTML = `
-        <div class="col-span-full py-16 px-6 text-center bg-slate-800/40 rounded-2xl border border-slate-700/60 shadow-xl max-w-md mx-auto my-8">
-          <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4 shadow-inner">
-            <i data-lucide="lock" class="w-8 h-8"></i>
-          </div>
-          <h3 class="text-lg font-bold text-white mb-2">Account Sign In Required</h3>
-          <p class="text-sm text-slate-300 mb-6 leading-relaxed">
-            Please sign in with your 10-digit phone number in Settings to unlock and watch Live TV channels.
-          </p>
-          <button id="go-to-settings-btn" class="btn btn-primary mt-4 font-bold shadow-lg shadow-red-900/30 flex items-center gap-2">
-            <i data-lucide="log-in" class="w-4 h-4"></i> Go to Sign In / Settings
-          </button>
+  if (catContainer) {
+    catContainer.innerHTML = `
+      <button class="category-btn active">
+        <i data-lucide="lock" class="w-4 h-4 text-amber-400"></i>
+        <span class="cat-name">Sign In Required</span>
+      </button>
+    `;
+  }
+
+  if (grid && state.activeTab === 'live') {
+    grid.innerHTML = `
+      <div class="col-span-full py-16 px-6 text-center bg-slate-800/40 rounded-2xl border border-slate-700/60 shadow-xl max-w-md mx-auto my-8">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4 shadow-inner">
+          <i data-lucide="lock" class="w-8 h-8"></i>
         </div>
-      `;
-      createIcons(iconConfig);
+        <h3 class="text-lg font-bold text-white mb-2">Account Sign In Required</h3>
+        <p class="text-sm text-slate-300 mb-6 leading-relaxed">
+          Please sign in with your account credentials or 10-digit phone number in Settings to unlock and watch Live TV channels.
+        </p>
+        <button id="go-to-settings-btn" class="btn btn-primary mt-4 font-bold shadow-lg shadow-red-900/30 flex items-center gap-2">
+          <i data-lucide="log-in" class="w-4 h-4"></i> Go to Sign In / Settings
+        </button>
+      </div>
+    `;
+    createIcons(iconConfig);
 
-      const btn = document.getElementById('go-to-settings-btn');
-      if (btn) {
-        btn.addEventListener('click', () => {
-          switchTab('settings');
-        });
-      }
+    const btn = document.getElementById('go-to-settings-btn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        switchTab('settings');
+      });
     }
   }
 }
@@ -3681,8 +3697,8 @@ function setupSettingsScreen() {
   }
 
   // Populate inputs on load
-  const activeUser = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
-  const activePass = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
+  const activeUser = (localStorage.getItem('iptv_username') || '').trim();
+  const activePass = (localStorage.getItem('iptv_password') || '').trim();
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
   if (usernameInput) usernameInput.value = activeUser;
@@ -3776,8 +3792,8 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
 // Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
   const rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-  const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
-  const password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
+  const username = (localStorage.getItem('iptv_username') || '').trim();
+  const password = (localStorage.getItem('iptv_password') || '').trim();
   const headerBadge = document.getElementById('channel-count-header');
 
   if (!username || !password) {
