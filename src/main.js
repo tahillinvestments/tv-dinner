@@ -26,6 +26,9 @@ const iconConfig = {
   }
 })();
 
+// Default Proxy URL fallback
+const DEFAULT_RENDER_PROXY = '/api/proxy';
+
 // Global State
 const state = {
   activeTab: 'home', // 'home', 'search', 'live', 'library', 'settings'
@@ -3729,6 +3732,7 @@ function setupSettingsScreen() {
       const newProxy = proxyInput.value.trim() || DEFAULT_RENDER_PROXY;
       localStorage.setItem('external_proxy_url', newProxy);
 
+      const isAct = !!localStorage.getItem('activated_phone');
       if (isAct && newProxy !== oldProxy) {
         console.log("[IPTV] Proxy changed, reloading channels...");
         loadIPTVPlaylist();

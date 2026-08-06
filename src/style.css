@@ -99,7 +99,7 @@ body {
 .app-sidebar-nav:hover {
   width: var(--sidebar-expanded-width);
   align-items: flex-start;
-  padding: 1.5rem 1.25rem;
+  padding: 1.5rem 1rem;
 }
 
 /* Sidebar Logo */
@@ -115,6 +115,7 @@ body {
 
 .app-sidebar-nav:hover .sidebar-logo {
   justify-content: flex-start;
+  padding-left: 0.25rem;
 }
 
 .logo-icon-badge {
@@ -129,8 +130,10 @@ body {
   flex-shrink: 0;
 }
 
-.logo-icon-badge i {
-  color: #fff;
+.logo-icon-badge i,
+.logo-icon-badge svg,
+.logo-icon-badge [data-lucide] {
+  color: #ffffff;
   width: 22px;
   height: 22px;
 }
@@ -146,6 +149,7 @@ body {
   display: none;
   opacity: 0;
   transition: opacity 0.2s ease;
+  white-space: nowrap;
 }
 
 .app-sidebar-nav:hover .logo-text {
@@ -157,9 +161,14 @@ body {
 .nav-links {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 0.75rem;
   width: 100%;
   flex: 1;
+}
+
+.app-sidebar-nav:hover .nav-links {
+  align-items: stretch;
 }
 
 .nav-link {
@@ -177,20 +186,24 @@ body {
   transition: var(--transition-smooth);
   outline: none;
   padding: 0;
+  position: relative;
 }
 
 .app-sidebar-nav:hover .nav-link {
   width: 100%;
   justify-content: flex-start;
-  padding: 0 1rem;
+  padding: 0 0.85rem;
   height: 46px;
 }
 
-.nav-link i {
+.nav-link i,
+.nav-link svg,
+.nav-link [data-lucide] {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
   transition: var(--transition-smooth);
+  color: inherit;
 }
 
 .nav-link span {
@@ -199,6 +212,7 @@ body {
   display: none;
   opacity: 0;
   transition: opacity 0.2s ease;
+  white-space: nowrap;
 }
 
 .app-sidebar-nav:hover .nav-link span {
@@ -208,7 +222,7 @@ body {
 
 .nav-link:hover {
   color: #ffffff;
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
 .nav-link.active {
@@ -219,6 +233,34 @@ body {
 
 .nav-link.active:hover {
   background-color: var(--accent-hover);
+}
+
+/* Collapsed sidebar tooltip indicators */
+.app-sidebar-nav:not(:hover) .nav-link[title]::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-6px);
+  background: #1e293b;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  z-index: 200;
+}
+
+.app-sidebar-nav:not(:hover) .nav-link[title]:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
 }
 
 .sidebar-nav-footer {
