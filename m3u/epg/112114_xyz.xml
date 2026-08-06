@@ -59343,6 +59343,9 @@
 	<programme channel="newtv超级综艺" start="20260806195700 +0800" stop="20260806211400 +0800">
 		<title lang="zh">越战越勇</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260806211400 +0800" stop="20260806225300 +0800">
+		<title lang="zh">跟着春晚游中国</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -59534,6 +59537,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260806201800 +0800" stop="20260806210500 +0800">
 		<title lang="zh">21_主角</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260806210500 +0800" stop="20260806215200 +0800">
+		<title lang="zh">22_主角</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
