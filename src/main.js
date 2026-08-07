@@ -126,8 +126,12 @@ const EMBED_PROVIDERS = [
 // Initialize components
 let player;
 let searchDebounceTimer;
+let appInitialized = false;
 
 async function initApp() {
+  if (appInitialized) return;
+  appInitialized = true;
+
   console.log('[App Init] Initializing application components...');
   // Init player with Channel Up / Channel Down handler
   player = new IPTVPlayer('video-player', {
@@ -3761,11 +3765,26 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
         });
         return m3uLines.join('\n');
       }
-    } else {
-      console.warn('[Xtream] Failed via /api/proxy - status:', streamsRes?.status);
     }
   } catch (e) {
-    console.warn('[Xtream] Fetch error:', e.message);
+    console.warn('[Xtream] API fetch error:', e.message);
+  }
+
+  // Fallback: Fetch direct m3u_plus playlist format
+  try {
+    const getUrl = `${portalUrl}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus&output=hls`;
+    const proxyGetUrl = getProxyUrl(getUrl);
+    console.log('[Xtream] Trying M3U_PLUS fallback:', proxyGetUrl);
+    const getRes = await fetch(proxyGetUrl, { signal: AbortSignal.timeout(25000) });
+    if (getRes && getRes.ok) {
+      const text = await getRes.text();
+      if (text && text.includes('#EXTM3U')) {
+        console.log('[Xtream] Loaded channels via M3U_PLUS fallback');
+        return text;
+      }
+    }
+  } catch (e) {
+    console.warn('[Xtream] M3U_PLUS fallback error:', e.message);
   }
 
   return '';
