@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-C8K6A28a.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-JzSt0r6c.css">
+  <script type="module" crossorigin src="/assets/index-C64EABEw.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-D84b-eGF.css">
 </head>
 <body class="dark-theme">
   
@@ -43,9 +43,9 @@
         <i data-lucide="radio"></i>
         <span>Podcasts</span>
       </button>
-      <button class="nav-link" data-tab="library" title="Favorites">
+      <button class="nav-link" data-tab="library" title="Watchlist">
         <i data-lucide="star"></i>
-        <span>Favorites</span>
+        <span>Watchlist</span>
       </button>
       <button class="nav-link" data-tab="settings" title="Settings">
         <i data-lucide="settings"></i>
@@ -95,7 +95,7 @@
           <i data-lucide="radio"></i> <span>Podcasts</span>
         </button>
         <button class="mobile-drawer-link" data-tab="library">
-          <i data-lucide="star"></i> <span>Favorites</span>
+          <i data-lucide="star"></i> <span>Watchlist</span>
         </button>
         <button class="mobile-drawer-link" data-tab="settings">
           <i data-lucide="settings"></i> <span>Settings</span>
@@ -238,14 +238,14 @@
               </div>
               <div>
                 <span class="home-card-tag">Personalized</span>
-                <h3 class="home-card-title">My Favorites</h3>
+                <h3 class="home-card-title">My Watchlist</h3>
                 <p class="home-card-desc">
                   Quick access to your bookmarked channels, watchlists, and recently played media.
                 </p>
               </div>
             </div>
             <div class="home-card-action">
-              <span>Open Favorites</span>
+              <span>Open Watchlist</span>
               <i data-lucide="chevron-right" class="w-4 h-4"></i>
             </div>
           </div>
@@ -1099,13 +1099,38 @@
 
           <div class="controls-actions-row">
             <div class="actions-left">
-              <button id="ch-prev-btn" class="control-btn" title="Previous Channel">
+              <!-- Live TV Channel Buttons -->
+              <button id="ch-prev-btn" class="control-btn live-control-btn" title="Previous Channel">
                 <i data-lucide="chevron-left"></i>
               </button>
+
+              <!-- VOD Seek Buttons -->
+              <button id="seek-back-30-btn" class="control-btn vod-control-btn vod-btn" title="Rewind 30s">
+                <i data-lucide="rotate-ccw"></i>
+                <span class="btn-time-badge">30s</span>
+              </button>
+              <button id="seek-back-10-btn" class="control-btn vod-control-btn vod-btn" title="Rewind 10s">
+                <i data-lucide="rotate-ccw"></i>
+                <span class="btn-time-badge">10s</span>
+              </button>
+
+              <!-- Play / Pause Button -->
               <button id="play-pause-btn" class="control-btn" aria-label="Play/Pause">
                 <i data-lucide="pause"></i>
               </button>
-              <button id="ch-next-btn" class="control-btn" title="Next Channel">
+
+              <!-- VOD Seek Forward Buttons -->
+              <button id="seek-fwd-10-btn" class="control-btn vod-control-btn vod-btn" title="Forward 10s">
+                <i data-lucide="rotate-cw"></i>
+                <span class="btn-time-badge">10s</span>
+              </button>
+              <button id="seek-fwd-30-btn" class="control-btn vod-control-btn vod-btn" title="Forward 30s">
+                <i data-lucide="rotate-cw"></i>
+                <span class="btn-time-badge">30s</span>
+              </button>
+
+              <!-- Live TV Channel Next Button -->
+              <button id="ch-next-btn" class="control-btn live-control-btn" title="Next Channel">
                 <i data-lucide="chevron-right"></i>
               </button>
               <button id="reload-btn" class="control-btn" title="Reload stream">
@@ -1162,18 +1187,6 @@
               <span id="details-runtime" class="details-pill">-- min</span>
             </div>
             <p id="details-overview" class="details-overview">Movie overview information goes here...</p>
-
-            <!-- VOD Resume Playback Banner -->
-            <div id="vod-resume-banner" class="vod-resume-banner hidden">
-              <div class="resume-info">
-                <i data-lucide="history" class="w-4 h-4 text-amber-400"></i>
-                <span>Resume watching from <strong id="resume-time-text" class="text-amber-400 font-bold">0:00</strong></span>
-              </div>
-              <div class="resume-actions">
-                <button id="resume-play-btn" class="resume-btn primary">Resume</button>
-                <button id="resume-restart-btn" class="resume-btn secondary">Start Over</button>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -1231,10 +1244,6 @@
           <button id="podcast-channel-share-btn" class="podcast-modal-action-btn share-btn">
             <i data-lucide="share-2" class="w-3.5 h-3.5 text-blue-400"></i>
             <span>Share Show</span>
-          </button>
-          <button id="podcast-channel-favorite-btn" class="podcast-modal-action-btn fav-btn">
-            <i data-lucide="star" class="w-3.5 h-3.5 text-amber-400"></i>
-            <span>Add to Favorites</span>
           </button>
         </div>
       </div>
