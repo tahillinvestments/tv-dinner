@@ -3153,7 +3153,10 @@ function closeDetailsView() {
 }
 
 function getProxyBase() {
-  const saved = (localStorage.getItem('external_proxy_url') || '').trim();
+  let saved = '';
+  try {
+    saved = (localStorage.getItem('external_proxy_url') || '').trim();
+  } catch (e) {}
   if (saved) return saved;
 
   if (
@@ -3723,6 +3726,7 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   console.log(`[Xtream] Fetching channel playlist for user "${username}"...`);
 
   const primaryApi = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
+  const primaryCat = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`;
   const apiUrl = getProxyUrl(primaryApi);
   const catUrl = getProxyUrl(primaryCat);
 
@@ -3769,8 +3773,16 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
 
 // Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
-  const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
-  const password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
+  let rawPortalUrl = 'http://portal5458.com:8080';
+  let username = 'SAPPTV12';
+  let password = 'REMOTE6202';
+
+  try {
+    rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
+    username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
+    password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
+  } catch (e) {}
+
   const headerBadge = document.getElementById('channel-count-header');
 
   if (!username || !password) {
