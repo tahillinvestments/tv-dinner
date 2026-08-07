@@ -3,7 +3,17 @@ import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
-import { PODCAST_CHANNELS, getAllPodcastChannels, getHeroPodcast, getLatestPodcastEpisodes, loadTopItunesPodcasts, searchPodcastChannels, searchRealPodcastAPI, fetchChannelPastEpisodes } from './podcastsData';
+import {
+  PODCAST_CHANNELS,
+  getAllPodcastChannels,
+  getHeroPodcast,
+  getLatestPodcastEpisodes,
+  loadTopItunesPodcasts,
+  searchPodcastChannels,
+  searchRealPodcastAPI,
+  fetchChannelPastEpisodes,
+  fetchChannelPastEpisodesNextPage
+} from './podcastsData';
 import './style.css';
 
 // Initialize Lucide icons
@@ -150,6 +160,7 @@ async function initApp() {
   if (appInitialized) return;
   appInitialized = true;
   window.state = state;
+  window.fetchChannelPastEpisodesNextPage = fetchChannelPastEpisodesNextPage;
 
   console.log('[App Init] Initializing application components...');
   // Init player with Channel Up / Channel Down handler
@@ -526,6 +537,8 @@ async function loadSeriesDashboard() {
 // Global state for active podcast channel overlay
 let activePodcastModalChannel = null;
 let activePodcastAllEpisodes = [];
+let activePodcastContinuationToken = '';
+let activePodcastHasMore = true;
 let podcastEpisodesSearchQuery = '';
 let podcastEpisodesSortMode = 'newest';
 let podcastEpisodesPage = 1;
@@ -1307,6 +1320,8 @@ async function openPodcastChannelModal(channel) {
   if (!overlay) return;
 
   activePodcastModalChannel = channel;
+  activePodcastContinuationToken = '';
+  activePodcastHasMore = true;
   podcastEpisodesSearchQuery = '';
   podcastEpisodesSortMode = 'newest';
   podcastEpisodesPage = 1;
@@ -1422,7 +1437,38 @@ async function openPodcastChannelModal(channel) {
 
   // Wire load more pagination button
   if (loadMoreBtn) {
-    loadMoreBtn.onclick = () => {
+    loadMoreBtn.onclick = async () => {
+      const currentTotal = activePodcastAllEpisodes.length;
+      const totalToShow = (podcastEpisodesPage + 1) * PODCAST_EPISODES_PER_PAGE;
+
+      if (totalToShow > currentTotal && activePodcastHasMore) {
+        const originalText = loadMoreBtn.textContent;
+        loadMoreBtn.textContent = 'Fetching Older Episodes...';
+        loadMoreBtn.disabled = true;
+        try {
+          const res = await fetchChannelPastEpisodesNextPage(activePodcastModalChannel, activePodcastContinuationToken);
+          if (res && Array.isArray(res.episodes) && res.episodes.length > 0) {
+            const existingIds = new Set(activePodcastAllEpisodes.map(ep => ep.id || ep.youtubeId));
+            const newUnique = res.episodes.filter(ep => !existingIds.has(ep.id || ep.youtubeId));
+            
+            if (newUnique.length > 0) {
+              activePodcastAllEpisodes = [...activePodcastAllEpisodes, ...newUnique];
+              window.activePodcastAllEpisodes = activePodcastAllEpisodes;
+              activePodcastContinuationToken = res.continuation || '';
+            } else {
+              activePodcastHasMore = false;
+            }
+          } else {
+            activePodcastHasMore = false;
+          }
+        } catch (e) {
+          console.warn('[Podcasts] Error loading next page of episodes:', e);
+          activePodcastHasMore = false;
+        }
+        loadMoreBtn.textContent = originalText;
+        loadMoreBtn.disabled = false;
+      }
+
       podcastEpisodesPage++;
       renderChannelEpisodesGrid();
     };

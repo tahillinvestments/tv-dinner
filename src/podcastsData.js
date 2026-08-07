@@ -992,8 +992,11 @@ export async function fetchChannelPastEpisodes(channel) {
         if (res.ok) {
           const data = await res.json();
           if (data && Array.isArray(data) && data.length > 0) {
-            return data.slice(0, 20).map(item => ({
-              id: `ep_yt_${item.videoId}`,
+            return data
+              .filter(item => item && item.videoId && item.title)
+              .slice(0, 20)
+              .map(item => ({
+                id: `ep_yt_${item.videoId}`,
               title: item.title,
               youtubeId: item.videoId,
               channelName: channel.channelName,
@@ -1016,4 +1019,55 @@ export async function fetchChannelPastEpisodes(channel) {
 
   // D. Guaranteed Episode Generator for curated list
   return getGuaranteedChannelEpisodes(channel);
+}
+
+// Fetch the next page of past episodes for a channel (using Invidious continuation)
+export async function fetchChannelPastEpisodesNextPage(channel, continuation = '') {
+  if (!channel) return { episodes: [], continuation: '' };
+
+  if (channel.ytChannelId) {
+    const invidiousInstances = [
+      `https://invidious.flokinet.to`,
+      `https://inv.zoomerville.com`,
+      `https://inv.nadeko.net`,
+      `https://inv.tux.pizza`
+    ];
+
+    for (const inst of invidiousInstances) {
+      try {
+        const queryParam = continuation ? `?continuation=${encodeURIComponent(continuation)}` : '';
+        const url = `${inst}/api/v1/channels/${channel.ytChannelId}/videos${queryParam}`;
+        const res = await fetchWithTimeout(url, {}, 4000);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.videos)) {
+            const nextEps = data.videos
+              .filter(item => item && item.videoId && item.title)
+              .map(item => ({
+                id: `ep_yt_${item.videoId}`,
+              title: item.title,
+              youtubeId: item.videoId,
+              channelName: channel.channelName,
+              host: channel.host || item.author || 'Host',
+              category: channel.category || 'Video Podcast',
+              date: item.publishedText || 'Recent',
+              year: item.published ? new Date(item.published * 1000).getFullYear() : 2026,
+              timestamp: item.published ? item.published * 1000 : Date.now(),
+              duration: item.lengthSeconds ? `${Math.round(item.lengthSeconds / 60)}m` : 'HD Video',
+              thumbnail: `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`,
+              description: item.description || channel.description
+            }));
+            return {
+              episodes: nextEps,
+              continuation: data.continuation || ''
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('[Podcasts] Invidious channel videos next page failover:', inst);
+      }
+    }
+  }
+
+  return { episodes: [], continuation: '' };
 }
