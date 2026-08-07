@@ -8,6 +8,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    window.addEventListener('error', (e) => {
+      console.error('[Global Error Listener]', e.message, e.error ? e.error.stack : '');
+      localStorage.setItem('debug_error', e.message);
+      localStorage.setItem('debug_error_stack', e.error ? e.error.stack : '');
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('[Global Rejection Listener]', e.reason ? e.reason.message : 'rejection', e.reason ? e.reason.stack : '');
+      localStorage.setItem('debug_error', e.reason ? e.reason.message : 'rejection');
+      localStorage.setItem('debug_error_stack', e.reason ? e.reason.stack : '');
+    });
+  </script>
 </head>
 <body class="dark-theme">
   

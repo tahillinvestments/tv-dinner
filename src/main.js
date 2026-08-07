@@ -80,6 +80,24 @@ const state = {
   activeSourceIndex: -1
 };
 
+// ==========================================================================
+// POCKET CASTS REDESIGN STATE & APP CONTROLLER (Moved to top to prevent TDZ error)
+// ==========================================================================
+let pocketcastsState = {
+  subscribedShowIds: JSON.parse(localStorage.getItem('pocketcasts_subscribed_ids') || '[]'),
+  subscribedShows: JSON.parse(localStorage.getItem('pocketcasts_subscribed_shows') || '[]'),
+  queue: JSON.parse(localStorage.getItem('pocketcasts_queue') || '[]'),
+  history: JSON.parse(localStorage.getItem('pocketcasts_history') || '[]'),
+  currentView: 'discover',
+  activeCategory: 'all',
+  currentEpisode: null,
+  audioElement: null,
+  isPlaying: false,
+  playbackSpeed: 1.0,
+  navInitialized: false
+};
+
+
 // Helper to construct dynamic IPTV playlist URL from localStorage or credentials
 function getPlaylistUrl() {
   const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
@@ -131,6 +149,7 @@ let appInitialized = false;
 async function initApp() {
   if (appInitialized) return;
   appInitialized = true;
+  window.state = state;
 
   console.log('[App Init] Initializing application components...');
   // Init player with Channel Up / Channel Down handler
@@ -271,6 +290,14 @@ function stopActiveLiveTVFeed() {
 function switchTab(tabName) {
   state.activeTab = tabName;
 
+  // Auto-hide podcast channel details overlay when switching tabs
+  const podcastOverlay = document.getElementById('podcast-channel-modal');
+  if (podcastOverlay) {
+    podcastOverlay.classList.add('hidden');
+    podcastOverlay.style.display = 'none';
+  }
+  document.body.style.overflow = '';
+
   // Clean up any playing media from previous context
   if (tabName !== 'podcasts') {
     stopAllMediaPlayback({ keepLive: tabName === 'live' });
@@ -312,8 +339,13 @@ function switchTab(tabName) {
     if (!username || !password) {
       renderUnactivatedState();
     } else {
-      renderCategories();
-      applyFilterAndRender();
+      if (!state.channels || state.channels.length === 0) {
+        console.log('[IPTV] Live TV tab opened but channels empty. Loading playlist...');
+        loadIPTVPlaylist();
+      } else {
+        renderCategories();
+        applyFilterAndRender();
+      }
     }
   } else if (tabName === 'home') {
     const username = (localStorage.getItem('iptv_username') || '').trim();
@@ -499,22 +531,8 @@ let podcastEpisodesSortMode = 'newest';
 let podcastEpisodesPage = 1;
 const PODCAST_EPISODES_PER_PAGE = 9;
 
+// POCKET CASTS REDESIGN STATE & APP CONTROLLER (Moved to top)
 // ==========================================================================
-// POCKET CASTS REDESIGN STATE & APP CONTROLLER
-// ==========================================================================
-let pocketcastsState = {
-  subscribedShowIds: JSON.parse(localStorage.getItem('pocketcasts_subscribed_ids') || '[]'),
-  subscribedShows: JSON.parse(localStorage.getItem('pocketcasts_subscribed_shows') || '[]'),
-  queue: JSON.parse(localStorage.getItem('pocketcasts_queue') || '[]'),
-  history: JSON.parse(localStorage.getItem('pocketcasts_history') || '[]'),
-  currentView: 'discover',
-  activeCategory: 'all',
-  currentEpisode: null,
-  audioElement: null,
-  isPlaying: false,
-  playbackSpeed: 1.0,
-  navInitialized: false
-};
 
 // Main Entry Point called when user switches to Podcasts tab
 function loadPodcastsDashboard() {
@@ -1346,6 +1364,7 @@ async function openPodcastChannelModal(channel) {
 
   // Load and fetch channel episodes dynamically
   activePodcastAllEpisodes = await fetchChannelPastEpisodes(channel);
+  window.activePodcastAllEpisodes = activePodcastAllEpisodes;
 
   if (playLatestBtn) {
     playLatestBtn.onclick = () => {
