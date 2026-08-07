@@ -1306,6 +1306,10 @@ async function openPodcastChannelModal(channel) {
   const sortSelect = document.getElementById('podcast-episodes-sort');
   const loadMoreBtn = document.getElementById('podcast-episodes-load-more');
   const grid = document.getElementById('podcast-channel-episodes-grid');
+  
+  const tabAll = document.getElementById('podcast-tab-all');
+  const tabUnplayed = document.getElementById('podcast-tab-unplayed');
+  const tabSaved = document.getElementById('podcast-tab-saved');
 
   if (avatar) avatar.src = channel.avatar;
   if (title) title.textContent = channel.channelName;
