@@ -112,7 +112,28 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Stream binary content (TS segments, JSON API, etc.) without buffering
+    // Only stream large video/audio chunks (like HLS TS segments) to prevent memory bloating.
+    // For XML, JSON, and other text/API requests, buffer fully to prevent stream truncation.
+    const isVideoOrAudio = contentType.includes('video') ||
+      contentType.includes('audio') ||
+      targetUrl.pathname.endsWith('.ts') ||
+      targetUrl.pathname.endsWith('.aac') ||
+      targetUrl.pathname.endsWith('.mp3') ||
+      targetUrl.pathname.endsWith('.mp4');
+
+    if (!isVideoOrAudio) {
+      try {
+        const buffer = await response.arrayBuffer();
+        outHeaders['content-length'] = Buffer.byteLength(Buffer.from(buffer)).toString();
+        res.writeHead(response.status, outHeaders);
+        res.end(Buffer.from(buffer));
+        return;
+      } catch (e) {
+        console.warn('[Proxy] ArrayBuffer fallback error:', e.message);
+      }
+    }
+
+    // Stream binary video/audio content without buffering
     res.writeHead(response.status, outHeaders);
     if (response.body) {
       const nodeStream = Readable.fromWeb(response.body);
