@@ -31,11 +31,15 @@ export class IPTVPlayer {
     // Callback handlers
     this.onChannelChange = options.onChannelChange || null;
 
-    // Seek VOD Controls
+    // Seek VOD Controls & Buttons
     this.seekContainer = document.getElementById('seek-container');
     this.seekSlider = document.getElementById('seek-slider');
     this.currentTimeLabel = document.getElementById('current-time');
     this.durationTimeLabel = document.getElementById('duration-time');
+    this.seekBack30Btn = document.getElementById('seek-back-30-btn');
+    this.seekBack10Btn = document.getElementById('seek-back-10-btn');
+    this.seekFwd10Btn = document.getElementById('seek-fwd-10-btn');
+    this.seekFwd30Btn = document.getElementById('seek-fwd-30-btn');
 
     // States
     this.isMuted = false;
@@ -54,7 +58,13 @@ export class IPTVPlayer {
       this.video.addEventListener('click', () => this.togglePlay());
     }
 
-    // Channel Up / Channel Down buttons
+    // VOD Seek Buttons (-30s, -10s, +10s, +30s)
+    if (this.seekBack30Btn) this.seekBack30Btn.addEventListener('click', () => this.seekBy(-30));
+    if (this.seekBack10Btn) this.seekBack10Btn.addEventListener('click', () => this.seekBy(-10));
+    if (this.seekFwd10Btn) this.seekFwd10Btn.addEventListener('click', () => this.seekBy(10));
+    if (this.seekFwd30Btn) this.seekFwd30Btn.addEventListener('click', () => this.seekBy(30));
+
+    // Channel Up / Channel Down buttons (Live TV)
     if (this.chPrevBtn) {
       this.chPrevBtn.addEventListener('click', () => {
         if (typeof this.onChannelChange === 'function') {
@@ -380,6 +390,16 @@ export class IPTVPlayer {
     if (this.error) this.error.classList.add('hidden');
     this.showLoading(true);
 
+    // Unmute audio by default at 100% volume
+    this.isMuted = false;
+    this.volume = 1;
+    if (this.video) {
+      this.video.muted = false;
+      this.video.volume = 1;
+    }
+    if (this.volumeSlider) this.volumeSlider.value = 1;
+    this.updateMuteUI();
+
     // Check for saved resume position
     const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
     const key = this.currentMediaKey || this.currentUrl;
@@ -536,16 +556,91 @@ export class IPTVPlayer {
   }
 
   togglePlay() {
-    if (!this.currentUrl) return;
+    const embedIframe = document.getElementById('embed-iframe');
+    const playerWrapper = document.querySelector('.player-wrapper');
+    const isEmbed = playerWrapper && playerWrapper.classList.contains('embed-active');
+
+    if (isEmbed && embedIframe && embedIframe.contentWindow) {
+      const shield = document.getElementById('embed-shield');
+      if (shield && shield.style.display !== 'none') {
+        shield.style.display = 'none';
+      }
+
+      this.isEmbedPaused = !this.isEmbedPaused;
+      
+      try {
+        const action = this.isEmbedPaused ? 'pause' : 'play';
+        embedIframe.contentWindow.postMessage({ event: 'command', func: this.isEmbedPaused ? 'pauseVideo' : 'playVideo' }, '*');
+        embedIframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: this.isEmbedPaused ? 'pauseVideo' : 'playVideo' }), '*');
+        embedIframe.contentWindow.postMessage(JSON.stringify({ method: action }), '*');
+        embedIframe.contentWindow.postMessage(action, '*');
+      } catch (e) {}
+
+      this.updatePlayPauseUI(this.isEmbedPaused);
+      this.showToast(this.isEmbedPaused ? "Embed stream paused — Click video directly to play" : "Embed stream playing");
+      return;
+    }
     
+    if (!this.currentUrl && (!this.video || !this.video.src)) return;
+
     if (this.video.paused) {
-      this.video.play();
-      this.updatePlayPauseUI(false);
-      this.showToast("Playback resumed");
+      if (this.hls && typeof this.hls.startLoad === 'function') {
+        this.hls.startLoad();
+      }
+      this.video.play().then(() => {
+        this.updatePlayPauseUI(false);
+        this.showToast("Playback resumed");
+      }).catch(err => {
+        console.warn("Play request failed:", err);
+      });
     } else {
       this.video.pause();
       this.updatePlayPauseUI(true);
       this.showToast("Playback paused");
+    }
+  }
+
+  seekBy(seconds) {
+    const embedIframe = document.getElementById('embed-iframe');
+    const playerWrapper = document.querySelector('.player-wrapper');
+    const isEmbed = playerWrapper && playerWrapper.classList.contains('embed-active');
+    const label = seconds > 0 ? `+${seconds}s` : `${seconds}s`;
+
+    if (isEmbed && embedIframe && embedIframe.contentWindow) {
+      const shield = document.getElementById('embed-shield');
+      if (shield && shield.style.display !== 'none') {
+        shield.style.display = 'none';
+      }
+
+      try {
+        embedIframe.contentWindow.postMessage({ event: 'command', func: 'seekBy', args: [seconds] }, '*');
+        embedIframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekBy', args: [seconds] }), '*');
+      } catch (e) {}
+
+      this.showToast(`Seeking ${label} on embed feed...`);
+      return;
+    }
+
+    if (this.video && this.video.duration && isFinite(this.video.duration)) {
+      const newTime = Math.max(0, Math.min(this.video.duration, this.video.currentTime + seconds));
+      this.video.currentTime = newTime;
+      this.showToast(`Seeked ${label} (${this.formatTime(newTime)})`);
+    } else if (this.video && this.video.currentTime !== undefined) {
+      const newTime = Math.max(0, this.video.currentTime + seconds);
+      this.video.currentTime = newTime;
+      this.showToast(`Seeked ${label}`);
+    }
+  }
+
+  setControlMode(mode = 'vod') {
+    const controlsBar = document.getElementById('video-controls');
+    if (!controlsBar) return;
+    if (mode === 'live') {
+      controlsBar.classList.remove('vod-mode');
+      controlsBar.classList.add('live-mode');
+    } else {
+      controlsBar.classList.remove('live-mode');
+      controlsBar.classList.add('vod-mode');
     }
   }
 
@@ -773,9 +868,23 @@ export class IPTVPlayer {
   }
 
   reloadStream() {
+    const embedIframe = document.getElementById('embed-iframe');
+    const playerWrapper = document.querySelector('.player-wrapper');
+    const isEmbed = playerWrapper && playerWrapper.classList.contains('embed-active');
+
+    if (isEmbed && embedIframe) {
+      const currentSrc = embedIframe.src;
+      if (currentSrc && currentSrc !== 'about:blank') {
+        embedIframe.src = 'about:blank';
+        setTimeout(() => { embedIframe.src = currentSrc; }, 100);
+        this.showToast("Embed feed reloaded");
+      }
+      return;
+    }
+
     if (!this.currentUrl) return;
     this.showToast("Reloading stream...");
-    this.playChannel({ url: this.currentUrl, name: this.channelTitle.textContent });
+    this.playChannel({ url: this.currentUrl, name: this.channelTitle.textContent, mediaKey: this.currentMediaKey });
   }
 
   handleNativeError(event) {

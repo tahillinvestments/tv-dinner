@@ -982,35 +982,73 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 70%, rgba(0,0,0,0) 100%);
+  background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0) 100%);
   padding: 1rem 1rem 0.75rem;
   z-index: 30;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.25s ease;
 }
 
-.player-wrapper:not(.embed-active).controls-active .video-controls-bar,
-.player-wrapper:not(.embed-active):focus-within .video-controls-bar {
+.player-wrapper.controls-active:not(.embed-active) .video-controls-bar,
+.player-wrapper:focus-within:not(.embed-active) .video-controls-bar {
   opacity: 1 !important;
   pointer-events: auto !important;
-}
-
-.player-wrapper.user-idle {
-  cursor: none !important;
-}
-
-.player-wrapper.user-idle .video-controls-bar {
-  opacity: 0 !important;
-  pointer-events: none !important;
+  display: flex !important;
+  visibility: visible !important;
 }
 
 .player-wrapper.embed-active .video-controls-bar {
   display: none !important;
-  pointer-events: none !important;
   opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.player-wrapper.user-idle:not(.embed-active) {
+  cursor: none !important;
+}
+
+.player-wrapper.user-idle:not(.embed-active) .video-controls-bar {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* VOD vs Live Controls Switching */
+.video-controls-bar.vod-mode .live-control-btn {
+  display: none !important;
+}
+
+.video-controls-bar.live-mode .vod-control-btn {
+  display: none !important;
+}
+
+.vod-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 6px;
+  min-width: 42px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+
+.vod-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.btn-time-badge {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  letter-spacing: -0.3px;
 }
 
 /* Fullscreen & Xbox Edge Pseudo Fullscreen Mode Layout Overrides */

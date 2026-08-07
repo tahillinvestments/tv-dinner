@@ -18,9 +18,36 @@ const iconConfig = {
   try {
     const originalOpen = window.open;
     window.open = function(url, target, features) {
-      console.warn('[Popup Guard] Blocked external popup attempt:', url);
+      console.warn('[Popup Guard] Blocked external popup window open:', url);
       return null;
     };
+
+    // Capture & block popup anchor clicks
+    document.addEventListener('click', (e) => {
+      const link = e.target.closest('a');
+      if (link && link.target === '_blank') {
+        const href = link.getAttribute('href') || '';
+        if (href.includes('about:blank') || href.startsWith('http') && !href.includes(window.location.hostname)) {
+          // Allow internal app links, block untrusted ad popups spawned from player
+          const playerWrapper = document.querySelector('.player-wrapper');
+          if (playerWrapper && playerWrapper.classList.contains('embed-active')) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.warn('[Popup Guard] Prevented target=_blank ad click:', href);
+          }
+        }
+      }
+    }, true);
+
+    // Prevent pop-up window focus theft
+    window.addEventListener('blur', () => {
+      const playerWrapper = document.querySelector('.player-wrapper');
+      if (playerWrapper && playerWrapper.classList.contains('embed-active')) {
+        setTimeout(() => {
+          window.focus();
+        }, 100);
+      }
+    });
   } catch (e) {
     console.warn('[Popup Guard] Setup notice:', e);
   }
@@ -67,23 +94,12 @@ function getPlaylistUrl() {
 
 const MAX_RECENTS = 20;
 
-// Embed providers — curated to working sources only (as of 2026)
-// VixSrc (Fast HD) set as default #1 source
+// Embed providers — curated working sources (VidSrc PRO default #1)
 const EMBED_PROVIDERS = [
   {
-    name: 'VixSrc (Fast HD)',
-    movie: (id) => `https://vixsrc.to/movie/${id}`,
-    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'VidLink PRO',
+    name: 'VidLink PRO (Clean HD)',
     movie: (id) => `https://vidlink.pro/movie/${id}`,
     tv: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'Videasy (Multi-Sub)',
-    movie: (id) => `https://player.videasy.net/movie/${id}`,
-    tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
   },
   {
     name: 'VidSrc PRO',
@@ -91,9 +107,19 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}`,
   },
   {
+    name: 'Videasy (Multi-Sub)',
+    movie: (id) => `https://player.videasy.net/movie/${id}`,
+    tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
+  },
+  {
     name: 'Embed.su',
     movie: (id) => `https://embed.su/embed/movie/${id}`,
     tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'VixSrc Backup',
+    movie: (id) => `https://vixsrc.to/movie/${id}`,
+    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
   },
 ];
 
@@ -101,7 +127,8 @@ const EMBED_PROVIDERS = [
 let player;
 let searchDebounceTimer;
 
-document.addEventListener('DOMContentLoaded', async () => {
+async function initApp() {
+  console.log('[App Init] Initializing application components...');
   // Init player with Channel Up / Channel Down handler
   player = new IPTVPlayer('video-player', {
     onChannelChange: (dir) => changeLiveChannel(dir)
@@ -131,7 +158,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Load playlist (Live TV mode data) in background
   loadIPTVPlaylist();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 
 // Setup tab-based screen navigation
 function setupNavigation() {
@@ -1263,18 +1296,12 @@ async function openPodcastChannelModal(channel) {
   const desc = document.getElementById('podcast-channel-desc');
   const subsBadge = document.getElementById('podcast-channel-subs-badge');
   const closeBtn = document.getElementById('podcast-channel-close-btn');
-  const favBtn = document.getElementById('podcast-channel-favorite-btn');
   const shareBtn = document.getElementById('podcast-channel-share-btn');
   const playLatestBtn = document.getElementById('podcast-channel-play-latest-btn');
   const searchInput = document.getElementById('podcast-episodes-search');
   const sortSelect = document.getElementById('podcast-episodes-sort');
   const loadMoreBtn = document.getElementById('podcast-episodes-load-more');
   const grid = document.getElementById('podcast-channel-episodes-grid');
-
-  // Tabs
-  const tabAll = document.getElementById('podcast-tab-all');
-  const tabUnplayed = document.getElementById('podcast-tab-unplayed');
-  const tabSaved = document.getElementById('podcast-tab-saved');
 
   if (avatar) avatar.src = channel.avatar;
   if (title) title.textContent = channel.channelName;
@@ -1287,38 +1314,6 @@ async function openPodcastChannelModal(channel) {
   overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   createIcons(iconConfig);
-
-  if (grid) {
-    grid.innerHTML = `
-      <div class="col-span-full flex flex-col items-center justify-center py-16 gap-3 text-slate-400">
-        <div class="w-8 h-8 border-3 border-red-500 border-t-transparent rounded-full animate-spin"></div>
-        <span class="text-sm font-semibold text-slate-200">Loading latest video episodes for ${channel.channelName}...</span>
-      </div>
-    `;
-  }
-
-  // Update Favorite button state inside modal
-  const updateFavBtnUI = () => {
-    const favs = state.favoritePodcasts || [];
-    const isFav = favs.some(f => f.id === channel.id);
-    if (favBtn) {
-      if (isFav) {
-        favBtn.className = 'podcast-fav-toggle-btn flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500/20 text-amber-400 border border-amber-500/30';
-        favBtn.innerHTML = `<i data-lucide="star" class="w-4 h-4 fill-amber-400 text-amber-400"></i> Favorited Show`;
-      } else {
-        favBtn.className = 'podcast-fav-toggle-btn flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700';
-        favBtn.innerHTML = `<i data-lucide="star" class="w-4 h-4 text-slate-400"></i> Add to Favorites`;
-      }
-    }
-  };
-  updateFavBtnUI();
-
-  if (favBtn) {
-    favBtn.onclick = () => {
-      togglePodcastFavorite(channel);
-      updateFavBtnUI();
-    };
-  }
 
   if (shareBtn) {
     shareBtn.onclick = () => {
@@ -1930,7 +1925,8 @@ function setupSearch() {
   // Live channel inline search
   const liveSearchInput = document.getElementById('live-search-input');
   if (liveSearchInput) {
-    liveSearchInput.addEventListener('input', () => {
+    liveSearchInput.addEventListener('input', (e) => {
+      state.searchQuery = e.target.value.trim();
       applyFilterAndRender();
     });
   }
@@ -2885,6 +2881,10 @@ function selectActiveSource(index) {
   state.activeSourceIndex = index;
   const source = state.resolvedSources[index];
 
+  if (player && typeof player.setControlMode === 'function') {
+    player.setControlMode('vod');
+  }
+
   renderSourcesUI();
 
   const embedIframe = document.getElementById('embed-iframe');
@@ -2934,15 +2934,8 @@ function selectActiveSource(index) {
     if (embedIframe) {
       embedIframe.src = 'about:blank';
       embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share');
-      embedIframe.setAttribute('referrerpolicy', 'no-referrer');
-      
-      // Fix black screen (audio only): only apply sandbox if user explicitly enabled Strict Sandbox in Settings
-      const useStrict = localStorage.getItem('strict_sandbox') === 'true';
-      if (useStrict) {
-        embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock');
-      } else {
-        embedIframe.removeAttribute('sandbox');
-      }
+      embedIframe.removeAttribute('referrerpolicy');
+      embedIframe.removeAttribute('sandbox');
       
       // Override window.open on main window to defeat pop-up escapes
       window.open = function() {
@@ -2962,15 +2955,9 @@ function selectActiveSource(index) {
       }, 50);
     }
 
-    // Activate shield overlay to intercept initial click popups
+    // Un-shield embed player to allow direct control interaction
     if (shield) {
-      shield.style.display = 'block';
-      shield.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        shield.style.display = 'none';
-        console.log('[Popup Shield] Ad click popup intercepted and disarmed.');
-      };
+      shield.style.display = 'none';
     }
   }
 
@@ -2979,7 +2966,7 @@ function selectActiveSource(index) {
     if (source.type === 'stream') {
       statusText.textContent = `Streaming direct source via ${source.name}. Use player controls below.`;
     } else {
-      statusText.textContent = `Streaming embed via ${source.name}. Click frame to play. (Warning: Embed ads may trigger popups).`;
+      statusText.textContent = `Streaming via ${source.name}. Use player controls on video.`;
     }
   }
 }
@@ -3089,53 +3076,20 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) saveCurrentVodPosition();
 });
 
-// Display resume watching banner if previous position exists
+// Display resume watching (defaults to instant auto-resume without banner)
 function checkAndShowVodResumeBanner(mediaKey, title, onResume, onRestart) {
-  const banner = document.getElementById('vod-resume-banner');
-  const timeText = document.getElementById('resume-time-text');
-  const playBtn = document.getElementById('resume-play-btn');
-  const restartBtn = document.getElementById('resume-restart-btn');
-
   const saved = getVodPlaybackPosition(mediaKey);
   if (saved && saved.position > 10) {
-    if (banner) {
-      banner.classList.remove('hidden');
-      if (timeText) timeText.textContent = formatPlaybackTime(saved.position);
-
-      const newPlayBtn = playBtn.cloneNode(true);
-      const newRestartBtn = restartBtn.cloneNode(true);
-      if (playBtn && playBtn.parentNode) {
-        playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
-        restartBtn.parentNode.replaceChild(newRestartBtn, restartBtn);
-      }
-
-      newPlayBtn.addEventListener('click', () => {
-        banner.classList.add('hidden');
-        state.resumePlaybackTime = saved.position;
-        if (player && typeof player.showToast === 'function') {
-          player.showToast(`Resuming ${title} at ${formatPlaybackTime(saved.position)}`);
-        }
-        if (typeof onResume === 'function') onResume(saved.position);
-      });
-
-      newRestartBtn.addEventListener('click', () => {
-        const data = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
-        delete data[mediaKey];
-        localStorage.setItem('vod_resume_positions', JSON.stringify(data));
-        banner.classList.add('hidden');
-        state.resumePlaybackTime = 0;
-        if (player && typeof player.showToast === 'function') {
-          player.showToast("Starting from beginning");
-        }
-        if (typeof onRestart === 'function') onRestart();
-      });
+    state.resumePlaybackTime = saved.position;
+    if (player && typeof player.showToast === 'function') {
+      player.showToast(`Auto-resuming ${title} at ${formatPlaybackTime(saved.position)}`, 3500);
     }
-    return true; // Banner active, waiting for user decision
-  } else {
-    if (banner) banner.classList.add('hidden');
-    state.resumePlaybackTime = 0;
-    return false; // No saved position, proceed
+    if (typeof onResume === 'function') onResume(saved.position);
+    return false;
   }
+  state.resumePlaybackTime = 0;
+  if (typeof onRestart === 'function') onRestart();
+  return false;
 }
 
 // Close details overlay modal
@@ -3198,8 +3152,24 @@ function closeDetailsView() {
   }
 }
 
+function getProxyBase() {
+  const saved = (localStorage.getItem('external_proxy_url') || '').trim();
+  if (saved) return saved;
+
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.host === 'appassets.androidplatform.net' ||
+      window.location.protocol === 'file:' ||
+      (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')))
+  ) {
+    return 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+  }
+
+  return DEFAULT_RENDER_PROXY;
+}
+
 /**
- * getProxyUrl - routes all HTTP requests through Vercel /api/proxy
+ * getProxyUrl - routes all HTTP requests through Vercel or Cloudflare proxy
  */
 function getProxyUrl(targetUrl) {
   if (!targetUrl) return '';
@@ -3215,7 +3185,13 @@ function getProxyUrl(targetUrl) {
     } catch (e) {}
   }
 
-  return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
+  const baseProxy = getProxyBase();
+  if (baseProxy.startsWith('http://') || baseProxy.startsWith('https://')) {
+    const p = baseProxy.endsWith('/') ? baseProxy : baseProxy + '/';
+    return `${p}?url=${encodeURIComponent(cleanTarget)}`;
+  }
+
+  return `${baseProxy}?url=${encodeURIComponent(cleanTarget)}`;
 }
 
 function renderUnactivatedState() {
@@ -3747,13 +3723,11 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   console.log(`[Xtream] Fetching channel playlist for user "${username}"...`);
 
   const primaryApi = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
-  const primaryCat = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`;
-
-  const apiUrl = `/api/proxy?url=${encodeURIComponent(primaryApi)}`;
-  const catUrl = `/api/proxy?url=${encodeURIComponent(primaryCat)}`;
+  const apiUrl = getProxyUrl(primaryApi);
+  const catUrl = getProxyUrl(primaryCat);
 
   try {
-    console.log('[Xtream] Fetching streams via /api/proxy...');
+    console.log('[Xtream] Fetching streams via proxy:', apiUrl);
     const [streamsRes, catsRes] = await Promise.all([
       fetch(apiUrl, { signal: AbortSignal.timeout(20000) }).catch(() => null),
       fetch(catUrl, { signal: AbortSignal.timeout(20000) }).catch(() => null)
@@ -3795,9 +3769,8 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
 
 // Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
-  const rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-  const username = (localStorage.getItem('iptv_username') || '').trim();
-  const password = (localStorage.getItem('iptv_password') || '').trim();
+  const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
+  const password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
   const headerBadge = document.getElementById('channel-count-header');
 
   if (!username || !password) {
@@ -4030,6 +4003,9 @@ function renderCategories() {
 function applyFilterAndRender() {
   let list = [];
 
+  const liveSearchInput = document.getElementById('live-search-input');
+  const searchQ = (liveSearchInput && liveSearchInput.value) ? liveSearchInput.value.trim() : (state.searchQuery || '');
+
   if (state.selectedCategory === 'All Channels') {
     if (state.usOnly) {
       list = state.channels.filter(ch => isUSCategory(ch.group) || /^USA?[\s\-_|:]/i.test(ch.name) || !isExplicitNonUSCategory(ch.group));
@@ -4047,9 +4023,13 @@ function applyFilterAndRender() {
   }
 
   // Filter by Search Query if present
-  if (state.searchQuery) {
-    const q = state.searchQuery.toLowerCase().trim();
-    list = list.filter(ch => ch.name.toLowerCase().includes(q) || (ch.group && ch.group.toLowerCase().includes(q)));
+  if (searchQ) {
+    const q = searchQ.toLowerCase();
+    list = list.filter(ch => 
+      (ch.name && ch.name.toLowerCase().includes(q)) || 
+      (ch.group && ch.group.toLowerCase().includes(q)) ||
+      (ch.id && ch.id.toLowerCase().includes(q))
+    );
   }
 
   state.filteredChannels = list;
@@ -4060,7 +4040,8 @@ function applyFilterAndRender() {
   const subtitleEl = document.getElementById('channel-list-info');
   if (subtitleEl) {
     const usSuffix = state.usOnly ? ' (US-Only)' : '';
-    subtitleEl.textContent = `Showing matching results in ${state.selectedCategory}${usSuffix}`;
+    const querySuffix = searchQ ? ` matching "${searchQ}"` : '';
+    subtitleEl.textContent = `Showing results in ${state.selectedCategory}${usSuffix}${querySuffix}`;
   }
 
   renderChannelsGrid();
@@ -4188,8 +4169,9 @@ function playChannel(channel) {
   if (embedWrapper) embedWrapper.style.display = 'none';
   const playerWrapper = document.querySelector('.player-wrapper');
   if (playerWrapper) playerWrapper.classList.remove('embed-active');
-  const videoEl = document.getElementById('video-player');
-  if (videoEl) videoEl.style.display = '';
+  if (player && typeof player.setControlMode === 'function') {
+    player.setControlMode('live');
+  }
 
   player.playChannel(channel);
   addToRecents(channel.id);
