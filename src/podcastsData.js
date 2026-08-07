@@ -812,14 +812,45 @@ function getGuaranteedChannelEpisodes(channel) {
   return [];
 }
 
+function getPodcastsProxyUrl(targetUrl) {
+  if (!targetUrl) return '';
+  let baseProxy = '/api/proxy';
+  try {
+    const saved = (localStorage.getItem('external_proxy_url') || '').trim();
+    if (saved) baseProxy = saved;
+    else if (
+      typeof window !== 'undefined' &&
+      (window.location.host === 'appassets.androidplatform.net' ||
+        window.location.protocol === 'file:' ||
+        (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')))
+    ) {
+      baseProxy = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+    }
+  } catch (e) {}
+
+  if (baseProxy.startsWith('http://') || baseProxy.startsWith('https://')) {
+    const p = baseProxy.endsWith('/') ? baseProxy : baseProxy + '/';
+    return `${p}?url=${encodeURIComponent(targetUrl)}`;
+  }
+
+  if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.startsWith('http')) {
+    const origin = window.location.origin.replace(/\/+$/, '');
+    const p = baseProxy.startsWith('/') ? baseProxy : '/' + baseProxy;
+    return `${origin}${p}?url=${encodeURIComponent(targetUrl)}`;
+  }
+
+  return `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
+}
+
 // Dynamically fetch past episodes for a channel (via YouTube XML RSS feed, iTunes RSS & live APIs)
 export async function fetchChannelPastEpisodes(channel) {
   if (!channel) return [];
 
-  // A. Try YouTube XML RSS feed via CORS proxies (3-proxy failover, 4s timeout each)
+  // A. Try YouTube XML RSS feed via CORS proxies (4-proxy failover)
   if (channel.ytChannelId) {
     const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.ytChannelId}`;
     const proxies = [
+      getPodcastsProxyUrl(rssUrl),
       `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(rssUrl)}`,
       `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`,
       `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`
@@ -832,31 +863,33 @@ export async function fetchChannelPastEpisodes(channel) {
         const xmlText = await res.text();
         if (!xmlText || xmlText.length < 300 || !xmlText.includes('yt:videoId')) continue;
 
-        // Reliable regex-based XML parsing (avoids DOMParser namespace selector issues across browsers)
-        const videoIdMatches = [...xmlText.matchAll(/<yt:videoId>([^<]+)<\/yt:videoId>/g)];
-        if (videoIdMatches.length === 0) continue;
+        // Parse entry by entry to ensure perfect tag alignment
+        const entryMatches = [...xmlText.matchAll(/<entry>([\s\S]*?)<\/entry>/g)];
+        if (entryMatches.length === 0) continue;
 
-        const titleMatches = [...xmlText.matchAll(/<title>([^<]+)<\/title>/g)].slice(1); // skip feed-level <title>
-        const dateMatches = [...xmlText.matchAll(/<published>([^<]+)<\/published>/g)];
+        const videoEpisodes = entryMatches.map((entryMatch, idx) => {
+          const entryXml = entryMatch[1];
+          const idM = entryXml.match(/<yt:videoId>([^<]+)<\/yt:videoId>/i);
+          if (!idM) return null;
+          const yid = idM[1].trim();
 
-        const videoEpisodes = videoIdMatches.map((m, i) => {
-          const yid = m[1].trim();
-          if (!yid) return null;
-
-          const rawTitle = titleMatches[i] ? titleMatches[i][1] : '';
+          const titleM = entryXml.match(/<title>([^<]+)<\/title>/i);
+          const rawTitle = titleM ? titleM[1] : '';
           const epTitle = rawTitle
             .replace(/&amp;/g, '&')
             .replace(/&lt;/g, '<')
             .replace(/&gt;/g, '>')
             .replace(/&#39;/g, "'")
             .replace(/&quot;/g, '"')
-            || `${channel.channelName} Episode ${i + 1}`;
+            || `${channel.channelName} Episode ${idx + 1}`;
 
-          const pubRaw = dateMatches[i] ? dateMatches[i][1] : null;
+          const dateM = entryXml.match(/<published>([^<]+)<\/published>/i);
+          const pubRaw = dateM ? dateM[1] : null;
           const pubDate = pubRaw
             ? new Date(pubRaw).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
             : 'Recent';
           const pubYear = pubRaw ? new Date(pubRaw).getFullYear() : 2026;
+          const pubTimestamp = pubRaw ? new Date(pubRaw).getTime() : 0;
 
           return {
             id: `ep_yt_${yid}`,
@@ -867,6 +900,7 @@ export async function fetchChannelPastEpisodes(channel) {
             category: channel.category || 'Video Podcast',
             date: pubDate,
             year: pubYear,
+            timestamp: pubTimestamp,
             duration: 'HD Video',
             thumbnail: `https://img.youtube.com/vi/${yid}/hqdefault.jpg`,
             description: channel.description || 'Full video podcast episode.'
@@ -886,6 +920,7 @@ export async function fetchChannelPastEpisodes(channel) {
   // B. Try iTunes RSS Feed URL (for Apple Podcast search channels)
   if (channel.feedUrl) {
     const proxies = [
+      getPodcastsProxyUrl(channel.feedUrl),
       `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(channel.feedUrl)}`,
       `https://api.allorigins.win/raw?url=${encodeURIComponent(channel.feedUrl)}`
     ];
@@ -899,7 +934,7 @@ export async function fetchChannelPastEpisodes(channel) {
 
         const itemMatches = [...xmlText.matchAll(/<item>([\s\S]*?)<\/item>/g)];
         if (itemMatches.length > 0) {
-          const rssEpisodes = itemMatches.slice(0, 20).map((itemMatch, i) => {
+          const rssEpisodes = itemMatches.map((itemMatch, i) => {
             const itemXml = itemMatch[1];
             const titleMatch = itemXml.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);
             const encMatch = itemXml.match(/<enclosure[^>]+url=["']([^"']+)["']/i);
@@ -908,6 +943,7 @@ export async function fetchChannelPastEpisodes(channel) {
             const title = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : `${channel.channelName} Episode ${i + 1}`;
             const audioUrl = encMatch ? encMatch[1] : null;
             const pubDate = pubMatch ? new Date(pubMatch[1]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+            const pubTimestamp = pubMatch ? new Date(pubMatch[1]).getTime() : 0;
 
             return {
               id: `ep_rss_${i}_${Date.now()}`,
@@ -916,7 +952,8 @@ export async function fetchChannelPastEpisodes(channel) {
               host: channel.host || 'Host',
               category: channel.category || 'Podcast',
               date: pubDate,
-              year: 2026,
+              year: pubMatch ? new Date(pubMatch[1]).getFullYear() : 2026,
+              timestamp: pubTimestamp,
               duration: 'Podcast',
               audioUrl,
               thumbnail: channel.avatar || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
@@ -934,7 +971,7 @@ export async function fetchChannelPastEpisodes(channel) {
     }
   }
 
-  // C. Multi-instance Invidious Video Search by Channel Name & Host (Returns up to 20 live full video episodes)
+  // C. Multi-instance Invidious Video Search
   if (channel.channelName) {
     const cleanQuery = `${channel.host || ''} ${channel.channelName}`
       .replace(/podcast/gi, '')
@@ -964,6 +1001,7 @@ export async function fetchChannelPastEpisodes(channel) {
               category: channel.category || 'Video Podcast',
               date: 'Recent',
               year: 2026,
+              timestamp: Date.now(),
               duration: item.lengthSeconds ? `${Math.round(item.lengthSeconds / 60)}m` : 'HD Video',
               thumbnail: `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`,
               description: item.description || channel.description

@@ -1433,11 +1433,20 @@ function renderChannelEpisodesGrid() {
     );
   }
 
+  const getEpTime = (ep) => {
+    if (ep.timestamp) return ep.timestamp;
+    if (ep.date && ep.date !== 'Recent') {
+      const parsed = Date.parse(ep.date);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return ep.year ? new Date(ep.year, 0, 1).getTime() : 0;
+  };
+
   // Apply sorting
   if (podcastEpisodesSortMode === 'newest') {
-    filtered.sort((a, b) => (b.year || 2026) - (a.year || 2026));
+    filtered.sort((a, b) => getEpTime(b) - getEpTime(a));
   } else if (podcastEpisodesSortMode === 'oldest') {
-    filtered.sort((a, b) => (a.year || 2026) - (b.year || 2026));
+    filtered.sort((a, b) => getEpTime(a) - getEpTime(b));
   } else if (podcastEpisodesSortMode === 'duration') {
     filtered.sort((a, b) => (b.duration || '').localeCompare(a.duration || ''));
   }
