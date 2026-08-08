@@ -1052,7 +1052,14 @@ function renderPocketCastsHistory() {
 async function playPodcastEpisodeInDock(episode, showInfo = null) {
   pocketcastsState.currentEpisode = episode;
 
-  // Add to history
+  // Add to history + mark as played
+  const epId = episode.id || episode.youtubeId;
+  if (epId) {
+    if (!podcastPlayedEpisodes.includes(epId)) {
+      podcastPlayedEpisodes.push(epId);
+      localStorage.setItem('podcast_played_episodes', JSON.stringify(podcastPlayedEpisodes));
+    }
+  }
   const historyItem = { episode, dateStr: new Date().toLocaleDateString() };
   pocketcastsState.history = [historyItem, ...pocketcastsState.history.filter(h => (h.episode?.id || h.episode?.youtubeId) !== (episode.id || episode.youtubeId))].slice(0, 30);
   localStorage.setItem('pocketcasts_history', JSON.stringify(pocketcastsState.history));
@@ -1550,6 +1557,8 @@ function renderChannelEpisodesGrid() {
     card.className = `podcast-episode-card ${isPlayed ? 'is-played' : ''}`;
     const thumbUrl = ep.thumbnail || channelAvatar;
 
+    const isInQueue = pocketcastsState.queue.some(e => (e.id || e.youtubeId) === epId);
+
     card.innerHTML = `
       <div class="ep-thumb-wrapper ep-play-trigger">
         <img src="${thumbUrl}" alt="${ep.title}" class="ep-thumb-img" onerror="this.onerror=null; this.src='${channelAvatar}';">
@@ -1578,6 +1587,12 @@ function renderChannelEpisodesGrid() {
             </button>
             <button class="ep-btn-icon ep-played-btn" title="${isPlayed ? 'Mark Unplayed' : 'Mark Played'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${isPlayed ? '#10b981' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </button>
+            <button class="ep-btn-icon ep-queue-btn" title="${isInQueue ? 'Remove from Queue' : 'Add to Up Next'}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${isInQueue ? '#f59e0b' : 'none'}" stroke="${isInQueue ? '#f59e0b' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
             </button>
             <button class="ep-btn-play ep-play-trigger">
               <span>Play</span>
@@ -1615,6 +1630,26 @@ function renderChannelEpisodesGrid() {
       playedBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         toggleEpisodePlayed(epId);
+      });
+    }
+
+    const queueBtn = card.querySelector('.ep-queue-btn');
+    if (queueBtn) {
+      queueBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const epInQueue = pocketcastsState.queue.some(q => (q.id || q.youtubeId) === epId);
+        if (epInQueue) {
+          removeFromPodcastQueue(epId);
+        } else {
+          addToPodcastQueue({
+            ...ep,
+            channelName: activePodcastModalChannel.channelName,
+            category: activePodcastModalChannel.category,
+            thumbnail: ep.thumbnail || channelAvatar,
+            description: ep.description || activePodcastModalChannel.description
+          });
+        }
+        renderChannelEpisodesGrid();
       });
     }
 
@@ -1707,6 +1742,20 @@ async function openPodcastModal(podcast) {
   stopActiveLiveTVFeed();
   resetPlayerWindow();
   state.selectedMedia = podcast;
+
+  // Add to history + mark as played
+  const epId = podcast.id || podcast.youtubeId;
+  if (epId) {
+    if (!podcastPlayedEpisodes.includes(epId)) {
+      podcastPlayedEpisodes.push(epId);
+      localStorage.setItem('podcast_played_episodes', JSON.stringify(podcastPlayedEpisodes));
+    }
+    const historyItem = { episode: podcast, dateStr: new Date().toLocaleDateString() };
+    pocketcastsState.history = [historyItem, ...pocketcastsState.history.filter(h => (h.episode?.id || h.episode?.youtubeId) !== epId)].slice(0, 30);
+    localStorage.setItem('pocketcasts_history', JSON.stringify(pocketcastsState.history));
+    updatePocketCastsBadges();
+    if (pocketcastsState.currentView === 'history') renderPocketCastsHistory();
+  }
 
   const overlay = document.getElementById('details-overlay');
   if (!overlay) return;
@@ -2734,6 +2783,9 @@ async function openDetailsView(mediaItem) {
     }
 
     // Set Seek controls for VOD VOD controls
+    if (player && typeof player.setControlMode === 'function') {
+      player.setControlMode('vod');
+    }
     const seekContainer = document.getElementById('seek-container');
     if (seekContainer) seekContainer.style.display = 'flex';
     const liveIndicatorDot = document.getElementById('live-indicator-dot');

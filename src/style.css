@@ -992,15 +992,16 @@ body {
   transition: opacity 0.25s ease;
 }
 
-.player-wrapper.controls-active:not(.embed-active) .video-controls-bar,
-.player-wrapper:focus-within:not(.embed-active) .video-controls-bar {
+.player-wrapper.controls-active:not(.embed-active):not(.vod-active) .video-controls-bar,
+.player-wrapper:focus-within:not(.embed-active):not(.vod-active) .video-controls-bar {
   opacity: 1 !important;
   pointer-events: auto !important;
   display: flex !important;
   visibility: visible !important;
 }
 
-.player-wrapper.embed-active .video-controls-bar {
+.player-wrapper.embed-active .video-controls-bar,
+.player-wrapper.vod-active .video-controls-bar {
   display: none !important;
   opacity: 0 !important;
   pointer-events: none !important;
@@ -1010,7 +1011,7 @@ body {
   cursor: none !important;
 }
 
-.player-wrapper.user-idle:not(.embed-active) .video-controls-bar {
+.player-wrapper.user-idle:not(.embed-active):not(.vod-active) .video-controls-bar {
   opacity: 0 !important;
   pointer-events: none !important;
 }

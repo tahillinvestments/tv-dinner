@@ -690,13 +690,28 @@ export class IPTVPlayer {
 
   setControlMode(mode = 'vod') {
     const controlsBar = document.getElementById('video-controls');
+    const playerWrapper = this.video ? this.video.closest('.player-wrapper') : null;
     if (!controlsBar) return;
     if (mode === 'live') {
       controlsBar.classList.remove('vod-mode');
       controlsBar.classList.add('live-mode');
+      controlsBar.style.display = '';
+      if (playerWrapper) {
+        playerWrapper.classList.remove('vod-active');
+      }
+      if (this.video) {
+        this.video.controls = false;
+      }
     } else {
       controlsBar.classList.remove('live-mode');
       controlsBar.classList.add('vod-mode');
+      controlsBar.style.display = 'none';
+      if (playerWrapper) {
+        playerWrapper.classList.add('vod-active');
+      }
+      if (this.video) {
+        this.video.controls = true;
+      }
     }
   }
 
