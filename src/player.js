@@ -129,6 +129,19 @@ export class IPTVPlayer {
       this.setVolume(e.target.value);
     });
 
+    // Global user interaction listener to permanently unlock unmuted audio across browser contexts
+    const unlockUnmutedAudio = () => {
+      window.userHasInteracted = true;
+      if (this.video) {
+        this.video.muted = false;
+        if (this.video.volume === 0) this.video.volume = 1.0;
+        this.updateVolumeUI();
+      }
+    };
+    ['pointerdown', 'mousedown', 'keydown', 'touchstart', 'click'].forEach(evt => {
+      window.addEventListener(evt, unlockUnmutedAudio, { capture: true, passive: true });
+    });
+
     // Fullscreen
     if (this.fullscreenBtn) {
       this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
@@ -529,9 +542,10 @@ export class IPTVPlayer {
           }
         }
 
-        // Ensure Live TV stream starts UNMUTED by default at full volume
+        // Guarantee Live TV and VOD streams initialize UNMUTED at 100% volume
         this.video.muted = false;
         this.video.volume = 1.0;
+        this.updateVolumeUI();
 
         const playPromise = this.video.play();
         if (playPromise !== undefined) {
@@ -541,23 +555,8 @@ export class IPTVPlayer {
             this.updatePlayPauseUI(false);
             this.updateVolumeUI();
           }).catch(e => {
-            console.warn("Unmuted autoplay restricted by browser, attempting unmuted retry upon user gesture.", e);
-            const forceUnmute = () => {
-              this.video.muted = false;
-              this.video.volume = 1.0;
-              this.video.play().catch(() => {});
-              this.updateVolumeUI();
-            };
-            window.addEventListener('click', forceUnmute, { once: true });
-            window.addEventListener('keydown', forceUnmute, { once: true });
-            window.addEventListener('touchstart', forceUnmute, { once: true });
-
-            // Play muted temporarily only if cold page load blocks unmuted autoplay
-            this.video.muted = true;
-            this.video.play().then(() => {
-              this.updatePlayPauseUI(false);
-              this.updateVolumeUI();
-            }).catch(() => {});
+            console.warn("Unmuted autoplay restricted by browser policy on initial load. Waiting for user interaction.", e);
+            this.updatePlayPauseUI(true);
           });
         }
       });

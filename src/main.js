@@ -3082,15 +3082,19 @@ async function openDetailsView(mediaItem) {
 
     createIcons(iconConfig);
 
-    // Check and show resume position banner for Movies
+    // Always populate stream sources immediately for Movies
     const isTV = mediaItem.media_type === 'tv';
     if (!isTV) {
       const mediaKey = `movie_${mediaItem.id}`;
       state.currentVodMediaKey = mediaKey;
       state.currentVodTitle = title;
-      checkAndShowVodResumeBanner(mediaKey, title, () => {
-        startStreamResolution({ type: 'movie', id: mediaItem.id });
-      });
+      const saved = getVodPlaybackPosition(mediaKey);
+      if (saved && saved.position > 10) {
+        state.resumePlaybackTime = saved.position;
+      } else {
+        state.resumePlaybackTime = 0;
+      }
+      startStreamResolution({ type: 'movie', id: mediaItem.id });
     } else {
       document.getElementById('sources-status').textContent = 'Select an episode below to start streaming.';
     }
