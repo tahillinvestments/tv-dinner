@@ -50187,6 +50187,9 @@
 	<programme channel="newtv超级综艺" start="20260809020300 +0800" stop="20260809024900 +0800">
 		<title lang="zh">13_骄阳似我</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260809024900 +0800" stop="20260809033500 +0800">
+		<title lang="zh">14_骄阳似我</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
