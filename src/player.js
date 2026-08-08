@@ -1,5 +1,35 @@
 import Hls from 'hls.js';
 
+// Helper to route requests through appropriate proxy depending on port
+function getPlayerProxyUrl(targetUrl) {
+  if (!targetUrl) return '';
+
+  let cleanTarget = targetUrl;
+  if (targetUrl.includes('url=')) {
+    try {
+      const parts = targetUrl.split('url=');
+      const extracted = decodeURIComponent(parts[parts.length - 1]);
+      if (extracted.startsWith('http://') || extracted.startsWith('https://')) {
+        cleanTarget = extracted;
+      }
+    } catch (e) {}
+  }
+
+  let isNonStandardPort = false;
+  try {
+    const u = new URL(cleanTarget);
+    if (u.port && u.port !== '80' && u.port !== '443') {
+      isNonStandardPort = true;
+    }
+  } catch (e) {}
+
+  if (isNonStandardPort) {
+    return `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(cleanTarget)}`;
+  }
+
+  return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
+}
+
 export class IPTVPlayer {
   constructor(videoElementId, options = {}) {
     this.video = document.getElementById(videoElementId);
@@ -375,8 +405,8 @@ export class IPTVPlayer {
       rawTargetUrl = rawTargetUrl.replace(/\.ts$/, '.m3u8');
     }
     
-    // Video streams always go through native /api/proxy (Vercel Node.js runtime)
-    const proxiedUrl = `/api/proxy?url=${encodeURIComponent(rawTargetUrl)}`;
+    // Route video stream through appropriate proxy (handles non-standard ports via Cloudflare Workers proxy)
+    const proxiedUrl = getPlayerProxyUrl(rawTargetUrl);
 
     this.currentUrl = proxiedUrl;
     this.channelTitle.textContent = channel.name || 'Live TV Stream';
