@@ -1,6 +1,6 @@
 import Hls from 'hls.js';
 
-// Helper to route requests through appropriate proxy depending on port
+// Helper to route requests through appropriate proxy depending on port and platform
 function getPlayerProxyUrl(targetUrl) {
   if (!targetUrl) return '';
 
@@ -15,6 +15,32 @@ function getPlayerProxyUrl(targetUrl) {
     } catch (e) {}
   }
 
+  // 1. If we are running on localhost, 127.0.0.1, or inside the Android App (WebView),
+  // we do NOT need to proxy the stream. Direct requests work perfectly and bypass Vercel/Cloudflare IP blocks.
+  const isAndroid = typeof window !== 'undefined' && 
+    (window.location.host === 'appassets.androidplatform.net' || 
+     window.location.protocol === 'file:' || 
+     (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
+  
+  const isLocalhost = typeof window !== 'undefined' && 
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  if (isLocalhost || isAndroid) {
+    return cleanTarget;
+  }
+
+  // 2. If the user has set a custom external proxy in Settings, use it.
+  let savedProxy = '';
+  try {
+    savedProxy = (localStorage.getItem('external_proxy_url') || '').trim();
+  } catch (e) {}
+  
+  if (savedProxy) {
+    const p = savedProxy.endsWith('/') ? savedProxy : savedProxy + '/';
+    return `${p}?url=${encodeURIComponent(cleanTarget)}`;
+  }
+
+  // 3. If target URL contains a non-standard port, route via Cloudflare Worker proxy as a fallback.
   let isNonStandardPort = false;
   try {
     const u = new URL(cleanTarget);
