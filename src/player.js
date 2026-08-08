@@ -142,6 +142,14 @@ export class IPTVPlayer {
       window.addEventListener(evt, unlockUnmutedAudio, { capture: true, passive: true });
     });
 
+    // Sync play/pause UI icon with the video's actual HTML5 playing state
+    if (this.video) {
+      this.video.addEventListener('play', () => this.updatePlayPauseUI(false));
+      this.video.addEventListener('playing', () => this.updatePlayPauseUI(false));
+      this.video.addEventListener('pause', () => this.updatePlayPauseUI(true));
+      this.video.addEventListener('ended', () => this.updatePlayPauseUI(true));
+    }
+
     // Fullscreen
     if (this.fullscreenBtn) {
       this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
@@ -716,7 +724,8 @@ export class IPTVPlayer {
     }
   }
 
-  setControlMode(mode = 'vod') {
+  setControlMode(mode) {
+    this.controlMode = mode;
     const controlsBar = document.getElementById('video-controls');
     const playerWrapper = this.video ? this.video.closest('.player-wrapper') : null;
     if (!controlsBar) return;
