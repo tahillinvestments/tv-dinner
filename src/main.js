@@ -3174,11 +3174,12 @@ async function loadTVEpisodes(tvId, seasonNumber) {
       grid.appendChild(btn);
     });
 
-    // Auto-select Episode 1 on load
+    // Highlight Episode 1 by default without auto-playing or auto-fullscreening on initial series view
     if (episodes.length > 0) {
       const firstEpBtn = grid.querySelector('.episode-btn');
       if (firstEpBtn) {
-        firstEpBtn.click();
+        firstEpBtn.classList.add('active');
+        document.getElementById('sources-status').textContent = 'Select an episode below to start streaming.';
       }
     }
   } catch (err) {
