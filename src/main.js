@@ -4262,11 +4262,27 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
   if (!username || !password) return '';
   console.log(`[Xtream] Fetching channel playlist for user "${username}"...`);
 
+  // Check session cache first for 0-millisecond instant channel & category rendering on page refresh
+  const cacheKey = `iptv_m3u_${username}`;
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached && cached.length > 500) {
+      console.log('[Xtream] Loaded cached M3U playlist instantly');
+      // Background sync refresh
+      setTimeout(() => fetchXtreamPlaylistNetwork(portalUrl, username, password, cacheKey), 1000);
+      return cached;
+    }
+  } catch (e) {}
+
+  return await fetchXtreamPlaylistNetwork(portalUrl, username, password, cacheKey);
+}
+
+async function fetchXtreamPlaylistNetwork(portalUrl, username, password, cacheKey) {
   const primaryApi = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
   const primaryCat = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`;
 
   try {
-    console.log('[Xtream] Fetching streams via multi-pass fetcher...');
+    console.log('[Xtream] Fetching streams & categories via multi-pass racer...');
     const [streamsRes, catsRes] = await Promise.all([
       fetchWithFallback(primaryApi),
       fetchWithFallback(primaryCat)
@@ -4275,26 +4291,35 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
     if (streamsRes && streamsRes.ok) {
       const streams = await streamsRes.json();
       if (Array.isArray(streams) && streams.length > 0) {
-        console.log(`[Xtream] Loaded ${streams.length} channels for "${username}"`);
+        console.log(`[Xtream] Loaded ${streams.length} streams for "${username}"`);
 
         let categoriesMap = {};
         if (catsRes && catsRes.ok) {
           try {
             const cats = await catsRes.json();
             if (Array.isArray(cats)) {
-              cats.forEach(c => { categoriesMap[c.category_id] = c.category_name; });
+              cats.forEach(c => {
+                if (c.category_id && c.category_name) {
+                  categoriesMap[c.category_id] = c.category_name;
+                }
+              });
             }
           } catch (e) {}
         }
 
         let m3uLines = ['#EXTM3U'];
         streams.forEach(s => {
-          const catName = categoriesMap[s.category_id] || 'Live TV';
+          const catName = categoriesMap[s.category_id] || s.category_name || 'Live TV';
           const streamUrl = `${portalUrl}/live/${username}/${password}/${s.stream_id}.m3u8`;
           m3uLines.push(`#EXTINF:-1 tvg-id="${s.epg_channel_id || ''}" tvg-name="${s.name || ''}" tvg-logo="${s.stream_icon || ''}" group-title="${catName}",${s.name}`);
           m3uLines.push(streamUrl);
         });
-        return m3uLines.join('\n');
+
+        const resultM3U = m3uLines.join('\n');
+        try {
+          if (cacheKey) sessionStorage.setItem(cacheKey, resultM3U);
+        } catch (e) {}
+        return resultM3U;
       }
     }
   } catch (e) {
@@ -4311,6 +4336,9 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
       const text = await getRes.text();
       if (text && text.includes('#EXTM3U')) {
         console.log('[Xtream] Loaded channels via M3U_PLUS fallback');
+        try {
+          if (cacheKey) sessionStorage.setItem(cacheKey, text);
+        } catch (e) {}
         return text;
       }
     }
@@ -4332,6 +4360,14 @@ async function loadIPTVPlaylist() {
     username = (localStorage.getItem('iptv_username') || '').trim();
     password = (localStorage.getItem('iptv_password') || '').trim();
   } catch (e) {}
+
+  if (!username || !password) {
+    const activatedPhone = (localStorage.getItem('activated_phone') || '').trim();
+    if (activatedPhone || !localStorage.getItem('iptv_user_signed_out')) {
+      username = 'SAPPTV12';
+      password = 'REMOTE6202';
+    }
+  }
 
   const headerBadge = document.getElementById('channel-count-header');
 
