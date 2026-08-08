@@ -59418,6 +59418,9 @@
 	<programme channel="newtv超级综艺" start="20260808093500 +0800" stop="20260808110500 +0800">
 		<title lang="zh">味你而来</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260808110500 +0800" stop="20260808141000 +0800">
+		<title lang="zh">中国唱将</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -60125,6 +60128,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260808104300 +0800" stop="20260808111300 +0800">
 		<title lang="zh">清心糕好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260808111300 +0800" stop="20260808115700 +0800">
+		<title lang="zh">16_风暴舞</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
