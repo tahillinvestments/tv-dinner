@@ -484,114 +484,65 @@ export function searchPodcastChannels(query) {
 
 // Dynamically fetch freshly curated "For You" podcasts using live smart queries.
 // Excludes top & trending catalog shows (getAllPodcastChannels) to ensure fresh discoveries.
+// Dynamically curate "For You" YouTube Video Podcasts smartly matched to user's subscriptions and active category.
+// YouTube ONLY discovery guarantees every recommendation has a valid ytChannelId and clean YT video playback.
 export async function fetchForYouCuratedPodcasts(subscribedShows = [], activeCategory = 'all') {
-  const topTrendingChannels = getAllPodcastChannels();
-  const topTrendingNames = new Set(topTrendingChannels.map(c => (c.channelName || '').toLowerCase().trim()));
-  const topTrendingIds = new Set(topTrendingChannels.map(c => c.id));
-
+  const allChannels = getAllPodcastChannels();
   const subIdsSet = new Set((subscribedShows || []).map(s => s.id));
-  const subNamesSet = new Set((subscribedShows || []).map(s => (s.channelName || s.title || '').toLowerCase().trim()));
 
-  // 1. Formulate smart search queries based on user subscriptions or active categories
-  const queriesToRun = [];
+  // Extract category tokens and keywords from subscribed podcasts
+  const subCategories = new Set();
+  const subKeywords = new Set();
 
-  if (Array.isArray(subscribedShows) && subscribedShows.length > 0) {
-    const subCategories = new Set();
-    const subKeywords = new Set();
-
-    subscribedShows.forEach(s => {
-      const catStr = s.category || '';
-      catStr.split(/[,&/]/).forEach(c => {
-        const trimmed = c.trim();
-        if (trimmed && trimmed.length > 2) subCategories.add(trimmed);
-      });
-      const nameStr = s.channelName || s.title || '';
-      nameStr.toLowerCase().split(/\s+/).forEach(w => {
-        const cleaned = w.replace(/[^a-z0-9]/g, '');
-        if (cleaned.length > 3 && !['podcast', 'show', 'the', 'with', 'official'].includes(cleaned)) {
-          subKeywords.add(cleaned);
-        }
-      });
+  (subscribedShows || []).forEach(s => {
+    const catStr = s.category || '';
+    catStr.split(/[,&/]/).forEach(c => {
+      const trimmed = c.trim().toLowerCase();
+      if (trimmed && trimmed.length > 2) subCategories.add(trimmed);
     });
-
-    const catArray = Array.from(subCategories);
-    const kwArray = Array.from(subKeywords);
-
-    if (catArray.length > 0) {
-      queriesToRun.push(`${catArray[0]} podcast`);
-      if (catArray.length > 1) queriesToRun.push(`${catArray[1]} discussion`);
-    }
-    if (kwArray.length > 0) {
-      queriesToRun.push(`${kwArray.slice(0, 2).join(' ')} podcast`);
-    }
-  }
-
-  // Fallback smart discovery queries if queriesToRun is empty or insufficient
-  if (queriesToRun.length === 0) {
-    if (activeCategory && activeCategory !== 'all') {
-      queriesToRun.push(`${activeCategory} podcast`);
-      queriesToRun.push(`best ${activeCategory} shows`);
-    } else {
-      const fallbackTopics = [
-        'tech breakthroughs podcast',
-        'science health research podcast',
-        'investigative story podcast',
-        'history deep dive podcast',
-        'business founder interviews podcast'
-      ];
-      const seed = new Date().getHours();
-      queriesToRun.push(fallbackTopics[seed % fallbackTopics.length]);
-      queriesToRun.push(fallbackTopics[(seed + 2) % fallbackTopics.length]);
-    }
-  }
-
-  // 2. Fetch live results from iTunes Podcast API concurrently for smart queries
-  const candidatesMap = new Map();
-
-  const fetchPromises = queriesToRun.slice(0, 3).map(async (query) => {
-    const term = encodeURIComponent(query);
-    const url = `https://itunes.apple.com/search?term=${term}&media=podcast&limit=30`;
-    try {
-      const res = await fetchWithTimeout(url, {}, 3500);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && Array.isArray(data.results)) {
-          data.results.forEach(c => {
-            if (!c.collectionName || !c.collectionId) return;
-
-            const chanNameLower = c.collectionName.toLowerCase().trim();
-            const chanId = `chan_foryou_${c.collectionId}`;
-
-            // EXCLUDE top & trending catalog podcasts and user's current subscriptions
-            if (topTrendingNames.has(chanNameLower) || topTrendingIds.has(chanId) || topTrendingIds.has(`chan_${c.collectionId}`)) return;
-            if (subNamesSet.has(chanNameLower) || subIdsSet.has(chanId) || subIdsSet.has(c.collectionId)) return;
-
-            if (!candidatesMap.has(chanId) && !candidatesMap.has(chanNameLower)) {
-              candidatesMap.set(chanNameLower, {
-                id: chanId,
-                collectionId: c.collectionId,
-                channelName: c.collectionName,
-                host: c.artistName || 'Podcast Host',
-                category: c.primaryGenreName || 'Podcast',
-                subscribers: 'Apple Podcast',
-                avatar: c.artworkUrl600 || c.artworkUrl100,
-                description: `Freshly curated show in ${c.primaryGenreName || 'Podcasts'} by ${c.artistName || c.collectionName}.`,
-                feedUrl: c.feedUrl,
-                isExternal: true
-              });
-            }
-          });
-        }
+    const nameStr = s.channelName || s.title || '';
+    nameStr.toLowerCase().split(/\s+/).forEach(w => {
+      const cleaned = w.replace(/[^a-z0-9]/g, '');
+      if (cleaned.length > 3 && !['podcast', 'show', 'the', 'with', 'official'].includes(cleaned)) {
+        subKeywords.add(cleaned);
       }
-    } catch (err) {
-      console.warn('[ForYou] Smart query fetch error:', query, err);
-    }
+    });
   });
 
-  await Promise.allSettled(fetchPromises);
+  // Score candidate YouTube Video Podcast channels
+  const candidates = allChannels.filter(c => !subIdsSet.has(c.id)).map(c => {
+    let score = 0;
+    const catLower = (c.category || '').toLowerCase();
+    const nameLower = (c.channelName || c.title || '').toLowerCase();
+    const descLower = (c.description || '').toLowerCase();
 
-  const results = Array.from(candidatesMap.values());
-  return results.slice(0, 20);
+    // Category match bonus
+    subCategories.forEach(subCat => {
+      if (catLower.includes(subCat)) score += 15;
+      else if (descLower.includes(subCat)) score += 5;
+    });
+
+    // Keyword match bonus
+    subKeywords.forEach(kw => {
+      if (nameLower.includes(kw)) score += 8;
+      else if (descLower.includes(kw)) score += 3;
+    });
+
+    // Active tab category filter match
+    if (activeCategory && activeCategory !== 'all') {
+      if (catLower.includes(activeCategory.toLowerCase().split(',')[0].trim())) {
+        score += 10;
+      }
+    }
+
+    return { channel: c, score };
+  });
+
+  // Sort candidate YouTube channels descending by recommendation score
+  candidates.sort((a, b) => b.score - a.score);
+
+  // Return top 20 smartly matched YouTube Video Podcasts
+  return candidates.slice(0, 20).map(x => x.channel);
 }
 
 
