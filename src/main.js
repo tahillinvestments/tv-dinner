@@ -293,6 +293,40 @@ function stopActiveLiveTVFeed() {
   stopAllMediaPlayback();
 }
 
+// Purge previous VOD/podcast state tokens and restore default Live TV player UI
+function resetPlayerUiToDefaultLiveTv() {
+  const tvSelectors = document.getElementById('tv-selectors');
+  const sourcesPanel = document.querySelector('.sources-panel');
+  const chPrevBtn = document.getElementById('ch-prev-btn');
+  const chNextBtn = document.getElementById('ch-next-btn');
+  const liveIndicatorDot = document.getElementById('live-indicator-dot');
+  const liveIndicatorText = document.getElementById('live-indicator-text');
+  const seekContainer = document.getElementById('seek-container');
+  const videoControls = document.getElementById('video-controls');
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const embedIframe = document.getElementById('embed-iframe');
+  const playerSpinner = document.getElementById('player-spinner');
+  const playerErr = document.getElementById('player-error');
+
+  if (tvSelectors) tvSelectors.style.display = '';
+  if (sourcesPanel) sourcesPanel.style.display = 'none';
+  if (chPrevBtn) chPrevBtn.style.display = '';
+  if (chNextBtn) chNextBtn.style.display = '';
+  if (liveIndicatorDot) liveIndicatorDot.style.display = '';
+  if (liveIndicatorText) liveIndicatorText.textContent = 'LIVE';
+  if (seekContainer) seekContainer.style.display = 'none';
+  if (videoControls) videoControls.style.display = '';
+  if (playerSpinner) playerSpinner.style.display = 'none';
+  if (playerErr) playerErr.classList.add('hidden');
+
+  if (embedWrapper) embedWrapper.style.display = 'none';
+  if (embedIframe) embedIframe.src = 'about:blank';
+
+  if (player && typeof player.setControlMode === 'function') {
+    player.setControlMode('live');
+  }
+}
+
 // Switch between tabs
 function switchTab(tabName) {
   state.activeTab = tabName;
@@ -337,6 +371,9 @@ function switchTab(tabName) {
   const holder = document.getElementById('shared-player-holder');
 
   if (tabName === 'live') {
+    // Purge carry-over podcast/VOD player state
+    resetPlayerUiToDefaultLiveTv();
+
     // Append player to live TV panel
     if (liveContainer && playerSection) {
       liveContainer.appendChild(playerSection);
@@ -2002,7 +2039,12 @@ async function openPodcastModal(podcast) {
   const videoControls = document.getElementById('video-controls');
   if (videoControls) videoControls.style.display = 'none';
 
-  // Clear any previous embed error overlay
+  // Clear buffering spinner, player error, and previous embed overlays
+  const playerSpinner = document.getElementById('player-spinner');
+  const playerErr = document.getElementById('player-error');
+  if (playerSpinner) playerSpinner.style.display = 'none';
+  if (playerErr) playerErr.classList.add('hidden');
+
   const existingEmbedError = document.getElementById('embed-error-overlay');
   if (existingEmbedError) existingEmbedError.remove();
 
@@ -4034,6 +4076,12 @@ function setupSettingsScreen() {
         activatedIndicatorSection.classList.remove('hidden');
         player.showToast("Account Activated!");
         
+        // Immediately refresh all dashboards to unlock Movies, Series, Podcasts, and Library without requiring page refresh
+        loadMoviesDashboard();
+        loadSeriesDashboard();
+        loadPodcastsDashboard();
+        renderLibraryScreen();
+
         // Reload IPTV channels with new credentials and switch to Live TV
         loadIPTVPlaylist();
         switchTab('live');
@@ -4108,6 +4156,26 @@ function setupSettingsScreen() {
   if (sandboxInput) {
     sandboxInput.addEventListener('change', () => {
       localStorage.setItem('strict_sandbox', sandboxInput.checked ? 'true' : 'false');
+    });
+  }
+
+  if (usernameInput) {
+    usernameInput.addEventListener('change', () => {
+      localStorage.setItem('iptv_username', usernameInput.value.trim());
+      loadMoviesDashboard();
+      loadSeriesDashboard();
+      loadPodcastsDashboard();
+      renderLibraryScreen();
+    });
+  }
+
+  if (passwordInput) {
+    passwordInput.addEventListener('change', () => {
+      localStorage.setItem('iptv_password', passwordInput.value.trim());
+      loadMoviesDashboard();
+      loadSeriesDashboard();
+      loadPodcastsDashboard();
+      renderLibraryScreen();
     });
   }
 
