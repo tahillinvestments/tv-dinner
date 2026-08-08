@@ -558,8 +558,14 @@ export class IPTVPlayer {
             this.updatePlayPauseUI(false);
             this.updateVolumeUI();
           }).catch(e => {
-            console.warn("Unmuted autoplay restricted by browser policy on initial load. Waiting for user interaction.", e);
-            this.updatePlayPauseUI(true);
+            console.warn("Unmuted autoplay restricted by browser policy on initial load. Starting muted automatically.", e);
+            this.video.muted = true;
+            this.updateVolumeUI();
+            this.video.play().then(() => {
+              this.updatePlayPauseUI(false);
+            }).catch(() => {
+              this.updatePlayPauseUI(true);
+            });
           });
         }
       });
