@@ -12,7 +12,8 @@ import {
   searchPodcastChannels,
   searchRealPodcastAPI,
   fetchChannelPastEpisodes,
-  fetchChannelPastEpisodesNextPage
+  fetchChannelPastEpisodesNextPage,
+  fetchForYouCuratedPodcasts
 } from './podcastsData';
 import './style.css';
 
@@ -901,77 +902,73 @@ function createPocketCastsShowCard(channel, isSubscribedView = false) {
   return card;
 }
 
-// Render 20 smartly related podcasts in "For You" section when user has subscribed podcasts
-function renderForYouPodcasts() {
+// Memory cache for "For You" smart query results
+let forYouCache = {
+  key: '',
+  items: []
+};
+
+// Render freshly curated podcasts in "For You" section via live smart query
+async function renderForYouPodcasts() {
   const section = document.getElementById('podcasts-for-you-section');
   const grid = document.getElementById('podcasts-for-you-grid');
   if (!section || !grid) return;
 
-  const subscribedShowIds = pocketcastsState.subscribedShowIds || [];
-  const subscribedShows = pocketcastsState.subscribedShows || [];
+  section.classList.remove('hidden');
 
-  if (subscribedShowIds.length === 0) {
-    section.classList.add('hidden');
+  const subscribedShows = pocketcastsState.subscribedShows || [];
+  const activeCat = pocketcastsState.activeCategory || 'all';
+
+  const cacheKey = `${activeCat}_${subscribedShows.map(s => s.id).sort().join(',')}`;
+
+  if (forYouCache.key === cacheKey && forYouCache.items.length > 0) {
     grid.innerHTML = '';
+    forYouCache.items.forEach(channel => {
+      grid.appendChild(createPocketCastsShowCard(channel));
+    });
+    createIcons(iconConfig);
     return;
   }
 
-  section.classList.remove('hidden');
-  grid.innerHTML = '';
+  // Render shimmer loading skeleton
+  grid.innerHTML = Array(6).fill(0).map(() => `
+    <div class="podcast-show-card animate-pulse">
+      <div class="podcast-show-thumb-wrap bg-slate-800/60 rounded-xl h-44 w-full"></div>
+      <div class="podcast-show-info space-y-2 mt-3">
+        <div class="h-4 bg-slate-800/80 rounded w-3/4"></div>
+        <div class="h-3 bg-slate-800/50 rounded w-1/2"></div>
+      </div>
+    </div>
+  `).join('');
 
-  const allChannels = getAllPodcastChannels();
-  const subIdsSet = new Set(subscribedShowIds);
-
-  // Extract category tokens and keywords from subscribed podcasts
-  const subCategories = new Set();
-  const subKeywords = new Set();
-
-  subscribedShows.forEach(s => {
-    const catStr = s.category || '';
-    catStr.split(/[,&/]/).forEach(c => {
-      const trimmed = c.trim().toLowerCase();
-      if (trimmed) subCategories.add(trimmed);
-    });
-    const nameStr = s.channelName || s.title || '';
-    nameStr.toLowerCase().split(/\s+/).forEach(w => {
-      if (w.length > 3 && !['podcast', 'show', 'the', 'with'].includes(w)) {
-        subKeywords.add(w);
+  try {
+    const freshRecommended = await fetchForYouCuratedPodcasts(subscribedShows, activeCat);
+    if (!freshRecommended || freshRecommended.length === 0) {
+      if (subscribedShows.length === 0) {
+        section.classList.add('hidden');
       }
+      grid.innerHTML = '';
+      return;
+    }
+
+    forYouCache = {
+      key: cacheKey,
+      items: freshRecommended
+    };
+
+    grid.innerHTML = '';
+    freshRecommended.forEach(channel => {
+      grid.appendChild(createPocketCastsShowCard(channel));
     });
-  });
-
-  // Score candidates (not currently subscribed)
-  const candidates = allChannels.filter(c => !subIdsSet.has(c.id)).map(c => {
-    let score = 0;
-    const catLower = (c.category || '').toLowerCase();
-    const nameLower = (c.channelName || c.title || '').toLowerCase();
-    const descLower = (c.description || '').toLowerCase();
-
-    subCategories.forEach(subCat => {
-      if (catLower.includes(subCat)) score += 10;
-      else if (descLower.includes(subCat)) score += 4;
-    });
-
-    subKeywords.forEach(kw => {
-      if (nameLower.includes(kw)) score += 5;
-      else if (descLower.includes(kw)) score += 2;
-    });
-
-    return { channel: c, score };
-  });
-
-  // Sort candidates descending by match score
-  candidates.sort((a, b) => b.score - a.score);
-
-  // Select top 20 candidate podcasts smartly related to subscriptions
-  const recommended = candidates.slice(0, 20).map(x => x.channel);
-
-  recommended.forEach(channel => {
-    grid.appendChild(createPocketCastsShowCard(channel));
-  });
-
-  createIcons(iconConfig);
+    createIcons(iconConfig);
+  } catch (err) {
+    console.warn('[ForYou] Failed to fetch smart query recommendations:', err);
+    if (subscribedShows.length === 0) {
+      section.classList.add('hidden');
+    }
+  }
 }
+
 
 function togglePodcastSubscription(channel) {
   if (!channel || !channel.id) return;

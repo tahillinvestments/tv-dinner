@@ -482,6 +482,119 @@ export function searchPodcastChannels(query) {
   return searchRealPodcastAPI(query);
 }
 
+// Dynamically fetch freshly curated "For You" podcasts using live smart queries.
+// Excludes top & trending catalog shows (getAllPodcastChannels) to ensure fresh discoveries.
+export async function fetchForYouCuratedPodcasts(subscribedShows = [], activeCategory = 'all') {
+  const topTrendingChannels = getAllPodcastChannels();
+  const topTrendingNames = new Set(topTrendingChannels.map(c => (c.channelName || '').toLowerCase().trim()));
+  const topTrendingIds = new Set(topTrendingChannels.map(c => c.id));
+
+  const subIdsSet = new Set((subscribedShows || []).map(s => s.id));
+  const subNamesSet = new Set((subscribedShows || []).map(s => (s.channelName || s.title || '').toLowerCase().trim()));
+
+  // 1. Formulate smart search queries based on user subscriptions or active categories
+  const queriesToRun = [];
+
+  if (Array.isArray(subscribedShows) && subscribedShows.length > 0) {
+    const subCategories = new Set();
+    const subKeywords = new Set();
+
+    subscribedShows.forEach(s => {
+      const catStr = s.category || '';
+      catStr.split(/[,&/]/).forEach(c => {
+        const trimmed = c.trim();
+        if (trimmed && trimmed.length > 2) subCategories.add(trimmed);
+      });
+      const nameStr = s.channelName || s.title || '';
+      nameStr.toLowerCase().split(/\s+/).forEach(w => {
+        const cleaned = w.replace(/[^a-z0-9]/g, '');
+        if (cleaned.length > 3 && !['podcast', 'show', 'the', 'with', 'official'].includes(cleaned)) {
+          subKeywords.add(cleaned);
+        }
+      });
+    });
+
+    const catArray = Array.from(subCategories);
+    const kwArray = Array.from(subKeywords);
+
+    if (catArray.length > 0) {
+      queriesToRun.push(`${catArray[0]} podcast`);
+      if (catArray.length > 1) queriesToRun.push(`${catArray[1]} discussion`);
+    }
+    if (kwArray.length > 0) {
+      queriesToRun.push(`${kwArray.slice(0, 2).join(' ')} podcast`);
+    }
+  }
+
+  // Fallback smart discovery queries if queriesToRun is empty or insufficient
+  if (queriesToRun.length === 0) {
+    if (activeCategory && activeCategory !== 'all') {
+      queriesToRun.push(`${activeCategory} podcast`);
+      queriesToRun.push(`best ${activeCategory} shows`);
+    } else {
+      const fallbackTopics = [
+        'tech breakthroughs podcast',
+        'science health research podcast',
+        'investigative story podcast',
+        'history deep dive podcast',
+        'business founder interviews podcast'
+      ];
+      const seed = new Date().getHours();
+      queriesToRun.push(fallbackTopics[seed % fallbackTopics.length]);
+      queriesToRun.push(fallbackTopics[(seed + 2) % fallbackTopics.length]);
+    }
+  }
+
+  // 2. Fetch live results from iTunes Podcast API concurrently for smart queries
+  const candidatesMap = new Map();
+
+  const fetchPromises = queriesToRun.slice(0, 3).map(async (query) => {
+    const term = encodeURIComponent(query);
+    const url = `https://itunes.apple.com/search?term=${term}&media=podcast&limit=30`;
+    try {
+      const res = await fetchWithTimeout(url, {}, 3500);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.results)) {
+          data.results.forEach(c => {
+            if (!c.collectionName || !c.collectionId) return;
+
+            const chanNameLower = c.collectionName.toLowerCase().trim();
+            const chanId = `chan_foryou_${c.collectionId}`;
+
+            // EXCLUDE top & trending catalog podcasts and user's current subscriptions
+            if (topTrendingNames.has(chanNameLower) || topTrendingIds.has(chanId) || topTrendingIds.has(`chan_${c.collectionId}`)) return;
+            if (subNamesSet.has(chanNameLower) || subIdsSet.has(chanId) || subIdsSet.has(c.collectionId)) return;
+
+            if (!candidatesMap.has(chanId) && !candidatesMap.has(chanNameLower)) {
+              candidatesMap.set(chanNameLower, {
+                id: chanId,
+                collectionId: c.collectionId,
+                channelName: c.collectionName,
+                host: c.artistName || 'Podcast Host',
+                category: c.primaryGenreName || 'Podcast',
+                subscribers: 'Apple Podcast',
+                avatar: c.artworkUrl600 || c.artworkUrl100,
+                description: `Freshly curated show in ${c.primaryGenreName || 'Podcasts'} by ${c.artistName || c.collectionName}.`,
+                feedUrl: c.feedUrl,
+                isExternal: true
+              });
+            }
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[ForYou] Smart query fetch error:', query, err);
+    }
+  });
+
+  await Promise.allSettled(fetchPromises);
+
+  const results = Array.from(candidatesMap.values());
+  return results.slice(0, 20);
+}
+
+
 // Helper fetcher with strict timeout to prevent network hangs
 async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
   const controller = new AbortController();
