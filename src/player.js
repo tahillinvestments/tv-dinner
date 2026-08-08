@@ -40,19 +40,6 @@ function getPlayerProxyUrl(targetUrl) {
     return `${p}?url=${encodeURIComponent(cleanTarget)}`;
   }
 
-  // 3. If target URL contains a non-standard port, route via Cloudflare Worker proxy as a fallback.
-  let isNonStandardPort = false;
-  try {
-    const u = new URL(cleanTarget);
-    if (u.port && u.port !== '80' && u.port !== '443') {
-      isNonStandardPort = true;
-    }
-  } catch (e) {}
-
-  if (isNonStandardPort) {
-    return `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(cleanTarget)}`;
-  }
-
   return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
 }
 
