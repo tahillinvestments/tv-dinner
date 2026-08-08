@@ -3270,6 +3270,20 @@ function getProxyUrl(targetUrl) {
     } catch (e) {}
   }
 
+  // If the target URL contains a non-standard port (like :8080), Vercel serverless proxy will block it.
+  // We must route it through the Cloudflare Worker proxy instead.
+  let isNonStandardPort = false;
+  try {
+    const u = new URL(cleanTarget);
+    if (u.port && u.port !== '80' && u.port !== '443') {
+      isNonStandardPort = true;
+    }
+  } catch (e) {}
+
+  if (isNonStandardPort) {
+    return `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(cleanTarget)}`;
+  }
+
   const baseProxy = getProxyBase();
   if (baseProxy.startsWith('http://') || baseProxy.startsWith('https://')) {
     const p = baseProxy.endsWith('/') ? baseProxy : baseProxy + '/';
