@@ -2796,18 +2796,9 @@ async function openDetailsView(mediaItem) {
       const mediaKey = `movie_${mediaItem.id}`;
       state.currentVodMediaKey = mediaKey;
       state.currentVodTitle = title;
-      const hasBanner = checkAndShowVodResumeBanner(mediaKey, title, (pos) => {
-        startStreamResolution({ type: 'movie', id: mediaItem.id });
-      }, () => {
+      checkAndShowVodResumeBanner(mediaKey, title, () => {
         startStreamResolution({ type: 'movie', id: mediaItem.id });
       });
-
-      if (!hasBanner) {
-        startStreamResolution({
-          type: 'movie',
-          id: mediaItem.id
-        });
-      }
     } else {
       document.getElementById('sources-status').textContent = 'Select an episode below to start streaming.';
     }
@@ -2831,7 +2822,7 @@ async function openDetailsView(mediaItem) {
           seasonSelect.appendChild(opt);
         });
 
-        // Load episodes for the first season (without auto-playing)
+        // Load episodes for the first season (auto-trigger Episode 1)
         if (details?.seasons && details.seasons.length > 0) {
           const firstSeasonNum = seasonSelect.options.length > 0 ? seasonSelect.options[0].value : 1;
           seasonSelect.value = firstSeasonNum;
@@ -2853,7 +2844,7 @@ async function openDetailsView(mediaItem) {
   }
 }
 
-// Load episodes list grid for TV Show (waits for episode click to play)
+// Load episodes list grid for TV Show (auto-selects Episode 1)
 async function loadTVEpisodes(tvId, seasonNumber) {
   const grid = document.getElementById('episodes-grid');
   grid.innerHTML = '<span class="text-xs text-slate-500">Loading episodes...</span>';
@@ -2878,27 +2869,22 @@ async function loadTVEpisodes(tvId, seasonNumber) {
         state.currentVodMediaKey = mediaKey;
         state.currentVodTitle = title;
 
-        const hasBanner = checkAndShowVodResumeBanner(mediaKey, title, (pos) => {
-          document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
-          startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: ep.episode_number });
-        }, () => {
+        checkAndShowVodResumeBanner(mediaKey, title, () => {
           document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
           startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: ep.episode_number });
         });
-
-        if (!hasBanner) {
-          document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
-          startStreamResolution({ 
-            type: 'tv', 
-            id: tvId, 
-            season: seasonNumber, 
-            episode: ep.episode_number 
-          });
-        }
       });
 
       grid.appendChild(btn);
     });
+
+    // Auto-select Episode 1 on load
+    if (episodes.length > 0) {
+      const firstEpBtn = grid.querySelector('.episode-btn');
+      if (firstEpBtn) {
+        firstEpBtn.click();
+      }
+    }
   } catch (err) {
     console.error("Failed to load TV episodes:", err);
     grid.innerHTML = '<span class="text-xs text-red-400">Failed to load episodes.</span>';
