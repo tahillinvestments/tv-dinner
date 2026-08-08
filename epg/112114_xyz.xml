@@ -60396,6 +60396,9 @@
 	<programme channel="newtv金牌综艺" start="20260808223500 +0800" stop="20260808232000 +0800">
 		<title lang="zh">29_前夜</title>
 	</programme>
+	<programme channel="newtv金牌综艺" start="20260808232000 +0800" stop="20260808235000 +0800">
+		<title lang="zh">白水杜康好物推荐</title>
+	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
 	</channel>
