@@ -3356,7 +3356,7 @@ function selectActiveSource(index) {
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) {
       embedIframe.src = 'about:blank';
-      embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share');
+      embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share; audio *');
       embedIframe.removeAttribute('referrerpolicy');
       embedIframe.removeAttribute('sandbox');
       
@@ -3367,10 +3367,12 @@ function selectActiveSource(index) {
       };
 
       let embedUrl = source.url;
+      const sep = embedUrl.includes('?') ? '&' : '?';
+      embedUrl += `${sep}autoplay=true&autoplay=1&muted=false&muted=0&volume=100`;
+
       if (state.resumePlaybackTime && state.resumePlaybackTime > 10) {
         const t = Math.floor(state.resumePlaybackTime);
-        const sep = embedUrl.includes('?') ? '&' : '?';
-        embedUrl += `${sep}t=${t}&start=${t}&time=${t}&progress=${t}#t=${t}`;
+        embedUrl += `&t=${t}&start=${t}&time=${t}&progress=${t}#t=${t}`;
       }
 
       setTimeout(() => {
