@@ -529,11 +529,28 @@ export class IPTVPlayer {
           }
         }
 
+        // Ensure stream starts UNMUTED by default at full volume
+        this.video.muted = false;
+        this.video.volume = 1.0;
+
         this.video.play().then(() => {
           this.updatePlayPauseUI(false);
+          this.updateVolumeUI();
         }).catch(e => {
-          console.warn("Autoplay blocked by browser policy, waiting for user interaction.", e);
-          this.updatePlayPauseUI(true); // show play icon
+          console.warn("Autoplay with sound blocked by browser policy, starting muted and auto-unmuting on interaction.", e);
+          this.video.muted = true;
+          this.video.play().then(() => {
+            this.updatePlayPauseUI(false);
+            this.updateVolumeUI();
+            const unmuteOnInteract = () => {
+              this.video.muted = false;
+              this.video.volume = 1.0;
+              this.updateVolumeUI();
+            };
+            window.addEventListener('click', unmuteOnInteract, { once: true });
+            window.addEventListener('keydown', unmuteOnInteract, { once: true });
+            window.addEventListener('touchstart', unmuteOnInteract, { once: true });
+          });
         });
       });
 

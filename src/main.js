@@ -3278,12 +3278,31 @@ function renderSourcesUI() {
 
 let shieldTimer = null;
 
+// Automatically enter fullscreen when VOD stream playback begins
+function requestAutoFullscreen() {
+  try {
+    const elem = document.querySelector('.player-wrapper') || document.getElementById('player-section') || document.documentElement;
+    if (elem) {
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(() => {});
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+      }
+    }
+  } catch (e) {}
+}
+
 // Load server source in the shared player
 function selectActiveSource(index) {
   if (index < 0 || index >= state.resolvedSources.length) return;
 
   state.activeSourceIndex = index;
   const source = state.resolvedSources[index];
+
+  // Auto enter fullscreen at beginning of VOD play
+  requestAutoFullscreen();
 
   if (player && typeof player.setControlMode === 'function') {
     player.setControlMode('vod');
