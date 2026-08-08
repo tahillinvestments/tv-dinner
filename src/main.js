@@ -379,8 +379,52 @@ function switchTab(tabName) {
   createIcons(iconConfig);
 }
 
+// Helper to verify if Live TV credentials are active
+function isLiveTvActive() {
+  const username = (localStorage.getItem('iptv_username') || '').trim();
+  const password = (localStorage.getItem('iptv_password') || '').trim();
+  const portalUrl = (localStorage.getItem('iptv_portal_url') || '').trim();
+  return Boolean(portalUrl && username && password && state.channels && state.channels.length > 0);
+}
+
+// Render locked access state view for VOD and Podcasts when Live TV credentials are inactive
+function renderAccessLockedState(containerId, featureName) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="col-span-full py-16 px-6 text-center bg-slate-900/90 rounded-2xl border border-amber-500/30 shadow-2xl max-w-lg mx-auto my-12 backdrop-blur-xl">
+      <div class="w-20 h-20 mx-auto rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-6 shadow-inner animate-pulse">
+        <i data-lucide="lock" class="w-10 h-10"></i>
+      </div>
+      <span class="inline-block px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-bold rounded-full mb-3 border border-amber-500/40">
+        ACTIVE SUBSCRIBER ACCESS ONLY
+      </span>
+      <h3 class="text-xl font-bold text-white mb-2">${featureName} Locked</h3>
+      <p class="text-sm text-slate-300 mb-6 leading-relaxed">
+        Access to ${featureName} requires active Live TV account credentials. Please sign in with your active credentials or 10-digit phone number in Settings to unlock.
+      </p>
+      <button class="lock-settings-btn btn btn-primary font-bold shadow-lg shadow-amber-900/30 flex items-center justify-center gap-2 mx-auto px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-xl transition-all">
+        <i data-lucide="key" class="w-4 h-4"></i> Sign In in Settings to Unlock
+      </button>
+    </div>
+  `;
+  createIcons(iconConfig);
+
+  const btn = container.querySelector('.lock-settings-btn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      switchTab('settings');
+    });
+  }
+}
+
 // Load Movies Dashboard hero + curated category carousels
 async function loadMoviesDashboard() {
+  if (!isLiveTvActive()) {
+    renderAccessLockedState('tab-movies', 'Movies & VOD');
+    return;
+  }
   const trendingRow = document.getElementById('row-trending-movies');
   const topRatedRow = document.getElementById('row-top-rated-movies');
   const actionRow = document.getElementById('row-action-movies');
@@ -456,6 +500,10 @@ async function loadMoviesDashboard() {
 
 // Load TV Series Dashboard hero + curated category carousels
 async function loadSeriesDashboard() {
+  if (!isLiveTvActive()) {
+    renderAccessLockedState('tab-series', 'TV Series & VOD');
+    return;
+  }
   const trendingRow = document.getElementById('row-trending-tv');
   const topRatedRow = document.getElementById('row-top-rated-series');
   const actionRow = document.getElementById('row-action-series');
@@ -544,6 +592,10 @@ const PODCAST_EPISODES_PER_PAGE = 9;
 
 // Main Entry Point called when user switches to Podcasts tab
 function loadPodcastsDashboard() {
+  if (!isLiveTvActive()) {
+    renderAccessLockedState('tab-podcasts', 'Podcasts');
+    return;
+  }
   if (!pocketcastsState.navInitialized) {
     initPocketCastsNav();
     pocketcastsState.navInitialized = true;
@@ -1392,6 +1444,13 @@ function changeLiveChannel(direction) {
 
 // Open Channel Episodes View Modal (With Search, Sort & Pagination)
 async function openPodcastChannelModal(channel) {
+  if (!isLiveTvActive()) {
+    if (typeof player !== 'undefined' && player && typeof player.showToast === 'function') {
+      player.showToast("Sign in with active Live TV credentials to unlock Podcasts");
+    }
+    switchTab('settings');
+    return;
+  }
   const overlay = document.getElementById('podcast-channel-overlay');
   if (!overlay) return;
 
@@ -2620,6 +2679,12 @@ async function triggerSearchQuery(query, filterType = 'all') {
 
 // Render watchlist items in Library tab
 function renderLibraryScreen() {
+  if (!isLiveTvActive()) {
+    renderAccessLockedState('library-results-grid', 'My Library');
+    const emptyState = document.getElementById('library-empty-state');
+    if (emptyState) emptyState.classList.add('hidden');
+    return;
+  }
   const grid = document.getElementById('library-results-grid');
   const emptyState = document.getElementById('library-empty-state');
   if (!grid) return;
@@ -2861,6 +2926,13 @@ function renderWatchlistButtonState() {
 
 // Open detailed info for selected Movie / TV Show
 async function openDetailsView(mediaItem) {
+  if (!isLiveTvActive()) {
+    if (typeof player !== 'undefined' && player && typeof player.showToast === 'function') {
+      player.showToast("Sign in with active Live TV credentials to unlock VOD");
+    }
+    switchTab('settings');
+    return;
+  }
   try {
     console.log("[openDetailsView] mediaItem:", mediaItem);
     stopActiveLiveTVFeed();
