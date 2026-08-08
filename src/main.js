@@ -746,6 +746,7 @@ function renderPocketCastsDiscover() {
   channelsToDisplay.forEach(channel => {
     grid.appendChild(createPocketCastsShowCard(channel));
   });
+  renderForYouPodcasts();
   createIcons(iconConfig);
 }
 
@@ -839,6 +840,78 @@ function createPocketCastsShowCard(channel, isSubscribedView = false) {
   return card;
 }
 
+// Render 20 smartly related podcasts in "For You" section when user has subscribed podcasts
+function renderForYouPodcasts() {
+  const section = document.getElementById('podcasts-for-you-section');
+  const grid = document.getElementById('podcasts-for-you-grid');
+  if (!section || !grid) return;
+
+  const subscribedShowIds = pocketcastsState.subscribedShowIds || [];
+  const subscribedShows = pocketcastsState.subscribedShows || [];
+
+  if (subscribedShowIds.length === 0) {
+    section.classList.add('hidden');
+    grid.innerHTML = '';
+    return;
+  }
+
+  section.classList.remove('hidden');
+  grid.innerHTML = '';
+
+  const allChannels = getAllPodcastChannels();
+  const subIdsSet = new Set(subscribedShowIds);
+
+  // Extract category tokens and keywords from subscribed podcasts
+  const subCategories = new Set();
+  const subKeywords = new Set();
+
+  subscribedShows.forEach(s => {
+    const catStr = s.category || '';
+    catStr.split(/[,&/]/).forEach(c => {
+      const trimmed = c.trim().toLowerCase();
+      if (trimmed) subCategories.add(trimmed);
+    });
+    const nameStr = s.channelName || s.title || '';
+    nameStr.toLowerCase().split(/\s+/).forEach(w => {
+      if (w.length > 3 && !['podcast', 'show', 'the', 'with'].includes(w)) {
+        subKeywords.add(w);
+      }
+    });
+  });
+
+  // Score candidates (not currently subscribed)
+  const candidates = allChannels.filter(c => !subIdsSet.has(c.id)).map(c => {
+    let score = 0;
+    const catLower = (c.category || '').toLowerCase();
+    const nameLower = (c.channelName || c.title || '').toLowerCase();
+    const descLower = (c.description || '').toLowerCase();
+
+    subCategories.forEach(subCat => {
+      if (catLower.includes(subCat)) score += 10;
+      else if (descLower.includes(subCat)) score += 4;
+    });
+
+    subKeywords.forEach(kw => {
+      if (nameLower.includes(kw)) score += 5;
+      else if (descLower.includes(kw)) score += 2;
+    });
+
+    return { channel: c, score };
+  });
+
+  // Sort candidates descending by match score
+  candidates.sort((a, b) => b.score - a.score);
+
+  // Select top 20 candidate podcasts smartly related to subscriptions
+  const recommended = candidates.slice(0, 20).map(x => x.channel);
+
+  recommended.forEach(channel => {
+    grid.appendChild(createPocketCastsShowCard(channel));
+  });
+
+  createIcons(iconConfig);
+}
+
 function togglePodcastSubscription(channel) {
   if (!channel || !channel.id) return;
   const idx = pocketcastsState.subscribedShowIds.indexOf(channel.id);
@@ -855,6 +928,7 @@ function togglePodcastSubscription(channel) {
   localStorage.setItem('pocketcasts_subscribed_ids', JSON.stringify(pocketcastsState.subscribedShowIds));
   localStorage.setItem('pocketcasts_subscribed_shows', JSON.stringify(pocketcastsState.subscribedShows));
   updatePocketCastsBadges();
+  renderForYouPodcasts();
   if (pocketcastsState.currentView === 'subscribed') renderPocketCastsSubscribed();
   else if (pocketcastsState.currentView === 'discover') renderPocketCastsDiscover();
 }
@@ -3429,20 +3503,6 @@ function getProxyUrl(targetUrl) {
         cleanTarget = extracted;
       }
     } catch (e) {}
-  }
-
-  // If the target URL contains a non-standard port (like :8080), Vercel serverless proxy will block it.
-  // We must route it through the Cloudflare Worker proxy instead.
-  let isNonStandardPort = false;
-  try {
-    const u = new URL(cleanTarget);
-    if (u.port && u.port !== '80' && u.port !== '443') {
-      isNonStandardPort = true;
-    }
-  } catch (e) {}
-
-  if (isNonStandardPort) {
-    return `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(cleanTarget)}`;
   }
 
   const baseProxy = getProxyBase();
