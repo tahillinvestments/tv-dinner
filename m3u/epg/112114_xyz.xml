@@ -59523,6 +59523,9 @@
 	<programme channel="newtv超级电视剧" start="20260808101500 +0800" stop="20260808110100 +0800">
 		<title lang="zh">33_问心</title>
 	</programme>
+	<programme channel="newtv超级电视剧" start="20260808110100 +0800" stop="20260808114600 +0800">
+		<title lang="zh">34_问心</title>
+	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
 	</channel>
