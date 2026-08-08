@@ -643,8 +643,7 @@ export class IPTVPlayer {
     } else {
       this.showError(true, "Your browser does not support HLS streaming.");
     }
-    
-    this.updatePlayPauseUI(false);
+    this.updatePlayPauseUI(this.video ? this.video.paused : true);
   }
 
   togglePlay() {

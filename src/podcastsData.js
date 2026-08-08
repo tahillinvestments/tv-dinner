@@ -340,140 +340,81 @@ export async function searchRealPodcastAPI(query) {
   const term = encodeURIComponent(query.trim());
   const allChannels = getAllPodcastChannels();
 
-  // 1. Curated local catalog channel matches
-  const curatedMatches = allChannels.filter(c =>
-    c.channelName.toLowerCase().includes(q) ||
-    (c.host && c.host.toLowerCase().includes(q)) ||
-    (c.category && c.category.toLowerCase().includes(q)) ||
-    (c.description && c.description.toLowerCase().includes(q))
-  );
+  const cleanTerm = query.trim().toLowerCase();
 
-  let realChannels = [];
-  let apiMatchingEpisodes = [];
+  const realChannels = [];
+  const apiMatchingEpisodes = [];
 
-  // 2. Parallel Global Search via Apple iTunes Podcast API + YouTube Search Instances
-  const itunesChannelsUrl = `https://itunes.apple.com/search?term=${term}&media=podcast&limit=15`;
-  const itunesEpisodesUrl = `https://itunes.apple.com/search?term=${term}&media=podcast&entity=podcastEpisode&limit=15`;
-  const invidiousInstances = [
-    `https://invidious.flokinet.to/api/v1/search?q=${term}&type=video`,
-    `https://inv.zoomerville.com/api/v1/search?q=${term}&type=video`,
-    `https://inv.nadeko.net/api/v1/search?q=${term}&type=video`,
-    `https://inv.tux.pizza/api/v1/search?q=${term}+podcast&type=video`
+  // Query Invidious YouTube API for Channels & Videos
+  const searchEndpoints = [
+    `https://inv.tux.pizza/api/v1/search?q=${term}+podcast&type=all`,
+    `https://invidious.flokinet.to/api/v1/search?q=${term}+podcast&type=all`,
+    `https://inv.nadeko.net/api/v1/search?q=${term}+podcast&type=all`
   ];
 
-  try {
-    const [itChanRes, itEpRes] = await Promise.allSettled([
-      fetchWithTimeout(itunesChannelsUrl, {}, 3000).then(r => r.ok ? r.json() : null),
-      fetchWithTimeout(itunesEpisodesUrl, {}, 3000).then(r => r.ok ? r.json() : null)
-    ]);
-
-    // Parse iTunes Channels
-    if (itChanRes.status === 'fulfilled' && itChanRes.value && Array.isArray(itChanRes.value.results)) {
-      itChanRes.value.results.forEach(c => {
-        if (c.collectionName) {
-          realChannels.push({
-            id: `chan_it_${c.collectionId}`,
-            channelName: c.collectionName,
-            host: c.artistName || 'Podcast Host',
-            category: c.primaryGenreName || 'Podcast',
-            subscribers: 'Apple Podcast',
-            avatar: c.artworkUrl600 || c.artworkUrl100,
-            description: `Official podcast channel by ${c.artistName || c.collectionName}.`,
-            feedUrl: c.feedUrl,
-            isExternal: true
-          });
-        }
-      });
-    }
-
-    // Parse iTunes Episodes
-    if (itEpRes.status === 'fulfilled' && itEpRes.value && Array.isArray(itEpRes.value.results)) {
-      itEpRes.value.results.forEach(ep => {
-        if (ep.trackName) {
-          apiMatchingEpisodes.push({
-            id: `ep_it_${ep.trackId}`,
-            title: ep.trackName,
-            channelName: ep.collectionName || 'Podcast',
-            host: ep.artistName || 'Host',
-            category: ep.primaryGenreName || 'Podcast',
-            date: ep.releaseDate ? new Date(ep.releaseDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent',
-            year: ep.releaseDate ? new Date(ep.releaseDate).getFullYear() : 2026,
-            duration: ep.trackTimeMillis ? `${Math.round(ep.trackTimeMillis / 60000)}m` : 'Podcast',
-            thumbnail: ep.artworkUrl600 || ep.artworkUrl160,
-            description: `Listen to full episode from ${ep.collectionName || ep.artistName}.`,
-            audioUrl: ep.previewUrl,
-            isExternal: true
-          });
-        }
-      });
-    }
-  } catch (err) {
-    console.warn('[Podcasts] iTunes search fetch error:', err);
-  }
-
-  // 3. Query Live Working YouTube Instances for Video Podcasts
-  for (const sUrl of invidiousInstances) {
+  for (const sUrl of searchEndpoints) {
     try {
-      const res = await fetchWithTimeout(sUrl, {}, 2500);
+      const res = await fetchWithTimeout(sUrl, {}, 3500);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const ytEps = data.slice(0, 20).map(item => ({
-            id: `ep_yt_${item.videoId}`,
-            title: item.title,
-            youtubeId: item.videoId,
-            channelName: item.author || 'YouTube Video Podcast',
-            host: item.author || 'Host',
-            category: 'Video Podcast',
-            date: 'Recent',
-            year: 2026,
-            duration: item.lengthSeconds ? `${Math.round(item.lengthSeconds / 60)}m` : 'HD Video',
-            thumbnail: `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`,
-            description: item.description || `Watch full video episode from ${item.author || 'YouTube'}.`,
-            isExternal: true
-          }));
-
-          // Add unique YouTube Channels
-          const channelMap = new Map();
           data.forEach(item => {
-            if (item.author && item.authorId && !channelMap.has(item.authorId)) {
-              channelMap.set(item.authorId, {
-                id: `chan_yt_${item.authorId}`,
-                ytChannelId: item.authorId,
-                channelName: item.author,
-                host: item.author,
-                category: 'Video Podcast',
-                subscribers: 'YouTube Channel',
-                avatar: `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`,
-                description: `Official YouTube Video Podcast channel for ${item.author}.`,
-                isExternal: true
-              });
+            if (item.type === 'channel' && item.authorId && item.author) {
+              if (!realChannels.some(c => c.ytChannelId === item.authorId)) {
+                realChannels.push({
+                  id: `chan_yt_${item.authorId}`,
+                  ytChannelId: item.authorId,
+                  channelName: item.author,
+                  host: item.author,
+                  category: 'YouTube Podcast',
+                  subscribers: item.subCount ? `${(item.subCount / 1000).toFixed(0)}K Subs` : 'YouTube Channel',
+                  avatar: item.authorThumbnails ? item.authorThumbnails[item.authorThumbnails.length - 1].url : 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+                  description: item.description || `Official YouTube video podcast channel ${item.author}.`
+                });
+              }
+            } else if ((item.type === 'video' || item.videoId) && item.title) {
+              const yid = item.videoId;
+              if (yid && !apiMatchingEpisodes.some(e => e.youtubeId === yid)) {
+                apiMatchingEpisodes.push({
+                  id: `ep_yt_${yid}`,
+                  title: item.title,
+                  youtubeId: yid,
+                  channelName: item.author || 'YouTube Podcast',
+                  host: item.author || 'Host',
+                  category: 'HD Video Podcast',
+                  date: item.publishedText || 'Recent',
+                  year: 2026,
+                  duration: item.lengthSeconds ? `${Math.round(item.lengthSeconds / 60)}m` : 'HD Video',
+                  thumbnail: item.videoThumbnails ? item.videoThumbnails[0].url : `https://img.youtube.com/vi/${yid}/hqdefault.jpg`,
+                  description: item.description || `Watch full video podcast episode on YouTube.`
+                });
+              }
             }
           });
 
-          realChannels = [...realChannels, ...Array.from(channelMap.values())];
-          apiMatchingEpisodes = [...ytEps, ...apiMatchingEpisodes];
-          break; // Stop after first successful working YouTube instance
+          if (realChannels.length > 0 || apiMatchingEpisodes.length > 0) {
+            break; // Stop after first successful working Invidious instance
+          }
         }
       }
-    } catch (err) {
-      console.warn('[Podcasts] YouTube search failover:', sUrl);
-    }
+    } catch (e) {}
   }
 
-  // Deduplicate channels by name
-  const seenNames = new Set();
-  const uniqueRealChannels = realChannels.filter(c => {
-    const key = (c.channelName || '').toLowerCase().trim();
-    if (seenNames.has(key)) return false;
-    seenNames.add(key);
-    return true;
+  // Fallback match from curated video catalog
+  const curated = getAllPodcastChannels();
+  curated.forEach(c => {
+    const cName = (c.channelName || '').toLowerCase();
+    const cHost = (c.host || '').toLowerCase();
+    if (cName.includes(cleanTerm) || cHost.includes(cleanTerm)) {
+      if (!realChannels.some(rc => rc.id === c.id || rc.ytChannelId === c.ytChannelId)) {
+        realChannels.unshift(c);
+      }
+    }
   });
 
   return {
-    curatedChannels: curatedMatches,
-    realChannels: uniqueRealChannels,
-    matchingEpisodes: apiMatchingEpisodes
+    channels: realChannels.slice(0, 15),
+    episodes: apiMatchingEpisodes.slice(0, 20)
   };
 }
 
@@ -482,11 +423,7 @@ export function searchPodcastChannels(query) {
   return searchRealPodcastAPI(query);
 }
 
-// Dynamically fetch freshly curated "For You" podcasts using live smart queries.
-// Excludes top & trending catalog shows (getAllPodcastChannels) to ensure fresh discoveries.
-// Dynamically curate "For You" YouTube Video Podcasts smartly matched to user's subscriptions and active category.
-// YouTube ONLY discovery guarantees every recommendation has a valid ytChannelId and clean YT video playback.
-// Dynamically curate "For You" podcasts smartly matched to user's subscriptions.
+// Dynamically curate "For You" YouTube Video Podcasts smartly matched to user's subscriptions.
 export async function fetchForYouCuratedPodcasts(subscribedShows = [], activeCategory = 'all') {
   if (!Array.isArray(subscribedShows) || subscribedShows.length === 0) {
     return [];
@@ -522,10 +459,10 @@ export async function fetchForYouCuratedPodcasts(subscribedShows = [], activeCat
     searchQueries.push(`${subKeywords.slice(0, 2).join(' ')} podcast`);
   }
 
-  // 2. Fetch live similar channels from podcast API concurrently
+  // 2. Fetch live YouTube Video Podcast channels concurrently
   const similarMap = new Map();
 
-  // A. First score catalog shows for instant matching
+  // A. First score catalog YouTube channels for instant matching
   allChannels.forEach(c => {
     const cNameLower = (c.channelName || '').toLowerCase().trim();
     if (subIdsSet.has(String(c.id)) || subNamesSet.has(cNameLower)) return;
@@ -546,33 +483,33 @@ export async function fetchForYouCuratedPodcasts(subscribedShows = [], activeCat
     }
   });
 
-  // B. Search iTunes Podcast API concurrently for real similar shows
+  // B. Search YouTube / Invidious Channel API for 100% YouTube Video Podcast channels
   const fetchPromises = searchQueries.map(async (query) => {
     try {
-      const term = encodeURIComponent(query);
-      const url = `https://itunes.apple.com/search?term=${term}&media=podcast&limit=25`;
+      const q = encodeURIComponent(`${query} channel`);
+      const url = `https://inv.tux.pizza/api/v1/search?q=${q}&type=channel`;
       const res = await fetchWithTimeout(url, {}, 3500);
       if (res && res.ok) {
         const data = await res.json();
-        if (data && Array.isArray(data.results)) {
-          data.results.forEach(item => {
-            if (!item.collectionName || !item.collectionId) return;
-            const nameLower = item.collectionName.toLowerCase().trim();
-            const chanId = `chan_fy_${item.collectionId}`;
+        if (Array.isArray(data)) {
+          data.forEach(item => {
+            if (!item.author || !item.authorId) return;
+            const nameLower = item.author.toLowerCase().trim();
+            const chanId = `chan_yt_${item.authorId}`;
 
-            if (subNamesSet.has(nameLower) || subIdsSet.has(chanId) || subIdsSet.has(String(item.collectionId))) return;
+            if (subNamesSet.has(nameLower) || subIdsSet.has(chanId) || subIdsSet.has(item.authorId)) return;
 
             if (!similarMap.has(chanId) && !similarMap.has(nameLower)) {
+              const subCountText = item.subCount ? `${(item.subCount / 1000).toFixed(0)}K Subs` : 'YouTube Channel';
               similarMap.set(chanId, {
                 id: chanId,
-                collectionId: item.collectionId,
-                channelName: item.collectionName,
-                host: item.artistName || 'Podcast Host',
-                category: item.primaryGenreName || subCategories[0] || 'Podcast',
-                subscribers: 'Apple Podcast',
-                avatar: item.artworkUrl600 || item.artworkUrl100,
-                description: `Similar show in ${item.primaryGenreName || 'Podcasts'} by ${item.artistName || item.collectionName}.`,
-                feedUrl: item.feedUrl,
+                ytChannelId: item.authorId,
+                channelName: item.author,
+                host: item.author,
+                category: subCategories[0] || 'Podcast',
+                subscribers: subCountText,
+                avatar: item.authorThumbnails ? item.authorThumbnails[item.authorThumbnails.length - 1].url : 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+                description: item.description || `Discover new YouTube video podcast channel ${item.author}.`,
                 score: 8
               });
             }
