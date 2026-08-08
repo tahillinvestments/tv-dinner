@@ -50952,6 +50952,9 @@
 	<programme channel="newtv金牌综艺" start="20260809050100 +0800" stop="20260809054500 +0800">
 		<title lang="zh">25_秋蝉</title>
 	</programme>
+	<programme channel="newtv金牌综艺" start="20260809054500 +0800" stop="20260809061500 +0800">
+		<title lang="zh">沙琪玛好物推荐</title>
+	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
 	</channel>
