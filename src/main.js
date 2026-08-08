@@ -951,10 +951,19 @@ async function renderForYouPodcasts() {
   const grid = document.getElementById('podcasts-for-you-grid');
   if (!section || !grid) return;
 
-  section.classList.remove('hidden');
-
   const subscribedShows = pocketcastsState.subscribedShows || [];
   const activeCat = pocketcastsState.activeCategory || 'all';
+
+  // HIDE "For You" section if NOTHING is subscribed to!
+  if (!subscribedShows || subscribedShows.length === 0) {
+    section.classList.add('hidden');
+    section.style.display = 'none';
+    grid.innerHTML = '';
+    return;
+  }
+
+  section.classList.remove('hidden');
+  section.style.display = '';
 
   const cacheKey = `${activeCat}_${subscribedShows.map(s => s.id).sort().join(',')}`;
 

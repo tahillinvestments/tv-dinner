@@ -464,13 +464,16 @@ export class IPTVPlayer {
     if (this.volumeSlider) this.volumeSlider.value = 1;
     this.updateMuteUI();
 
-    // Check for saved resume position
-    const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
-    const key = this.currentMediaKey || this.currentUrl;
-    const saved = resumeData[key];
-    const resumePos = (typeof startPosition === 'number')
-      ? startPosition
-      : (saved ? saved.position : 0);
+    // Check for saved resume position (ONLY for VOD media)
+    let resumePos = 0;
+    if (this.controlMode === 'vod' && channel && channel.mediaKey) {
+      const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+      const saved = resumeData[channel.mediaKey];
+      resumePos = (typeof startPosition === 'number') ? startPosition : (saved ? saved.position : 0);
+    } else {
+      // For Live TV streams, always ensure live control mode and reset control UI
+      this.setControlMode('live');
+    }
 
     // Safety timeout to prevent Buffering Stream... from getting stuck indefinitely
     if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
@@ -504,7 +507,7 @@ export class IPTVPlayer {
       this.hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        startPosition: (resumePos && resumePos > 0) ? resumePos : -1,
+        startPosition: (this.controlMode === 'vod' && resumePos > 0) ? resumePos : -1,
         maxBufferLength: 45,
         maxMaxBufferLength: 90,
         maxBufferSize: 60 * 1000 * 1000, // 60MB

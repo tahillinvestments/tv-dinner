@@ -486,63 +486,107 @@ export function searchPodcastChannels(query) {
 // Excludes top & trending catalog shows (getAllPodcastChannels) to ensure fresh discoveries.
 // Dynamically curate "For You" YouTube Video Podcasts smartly matched to user's subscriptions and active category.
 // YouTube ONLY discovery guarantees every recommendation has a valid ytChannelId and clean YT video playback.
+// Dynamically curate "For You" podcasts smartly matched to user's subscriptions.
 export async function fetchForYouCuratedPodcasts(subscribedShows = [], activeCategory = 'all') {
+  if (!Array.isArray(subscribedShows) || subscribedShows.length === 0) {
+    return [];
+  }
+
   const allChannels = getAllPodcastChannels();
-  const subIdsSet = new Set((subscribedShows || []).map(s => s.id));
+  const subIdsSet = new Set((subscribedShows || []).map(s => String(s.id)));
+  const subNamesSet = new Set((subscribedShows || []).map(s => (s.channelName || s.title || '').toLowerCase().trim()));
 
-  // Extract category tokens and keywords from subscribed podcasts
-  const subCategories = new Set();
-  const subKeywords = new Set();
+  // 1. Build smart similarity search queries based on user's subscribed shows
+  const searchQueries = [];
+  const subCategories = [];
+  const subKeywords = [];
 
-  (subscribedShows || []).forEach(s => {
-    const catStr = s.category || '';
-    catStr.split(/[,&/]/).forEach(c => {
-      const trimmed = c.trim().toLowerCase();
-      if (trimmed && trimmed.length > 2) subCategories.add(trimmed);
-    });
-    const nameStr = s.channelName || s.title || '';
-    nameStr.toLowerCase().split(/\s+/).forEach(w => {
-      const cleaned = w.replace(/[^a-z0-9]/g, '');
-      if (cleaned.length > 3 && !['podcast', 'show', 'the', 'with', 'official'].includes(cleaned)) {
-        subKeywords.add(cleaned);
+  subscribedShows.forEach(s => {
+    const cat = (s.category || '').trim();
+    if (cat && !subCategories.includes(cat)) subCategories.push(cat);
+
+    const title = (s.channelName || s.title || '');
+    title.toLowerCase().split(/\s+/).forEach(w => {
+      const clean = w.replace(/[^a-z0-9]/g, '');
+      if (clean.length > 3 && !['podcast', 'show', 'with', 'official', 'the'].includes(clean) && !subKeywords.includes(clean)) {
+        subKeywords.push(clean);
       }
     });
   });
 
-  // Score candidate YouTube Video Podcast channels
-  const candidates = allChannels.filter(c => !subIdsSet.has(c.id)).map(c => {
+  if (subCategories.length > 0) {
+    searchQueries.push(`${subCategories[0]} podcast`);
+    if (subCategories.length > 1) searchQueries.push(`${subCategories[1]} podcast`);
+  }
+  if (subKeywords.length > 0) {
+    searchQueries.push(`${subKeywords.slice(0, 2).join(' ')} podcast`);
+  }
+
+  // 2. Fetch live similar channels from podcast API concurrently
+  const similarMap = new Map();
+
+  // A. First score catalog shows for instant matching
+  allChannels.forEach(c => {
+    const cNameLower = (c.channelName || '').toLowerCase().trim();
+    if (subIdsSet.has(String(c.id)) || subNamesSet.has(cNameLower)) return;
+
     let score = 0;
     const catLower = (c.category || '').toLowerCase();
-    const nameLower = (c.channelName || c.title || '').toLowerCase();
-    const descLower = (c.description || '').toLowerCase();
+    const nameLower = (c.channelName || '').toLowerCase();
 
-    // Category match bonus
-    subCategories.forEach(subCat => {
-      if (catLower.includes(subCat)) score += 15;
-      else if (descLower.includes(subCat)) score += 5;
+    subCategories.forEach(cat => {
+      if (catLower.includes(cat.toLowerCase())) score += 10;
     });
-
-    // Keyword match bonus
     subKeywords.forEach(kw => {
-      if (nameLower.includes(kw)) score += 8;
-      else if (descLower.includes(kw)) score += 3;
+      if (nameLower.includes(kw)) score += 5;
     });
 
-    // Active tab category filter match
-    if (activeCategory && activeCategory !== 'all') {
-      if (catLower.includes(activeCategory.toLowerCase().split(',')[0].trim())) {
-        score += 10;
-      }
+    if (score > 0) {
+      similarMap.set(c.id, { ...c, score });
     }
-
-    return { channel: c, score };
   });
 
-  // Sort candidate YouTube channels descending by recommendation score
-  candidates.sort((a, b) => b.score - a.score);
+  // B. Search iTunes Podcast API concurrently for real similar shows
+  const fetchPromises = searchQueries.map(async (query) => {
+    try {
+      const term = encodeURIComponent(query);
+      const url = `https://itunes.apple.com/search?term=${term}&media=podcast&limit=25`;
+      const res = await fetchWithTimeout(url, {}, 3500);
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.results)) {
+          data.results.forEach(item => {
+            if (!item.collectionName || !item.collectionId) return;
+            const nameLower = item.collectionName.toLowerCase().trim();
+            const chanId = `chan_fy_${item.collectionId}`;
 
-  // Return top 20 smartly matched YouTube Video Podcasts
-  return candidates.slice(0, 20).map(x => x.channel);
+            if (subNamesSet.has(nameLower) || subIdsSet.has(chanId) || subIdsSet.has(String(item.collectionId))) return;
+
+            if (!similarMap.has(chanId) && !similarMap.has(nameLower)) {
+              similarMap.set(chanId, {
+                id: chanId,
+                collectionId: item.collectionId,
+                channelName: item.collectionName,
+                host: item.artistName || 'Podcast Host',
+                category: item.primaryGenreName || subCategories[0] || 'Podcast',
+                subscribers: 'Apple Podcast',
+                avatar: item.artworkUrl600 || item.artworkUrl100,
+                description: `Similar show in ${item.primaryGenreName || 'Podcasts'} by ${item.artistName || item.collectionName}.`,
+                feedUrl: item.feedUrl,
+                score: 8
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {}
+  });
+
+  await Promise.allSettled(fetchPromises);
+
+  const results = Array.from(similarMap.values());
+  results.sort((a, b) => (b.score || 0) - (a.score || 0));
+  return results.slice(0, 20);
 }
 
 
