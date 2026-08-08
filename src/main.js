@@ -379,12 +379,21 @@ function switchTab(tabName) {
   createIcons(iconConfig);
 }
 
-// Helper to verify if Live TV credentials are active
+// Helper to verify if Live TV credentials or phone activation are active
 function isLiveTvActive() {
+  const activatedPhone = (localStorage.getItem('activated_phone') || '').trim();
   const username = (localStorage.getItem('iptv_username') || '').trim();
   const password = (localStorage.getItem('iptv_password') || '').trim();
-  const portalUrl = (localStorage.getItem('iptv_portal_url') || '').trim();
-  return Boolean(portalUrl && username && password && state.channels && state.channels.length > 0);
+  
+  if (activatedPhone && activatedPhone.length >= 10) {
+    return true;
+  }
+  
+  if (username && password) {
+    return true;
+  }
+  
+  return false;
 }
 
 // Render locked access state view for VOD and Podcasts when Live TV credentials are inactive
