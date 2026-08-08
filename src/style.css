@@ -526,6 +526,7 @@ body {
 
 /* Media Cards styling */
 .detail-item-card {
+  position: relative;
   width: 170px;
   flex-shrink: 0;
   background-color: var(--bg-card);
@@ -537,6 +538,34 @@ body {
   display: flex;
   flex-direction: column;
   scroll-snap-align: start;
+}
+
+.card-remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.card-remove-btn:hover {
+  transform: scale(1.15);
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.7);
 }
 
 .detail-item-card:hover {

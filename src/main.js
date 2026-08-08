@@ -1944,22 +1944,40 @@ function renderCardRow(items, container) {
     const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
     const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
 
+    const inWatchlist = state.watchlist.some(x => Number(x.id) === Number(item.id) && (x.media_type === mediaItem.media_type));
+
     const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale cursor-pointer';
+    card.className = 'detail-item-card hover-scale cursor-pointer relative';
     card.setAttribute('role', 'button');
     card.setAttribute('tabindex', '0');
     card.innerHTML = `
+      ${inWatchlist ? `
+        <button class="card-remove-btn" title="Remove from Watchlist">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        </button>
+      ` : ''}
       <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
       <div class="detail-item-info">
         <h4 class="detail-item-title">${title}</h4>
         <div class="detail-item-meta">
           <span class="detail-item-year">${year} • ${isTV ? 'TV' : 'Movie'}</span>
-          <span class="detail-item-rating">
+          <span class="detail-item-rating flex items-center gap-1">
             <i data-lucide="star" class="w-3 h-3 fill-amber-400 text-amber-400"></i> ${rating}
           </span>
         </div>
       </div>
     `;
+
+    if (inWatchlist) {
+      const delBtn = card.querySelector('.card-remove-btn');
+      if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          removeFromWatchlist(item.id, isTV ? 'tv' : 'movie');
+        });
+      }
+    }
 
     const handleOpen = (e) => {
       if (e) e.stopPropagation();
@@ -2554,8 +2572,11 @@ function renderLibraryScreen() {
     const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
 
     const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale cursor-pointer';
+    card.className = 'detail-item-card hover-scale cursor-pointer relative';
     card.innerHTML = `
+      <button class="card-remove-btn" title="Remove from Watchlist">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+      </button>
       <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
       <div class="detail-item-info">
         <h4 class="detail-item-title">${title}</h4>
@@ -2567,6 +2588,16 @@ function renderLibraryScreen() {
         </div>
       </div>
     `;
+
+    const delBtn = card.querySelector('.card-remove-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        removeFromWatchlist(item.id, isTV ? 'tv' : 'movie');
+      });
+    }
+
     card.addEventListener('click', () => openDetailsView(item));
     grid.appendChild(card);
   });
@@ -2574,22 +2605,36 @@ function renderLibraryScreen() {
   // 2. Render Favorite Live TV Channels
   favChannels.forEach(channel => {
     const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale cursor-pointer border border-amber-500/20';
+    card.className = 'detail-item-card hover-scale cursor-pointer border border-amber-500/20 relative';
     card.innerHTML = `
-      <div class="w-full h-40 bg-slate-900/80 flex items-center justify-center p-4 relative rounded-t-xl overflow-hidden">
-        ${channel.logo ? `<img src="${channel.logo}" alt="${channel.name}" class="max-h-full max-w-full object-contain" loading="lazy" onerror="this.style.display='none'">` : `<i data-lucide="tv" class="w-12 h-12 text-amber-400/60"></i>`}
-        <span class="absolute top-2 right-2 bg-amber-500/20 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/40">LIVE</span>
+      <button class="card-remove-btn" title="Remove from Saved Channels">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+      </button>
+      <div class="w-full h-36 bg-slate-900/80 flex items-center justify-center p-3 relative rounded-t-xl overflow-hidden">
+        ${channel.logo ? `<img src="${channel.logo}" alt="${channel.name}" class="max-h-full max-w-full object-contain" loading="lazy" onerror="this.style.display='none'">` : `<i data-lucide="tv" class="w-10 h-10 text-amber-400/60"></i>`}
+        <span class="absolute top-2 left-2 bg-amber-500/20 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/40">LIVE</span>
       </div>
       <div class="detail-item-info">
         <h4 class="detail-item-title truncate">${channel.name}</h4>
         <div class="detail-item-meta">
           <span class="detail-item-year">${channel.group || 'Live TV'}</span>
-          <span class="detail-item-rating flex items-center gap-1 text-amber-400">
+          <span class="detail-item-rating flex items-center gap-1 text-amber-400 font-semibold">
             <i data-lucide="play" class="w-3 h-3 fill-amber-400"></i> Play Channel
           </span>
         </div>
       </div>
     `;
+
+    const delBtn = card.querySelector('.card-remove-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        toggleFavorite(channel.id);
+        renderLibraryScreen();
+      });
+    }
+
     card.addEventListener('click', () => {
       switchTab('live');
       playChannel(channel);
@@ -2600,22 +2645,38 @@ function renderLibraryScreen() {
   // 3. Render Favorite Podcasts
   favPodcasts.forEach(podcast => {
     const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale cursor-pointer border border-purple-500/20';
+    card.className = 'detail-item-card hover-scale cursor-pointer border border-purple-500/20 relative';
     card.innerHTML = `
-      <div class="w-full h-40 bg-slate-900/80 flex items-center justify-center p-4 relative rounded-t-xl overflow-hidden">
-        ${podcast.image || podcast.artwork ? `<img src="${podcast.image || podcast.artwork}" alt="${podcast.title}" class="max-h-full max-w-full object-contain" loading="lazy">` : `<i data-lucide="radio" class="w-12 h-12 text-purple-400/60"></i>`}
-        <span class="absolute top-2 right-2 bg-purple-500/20 text-purple-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-500/40">PODCAST</span>
+      <button class="card-remove-btn" title="Remove from Saved Podcasts">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+      </button>
+      <div class="w-full h-36 bg-slate-900/80 flex items-center justify-center p-3 relative rounded-t-xl overflow-hidden">
+        ${podcast.image || podcast.artwork ? `<img src="${podcast.image || podcast.artwork}" alt="${podcast.title}" class="max-h-full max-w-full object-contain" loading="lazy">` : `<i data-lucide="radio" class="w-10 h-10 text-purple-400/60"></i>`}
+        <span class="absolute top-2 left-2 bg-purple-500/20 text-purple-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-500/40">PODCAST</span>
       </div>
       <div class="detail-item-info">
         <h4 class="detail-item-title truncate">${podcast.title || podcast.name}</h4>
         <div class="detail-item-meta">
           <span class="detail-item-year">${podcast.author || 'Podcast'}</span>
-          <span class="detail-item-rating flex items-center gap-1 text-purple-400">
+          <span class="detail-item-rating flex items-center gap-1 text-purple-400 font-semibold">
             <i data-lucide="play" class="w-3 h-3 fill-purple-400"></i> Play Audio
           </span>
         </div>
       </div>
     `;
+
+    const delBtn = card.querySelector('.card-remove-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (typeof togglePodcastFavorite === 'function') {
+          togglePodcastFavorite(podcast);
+          renderLibraryScreen();
+        }
+      });
+    }
+
     card.addEventListener('click', () => {
       switchTab('podcasts');
       if (typeof playPodcastChannel === 'function') {
@@ -2651,7 +2712,7 @@ function setupDetailsView() {
 // Toggle VOD watchlist item
 function toggleWatchlist() {
   if (!state.selectedMedia) return;
-  const index = state.watchlist.findIndex(x => x.id === state.selectedMedia.id && x.media_type === state.selectedMedia.media_type);
+  const index = state.watchlist.findIndex(x => Number(x.id) === Number(state.selectedMedia.id) && x.media_type === state.selectedMedia.media_type);
   
   if (index === -1) {
     // Add to watchlist
@@ -2667,19 +2728,43 @@ function toggleWatchlist() {
       backdrop_path: state.selectedMedia.backdrop_path,
       overview: state.selectedMedia.overview
     });
-    player.showToast("Added to Watchlist");
+    if (typeof player !== 'undefined' && player && typeof player.showToast === 'function') {
+      player.showToast("Added to Watchlist");
+    }
   } else {
     // Remove from watchlist
     state.watchlist.splice(index, 1);
-    player.showToast("Removed from Watchlist");
+    if (typeof player !== 'undefined' && player && typeof player.showToast === 'function') {
+      player.showToast("Removed from Watchlist");
+    }
   }
 
   localStorage.setItem('vod_watchlist', JSON.stringify(state.watchlist));
   renderWatchlistButtonState();
+  loadMoviesDashboard();
+  loadSeriesDashboard();
   
   // Refresh library list if active
   if (state.activeTab === 'library') {
     renderLibraryScreen();
+  }
+}
+
+// Remove item from VOD watchlist
+function removeFromWatchlist(id, mediaType) {
+  const targetId = Number(id) || id;
+  const index = state.watchlist.findIndex(x => Number(x.id) === targetId && (x.media_type === mediaType || (!x.media_type && mediaType === 'movie')));
+  if (index >= 0) {
+    state.watchlist.splice(index, 1);
+    localStorage.setItem('vod_watchlist', JSON.stringify(state.watchlist));
+    if (typeof player !== 'undefined' && player && typeof player.showToast === 'function') {
+      player.showToast("Removed from Watchlist");
+    }
+    loadMoviesDashboard();
+    loadSeriesDashboard();
+    if (state.activeTab === 'library') {
+      renderLibraryScreen();
+    }
   }
 }
 
@@ -2964,9 +3049,6 @@ function startStreamResolution({ type, id, season = 1, episode = 1 }) {
       }
     }
   );
-
-  // Auto-play the first fallback embed server immediately
-  selectActiveSource(0);
 }
 
 // Render the source selector buttons list
