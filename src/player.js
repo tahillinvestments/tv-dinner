@@ -447,7 +447,7 @@ export class IPTVPlayer {
     const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
     const key = this.currentMediaKey || this.currentUrl;
     const saved = resumeData[key];
-    const resumePos = (typeof startPosition === 'number' && startPosition > 0)
+    const resumePos = (typeof startPosition === 'number')
       ? startPosition
       : (saved ? saved.position : 0);
 

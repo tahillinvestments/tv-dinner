@@ -122,7 +122,7 @@ function getPlaylistUrl() {
 
 const MAX_RECENTS = 20;
 
-// Embed providers — curated working sources (VidSrc PRO default #1)
+// Embed providers — audited & verified working HD sources
 const EMBED_PROVIDERS = [
   {
     name: 'VidLink PRO (Clean HD)',
@@ -140,9 +140,14 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'Embed.su',
-    movie: (id) => `https://embed.su/embed/movie/${id}`,
-    tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
+    name: 'VidSrc.net (Fast HD)',
+    movie: (id) => `https://vidsrc.net/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.net/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'VidSrc.pm Server',
+    movie: (id) => `https://vidsrc.pm/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.pm/embed/tv/${id}/${s}/${e}`,
   },
   {
     name: 'VixSrc Backup',
@@ -3210,17 +3215,63 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) saveCurrentVodPosition();
 });
 
-// Display resume watching (defaults to instant auto-resume without banner)
+// Delete saved VOD playback position
+function deleteVodPlaybackPosition(mediaKey) {
+  if (!mediaKey) return;
+  try {
+    const data = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+    delete data[mediaKey];
+    localStorage.setItem('vod_resume_positions', JSON.stringify(data));
+  } catch (e) {}
+}
+
+// Display resume choice modal if previous incomplete playback exists
 function checkAndShowVodResumeBanner(mediaKey, title, onResume, onRestart) {
   const saved = getVodPlaybackPosition(mediaKey);
   if (saved && saved.position > 10) {
-    state.resumePlaybackTime = saved.position;
-    if (player && typeof player.showToast === 'function') {
-      player.showToast(`Auto-resuming ${title} at ${formatPlaybackTime(saved.position)}`, 3500);
+    const modal = document.getElementById('vod-resume-modal');
+    const titleEl = document.getElementById('resume-modal-title');
+    const timeEl = document.getElementById('resume-modal-time');
+    const btnTextEl = document.getElementById('resume-modal-btn-text');
+    const resumeBtn = document.getElementById('resume-modal-resume-btn');
+    const startOverBtn = document.getElementById('resume-modal-start-over-btn');
+
+    if (modal && resumeBtn && startOverBtn) {
+      const formatted = formatPlaybackTime(saved.position);
+      if (titleEl) titleEl.textContent = title;
+      if (timeEl) timeEl.textContent = formatted;
+      if (btnTextEl) btnTextEl.textContent = `Resume at ${formatted}`;
+
+      modal.classList.remove('hidden');
+      createIcons(iconConfig);
+
+      const handleResume = () => {
+        modal.classList.add('hidden');
+        cleanup();
+        state.resumePlaybackTime = saved.position;
+        if (typeof onResume === 'function') onResume(saved.position);
+      };
+
+      const handleRestart = () => {
+        modal.classList.add('hidden');
+        cleanup();
+        state.resumePlaybackTime = 0;
+        deleteVodPlaybackPosition(mediaKey);
+        if (typeof onRestart === 'function') onRestart();
+      };
+
+      const cleanup = () => {
+        resumeBtn.removeEventListener('click', handleResume);
+        startOverBtn.removeEventListener('click', handleRestart);
+      };
+
+      resumeBtn.addEventListener('click', handleResume);
+      startOverBtn.addEventListener('click', handleRestart);
+
+      return true; // True indicates modal was presented
     }
-    if (typeof onResume === 'function') onResume(saved.position);
-    return false;
   }
+
   state.resumePlaybackTime = 0;
   if (typeof onRestart === 'function') onRestart();
   return false;
