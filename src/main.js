@@ -420,8 +420,8 @@ function switchTab(tabName) {
 // Helper to verify if Live TV credentials or phone activation are active
 function isLiveTvActive() {
   const activatedPhone = (localStorage.getItem('activated_phone') || '').trim();
-  const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
-  const password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
+  const username = (localStorage.getItem('iptv_username') || '').trim();
+  const password = (localStorage.getItem('iptv_password') || '').trim();
   
   if (activatedPhone && activatedPhone.length >= 10) {
     return true;
@@ -431,7 +431,7 @@ function isLiveTvActive() {
     return true;
   }
   
-  return true;
+  return false;
 }
 
 // Render locked access state view for VOD and Podcasts when Live TV credentials are inactive
@@ -4288,19 +4288,19 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
 // Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
   let rawPortalUrl = 'http://portal5458.com:8080';
-  let username = 'SAPPTV12';
-  let password = 'REMOTE6202';
+  let username = '';
+  let password = '';
 
   try {
     rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-    username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
-    password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
+    username = (localStorage.getItem('iptv_username') || '').trim();
+    password = (localStorage.getItem('iptv_password') || '').trim();
   } catch (e) {}
 
   const headerBadge = document.getElementById('channel-count-header');
 
   if (!username || !password) {
-    console.log('[IPTV] No credentials found. Showing sign-in prompt.');
+    console.log('[IPTV] No active credentials found. Showing sign-in prompt.');
     state.channels = [];
     renderUnactivatedState();
     return;
