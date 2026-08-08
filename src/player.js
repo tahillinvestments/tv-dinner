@@ -35,9 +35,17 @@ function getPlayerProxyUrl(targetUrl) {
     savedProxy = (localStorage.getItem('external_proxy_url') || '').trim();
   } catch (e) {}
   
-  if (savedProxy) {
-    const p = savedProxy.endsWith('/') ? savedProxy : savedProxy + '/';
-    return `${p}?url=${encodeURIComponent(cleanTarget)}`;
+  // 3. If target URL contains a non-standard port, route via Cloudflare Worker proxy as a fallback.
+  let isNonStandardPort = false;
+  try {
+    const u = new URL(cleanTarget);
+    if (u.port && u.port !== '80' && u.port !== '443') {
+      isNonStandardPort = true;
+    }
+  } catch (e) {}
+
+  if (isNonStandardPort) {
+    return `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(cleanTarget)}`;
   }
 
   return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
@@ -154,7 +162,7 @@ export class IPTVPlayer {
         if (this.video && !this.video.paused) {
           container.classList.remove('controls-active');
           container.classList.add('user-idle');
-          if (document.activeElement && container.contains(document.activeElement)) {
+          if (document.activeElement && container.contains(document.activeElement) && document.activeElement.tagName !== 'IFRAME') {
             document.activeElement.blur();
           }
         }
@@ -173,7 +181,9 @@ export class IPTVPlayer {
 
       this.updateFullscreenUI(isFS);
       if (isFS) {
-        if (document.activeElement) document.activeElement.blur();
+        if (document.activeElement && document.activeElement.tagName !== 'IFRAME') {
+          document.activeElement.blur();
+        }
         showControls(2500);
       } else if (container) {
         container.classList.remove('user-idle');
@@ -279,6 +289,12 @@ export class IPTVPlayer {
     document.addEventListener('keydown', (e) => {
       // Don't trigger if user is typing in inputs or select fields
       if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT') {
+        return;
+      }
+
+      // If playing an embed source, don't trigger native video shortcuts
+      const playerWrapper = this.video ? this.video.closest('.player-wrapper') : null;
+      if (playerWrapper && playerWrapper.classList.contains('embed-active')) {
         return;
       }
 
@@ -832,7 +848,9 @@ export class IPTVPlayer {
       document.body.classList.add('body-pseudo-fullscreen');
       this.updateFullscreenUI(true);
       this.showToast("Entered Fullscreen Mode");
-      if (document.activeElement) document.activeElement.blur();
+      if (document.activeElement && document.activeElement.tagName !== 'IFRAME') {
+        document.activeElement.blur();
+      }
       if (this.triggerShowControls) this.triggerShowControls(2500);
     };
 
