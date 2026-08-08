@@ -2015,14 +2015,25 @@ async function openPodcastModal(podcast) {
     embedWrapper.style.height = '100%';
   }
 
-  // Load YouTube Video Player embed
-  if (embedIframe) {
+  // Support direct audio URL if provided, otherwise load YouTube Video Player embed
+  if (podcast.audioUrl || podcast.enclosureUrl) {
+    const audioUrl = podcast.audioUrl || podcast.enclosureUrl;
+    if (embedWrapper) embedWrapper.style.display = 'none';
+    if (videoEl) {
+      videoEl.style.display = 'block';
+      player.playChannel({
+        url: audioUrl,
+        name: podcast.title || 'Podcast Episode'
+      });
+    }
+  } else if (embedIframe) {
     embedIframe.style.pointerEvents = 'auto';
     embedIframe.style.display = 'block';
     embedIframe.removeAttribute('referrerpolicy'); // Critical for YouTube referrer check
-    embedIframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+    embedIframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen *');
     embedIframe.setAttribute('allowfullscreen', 'true');
-    embedIframe.src = `https://www.youtube.com/embed/${podcast.youtubeId}?autoplay=1&rel=0&playsinline=1`;
+    const origin = encodeURIComponent(window.location.origin);
+    embedIframe.src = `https://www.youtube-nocookie.com/embed/${podcast.youtubeId}?autoplay=1&rel=0&playsinline=1&enablejsapi=1&origin=${origin}`;
   }
 
   // Populate In-Player "More Episodes from Channel" section
@@ -4115,6 +4126,31 @@ function setupSettingsScreen() {
   }
 }
 
+// Multi-pass fetcher for robust IPTV data retrieval
+async function fetchWithFallback(url) {
+  // Pass 1: Direct fetch (sub-second performance)
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (res && res.ok) return res;
+  } catch (e) {}
+
+  // Pass 2: Primary Vercel Proxy
+  try {
+    const pUrl = getProxyUrl(url);
+    const res = await fetch(pUrl, { signal: AbortSignal.timeout(12000) });
+    if (res && res.ok) return res;
+  } catch (e) {}
+
+  // Pass 3: AllOrigins CORS proxy
+  try {
+    const aoUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    const res = await fetch(aoUrl, { signal: AbortSignal.timeout(12000) });
+    if (res && res.ok) return res;
+  } catch (e) {}
+
+  return null;
+}
+
 // Fetch Xtream playlist dynamically using user's active credentials
 async function fetchXtreamPlaylist(portalUrl, username, password) {
   if (!username || !password) return '';
@@ -4122,14 +4158,12 @@ async function fetchXtreamPlaylist(portalUrl, username, password) {
 
   const primaryApi = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
   const primaryCat = `${portalUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`;
-  const apiUrl = getProxyUrl(primaryApi);
-  const catUrl = getProxyUrl(primaryCat);
 
   try {
-    console.log('[Xtream] Fetching streams via proxy:', apiUrl);
+    console.log('[Xtream] Fetching streams via multi-pass fetcher...');
     const [streamsRes, catsRes] = await Promise.all([
-      fetch(apiUrl, { signal: AbortSignal.timeout(20000) }).catch(() => null),
-      fetch(catUrl, { signal: AbortSignal.timeout(20000) }).catch(() => null)
+      fetchWithFallback(primaryApi),
+      fetchWithFallback(primaryCat)
     ]);
 
     if (streamsRes && streamsRes.ok) {
