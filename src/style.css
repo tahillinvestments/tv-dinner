@@ -568,6 +568,28 @@ body {
   box-shadow: 0 0 14px rgba(239, 68, 68, 0.7);
 }
 
+/* Compact Card & Thumbnail Restrictions */
+#player-more-episodes-grid img,
+.detail-item-card img,
+.podcast-show-thumb {
+  max-height: 140px !important;
+  object-fit: cover !important;
+  border-radius: 12px;
+}
+
+#player-more-episodes-grid .group {
+  max-height: 80px !important;
+  overflow: hidden;
+}
+
+#player-more-episodes-grid img {
+  width: 64px !important;
+  height: 48px !important;
+  object-fit: cover !important;
+  border-radius: 8px !important;
+  flex-shrink: 0 !important;
+}
+
 .detail-item-card:hover {
   transform: translateY(-6px) scale(1.03);
   background-color: var(--bg-card-hover);
