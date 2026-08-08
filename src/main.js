@@ -3439,7 +3439,7 @@ function deleteVodPlaybackPosition(mediaKey) {
 }
 
 // Display resume choice modal if previous incomplete playback exists
-function checkAndShowVodResumeBanner(mediaKey, title, onResume, onRestart) {
+function checkAndShowVodResumeBanner(mediaKey, title, onChoice) {
   const saved = getVodPlaybackPosition(mediaKey);
   if (saved && saved.position > 10) {
     const modal = document.getElementById('vod-resume-modal');
@@ -3462,7 +3462,7 @@ function checkAndShowVodResumeBanner(mediaKey, title, onResume, onRestart) {
         modal.classList.add('hidden');
         cleanup();
         state.resumePlaybackTime = saved.position;
-        if (typeof onResume === 'function') onResume(saved.position);
+        if (typeof onChoice === 'function') onChoice(saved.position);
       };
 
       const handleRestart = () => {
@@ -3470,7 +3470,7 @@ function checkAndShowVodResumeBanner(mediaKey, title, onResume, onRestart) {
         cleanup();
         state.resumePlaybackTime = 0;
         deleteVodPlaybackPosition(mediaKey);
-        if (typeof onRestart === 'function') onRestart();
+        if (typeof onChoice === 'function') onChoice(0);
       };
 
       const cleanup = () => {
@@ -3486,7 +3486,7 @@ function checkAndShowVodResumeBanner(mediaKey, title, onResume, onRestart) {
   }
 
   state.resumePlaybackTime = 0;
-  if (typeof onRestart === 'function') onRestart();
+  if (typeof onChoice === 'function') onChoice(0);
   return false;
 }
 
