@@ -529,29 +529,37 @@ export class IPTVPlayer {
           }
         }
 
-        // Ensure stream starts UNMUTED by default at full volume
+        // Ensure Live TV stream starts UNMUTED by default at full volume
         this.video.muted = false;
         this.video.volume = 1.0;
 
-        this.video.play().then(() => {
-          this.updatePlayPauseUI(false);
-          this.updateVolumeUI();
-        }).catch(e => {
-          console.warn("Autoplay with sound blocked by browser policy, starting muted and auto-unmuting on interaction.", e);
-          this.video.muted = true;
-          this.video.play().then(() => {
+        const playPromise = this.video.play();
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            this.video.muted = false;
+            this.video.volume = 1.0;
             this.updatePlayPauseUI(false);
             this.updateVolumeUI();
-            const unmuteOnInteract = () => {
+          }).catch(e => {
+            console.warn("Unmuted autoplay restricted by browser, attempting unmuted retry upon user gesture.", e);
+            const forceUnmute = () => {
               this.video.muted = false;
               this.video.volume = 1.0;
+              this.video.play().catch(() => {});
               this.updateVolumeUI();
             };
-            window.addEventListener('click', unmuteOnInteract, { once: true });
-            window.addEventListener('keydown', unmuteOnInteract, { once: true });
-            window.addEventListener('touchstart', unmuteOnInteract, { once: true });
+            window.addEventListener('click', forceUnmute, { once: true });
+            window.addEventListener('keydown', forceUnmute, { once: true });
+            window.addEventListener('touchstart', forceUnmute, { once: true });
+
+            // Play muted temporarily only if cold page load blocks unmuted autoplay
+            this.video.muted = true;
+            this.video.play().then(() => {
+              this.updatePlayPauseUI(false);
+              this.updateVolumeUI();
+            }).catch(() => {});
           });
-        });
+        }
       });
 
       this.hls.on(Hls.Events.ERROR, (event, data) => {
