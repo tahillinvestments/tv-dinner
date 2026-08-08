@@ -4011,9 +4011,47 @@ body.body-pseudo-fullscreen {
 .home-select-card.theme-emerald .home-card-tag, .home-select-card.theme-emerald .home-card-action { color: #10b981; }
 .home-select-card.theme-emerald:hover { border-color: rgba(16, 185, 129, 0.5); box-shadow: 0 15px 35px rgba(16, 185, 129, 0.15); }
 
-.home-select-card.theme-slate .home-card-icon-wrap { background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3); color: #94a3b8; }
+.home-select-card.theme-slate.home-card-icon-wrap { background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3); color: #94a3b8; }
 .home-select-card.theme-slate .home-card-tag, .home-select-card.theme-slate .home-card-action { color: #94a3b8; }
 .home-select-card.theme-slate:hover { border-color: rgba(148, 163, 184, 0.5); box-shadow: 0 15px 35px rgba(148, 163, 184, 0.15); }
+
+/* Custom Sleek Desktop Scrollbars (Removes white/grey default desktop scrollbars) */
+::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 15, 26, 0.95) !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 9999px !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(239, 68, 68, 0.7) !important;
+}
+
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* Hide scrollbars completely on scrollable rows */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
 
 
 

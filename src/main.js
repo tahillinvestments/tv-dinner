@@ -4215,29 +4215,30 @@ function setupSettingsScreen() {
   }
 }
 
-// Multi-pass fetcher for robust IPTV data retrieval
+// Parallel proxy racer for sub-second IPTV channel and category data retrieval
 async function fetchWithFallback(url) {
-  // Pass 1: Direct fetch (sub-second performance)
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    if (res && res.ok) return res;
-  } catch (e) {}
+  const proxyEndpoints = [
+    getProxyUrl(url),
+    `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+  ];
 
-  // Pass 2: Primary Vercel Proxy
-  try {
-    const pUrl = getProxyUrl(url);
-    const res = await fetch(pUrl, { signal: AbortSignal.timeout(12000) });
-    if (res && res.ok) return res;
-  } catch (e) {}
+  if (window.location.protocol === 'http:' || url.startsWith('https://')) {
+    proxyEndpoints.unshift(url);
+  }
 
-  // Pass 3: AllOrigins CORS proxy
-  try {
-    const aoUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    const res = await fetch(aoUrl, { signal: AbortSignal.timeout(12000) });
+  const fetchTask = async (pUrl) => {
+    const res = await fetch(pUrl, { signal: AbortSignal.timeout(6000) });
     if (res && res.ok) return res;
-  } catch (e) {}
+    throw new Error('Proxy failed');
+  };
 
-  return null;
+  try {
+    return await Promise.any(proxyEndpoints.map(p => fetchTask(p)));
+  } catch (e) {
+    console.warn('[Xtream] All parallel proxy fetches failed for:', url);
+    return null;
+  }
 }
 
 // Fetch Xtream playlist dynamically using user's active credentials
