@@ -962,61 +962,7 @@ export async function fetchChannelPastEpisodes(channel) {
     }
   }
 
-  // B. Try iTunes RSS Feed URL (for Apple Podcast search channels)
-  if (channel.feedUrl) {
-    const proxies = [
-      getPodcastsProxyUrl(channel.feedUrl),
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(channel.feedUrl)}`,
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(channel.feedUrl)}`
-    ];
-
-    for (const proxyUrl of proxies) {
-      try {
-        const res = await fetchWithTimeout(proxyUrl, {}, 4000);
-        if (!res.ok) continue;
-        const xmlText = await res.text();
-        if (!xmlText || xmlText.length < 300 || !xmlText.includes('<item>')) continue;
-
-        const itemMatches = [...xmlText.matchAll(/<item>([\s\S]*?)<\/item>/g)];
-        if (itemMatches.length > 0) {
-          const rssEpisodes = itemMatches.map((itemMatch, i) => {
-            const itemXml = itemMatch[1];
-            const titleMatch = itemXml.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);
-            const encMatch = itemXml.match(/<enclosure[^>]+url=["']([^"']+)["']/i);
-            const pubMatch = itemXml.match(/<pubDate>([^<]+)<\/pubDate>/i);
-
-            const title = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : `${channel.channelName} Episode ${i + 1}`;
-            const audioUrl = encMatch ? encMatch[1] : null;
-            const pubDate = pubMatch ? new Date(pubMatch[1]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
-            const pubTimestamp = pubMatch ? new Date(pubMatch[1]).getTime() : 0;
-
-            return {
-              id: `ep_rss_${i}_${Date.now()}`,
-              title,
-              channelName: channel.channelName,
-              host: channel.host || 'Host',
-              category: channel.category || 'Podcast',
-              date: pubDate,
-              year: pubMatch ? new Date(pubMatch[1]).getFullYear() : 2026,
-              timestamp: pubTimestamp,
-              duration: 'Podcast',
-              audioUrl,
-              thumbnail: channel.avatar || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
-              description: `Listen to full episode from ${channel.channelName}.`
-            };
-          }).filter(e => e.title);
-
-          if (rssEpisodes.length > 0) {
-            return rssEpisodes;
-          }
-        }
-      } catch (e) {
-        console.warn('[Podcasts] iTunes RSS fetch error:', channel.channelName);
-      }
-    }
-  }
-
-  // C. Multi-instance Invidious Video Search
+  // B. Multi-instance Invidious Video Search (YouTube HD Video Episodes)
   if (channel.channelName) {
     const cleanQuery = `${channel.host || ''} ${channel.channelName}`
       .replace(/podcast/gi, '')

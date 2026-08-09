@@ -113,37 +113,42 @@ function getPlaylistUrl() {
 
 const MAX_RECENTS = 20;
 
-// Embed providers — audited & verified working HD sources
+// Embed providers — audited & verified high-availability HD sources
 const EMBED_PROVIDERS = [
   {
-    name: 'VidLink PRO (Clean HD)',
+    name: 'VidSrc.cc (Fast HD)',
+    movie: (id) => `https://vidsrc.cc/v2/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'AutoEmbed (Multi-Sub)',
+    movie: (id) => `https://player.autoembed.cc/embed/movie/${id}`,
+    tv: (id, s, e) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'VidSrc.to Server',
+    movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'Embed.su (HD Ultra)',
+    movie: (id) => `https://embed.su/embed/movie/${id}`,
+    tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'VidLink PRO',
     movie: (id) => `https://vidlink.pro/movie/${id}`,
     tv: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'VidSrc PRO',
-    movie: (id) => `https://vidsrc.me/embed/movie?tmdb=${id}`,
-    tv: (id, s, e) => `https://vidsrc.me/embed/tv?tmdb=${id}&season=${s}&episode=${e}`,
-  },
-  {
-    name: 'Videasy (Multi-Sub)',
+    name: 'Videasy (Subtitles)',
     movie: (id) => `https://player.videasy.net/movie/${id}`,
     tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'VidSrc.net (Fast HD)',
-    movie: (id) => `https://vidsrc.net/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.net/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'VidSrc.pm Server',
-    movie: (id) => `https://vidsrc.pm/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.pm/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'VixSrc Backup',
-    movie: (id) => `https://vixsrc.to/movie/${id}`,
-    tv: (id, s, e) => `https://vixsrc.to/tv/${id}/${s}/${e}`,
+    name: '2embed (Backup)',
+    movie: (id) => `https://www.2embed.cc/embed/${id}`,
+    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
   },
 ];
 
@@ -1236,67 +1241,11 @@ async function playPodcastEpisodeInDock(episode, showInfo = null) {
   const historyItem = { episode, dateStr: new Date().toLocaleDateString() };
   pocketcastsState.history = [historyItem, ...pocketcastsState.history.filter(h => (h.episode?.id || h.episode?.youtubeId) !== (episode.id || episode.youtubeId))].slice(0, 30);
   localStorage.setItem('pocketcasts_history', JSON.stringify(pocketcastsState.history));
+  updatePocketCastsBadges();
+  if (pocketcastsState.currentView === 'history') renderPocketCastsHistory();
 
-  // Dynamically resolve MP3 audio URL from Apple Podcasts if missing
-  if (!episode.audioUrl && (episode.title || episode.channelName)) {
-    try {
-      const cleanTitle = (episode.title || '')
-        .replace(/^#?\d+[\s–—-]*/, '')
-        .replace(/^E\d+:?\s*/i, '')
-        .replace(/#\d+/g, '')
-        .trim();
-      const searchTerm = encodeURIComponent(`${episode.channelName || ''} ${cleanTitle}`.trim());
-      const res = await fetch(`https://itunes.apple.com/search?media=podcast&entity=podcastEpisode&term=${searchTerm}&limit=1`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.results && data.results[0] && (data.results[0].episodeUrl || data.results[0].previewUrl)) {
-          episode.audioUrl = data.results[0].episodeUrl || data.results[0].previewUrl;
-          if (data.results[0].artworkUrl600) episode.thumbnail = data.results[0].artworkUrl600;
-        }
-      }
-    } catch (e) {
-      console.warn('[Podcasts] Dock audio stream resolution error:', e);
-    }
-  }
-
-  if (episode.audioUrl) {
-    if (!pocketcastsState.audioElement) {
-      pocketcastsState.audioElement = new Audio();
-    }
-    const audio = pocketcastsState.audioElement;
-    audio.src = episode.audioUrl;
-    audio.playbackRate = pocketcastsState.playbackSpeed;
-    audio.play().then(() => {
-      pocketcastsState.isPlaying = true;
-      updateDockPlayerUI();
-    }).catch(e => console.warn('Audio autoplay handled:', e));
-
-    audio.ontimeupdate = () => {
-      const cur = audio.currentTime;
-      const dur = audio.duration || 1;
-      const pct = (cur / dur) * 100;
-      const progressBar = document.getElementById('dock-progress-bar');
-      const timeCur = document.getElementById('dock-time-current');
-      const timeDur = document.getElementById('dock-time-duration');
-      if (progressBar) progressBar.value = pct;
-      if (timeCur) timeCur.textContent = formatTime(cur);
-      if (timeDur) timeDur.textContent = formatTime(dur);
-    };
-
-    audio.onended = () => {
-      pocketcastsState.isPlaying = false;
-      updateDockPlayerUI();
-      if (pocketcastsState.queue.length > 0) {
-        const nextEp = pocketcastsState.queue.shift();
-        localStorage.setItem('pocketcasts_queue', JSON.stringify(pocketcastsState.queue));
-        updatePocketCastsBadges();
-        playPodcastEpisodeInDock(nextEp);
-      }
-    };
-  } else {
-    openPodcastModal(episode);
-  }
-
+  // All podcast episodes play as HD YouTube Video Podcasts directly in player modal
+  openPodcastModal(episode);
   updateDockPlayerUI();
 }
 
@@ -4227,7 +4176,7 @@ function setupSettingsScreen() {
 async function fetchWithFallback(url) {
   const proxyEndpoints = [
     getProxyUrl(url),
-    `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(url)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
   ];
 

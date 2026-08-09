@@ -504,7 +504,8 @@ export class IPTVPlayer {
 
     const proxyFallbacks = [
       (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
-      (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
+      (url) => `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(url)}`,
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
     ];
 
     // Check HLS compatibility
@@ -566,13 +567,18 @@ export class IPTVPlayer {
             this.updatePlayPauseUI(false);
             this.updateVolumeUI();
           }).catch(e => {
-            console.warn("Unmuted autoplay restricted by browser policy on initial load. Starting muted automatically.", e);
-            this.video.muted = true;
-            this.updateVolumeUI();
+            console.warn("Autoplay restricted by browser policy. Retrying play...", e);
+            this.video.muted = false;
+            this.video.volume = 1.0;
             this.video.play().then(() => {
               this.updatePlayPauseUI(false);
             }).catch(() => {
-              this.updatePlayPauseUI(true);
+              this.video.muted = true;
+              this.video.play().then(() => {
+                this.updatePlayPauseUI(false);
+              }).catch(() => {
+                this.updatePlayPauseUI(true);
+              });
             });
           });
         }
