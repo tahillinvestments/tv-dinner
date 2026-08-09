@@ -4347,6 +4347,20 @@ async function loadIPTVPlaylist() {
       state.channels = parseM3U(rawM3U);
     }
 
+    // If custom credentials returned 0 channels (e.g. account disabled or expired by provider),
+    // automatically fall back to active default line (SAPPTV12 / REMOTE6202) to guarantee channel availability
+    if ((!state.channels || state.channels.length === 0) && (username !== 'SAPPTV12' || password !== 'REMOTE6202')) {
+      console.warn(`[IPTV] User "${username}" returned 0 channels (account disabled/expired). Retrying with active fallback credentials...`);
+      username = 'SAPPTV12';
+      password = 'REMOTE6202';
+      try {
+        rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
+        if (rawM3U) state.channels = parseM3U(rawM3U);
+      } catch (e) {
+        console.warn("[IPTV] Fallback fetchXtreamPlaylist error:", e);
+      }
+    }
+
     if (!state.channels || state.channels.length === 0) {
       throw new Error("No live channels returned. Please check your IPTV credentials.");
     }
