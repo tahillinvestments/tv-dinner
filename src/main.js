@@ -101,7 +101,11 @@ let pocketcastsState = {
 
 // Helper to construct dynamic IPTV playlist URL from localStorage or credentials
 function getPlaylistUrl() {
-  const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
+  let portalUrl = localStorage.getItem('iptv_portal_url') || 'http://kstv.us:8080';
+  if (portalUrl.includes('portal5458.com')) {
+    portalUrl = 'http://kstv.us:8080';
+    try { localStorage.setItem('iptv_portal_url', portalUrl); } catch (e) {}
+  }
   const username = (localStorage.getItem('iptv_username') || 'SAPPTV12').trim();
   const password = (localStorage.getItem('iptv_password') || 'REMOTE6202').trim();
   
@@ -4185,7 +4189,7 @@ async function fetchWithFallback(url) {
   }
 
   const fetchTask = async (pUrl) => {
-    const res = await fetch(pUrl, { signal: AbortSignal.timeout(6000) });
+    const res = await fetch(pUrl, { signal: AbortSignal.timeout(15000) });
     if (res && res.ok) return res;
     throw new Error('Proxy failed');
   };
@@ -4292,12 +4296,17 @@ async function fetchXtreamPlaylistNetwork(portalUrl, username, password, cacheKe
 
 // Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
-  let rawPortalUrl = 'http://portal5458.com:8080';
+  let rawPortalUrl = 'http://kstv.us:8080';
   let username = '';
   let password = '';
 
   try {
-    rawPortalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
+    let savedPortal = localStorage.getItem('iptv_portal_url');
+    if (!savedPortal || savedPortal.includes('portal5458.com')) {
+      savedPortal = 'http://kstv.us:8080';
+      try { localStorage.setItem('iptv_portal_url', savedPortal); } catch (e) {}
+    }
+    rawPortalUrl = savedPortal;
     username = (localStorage.getItem('iptv_username') || '').trim();
     password = (localStorage.getItem('iptv_password') || '').trim();
   } catch (e) {}
@@ -4399,9 +4408,9 @@ function isExplicitNonUSCategory(cat) {
   if (isUSCategory(cat)) return false;
   const upper = String(cat).toUpperCase().trim();
   
-  // Non-US country/region/language keywords (full names and 2-letter codes)
-  const nonUsPattern = /\b(BRAZIL|BRAZILIAN|BR|CANADA|CANADIAN|CA|DEPORTES|DEPORTE|DEPORTIVAS|LATINO|LATINA|LATIN|PORTUGAL|PORTUGUESE|PT|UK|UNITED KINGDOM|MEXICO|MEXICAN|MX|FRANCE|FRENCH|FR|GERMANY|GERMAN|DE|SPAIN|SPANISH|ES|ITALY|ITALIAN|IT|ARGENTINA|AR|TURKEY|TURKISH|TR|POLAND|POLISH|PL|ROMANIA|ROMANIAN|RO|RUSSIA|RUSSIAN|RU|ALBANIA|AL|EX-YU|GREECE|GREEK|GR|NETHERLANDS|DUTCH|NL|INDIA|INDIAN|IN|PAKISTAN|PK|ARABIC|AFRICA|AFRICAN|UKRAINE|UKRAINIAN|ASIA|ASIAN|AUSTRALIA|AU|NEW ZEALAND|NZ)\b/i;
-  const prefixPattern = /^(UK|CA|MX|FR|DE|ES|IT|AR|BR|TR|PL|RO|RU|AL|EX-YU|GR|NL|PT|IN|PK|AU|NZ)([\s\-_|:]|$)/i;
+  // Non-US country/region/language full names and explicit prefix codes
+  const nonUsPattern = /\b(BRAZIL|BRAZILIAN|CANADA|CANADIAN|DEPORTES|DEPORTE|DEPORTIVAS|LATINO|LATINA|LATIN|PORTUGAL|PORTUGUESE|UNITED KINGDOM|MEXICO|MEXICAN|FRANCE|FRENCH|GERMANY|GERMAN|SPAIN|SPANISH|ITALY|ITALIAN|ARGENTINA|TURKEY|TURKISH|POLAND|POLISH|ROMANIA|ROMANIAN|RUSSIA|RUSSIAN|ALBANIA|EX-YU|GREECE|GREEK|NETHERLANDS|DUTCH|INDIA|INDIAN|PAKISTAN|ARABIC|AFRICA|AFRICAN|UKRAINE|UKRAINIAN|ASIA|ASIAN|AUSTRALIA|NEW ZEALAND)\b/i;
+  const prefixPattern = /^(UK|CA|MX|FR|DE|ES|IT|AR|BR|TR|PL|RO|RU|AL|EX-YU|GR|NL|PT|IN|PK|AU|NZ)[\s\-_|:]/i;
 
   return nonUsPattern.test(upper) || prefixPattern.test(upper);
 }
