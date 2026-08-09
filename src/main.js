@@ -4235,6 +4235,13 @@ async function fetchXtreamPlaylistNetwork(portalUrl, username, password, cacheKe
 
     if (streamsRes && streamsRes.ok) {
       const streams = await streamsRes.json();
+      if (streams && typeof streams === 'object' && !Array.isArray(streams)) {
+        if (streams.user_info && streams.user_info.status) {
+          console.warn(`[Xtream] Account "${username}" status: ${streams.user_info.status}`);
+          return '';
+        }
+      }
+
       if (Array.isArray(streams) && streams.length > 0) {
         console.log(`[Xtream] Loaded ${streams.length} streams for "${username}"`);
 
@@ -4348,11 +4355,15 @@ async function loadIPTVPlaylist() {
     }
 
     // If custom credentials returned 0 channels (e.g. account disabled or expired by provider),
-    // automatically fall back to active default line (SAPPTV12 / REMOTE6202) to guarantee channel availability
+    // automatically fall back to active default line (SAPPTV12 / REMOTE6202) and update localStorage to guarantee channel availability
     if ((!state.channels || state.channels.length === 0) && (username !== 'SAPPTV12' || password !== 'REMOTE6202')) {
-      console.warn(`[IPTV] User "${username}" returned 0 channels (account disabled/expired). Retrying with active fallback credentials...`);
+      console.warn(`[IPTV] User "${username}" returned 0 channels (account disabled/expired). Auto-repairing credentials to active line SAPPTV12...`);
       username = 'SAPPTV12';
       password = 'REMOTE6202';
+      try {
+        localStorage.setItem('iptv_username', 'SAPPTV12');
+        localStorage.setItem('iptv_password', 'REMOTE6202');
+      } catch (e) {}
       try {
         rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
         if (rawM3U) state.channels = parseM3U(rawM3U);
