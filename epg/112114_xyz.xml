@@ -59709,6 +59709,9 @@
 	<programme channel="newtv超级电视剧" start="20260809210500 +0800" stop="20260809215200 +0800">
 		<title lang="zh">31_主角</title>
 	</programme>
+	<programme channel="newtv超级电视剧" start="20260809215200 +0800" stop="20260809223700 +0800">
+		<title lang="zh">21_辣妈正传</title>
+	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
 	</channel>
