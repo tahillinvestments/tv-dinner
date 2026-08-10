@@ -326,95 +326,120 @@ export function getHeroPodcast() {
   };
 }
 
-// Search podcasts (Returns Curated Channels, Live Real YouTube Video Podcast Channels, iTunes Channels, and Matching Video Episodes)
+// Search podcasts — queries Invidious instances in parallel, falls back to curated catalog
 export async function searchRealPodcastAPI(query) {
   if (!query || query.trim() === '') {
-    return {
-      curatedChannels: [],
-      realChannels: [],
-      matchingEpisodes: []
-    };
+    return { channels: [], episodes: [] };
   }
 
   const q = query.toLowerCase().trim();
   const term = encodeURIComponent(query.trim());
-  const allChannels = getAllPodcastChannels();
+  const allCurated = getAllPodcastChannels();
 
-  const cleanTerm = query.trim().toLowerCase();
-
-  const realChannels = [];
-  const apiMatchingEpisodes = [];
-
-  // Query Invidious YouTube API for Channels & Videos
+  // ------------------------------------------------------------------
+  // 1. Parallel Invidious search — takes the FASTEST successful response
+  // ------------------------------------------------------------------
   const searchEndpoints = [
     `https://inv.tux.pizza/api/v1/search?q=${term}+podcast&type=all`,
     `https://invidious.flokinet.to/api/v1/search?q=${term}+podcast&type=all`,
-    `https://inv.nadeko.net/api/v1/search?q=${term}+podcast&type=all`
+    `https://inv.nadeko.net/api/v1/search?q=${term}+podcast&type=all`,
   ];
 
-  for (const sUrl of searchEndpoints) {
-    try {
-      const res = await fetchWithTimeout(sUrl, {}, 3500);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          data.forEach(item => {
-            if (item.type === 'channel' && item.authorId && item.author) {
-              if (!realChannels.some(c => c.ytChannelId === item.authorId)) {
-                realChannels.push({
-                  id: `chan_yt_${item.authorId}`,
-                  ytChannelId: item.authorId,
-                  channelName: item.author,
-                  host: item.author,
-                  category: 'YouTube Podcast',
-                  subscribers: item.subCount ? `${(item.subCount / 1000).toFixed(0)}K Subs` : 'YouTube Channel',
-                  avatar: item.authorThumbnails ? item.authorThumbnails[item.authorThumbnails.length - 1].url : 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
-                  description: item.description || `Official YouTube video podcast channel ${item.author}.`
-                });
-              }
-            } else if ((item.type === 'video' || item.videoId) && item.title) {
-              const yid = item.videoId;
-              if (yid && !apiMatchingEpisodes.some(e => e.youtubeId === yid)) {
-                apiMatchingEpisodes.push({
-                  id: `ep_yt_${yid}`,
-                  title: item.title,
-                  youtubeId: yid,
-                  channelName: item.author || 'YouTube Podcast',
-                  host: item.author || 'Host',
-                  category: 'HD Video Podcast',
-                  date: item.publishedText || 'Recent',
-                  year: 2026,
-                  duration: item.lengthSeconds ? `${Math.round(item.lengthSeconds / 60)}m` : 'HD Video',
-                  thumbnail: item.videoThumbnails ? item.videoThumbnails[0].url : `https://img.youtube.com/vi/${yid}/hqdefault.jpg`,
-                  description: item.description || `Watch full video podcast episode on YouTube.`
-                });
-              }
-            }
-          });
+  let apiChannels = [];
+  let apiEpisodes = [];
 
-          if (realChannels.length > 0 || apiMatchingEpisodes.length > 0) {
-            break; // Stop after first successful working Invidious instance
-          }
+  try {
+    // Race all endpoints — return the first one that succeeds
+    const data = await Promise.any(
+      searchEndpoints.map(url =>
+        fetchWithTimeout(url, {}, 5000)
+          .then(res => { if (!res.ok) throw new Error('not ok'); return res.json(); })
+          .then(data => {
+            if (!Array.isArray(data) || data.length === 0) throw new Error('empty');
+            return data;
+          })
+      )
+    );
+
+    data.forEach(item => {
+      if (item.type === 'channel' && item.authorId && item.author) {
+        if (!apiChannels.some(c => c.ytChannelId === item.authorId)) {
+          apiChannels.push({
+            id: `chan_yt_${item.authorId}`,
+            ytChannelId: item.authorId,
+            channelName: item.author,
+            host: item.author,
+            category: 'YouTube Podcast',
+            subscribers: item.subCount ? `${(item.subCount / 1000).toFixed(0)}K Subs` : 'YouTube Channel',
+            avatar: item.authorThumbnails
+              ? item.authorThumbnails[item.authorThumbnails.length - 1].url
+              : 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+            description: item.description || `Official YouTube channel: ${item.author}.`,
+          });
+        }
+      } else if ((item.type === 'video' || item.videoId) && item.title) {
+        const yid = item.videoId;
+        if (yid && !apiEpisodes.some(e => e.youtubeId === yid)) {
+          apiEpisodes.push({
+            id: `ep_yt_${yid}`,
+            title: item.title,
+            youtubeId: yid,
+            channelName: item.author || 'YouTube Podcast',
+            host: item.author || 'Host',
+            category: 'HD Video Podcast',
+            date: item.publishedText || 'Recent',
+            year: 2026,
+            duration: item.lengthSeconds ? `${Math.round(item.lengthSeconds / 60)}m` : '',
+            thumbnail: item.videoThumbnails
+              ? item.videoThumbnails[0].url
+              : `https://img.youtube.com/vi/${yid}/hqdefault.jpg`,
+            description: item.description || 'Watch full video podcast episode on YouTube.',
+          });
         }
       }
-    } catch (e) {}
+    });
+  } catch (e) {
+    // All Invidious instances failed or timed out — fall back to curated only
+    console.warn('[Podcasts] All Invidious search endpoints failed:', e.message);
   }
 
-  // Fallback match from curated video catalog
-  const curated = getAllPodcastChannels();
-  curated.forEach(c => {
-    const cName = (c.channelName || '').toLowerCase();
-    const cHost = (c.host || '').toLowerCase();
-    if (cName.includes(cleanTerm) || cHost.includes(cleanTerm)) {
-      if (!realChannels.some(rc => rc.id === c.id || rc.ytChannelId === c.ytChannelId)) {
-        realChannels.unshift(c);
-      }
+  // ------------------------------------------------------------------
+  // 2. Curated catalog matching with relevance scoring
+  // ------------------------------------------------------------------
+  const scoredCurated = allCurated
+    .map(c => {
+      const name = (c.channelName || '').toLowerCase();
+      const host = (c.host || '').toLowerCase();
+      const cat = (c.category || '').toLowerCase();
+      const desc = (c.description || '').toLowerCase();
+      let score = 0;
+      if (name === q) score += 100;
+      else if (name.startsWith(q)) score += 60;
+      else if (name.includes(q)) score += 40;
+      if (host.includes(q)) score += 30;
+      if (cat.includes(q)) score += 20;
+      if (desc.includes(q)) score += 10;
+      return { channel: c, score };
+    })
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(x => x.channel);
+
+  // Merge: curated matches first, then API channels (deduplicate by ytChannelId and id)
+  const seenIds = new Set();
+  const mergedChannels = [];
+
+  for (const c of [...scoredCurated, ...apiChannels]) {
+    const key = c.ytChannelId || c.id;
+    if (!seenIds.has(key)) {
+      seenIds.add(key);
+      mergedChannels.push(c);
     }
-  });
+  }
 
   return {
-    channels: realChannels.slice(0, 15),
-    episodes: apiMatchingEpisodes.slice(0, 20)
+    channels: mergedChannels.slice(0, 20),
+    episodes: apiEpisodes.slice(0, 25),
   };
 }
 
