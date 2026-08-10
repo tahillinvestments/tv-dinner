@@ -1555,21 +1555,9 @@ function changeLiveChannel(direction) {
   if (!targetChannel) return;
 
   state.currentChannel = targetChannel;
-
-  // Highlight card in DOM grid if visible
-  const allCards = document.querySelectorAll('.channel-card');
-  allCards.forEach(c => c.classList.remove('active', 'ring-2', 'ring-red-500'));
-  const activeCard = Array.from(allCards).find(card => card.dataset.channelId === targetChannel.id);
-  if (activeCard) {
-    activeCard.classList.add('active', 'ring-2', 'ring-red-500');
-    activeCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  if (player && typeof player.playChannel === 'function') {
-    player.playChannel(targetChannel);
-    if (typeof player.showToast === 'function') {
-      player.showToast(`CH ${nextIndex + 1}/${channelList.length}: ${targetChannel.name}`);
-    }
+  playChannel(targetChannel);
+  if (typeof player.showToast === 'function') {
+    player.showToast(`CH ${nextIndex + 1}/${channelList.length}: ${targetChannel.name}`);
   }
 }
 

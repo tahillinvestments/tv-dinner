@@ -462,12 +462,17 @@ export class IPTVPlayer {
     if (this.error) this.error.classList.add('hidden');
     this.showLoading(true);
 
-    // Unmute audio by default at 100% volume
+    // Unmute audio by default at 100% volume and enable autoplay
     this.isMuted = false;
     this.volume = 1;
     if (this.video) {
       this.video.muted = false;
       this.video.volume = 1;
+      this.video.autoplay = true;
+      // Immediately set UI to playing mode
+      this.updatePlayPauseUI(false);
+      // Synchronously prime play gesture on element
+      try { this.video.play().catch(() => {}); } catch (e) {}
     }
     if (this.volumeSlider) this.volumeSlider.value = 1;
     this.updateMuteUI();
@@ -538,6 +543,9 @@ export class IPTVPlayer {
         if (this.loading && !this.loading.classList.contains('hidden') && !this.video.paused) {
           this.showLoading(false);
         }
+        if (this.video && this.video.paused) {
+          this.video.play().then(() => this.updatePlayPauseUI(false)).catch(() => {});
+        }
       });
 
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -567,18 +575,17 @@ export class IPTVPlayer {
             this.updatePlayPauseUI(false);
             this.updateVolumeUI();
           }).catch(e => {
-            console.warn("Autoplay restricted by browser policy. Retrying play...", e);
-            this.video.muted = false;
-            this.video.volume = 1.0;
+            console.warn("Unmuted autoplay restricted by browser policy. Retrying with muted autoplay then unmuting...", e);
+            this.video.muted = true;
             this.video.play().then(() => {
               this.updatePlayPauseUI(false);
+              setTimeout(() => {
+                this.video.muted = false;
+                this.video.volume = 1.0;
+                this.updateMuteUI();
+              }, 150);
             }).catch(() => {
-              this.video.muted = true;
-              this.video.play().then(() => {
-                this.updatePlayPauseUI(false);
-              }).catch(() => {
-                this.updatePlayPauseUI(true);
-              });
+              this.updatePlayPauseUI(true);
             });
           });
         }
