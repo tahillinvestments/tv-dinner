@@ -3832,23 +3832,38 @@ function setupSettingsScreen() {
     { phone: '123-456-7894', user: 'SGmUC7q2U', pswd: '4WM9WVsjG' },
     { phone: '317-363-1751', user: 'MW2Y2h6e7', pswd: '5DwU7wTuA' },
     { phone: '317-900-3473', user: 'Hn9a6bus9', pswd: 'JaKXrfMP7' },
-    { phone: '317-902-1240', user: 'TONE01', pswd: 'TV4LIFE' },
-    { phone: '317-795-7627', user: 'SAPPTV12', pswd: 'REMOTE6202' },
+    { phone: '317-902-1240', user: 'TONE2', pswd: 'TV4LIFE' },
+    { phone: '317-795-7627', user: 'SAPPTV13', pswd: 'REMOTE6202' },
     { phone: '317-261-1596', user: 'DAMETV', pswd: '2611596317' }
   ];
 
   function getAdminCredentials() {
     const raw = localStorage.getItem('admin_iptv_credentials');
+    let list;
     if (!raw) {
-      localStorage.setItem('admin_iptv_credentials', JSON.stringify(DEFAULT_ADMIN_CREDENTIALS));
-      return DEFAULT_ADMIN_CREDENTIALS;
+      list = DEFAULT_ADMIN_CREDENTIALS;
+    } else {
+      try {
+        const parsed = JSON.parse(raw);
+        list = Array.isArray(parsed) ? parsed : DEFAULT_ADMIN_CREDENTIALS;
+      } catch (e) {
+        list = DEFAULT_ADMIN_CREDENTIALS;
+      }
     }
-    try {
-      const list = JSON.parse(raw);
-      return Array.isArray(list) ? list : DEFAULT_ADMIN_CREDENTIALS;
-    } catch (e) {
-      return DEFAULT_ADMIN_CREDENTIALS;
+
+    // Auto-migrate legacy usernames in stored local credentials
+    let updated = false;
+    list = list.map(c => {
+      let u = c.user;
+      if (u === 'TONE01' || u === 'TONE1') { u = 'TONE2'; updated = true; }
+      if (u === 'SAPPTV12') { u = 'SAPPTV13'; updated = true; }
+      return { ...c, user: u };
+    });
+
+    if (updated || !raw) {
+      localStorage.setItem('admin_iptv_credentials', JSON.stringify(list));
     }
+    return list;
   }
 
   function saveAdminCredentials(list) {
