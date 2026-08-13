@@ -18009,6 +18009,12 @@
 	<programme channel="咪咕足球" start="20260813170000 +0800" stop="20260813183500 +0800">
 		<title lang="zh">NBL城燃之战-25/26赛季 常规赛第11轮 长沙勇胜-杭州经纬</title>
 	</programme>
+	<programme channel="咪咕足球" start="20260813183500 +0800" stop="20260813184500 +0800">
+		<title lang="zh">频道宣传</title>
+	</programme>
+	<programme channel="咪咕足球" start="20260813193000 +0800" stop="20260813203000 +0800">
+		<title lang="zh">超级三对三-2026超三联赛</title>
+	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
 	</channel>
@@ -32755,19 +32761,19 @@
 		<title lang="zh">乡音剧场</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813092500 +0800" stop="20260813094500 +0800">
-		<title lang="zh">乡村你我行</title>
+		<title lang="zh">乡音剧场</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813094500 +0800" stop="20260813101500 +0800">
 		<title lang="zh">乡音剧场</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813101500 +0800" stop="20260813103500 +0800">
-		<title lang="zh">乡村你我行</title>
+		<title lang="zh">乡音剧场</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813103500 +0800" stop="20260813113000 +0800">
 		<title lang="zh">乡音剧场</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813113000 +0800" stop="20260813115000 +0800">
-		<title lang="zh">乡村你我行</title>
+		<title lang="zh">乡音剧场</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813115000 +0800" stop="20260813124000 +0800">
 		<title lang="zh">乡村演播室午间版</title>
@@ -32776,31 +32782,31 @@
 		<title lang="zh">乡村演播室午间版</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813133000 +0800" stop="20260813135000 +0800">
-		<title lang="zh">乡村指南</title>
+		<title lang="zh">乡村演播室午间版</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813135000 +0800" stop="20260813145000 +0800">
 		<title lang="zh">乡村演播室下午版</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813145000 +0800" stop="20260813151000 +0800">
-		<title lang="zh">乡村指南</title>
+		<title lang="zh">乡村演播室下午版</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813151000 +0800" stop="20260813154000 +0800">
 		<title lang="zh">乡村演播室下午版</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813154000 +0800" stop="20260813160000 +0800">
-		<title lang="zh">乡村指南</title>
+		<title lang="zh">乡村演播室下午版</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813160000 +0800" stop="20260813163000 +0800">
 		<title lang="zh">乡村大舞台</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813163000 +0800" stop="20260813165000 +0800">
-		<title lang="zh">乡村指南</title>
+		<title lang="zh">乡村大舞台</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813165000 +0800" stop="20260813172000 +0800">
 		<title lang="zh">乡村大舞台</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813172000 +0800" stop="20260813174000 +0800">
-		<title lang="zh">乡村指南</title>
+		<title lang="zh">乡村大舞台</title>
 	</programme>
 	<programme channel="河南乡村" start="20260813174000 +0800" stop="20260813184000 +0800">
 		<title lang="zh">群影汇</title>
@@ -32860,7 +32866,7 @@
 		<title lang="zh">幸福密码上午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813085000 +0800" stop="20260813091000 +0800">
-		<title lang="zh">健康家园上午版</title>
+		<title lang="zh">幸福密码上午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813091000 +0800" stop="20260813093000 +0800">
 		<title lang="zh">幸福密码上午版</title>
@@ -32869,55 +32875,55 @@
 		<title lang="zh">幸福密码上午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813101000 +0800" stop="20260813103000 +0800">
-		<title lang="zh">健康家园上午版</title>
+		<title lang="zh">幸福密码上午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813103000 +0800" stop="20260813110000 +0800">
 		<title lang="zh">幸福密码上午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813110000 +0800" stop="20260813112000 +0800">
-		<title lang="zh">健康家园上午版</title>
+		<title lang="zh">幸福密码上午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813112000 +0800" stop="20260813115000 +0800">
 		<title lang="zh">幸福密码上午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813115000 +0800" stop="20260813120000 +0800">
-		<title lang="zh">健康家园上午版</title>
+		<title lang="zh">幸福密码上午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813120000 +0800" stop="20260813130000 +0800">
 		<title lang="zh">百姓调解午间版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813130000 +0800" stop="20260813131000 +0800">
-		<title lang="zh">健康家园午间版</title>
+		<title lang="zh">幸福密码午间版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813131000 +0800" stop="20260813140000 +0800">
 		<title lang="zh">幸福密码午间版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813140000 +0800" stop="20260813142000 +0800">
-		<title lang="zh">健康家园下午版</title>
+		<title lang="zh">幸福密码下午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813142000 +0800" stop="20260813150000 +0800">
 		<title lang="zh">幸福密码下午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813150000 +0800" stop="20260813152000 +0800">
-		<title lang="zh">健康家园下午版</title>
+		<title lang="zh">幸福密码下午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813152000 +0800" stop="20260813160000 +0800">
 		<title lang="zh">幸福密码下午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813160000 +0800" stop="20260813162000 +0800">
-		<title lang="zh">健康家园下午版</title>
+		<title lang="zh">幸福密码下午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813162000 +0800" stop="20260813165000 +0800">
 		<title lang="zh">幸福密码下午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813165000 +0800" stop="20260813171000 +0800">
-		<title lang="zh">健康家园下午版</title>
+		<title lang="zh">幸福密码下午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813171000 +0800" stop="20260813174000 +0800">
 		<title lang="zh">幸福密码下午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813174000 +0800" stop="20260813180000 +0800">
-		<title lang="zh">健康家园下午版</title>
+		<title lang="zh">幸福密码下午版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813180000 +0800" stop="20260813184000 +0800">
 		<title lang="zh">幸福密码下午版</title>
@@ -32926,7 +32932,7 @@
 		<title lang="zh">百姓调解首播版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813194000 +0800" stop="20260813201000 +0800">
-		<title lang="zh">百姓首播版</title>
+		<title lang="zh">百姓315首播版</title>
 	</programme>
 	<programme channel="河南公共" start="20260813201000 +0800" stop="20260813211000 +0800">
 		<title lang="zh">一拍即合重播版</title>
@@ -33148,10 +33154,10 @@
 		<title lang="zh">重播高清河南新闻联播</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813093000 +0800" stop="20260813101500 +0800">
-		<title lang="zh">大象银龄剧场萌宝下山福星高照</title>
+		<title lang="zh">健康中原+美丽河南美好家</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813101500 +0800" stop="20260813110400 +0800">
-		<title lang="zh">大象银龄剧场萌宝下山福星高照</title>
+		<title lang="zh">大象会客厅+河南新闻联播</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813110400 +0800" stop="20260813113000 +0800">
 		<title lang="zh">大象会客厅于东来</title>
@@ -33166,10 +33172,10 @@
 		<title lang="zh">河南午间报道</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813124500 +0800" stop="20260813133000 +0800">
-		<title lang="zh">大象倾心剧场功夫厨王</title>
+		<title lang="zh">大象会客厅+青听</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813133000 +0800" stop="20260813143000 +0800">
-		<title lang="zh">大象倾心剧场功夫厨王</title>
+		<title lang="zh">青听+大象会客厅</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813143000 +0800" stop="20260813150000 +0800">
 		<title lang="zh">重播高清河南新闻联播</title>
@@ -33178,28 +33184,28 @@
 		<title lang="zh">大象会客厅于东来</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813153500 +0800" stop="20260813162000 +0800">
-		<title lang="zh">大象谜境剧场变身夫妻老公快生了</title>
+		<title lang="zh">健康中原+青听</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813162000 +0800" stop="20260813171000 +0800">
-		<title lang="zh">大象谜境剧场变身夫妻老公快生了</title>
+		<title lang="zh">美丽河南美好家+青听</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813171000 +0800" stop="20260813173000 +0800">
 		<title lang="zh">河南午间报道重播版</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813173000 +0800" stop="20260813181500 +0800">
-		<title lang="zh">大象热血剧场摊牌了我妈是球神</title>
+		<title lang="zh">大象会客厅+河南午间报道</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813181500 +0800" stop="20260813190700 +0800">
-		<title lang="zh">大象热血剧场摊牌了我妈是球神</title>
+		<title lang="zh">河南午间报道+大象会客厅</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813190700 +0800" stop="20260813193000 +0800">
 		<title lang="zh">河南午间报道重播版</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813193000 +0800" stop="20260813201500 +0800">
-		<title lang="zh">大象烽华剧场我在八十年代养崽崽</title>
+		<title lang="zh">大象会客厅+健康中原</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813201500 +0800" stop="20260813210000 +0800">
-		<title lang="zh">大象烽华剧场我在八十年代养崽崽</title>
+		<title lang="zh">青听+美丽河南美好家</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813210000 +0800" stop="20260813213000 +0800">
 		<title lang="zh">河南体育报道</title>
@@ -33214,10 +33220,10 @@
 		<title lang="zh">高清河南新闻联播</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813224000 +0800" stop="20260813232500 +0800">
-		<title lang="zh">大象云阙剧场牧神记之延康变法</title>
+		<title lang="zh">河南体育报道+大象会客厅</title>
 	</programme>
 	<programme channel="河南新闻" start="20260813232500 +0800" stop="20260813235900 +0800">
-		<title lang="zh">大象云阙剧场牧神记之延康变法</title>
+		<title lang="zh">河南晚间报道+青听</title>
 	</programme>
 	<channel id="河南梨园">
 		<display-name lang="zh">河南梨园</display-name>
@@ -58992,6 +58998,9 @@
 	<programme channel="newtv超级综艺" start="20260813180600 +0800" stop="20260813192300 +0800">
 		<title lang="zh">越战越勇</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260813192300 +0800" stop="20260813204000 +0800">
+		<title lang="zh">星光大道</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -59046,6 +59055,9 @@
 	<programme channel="newtv超级体育" start="20260813180000 +0800" stop="20260813183000 +0800">
 		<title lang="zh">体育新闻</title>
 	</programme>
+	<programme channel="newtv超级体育" start="20260813183000 +0800" stop="20260813213000 +0800">
+		<title lang="zh">WTT欧洲大满贯2026-混双,男双 1/4决赛，单打第2轮</title>
+	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
 	</channel>
@@ -59084,6 +59096,9 @@
 	</programme>
 	<programme channel="newtv超级电影" start="20260813181700 +0800" stop="20260813201300 +0800">
 		<title lang="zh">西虹市首富</title>
+	</programme>
+	<programme channel="newtv超级电影" start="20260813201300 +0800" stop="20260813221800 +0800">
+		<title lang="zh">扫毒3：人在天涯</title>
 	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
@@ -59162,6 +59177,12 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260813181600 +0800" stop="20260813190200 +0800">
 		<title lang="zh">04_玫瑰的故事</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260813190200 +0800" stop="20260813194700 +0800">
+		<title lang="zh">05_玫瑰的故事</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260813194700 +0800" stop="20260813203400 +0800">
+		<title lang="zh">41_主角</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -59795,6 +59816,15 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260813180000 +0800" stop="20260813184300 +0800">
 		<title lang="zh">06_潜渊</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260813184300 +0800" stop="20260813192700 +0800">
+		<title lang="zh">23_谍战深海之惊蛰[DVD版]</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260813192700 +0800" stop="20260813195700 +0800">
+		<title lang="zh">白水杜康好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260813195700 +0800" stop="20260813204100 +0800">
+		<title lang="zh">24_谍战深海之惊蛰[DVD版]</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
