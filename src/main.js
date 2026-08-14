@@ -154,18 +154,13 @@ const MAX_RECENTS = 20;
 const EMBED_PROVIDERS = [
   {
     name: 'VidLink PRO (Fastest)',
-    movie: (id) => `https://vidlink.pro/movie/${id}?primaryColor=6366f1&autoplay=true`,
-    tv: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=6366f1&autoplay=true`,
+    movie: (id) => `https://vidlink.pro/movie/${id}?primaryColor=6366f1&secondaryColor=a855f7&iconColor=ffffff&icons=default&player=default&title=true&poster=true`,
+    tv: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=6366f1&secondaryColor=a855f7&iconColor=ffffff&icons=default&player=default&title=true&poster=true`,
   },
   {
     name: 'Videasy HD',
     movie: (id) => `https://player.videasy.net/movie/${id}`,
     tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'Rive Stream',
-    movie: (id) => `https://rive.stream/embed/movie/${id}`,
-    tv: (id, s, e) => `https://rive.stream/embed/tv/${id}/${s}/${e}`,
   },
   {
     name: 'SmashyStream',
@@ -178,29 +173,14 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://autoembed.co/tv/tmdb/${id}-${s}-${e}`,
   },
   {
-    name: 'VidSrc.to',
-    movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`,
+    name: 'MultiEmbed',
+    movie: (id) => `https://multiembed.mov/?video_id=${id}&tmdb=1`,
+    tv: (id, s, e) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`,
   },
   {
-    name: 'VidSrc.cc',
-    movie: (id) => `https://vidsrc.cc/v2/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'Embed.su',
-    movie: (id) => `https://embed.su/embed/movie/${id}`,
-    tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'AutoEmbed',
-    movie: (id) => `https://player.autoembed.cc/embed/movie/${id}`,
-    tv: (id, s, e) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: '2embed',
-    movie: (id) => `https://www.2embed.cc/embed/${id}`,
-    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+    name: 'VidSrc Pro',
+    movie: (id) => `https://vidsrc.pro/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.pro/embed/tv/${id}/${s}/${e}`,
   },
 ];
 
@@ -3527,8 +3507,9 @@ function selectActiveSource(index) {
     if (embedIframe) {
       embedIframe.style.pointerEvents = 'auto';
       embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share; audio *');
+      embedIframe.setAttribute('allowfullscreen', 'true');
+      embedIframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
       embedIframe.removeAttribute('sandbox');
-      embedIframe.removeAttribute('referrerpolicy');
 
       let embedUrl = source.url;
       if (state.resumePlaybackTime && state.resumePlaybackTime > 10) {
