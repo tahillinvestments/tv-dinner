@@ -4797,7 +4797,7 @@ function renderChannelsGrid() {
     card.dataset.channelId = channel.id;
 
     const content = document.createElement('div');
-    content.className = "flex items-center gap-3 min-w-0 flex-1";
+    content.className = "flex items-center gap-3 min-w-0 flex-1 overflow-hidden";
     content.addEventListener('click', () => playChannel(channel));
 
     const logoContainer = document.createElement('div');

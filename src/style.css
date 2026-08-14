@@ -1433,6 +1433,9 @@ body.body-pseudo-fullscreen {
   cursor: pointer;
   transition: var(--transition-smooth);
   gap: 0.75rem;
+  min-width: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .channel-card:hover {
@@ -1470,6 +1473,7 @@ body.body-pseudo-fullscreen {
 .channel-card-info {
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .channel-card-title {
@@ -1479,16 +1483,21 @@ body.body-pseudo-fullscreen {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
 }
 
 .channel-card-group {
   font-size: 0.65rem;
   color: var(--text-muted);
-  display: inline-block;
+  display: block;
   margin-top: 0.15rem;
   text-transform: uppercase;
   font-weight: 700;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .channel-fav-btn {
@@ -1498,6 +1507,7 @@ body.body-pseudo-fullscreen {
   cursor: pointer;
   padding: 0.25rem;
   transition: var(--transition-smooth);
+  flex-shrink: 0;
 }
 
 .channel-fav-btn:hover, .channel-fav-btn.active {
@@ -4062,18 +4072,29 @@ body.body-pseudo-fullscreen {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 .channel-epg-now {
   font-size: 0.72rem;
   font-weight: 600;
   color: #e2e8f0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.channel-epg-now span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
 }
 
 .channel-epg-now-dot {
