@@ -59286,6 +59286,9 @@
 	<programme channel="newtv超级综艺" start="20260814091600 +0800" stop="20260814102600 +0800">
 		<title lang="zh">沧海运河谣</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260814102600 +0800" stop="20260814120000 +0800">
+		<title lang="zh">你好生活第4季</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -59315,6 +59318,9 @@
 	</programme>
 	<programme channel="newtv超级体育" start="20260814090000 +0800" stop="20260814103000 +0800">
 		<title lang="zh">实况录像-2026年世界男排联赛总决赛 决赛</title>
+	</programme>
+	<programme channel="newtv超级体育" start="20260814103000 +0800" stop="20260814120000 +0800">
+		<title lang="zh">实况录像-WTT欧洲大满贯2026 双打1/4决赛,单打第二轮(录播)</title>
 	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
