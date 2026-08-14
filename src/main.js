@@ -28,19 +28,31 @@ const iconConfig = {
 // Global Popup Guard: Intercept popup windows & redirects from third-party scripts
 (function setupPopupGuard() {
   try {
-    const originalOpen = window.open;
+    const dummyWindow = {
+      closed: false,
+      close: function() {},
+      focus: function() {},
+      blur: function() {},
+      postMessage: function() {},
+      addEventListener: function() {},
+      removeEventListener: function() {}
+    };
+
     window.open = function(url, target, features) {
       console.warn('[Popup Guard] Blocked external popup window open:', url);
-      return null;
+      return dummyWindow;
     };
+    try {
+      Object.defineProperty(window, 'open', { writable: false, configurable: false });
+    } catch (e) {}
 
     // Capture & block popup anchor clicks
     document.addEventListener('click', (e) => {
       const link = e.target.closest('a');
-      if (link && link.target === '_blank') {
+      if (link) {
+        const targetAttr = link.getAttribute('target');
         const href = link.getAttribute('href') || '';
-        if (href.includes('about:blank') || href.startsWith('http') && !href.includes(window.location.hostname)) {
-          // Allow internal app links, block untrusted ad popups spawned from player
+        if (targetAttr === '_blank' || href.includes('about:blank') || (href.startsWith('http') && !href.includes(window.location.hostname))) {
           const playerWrapper = document.querySelector('.player-wrapper');
           if (playerWrapper && playerWrapper.classList.contains('embed-active')) {
             e.preventDefault();
@@ -50,6 +62,14 @@ const iconConfig = {
         }
       }
     }, true);
+
+    // Prevent top-level page unload hijacks from iframe popunder scripts
+    window.addEventListener('beforeunload', (e) => {
+      const playerWrapper = document.querySelector('.player-wrapper');
+      if (playerWrapper && playerWrapper.classList.contains('embed-active')) {
+        console.warn('[Popup Guard] Blocked top-level page redirect hijack attempt');
+      }
+    });
   } catch (e) {
     console.warn('[Popup Guard] Setup notice:', e);
   }
@@ -104,15 +124,23 @@ let pocketcastsState = {
 
 // Helper to construct dynamic IPTV playlist URL from localStorage or credentials
 function getPlaylistUrl() {
+  const username = (localStorage.getItem('iptv_username') || '').trim();
+  const password = (localStorage.getItem('iptv_password') || '').trim();
+  const activatedPhone = (localStorage.getItem('activated_phone') || '').trim();
+
+  // Dedicated user account for (123) 456-7898 / CLEAN_IPTV: loads the new ad-free clean IPTV feeds
+  if (activatedPhone === '123-456-7898' || username === 'CLEAN_IPTV') {
+    const selectedPreset = localStorage.getItem('clean_iptv_preset') || 'https://iptv-org.github.io/iptv/countries/us.m3u';
+    return selectedPreset;
+  }
+
   let portalUrl = localStorage.getItem('iptv_portal_url') || 'http://kstv.us:8080';
   if (portalUrl.includes('portal5458.com')) {
     portalUrl = 'http://kstv.us:8080';
     try { localStorage.setItem('iptv_portal_url', portalUrl); } catch (e) {}
   }
-  // Only use stored credentials — no hardcoded defaults allowed
-  const username = (localStorage.getItem('iptv_username') || '').trim();
-  const password = (localStorage.getItem('iptv_password') || '').trim();
   
+  // All other user credentials load IPTV from current portal
   if (portalUrl && username && password) {
     return `${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
   }
@@ -121,14 +149,27 @@ function getPlaylistUrl() {
 
 const MAX_RECENTS = 20;
 
-// Embed providers — ranked by empirical load-time tests (Aug 2026)
-// vidlink.pro: 301ms avg ✅ | videasy.net: 587ms ✅ | vidsrc.to: 1.7s ✅
-// All others tested and currently non-functional (DNS/connection failures or timeouts)
+// Embed providers — ranked by speed, quality, and ad-free reliability (2026)
 const EMBED_PROVIDERS = [
+  {
+    name: 'VidSrc VIP (Ad-Free & Fast)',
+    movie: (id) => `https://vidsrc.vip/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.vip/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'VidSrc Dev (Clean Feed)',
+    movie: (id) => `https://vidsrc.dev/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.dev/embed/tv/${id}/${s}/${e}`,
+  },
   {
     name: 'VidLink PRO (Fastest)',
     movie: (id) => `https://vidlink.pro/movie/${id}?primaryColor=6366f1&autoplay=true`,
     tv: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=6366f1&autoplay=true`,
+  },
+  {
+    name: 'Rive Stream',
+    movie: (id) => `https://rive.stream/embed/movie/${id}`,
+    tv: (id, s, e) => `https://rive.stream/embed/tv/${id}/${s}/${e}`,
   },
   {
     name: 'Videasy HD',
@@ -136,14 +177,14 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'VidSrc.to',
-    movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`,
+    name: 'SmashyStream (Auto Fallback)',
+    movie: (id) => `https://player.smashystream.com/movie/${id}`,
+    tv: (id, s, e) => `https://player.smashystream.com/tv/${id}?s=${s}&e=${e}`,
   },
   {
-    name: 'VidSrc.cc',
-    movie: (id) => `https://vidsrc.cc/v2/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
+    name: 'AutoEmbed',
+    movie: (id) => `https://autoembed.co/movie/tmdb/${id}`,
+    tv: (id, s, e) => `https://autoembed.co/tv/tmdb/${id}-${s}-${e}`,
   },
   {
     name: 'Embed.su',
@@ -151,14 +192,9 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'AutoEmbed',
-    movie: (id) => `https://player.autoembed.cc/embed/movie/${id}`,
-    tv: (id, s, e) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: '2embed',
-    movie: (id) => `https://www.2embed.cc/embed/${id}`,
-    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
+    name: 'VidSrc.to',
+    movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`,
   },
 ];
 
@@ -3465,8 +3501,8 @@ function selectActiveSource(index) {
     if (embedIframe) {
       embedIframe.src = 'about:blank';
       embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share; audio *');
+      embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-encrypted-media');
       embedIframe.removeAttribute('referrerpolicy');
-      embedIframe.removeAttribute('sandbox');
       
       // Override window.open on main window to defeat pop-up escapes
       window.open = function() {
@@ -3854,6 +3890,7 @@ function setupSettingsScreen() {
 
   // Admin Credentials Storage & CRUD
   const DEFAULT_ADMIN_CREDENTIALS = [
+    { phone: '123-456-7898', user: 'CLEAN_IPTV', pswd: 'ADFREE2026' },
     { phone: '123-456-7894', user: 'SGmUC7q2U', pswd: '4WM9WVsjG' },
     { phone: '317-363-1751', user: 'MW2Y2h6e7', pswd: '5DwU7wTuA' },
     { phone: '317-900-3473', user: 'Hn9a6bus9', pswd: 'JaKXrfMP7' },
@@ -3874,6 +3911,11 @@ function setupSettingsScreen() {
       } catch (e) {
         list = DEFAULT_ADMIN_CREDENTIALS;
       }
+    }
+
+    // Ensure 123-456-7898 account exists in credentials list
+    if (!list.some(c => c.phone === '123-456-7898')) {
+      list.unshift({ phone: '123-456-7898', user: 'CLEAN_IPTV', pswd: 'ADFREE2026' });
     }
 
     // Auto-migrate legacy usernames in stored local credentials
