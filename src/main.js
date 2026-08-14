@@ -2120,9 +2120,11 @@ async function openPodcastModal(podcast) {
     videoEl.removeAttribute('src');
   }
 
-  // Hide custom video controls bar for podcasts (YouTube provides native interactive controls)
+  // Hide custom video controls bar AND EPG drawer for podcasts (YouTube provides native interactive controls)
   const videoControls = document.getElementById('video-controls');
   if (videoControls) videoControls.style.display = 'none';
+  const epgDrawer = document.getElementById('player-epg-drawer');
+  if (epgDrawer) epgDrawer.classList.add('hidden');
 
   // Clear buffering spinner, player error, and previous embed overlays
   const playerSpinner = document.getElementById('player-spinner');
@@ -4817,21 +4819,24 @@ function renderChannelsGrid() {
 
     const details = document.createElement('div');
     details.className = "channel-card-info";
+
+    const hasEPG = epgInfo.title !== null;
     details.innerHTML = `
       <h4 class="channel-card-title">${channel.name}</h4>
       <span class="channel-card-group">${channel.group || 'Live TV'}</span>
       <div class="channel-epg-wrap">
-        <div class="channel-epg-now" title="${epgInfo.title}">
-          <span class="channel-epg-now-dot"></span>
-          <span class="truncate">${epgInfo.title}</span>
+        <div class="channel-epg-now" title="${hasEPG ? epgInfo.title : 'No guide data'}">
+          <span class="channel-epg-now-dot" style="${hasEPG ? '' : 'background:#475569;box-shadow:none;'}"></span>
+          <span class="truncate" style="${hasEPG ? '' : 'color:#475569;font-style:italic;'}">${hasEPG ? epgInfo.title : 'No guide data'}</span>
         </div>
+        ${hasEPG ? `
         <div class="channel-epg-time-bar">
           <span class="epg-time-text">${progress.formattedStart} - ${progress.formattedEnd}</span>
           <span class="epg-pct-text">${progress.percent}%</span>
         </div>
         <div class="channel-card-epg-progress-track">
           <div class="channel-card-epg-progress-fill" style="width: ${progress.percent}%;"></div>
-        </div>
+        </div>` : ''}
       </div>
     `;
 
@@ -4991,33 +4996,47 @@ async function updatePlayerEPG(channel) {
 function renderPlayerEPGPanel(epg) {
   if (!epg) return;
 
+  const drawer = document.getElementById('player-epg-drawer');
+
+  // If no verified title, keep the drawer closed and just show channel name in controls bar
+  if (!epg.title) {
+    const playerChannelTitle = document.getElementById('player-channel-title');
+    if (playerChannelTitle && state.currentPlayingChannel) {
+      playerChannelTitle.textContent = state.currentPlayingChannel.name;
+    }
+    if (drawer) drawer.classList.add('hidden');
+    return;
+  }
+
   const progress = getProgramProgress(epg);
 
-  const titleEl = document.getElementById('epg-show-title');
-  const timesEl = document.getElementById('epg-show-times');
+  const titleEl     = document.getElementById('epg-show-title');
+  const timesEl     = document.getElementById('epg-show-times');
   const remainingEl = document.getElementById('epg-show-remaining');
-  const fillEl = document.getElementById('epg-progress-fill');
-  const descEl = document.getElementById('epg-show-desc');
+  const fillEl      = document.getElementById('epg-progress-fill');
+  const descEl      = document.getElementById('epg-show-desc');
   const nextContainer = document.getElementById('epg-next-container');
-  const nextTitleEl = document.getElementById('epg-next-title');
-  const nextTimeEl = document.getElementById('epg-next-time');
+  const nextTitleEl   = document.getElementById('epg-next-title');
+  const nextTimeEl    = document.getElementById('epg-next-time');
 
-  if (titleEl) titleEl.textContent = epg.title || 'Live Program';
+  if (titleEl) titleEl.textContent = epg.title;
   if (timesEl) timesEl.textContent = `${progress.formattedStart} — ${progress.formattedEnd}`;
   if (remainingEl) remainingEl.textContent = `${progress.remainingMinutes} mins left`;
   if (fillEl) fillEl.style.width = `${progress.percent}%`;
-  if (descEl) descEl.textContent = epg.description || 'Continuous live broadcast.';
+  if (descEl) descEl.textContent = epg.description || '';
 
   if (epg.nextTitle && nextContainer && nextTitleEl && nextTimeEl) {
     nextContainer.classList.remove('hidden');
     nextTitleEl.textContent = epg.nextTitle;
-    const nextStartStr = epg.nextStartTime ? (typeof epg.nextStartTime === 'number' ? new Date(epg.nextStartTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : epg.nextStartTime) : `@ ${progress.formattedEnd}`;
+    const nextStartStr = epg.nextStartTime
+      ? new Date(epg.nextStartTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      : progress.formattedEnd;
     nextTimeEl.textContent = `@ ${nextStartStr}`;
   } else if (nextContainer) {
     nextContainer.classList.add('hidden');
   }
 
-  // Update controls bar title with current show if available
+  // Controls bar: channel · show title
   const playerChannelTitle = document.getElementById('player-channel-title');
   if (playerChannelTitle && state.currentPlayingChannel) {
     playerChannelTitle.textContent = `${state.currentPlayingChannel.name} · ${epg.title}`;
@@ -5033,18 +5052,19 @@ function updateLiveEPGTickers() {
     cardElements.forEach(card => {
       const channelId = card.dataset.channelId;
       const channel = state.filteredChannels.find(c => c.id === channelId);
-      if (channel) {
-        const epgInfo = getChannelEPGInfo(channel);
-        const progress = getProgramProgress(epgInfo);
+      if (!channel) return;
 
-        const timeText = card.querySelector('.epg-time-text');
-        const pctText = card.querySelector('.epg-pct-text');
-        const fillBar = card.querySelector('.channel-card-epg-progress-fill');
+      const epgInfo = getChannelEPGInfo(channel);
+      if (!epgInfo.title) return; // no verified data — nothing to update
 
-        if (timeText) timeText.textContent = `${progress.formattedStart} - ${progress.formattedEnd}`;
-        if (pctText) pctText.textContent = `${progress.percent}%`;
-        if (fillBar) fillBar.style.width = `${progress.percent}%`;
-      }
+      const progress = getProgramProgress(epgInfo);
+      const timeText = card.querySelector('.epg-time-text');
+      const pctText  = card.querySelector('.epg-pct-text');
+      const fillBar  = card.querySelector('.channel-card-epg-progress-fill');
+
+      if (timeText) timeText.textContent = `${progress.formattedStart} - ${progress.formattedEnd}`;
+      if (pctText)  pctText.textContent  = `${progress.percent}%`;
+      if (fillBar)  fillBar.style.width  = `${progress.percent}%`;
     });
   }
 
@@ -5052,3 +5072,4 @@ function updateLiveEPGTickers() {
     renderPlayerEPGPanel(state.currentEPGInfo);
   }
 }
+
