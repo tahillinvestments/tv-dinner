@@ -3321,12 +3321,18 @@ async function loadTVEpisodes(tvId, seasonNumber) {
       grid.appendChild(btn);
     });
 
-    // Highlight Episode 1 by default without auto-playing or auto-fullscreening on initial series view
+    // Highlight Episode 1 by default and start resolution for Episode 1 immediately
     if (episodes.length > 0) {
       const firstEpBtn = grid.querySelector('.episode-btn');
       if (firstEpBtn) {
         firstEpBtn.classList.add('active');
-        document.getElementById('sources-status').textContent = 'Select an episode below to start streaming.';
+        const ep = episodes[0];
+        const mediaKey = `tv_${tvId}_s${seasonNumber}_e${ep.episode_number}`;
+        const title = `${state.selectedMedia?.name || 'TV Show'} S${seasonNumber} E${ep.episode_number}`;
+        state.currentVodMediaKey = mediaKey;
+        state.currentVodTitle = title;
+        document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
+        startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: ep.episode_number });
       }
     }
   } catch (err) {
@@ -3515,7 +3521,7 @@ function selectActiveSource(index) {
     if (embedIframe) {
       embedIframe.src = 'about:blank';
       embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share; audio *');
-      embedIframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-presentation allow-encrypted-media');
+      embedIframe.removeAttribute('sandbox');
       embedIframe.removeAttribute('referrerpolicy');
       
       // Override window.open on main window to defeat pop-up escapes
@@ -3536,6 +3542,17 @@ function selectActiveSource(index) {
       setTimeout(() => {
         embedIframe.src = embedUrl;
       }, 50);
+
+      // Auto-fallback timer: if current embed server fails/times out, switch to next provider
+      clearTimeout(state.embedFallbackTimer);
+      if (index + 1 < state.resolvedSources.length) {
+        state.embedFallbackTimer = setTimeout(() => {
+          if (state.activeSourceIndex === index) {
+            console.warn(`[VOD Fallback] Source "${source.name}" timed out. Auto-switching to next source...`);
+            selectActiveSource(index + 1);
+          }
+        }, 8000);
+      }
     }
 
     // Un-shield embed player to allow direct control interaction
