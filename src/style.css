@@ -1433,6 +1433,7 @@ body.body-pseudo-fullscreen {
   cursor: pointer;
   transition: var(--transition-smooth);
   gap: 0.75rem;
+  overflow: hidden;
 }
 
 .channel-card:hover {
