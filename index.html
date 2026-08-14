@@ -1103,6 +1103,35 @@
           </button>
         </div>
 
+        <!-- Live EPG Program Guide Overlay Panel -->
+        <div id="player-epg-drawer" class="player-epg-panel hidden">
+          <div class="epg-panel-header">
+            <div class="epg-badge-wrap">
+              <span class="epg-pulse-dot"></span>
+              <span class="epg-badge-text">NOW PLAYING</span>
+            </div>
+            <button id="epg-close-btn" class="epg-close-btn" title="Hide Guide">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+          <div class="epg-panel-content">
+            <h3 id="epg-show-title" class="epg-show-title">Program Title</h3>
+            <div class="epg-show-time-bar">
+              <span id="epg-show-times" class="epg-show-times">8:00 PM — 9:00 PM</span>
+              <span id="epg-show-remaining" class="epg-show-remaining">30 mins left</span>
+            </div>
+            <div class="epg-progress-track">
+              <div id="epg-progress-fill" class="epg-progress-fill" style="width: 0%;"></div>
+            </div>
+            <p id="epg-show-desc" class="epg-show-desc">Program description...</p>
+            <div id="epg-next-container" class="epg-next-box hidden">
+              <span class="epg-next-label"><i data-lucide="clock" class="w-3.5 h-3.5 inline mr-1"></i> UP NEXT</span>
+              <div id="epg-next-title" class="epg-next-title">Next Show Title</div>
+              <span id="epg-next-time" class="epg-next-time">@ 9:00 PM</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Custom Video Player Controls Bar -->
         <div id="video-controls" class="video-controls-bar">
           <div class="controls-status-row">
@@ -1165,6 +1194,9 @@
               </div>
             </div>
             <div class="actions-right">
+              <button id="epg-toggle-btn" class="control-btn live-control-btn" title="Toggle Program Info (EPG)">
+                <i data-lucide="tv"></i>
+              </button>
               <button id="aspect-ratio-btn" class="control-btn ratio-btn" title="Aspect Ratio">
                 <i data-lucide="monitor"></i> <span id="aspect-label">FIT</span>
               </button>

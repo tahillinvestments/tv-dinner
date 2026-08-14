@@ -1,6 +1,7 @@
-import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, ChevronLeft, Radio, Globe } from 'lucide';
+import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, ChevronLeft, Radio, Globe, Clock } from 'lucide';
 import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
+import { getChannelEPGInfo, fetchXtreamEPG, getProgramProgress } from './epgService';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
 import {
@@ -70,6 +71,8 @@ const state = {
   recents: JSON.parse(localStorage.getItem('iptv_recents') || '[]'),
   watchlist: JSON.parse(localStorage.getItem('vod_watchlist') || '[]'),
   currentPlayingUrl: null,
+  currentPlayingChannel: null,
+  currentEPGInfo: null,
   usOnly: JSON.parse(localStorage.getItem('iptv_us_only') ?? 'true'),
   
   // Movies & TV Spotlight / Carousel State
@@ -191,6 +194,12 @@ async function initApp() {
 
   // Setup US-Only Toggle & Channel Switcher listeners
   setupLiveChannelControls();
+
+  // Setup EPG Drawer Toggle Listeners
+  setupEPGControls();
+
+  // Start 30-second live EPG ticker interval
+  setInterval(updateLiveEPGTickers, 30000);
 
   // Render initial icons
   createIcons(iconConfig);
@@ -4769,8 +4778,13 @@ function renderChannelsGrid() {
     const isFav = state.favorites.includes(channel.id);
     const isActive = state.currentPlayingUrl === channel.url;
     
+    // Get instantaneous EPG info & progress
+    const epgInfo = getChannelEPGInfo(channel);
+    const progress = getProgramProgress(epgInfo);
+
     const card = document.createElement('div');
     card.className = `channel-card hover-scale ${isActive ? 'active' : ''}`;
+    card.dataset.channelId = channel.id;
 
     const content = document.createElement('div');
     content.className = "flex items-center gap-3 min-w-0 flex-1";
@@ -4798,6 +4812,19 @@ function renderChannelsGrid() {
     details.innerHTML = `
       <h4 class="channel-card-title">${channel.name}</h4>
       <span class="channel-card-group">${channel.group || 'Live TV'}</span>
+      <div class="channel-epg-wrap">
+        <div class="channel-epg-now" title="${epgInfo.title}">
+          <span class="channel-epg-now-dot"></span>
+          <span class="truncate">${epgInfo.title}</span>
+        </div>
+        <div class="channel-epg-time-bar">
+          <span class="epg-time-text">${progress.formattedStart} - ${progress.formattedEnd}</span>
+          <span class="epg-pct-text">${progress.percent}%</span>
+        </div>
+        <div class="channel-card-epg-progress-track">
+          <div class="channel-card-epg-progress-fill" style="width: ${progress.percent}%;"></div>
+        </div>
+      </div>
     `;
 
     content.appendChild(logoContainer);
@@ -4840,6 +4867,7 @@ function playChannel(channel) {
   closeActiveSse();
 
   state.currentPlayingUrl = channel.url;
+  state.currentPlayingChannel = channel;
   
   // Relocate shared player section to live container if needed
   const playerSection = document.getElementById('player-section');
@@ -4855,6 +4883,9 @@ function playChannel(channel) {
   if (liveDot) liveDot.style.display = 'block';
   if (liveText) liveText.style.display = 'block';
   if (seekContainer) seekContainer.style.display = 'none';
+
+  // Update EPG Program Info for active player
+  updatePlayerEPG(channel);
 
   // Reset embed player wrappers
   const embedIframe = document.getElementById('embed-iframe');
@@ -4907,4 +4938,109 @@ function addToRecents(id) {
   
   localStorage.setItem('iptv_recents', JSON.stringify(state.recents));
   renderCategories();
+}
+
+// Setup EPG Drawer Toggle Listeners
+function setupEPGControls() {
+  const epgToggleBtn = document.getElementById('epg-toggle-btn');
+  const epgCloseBtn = document.getElementById('epg-close-btn');
+  const epgDrawer = document.getElementById('player-epg-drawer');
+
+  if (epgToggleBtn && epgDrawer) {
+    epgToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      epgDrawer.classList.toggle('hidden');
+    });
+  }
+
+  if (epgCloseBtn && epgDrawer) {
+    epgCloseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      epgDrawer.classList.add('hidden');
+    });
+  }
+}
+
+// Update Active Player EPG Overlay Panel
+async function updatePlayerEPG(channel) {
+  if (!channel) return;
+
+  const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://kstv.us:8080';
+  const username = (localStorage.getItem('iptv_username') || '').trim();
+  const password = (localStorage.getItem('iptv_password') || '').trim();
+  const streamId = channel.stream_id || channel.id;
+
+  // Try real server EPG first, fallback to procedural EPG
+  let epg = await fetchXtreamEPG(portalUrl, username, password, streamId);
+  if (!epg) {
+    epg = getChannelEPGInfo(channel);
+  }
+
+  state.currentEPGInfo = epg;
+  renderPlayerEPGPanel(epg);
+}
+
+function renderPlayerEPGPanel(epg) {
+  if (!epg) return;
+
+  const progress = getProgramProgress(epg);
+
+  const titleEl = document.getElementById('epg-show-title');
+  const timesEl = document.getElementById('epg-show-times');
+  const remainingEl = document.getElementById('epg-show-remaining');
+  const fillEl = document.getElementById('epg-progress-fill');
+  const descEl = document.getElementById('epg-show-desc');
+  const nextContainer = document.getElementById('epg-next-container');
+  const nextTitleEl = document.getElementById('epg-next-title');
+  const nextTimeEl = document.getElementById('epg-next-time');
+
+  if (titleEl) titleEl.textContent = epg.title || 'Live Program';
+  if (timesEl) timesEl.textContent = `${progress.formattedStart} — ${progress.formattedEnd}`;
+  if (remainingEl) remainingEl.textContent = `${progress.remainingMinutes} mins left`;
+  if (fillEl) fillEl.style.width = `${progress.percent}%`;
+  if (descEl) descEl.textContent = epg.description || 'Continuous live broadcast.';
+
+  if (epg.nextTitle && nextContainer && nextTitleEl && nextTimeEl) {
+    nextContainer.classList.remove('hidden');
+    nextTitleEl.textContent = epg.nextTitle;
+    const nextStartStr = epg.nextStartTime ? (typeof epg.nextStartTime === 'number' ? new Date(epg.nextStartTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : epg.nextStartTime) : `@ ${progress.formattedEnd}`;
+    nextTimeEl.textContent = `@ ${nextStartStr}`;
+  } else if (nextContainer) {
+    nextContainer.classList.add('hidden');
+  }
+
+  // Update controls bar title with current show if available
+  const playerChannelTitle = document.getElementById('player-channel-title');
+  if (playerChannelTitle && state.currentPlayingChannel) {
+    playerChannelTitle.textContent = `${state.currentPlayingChannel.name} · ${epg.title}`;
+  }
+
+  createIcons(iconConfig);
+}
+
+// Global 30-Second Ticker to refresh progress bars across grid and player
+function updateLiveEPGTickers() {
+  if (state.activeTab === 'live' && state.filteredChannels.length > 0) {
+    const cardElements = document.querySelectorAll('.channel-card');
+    cardElements.forEach(card => {
+      const channelId = card.dataset.channelId;
+      const channel = state.filteredChannels.find(c => c.id === channelId);
+      if (channel) {
+        const epgInfo = getChannelEPGInfo(channel);
+        const progress = getProgramProgress(epgInfo);
+
+        const timeText = card.querySelector('.epg-time-text');
+        const pctText = card.querySelector('.epg-pct-text');
+        const fillBar = card.querySelector('.channel-card-epg-progress-fill');
+
+        if (timeText) timeText.textContent = `${progress.formattedStart} - ${progress.formattedEnd}`;
+        if (pctText) pctText.textContent = `${progress.percent}%`;
+        if (fillBar) fillBar.style.width = `${progress.percent}%`;
+      }
+    });
+  }
+
+  if (state.currentPlayingChannel && state.currentEPGInfo) {
+    renderPlayerEPGPanel(state.currentEPGInfo);
+  }
 }
