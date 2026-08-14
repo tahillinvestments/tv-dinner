@@ -59976,6 +59976,9 @@
 	<programme channel="newtv金牌综艺" start="20260814091900 +0800" stop="20260814100400 +0800">
 		<title lang="zh">01_孤战</title>
 	</programme>
+	<programme channel="newtv金牌综艺" start="20260814100400 +0800" stop="20260814103400 +0800">
+		<title lang="zh">肉松饼好物推荐</title>
+	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
 	</channel>
