@@ -19,15 +19,31 @@ let xmltvLoadPromise = null;
 const shortEpgCache = new Map();
 
 // ─── Public: Boot the XMLTV feed ─────────────────────────────────────────────
+let currentEpgUser = null;
+
 /**
  * Call once after channels load.  Fetches /xmltv.php and populates xmltvEpgTable.
  */
 export async function initEPGFeed(portalUrl, username, password) {
-  if (xmltvLoaded || xmltvLoadPromise) return xmltvLoadPromise;
+  if (!username) return;
+
+  if (currentEpgUser !== username) {
+    currentEpgUser = username;
+    xmltvLoaded = false;
+    xmltvLoadPromise = null;
+    xmltvEpgTable.clear();
+  }
+
+  if (xmltvLoaded && xmltvEpgTable.size > 0) return Promise.resolve();
+  if (xmltvLoadPromise) return xmltvLoadPromise;
 
   xmltvLoadPromise = _loadXmltvFeed(portalUrl, username, password)
     .then(() => { xmltvLoaded = true; })
-    .catch((e) => { console.warn('[EPG] XMLTV feed failed:', e.message); });
+    .catch((e) => {
+      console.warn('[EPG] XMLTV feed failed:', e.message);
+      xmltvLoaded = false;
+      xmltvLoadPromise = null;
+    });
 
   return xmltvLoadPromise;
 }

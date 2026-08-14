@@ -127,9 +127,10 @@ function getPlaylistUrl() {
   const username = (localStorage.getItem('iptv_username') || '').trim();
   const password = (localStorage.getItem('iptv_password') || '').trim();
   const activatedPhone = (localStorage.getItem('activated_phone') || '').trim();
+  const strippedPhone = activatedPhone.replace(/\D/g, '');
 
   // Dedicated user account for (123) 456-7898 / CLEAN_IPTV: loads the new ad-free clean IPTV feeds
-  if (activatedPhone === '123-456-7898' || username === 'CLEAN_IPTV') {
+  if (strippedPhone === '1234567898' || username === 'CLEAN_IPTV' || username.includes('1234567898')) {
     const selectedPreset = localStorage.getItem('clean_iptv_preset') || 'https://iptv-org.github.io/iptv/countries/us.m3u';
     return selectedPreset;
   }
@@ -149,27 +150,12 @@ function getPlaylistUrl() {
 
 const MAX_RECENTS = 20;
 
-// Embed providers — ranked by speed, quality, and ad-free reliability (2026)
+// Embed providers — ranked by speed, quality, and proven playback (2026)
 const EMBED_PROVIDERS = [
-  {
-    name: 'VidSrc VIP (Ad-Free & Fast)',
-    movie: (id) => `https://vidsrc.vip/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.vip/embed/tv/${id}/${s}/${e}`,
-  },
-  {
-    name: 'VidSrc Dev (Clean Feed)',
-    movie: (id) => `https://vidsrc.dev/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.dev/embed/tv/${id}/${s}/${e}`,
-  },
   {
     name: 'VidLink PRO (Fastest)',
     movie: (id) => `https://vidlink.pro/movie/${id}?primaryColor=6366f1&autoplay=true`,
     tv: (id, s, e) => `https://vidlink.pro/tv/${id}/${s}/${e}?primaryColor=6366f1&autoplay=true`,
-  },
-  {
-    name: 'Rive Stream',
-    movie: (id) => `https://rive.stream/embed/movie/${id}`,
-    tv: (id, s, e) => `https://rive.stream/embed/tv/${id}/${s}/${e}`,
   },
   {
     name: 'Videasy HD',
@@ -177,14 +163,14 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'SmashyStream (Auto Fallback)',
-    movie: (id) => `https://player.smashystream.com/movie/${id}`,
-    tv: (id, s, e) => `https://player.smashystream.com/tv/${id}?s=${s}&e=${e}`,
+    name: 'VidSrc.to',
+    movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'AutoEmbed',
-    movie: (id) => `https://autoembed.co/movie/tmdb/${id}`,
-    tv: (id, s, e) => `https://autoembed.co/tv/tmdb/${id}-${s}-${e}`,
+    name: 'VidSrc.cc',
+    movie: (id) => `https://vidsrc.cc/v2/embed/movie/${id}`,
+    tv: (id, s, e) => `https://vidsrc.cc/v2/embed/tv/${id}/${s}/${e}`,
   },
   {
     name: 'Embed.su',
@@ -192,9 +178,14 @@ const EMBED_PROVIDERS = [
     tv: (id, s, e) => `https://embed.su/embed/tv/${id}/${s}/${e}`,
   },
   {
-    name: 'VidSrc.to',
-    movie: (id) => `https://vidsrc.to/embed/movie/${id}`,
-    tv: (id, s, e) => `https://vidsrc.to/embed/tv/${id}/${s}/${e}`,
+    name: 'AutoEmbed',
+    movie: (id) => `https://player.autoembed.cc/embed/movie/${id}`,
+    tv: (id, s, e) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: '2embed',
+    movie: (id) => `https://www.2embed.cc/embed/${id}`,
+    tv: (id, s, e) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,
   },
 ];
 
@@ -4512,6 +4503,7 @@ async function loadIPTVPlaylist() {
   let rawPortalUrl = 'http://kstv.us:8080';
   let username = '';
   let password = '';
+  let activatedPhone = '';
 
   try {
     let savedPortal = localStorage.getItem('iptv_portal_url');
@@ -4522,6 +4514,7 @@ async function loadIPTVPlaylist() {
     rawPortalUrl = savedPortal;
     username = (localStorage.getItem('iptv_username') || '').trim();
     password = (localStorage.getItem('iptv_password') || '').trim();
+    activatedPhone = (localStorage.getItem('activated_phone') || '').trim();
   } catch (e) {}
 
   // No credentials and no phone activation = locked state
@@ -4533,31 +4526,52 @@ async function loadIPTVPlaylist() {
   }
 
   const headerBadge = document.getElementById('channel-count-header');
-
-  if (!username || !password) {
-    console.log('[IPTV] No active credentials found. Showing sign-in prompt.');
-    state.channels = [];
-    renderUnactivatedState();
-    return;
-  }
+  const strippedPhone = activatedPhone.replace(/\D/g, '');
+  const isCleanFeedAccount = strippedPhone === '1234567898' || username === 'CLEAN_IPTV' || username.includes('1234567898');
 
   try {
-    let portalUrl = rawPortalUrl.trim().replace(/\/+$/, '');
-    if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {
-      portalUrl = 'http://' + portalUrl;
-    }
-
-    console.log("[IPTV] Loading Xtream playlist for user:", username);
     let rawM3U = '';
 
-    try {
-      rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
-    } catch (e) {
-      console.warn("[IPTV] fetchXtreamPlaylist error:", e);
-    }
+    if (isCleanFeedAccount) {
+      const feedUrl = getPlaylistUrl();
+      console.log('[IPTV] Loading clean feed for user (123) 456-7898:', feedUrl);
+      try {
+        const parsedChs = await fetchAndParseM3U(feedUrl);
+        if (Array.isArray(parsedChs) && parsedChs.length > 0) {
+          state.channels = parsedChs;
+          rawM3U = 'parsed';
+        }
+      } catch (e) {
+        console.warn('[IPTV] Primary clean feed fetch error:', e);
+      }
 
-    if (rawM3U) {
-      state.channels = parseM3U(rawM3U);
+      if (!state.channels || state.channels.length === 0) {
+        // Fallback to Free-TV HD clean list if primary clean feed is unreachable
+        try {
+          const fallbackUrl = 'https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8';
+          const fallbackChs = await fetchAndParseM3U(fallbackUrl);
+          if (Array.isArray(fallbackChs) && fallbackChs.length > 0) {
+            state.channels = fallbackChs;
+            rawM3U = 'parsed';
+          }
+        } catch (e) {}
+      }
+    } else {
+      let portalUrl = rawPortalUrl.trim().replace(/\/+$/, '');
+      if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {
+        portalUrl = 'http://' + portalUrl;
+      }
+
+      console.log("[IPTV] Loading Xtream playlist for user:", username);
+      try {
+        rawM3U = await fetchXtreamPlaylist(portalUrl, username, password);
+      } catch (e) {
+        console.warn("[IPTV] fetchXtreamPlaylist error:", e);
+      }
+
+      if (rawM3U && typeof rawM3U === 'string') {
+        state.channels = parseM3U(rawM3U);
+      }
     }
 
     if (!state.channels || state.channels.length === 0) {
@@ -4577,13 +4591,19 @@ async function loadIPTVPlaylist() {
     renderCategories();
     applyFilterAndRender();
 
-    // Kick off bulk XMLTV EPG feed in background (non-blocking)
-    initEPGFeed(portalUrl, username, password)
-      .then(() => {
-        // Re-render grid once EPG is available so cards get real titles
-        if (state.activeTab === 'live') applyFilterAndRender();
-      })
-      .catch(() => {});
+    if (!isCleanFeedAccount) {
+      let portalUrl = rawPortalUrl.trim().replace(/\/+$/, '');
+      if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {
+        portalUrl = 'http://' + portalUrl;
+      }
+
+      // Kick off bulk XMLTV EPG feed in background (non-blocking)
+      initEPGFeed(portalUrl, username, password)
+        .then(() => {
+          if (state.activeTab === 'live') applyFilterAndRender();
+        })
+        .catch(() => {});
+    }
   } catch (error) {
     console.error("Failed to load IPTV playlist:", error);
     if (headerBadge) headerBadge.textContent = 'Playlist Offline';
