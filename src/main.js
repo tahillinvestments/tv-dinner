@@ -3516,9 +3516,13 @@ function selectActiveSource(index) {
     }
 
     if (videoEl) videoEl.style.display = 'none';
-    if (embedWrapper) embedWrapper.style.display = 'block';
+    if (embedWrapper) {
+      embedWrapper.style.display = 'block';
+      embedWrapper.style.pointerEvents = 'auto';
+    }
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) {
+      embedIframe.style.pointerEvents = 'auto';
       embedIframe.src = 'about:blank';
       embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share; audio *');
       embedIframe.removeAttribute('sandbox');
@@ -3531,12 +3535,10 @@ function selectActiveSource(index) {
       };
 
       let embedUrl = source.url;
-      const sep = embedUrl.includes('?') ? '&' : '?';
-      embedUrl += `${sep}autoplay=true&autoplay=1&muted=false&muted=0&volume=100`;
-
       if (state.resumePlaybackTime && state.resumePlaybackTime > 10) {
         const t = Math.floor(state.resumePlaybackTime);
-        embedUrl += `&t=${t}&start=${t}&time=${t}&progress=${t}#t=${t}`;
+        const sep = embedUrl.includes('?') ? '&' : '?';
+        embedUrl += `${sep}t=${t}`;
       }
 
       setTimeout(() => {
@@ -3555,9 +3557,10 @@ function selectActiveSource(index) {
       }
     }
 
-    // Un-shield embed player to allow direct control interaction
+    // Completely disable shield layer so iframe receives pointer events directly
     if (shield) {
       shield.style.display = 'none';
+      shield.style.pointerEvents = 'none';
     }
   }
 

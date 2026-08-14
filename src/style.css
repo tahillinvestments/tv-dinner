@@ -1058,6 +1058,30 @@ body {
   pointer-events: none !important;
 }
 
+#embed-player-wrapper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  pointer-events: auto !important;
+}
+
+#embed-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #000;
+  pointer-events: auto !important;
+}
+
+#embed-shield,
+.embed-shield {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
 /* Podcast mode: completely suppress all custom controls so YouTube iframe is unobstructed */
 .player-wrapper.podcast-mode .video-controls-bar,
 .player-wrapper.podcast-mode #video-controls {
