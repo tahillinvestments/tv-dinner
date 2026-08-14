@@ -15954,6 +15954,9 @@
 	<programme channel="咪咕足球" start="20260815013500 +0800" stop="20260815015000 +0800">
 		<title lang="zh">频道宣传</title>
 	</programme>
+	<programme channel="咪咕足球" start="20260815015000 +0800" stop="20260815021000 +0800">
+		<title lang="zh">荣耀之路</title>
+	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
 	</channel>
@@ -49607,6 +49610,9 @@
 	</programme>
 	<programme channel="newtv超级综艺" start="20260815011000 +0800" stop="20260815015700 +0800">
 		<title lang="zh">12_很想很想你</title>
+	</programme>
+	<programme channel="newtv超级综艺" start="20260815015700 +0800" stop="20260815024400 +0800">
+		<title lang="zh">13_很想很想你</title>
 	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
