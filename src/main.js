@@ -213,6 +213,9 @@ async function initApp() {
   if (appInitialized) return;
   appInitialized = true;
   window.state = state;
+  window.openDetailsView = openDetailsView;
+  window.selectActiveSource = selectActiveSource;
+  window.startStreamResolution = startStreamResolution;
   window.fetchChannelPastEpisodesNextPage = fetchChannelPastEpisodesNextPage;
 
   console.log('[App Init] Initializing application components...');
@@ -3523,16 +3526,9 @@ function selectActiveSource(index) {
     if (playerWrapper) playerWrapper.classList.add('embed-active');
     if (embedIframe) {
       embedIframe.style.pointerEvents = 'auto';
-      embedIframe.src = 'about:blank';
       embedIframe.setAttribute('allow', 'autoplay *; fullscreen *; picture-in-picture *; encrypted-media *; accelerometer; gyroscope; web-share; audio *');
       embedIframe.removeAttribute('sandbox');
       embedIframe.removeAttribute('referrerpolicy');
-      
-      // Override window.open on main window to defeat pop-up escapes
-      window.open = function() {
-        console.log('[Popup Shield] Pop-up window open blocked.');
-        return null;
-      };
 
       let embedUrl = source.url;
       if (state.resumePlaybackTime && state.resumePlaybackTime > 10) {
@@ -3541,9 +3537,7 @@ function selectActiveSource(index) {
         embedUrl += `${sep}t=${t}`;
       }
 
-      setTimeout(() => {
-        embedIframe.src = embedUrl;
-      }, 50);
+      embedIframe.src = embedUrl;
 
       // Auto-fallback timer: if current embed server fails/times out, switch to next provider
       clearTimeout(state.embedFallbackTimer);
