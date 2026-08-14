@@ -1,7 +1,7 @@
 import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, ChevronLeft, Radio, Globe, Clock } from 'lucide';
 import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
-import { getChannelEPGInfo, fetchXtreamEPG, getProgramProgress } from './epgService';
+import { getChannelEPGInfo, fetchXtreamEPG, getProgramProgress, initEPGFeed } from './epgService';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
 import {
@@ -4518,6 +4518,14 @@ async function loadIPTVPlaylist() {
 
     renderCategories();
     applyFilterAndRender();
+
+    // Kick off bulk XMLTV EPG feed in background (non-blocking)
+    initEPGFeed(portalUrl, username, password)
+      .then(() => {
+        // Re-render grid once EPG is available so cards get real titles
+        if (state.activeTab === 'live') applyFilterAndRender();
+      })
+      .catch(() => {});
   } catch (error) {
     console.error("Failed to load IPTV playlist:", error);
     if (headerBadge) headerBadge.textContent = 'Playlist Offline';

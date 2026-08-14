@@ -34,6 +34,11 @@ export function parseM3U(rawContent) {
       // This is the URL line for the preceding metadata
       if (currentMetadata) {
         currentMetadata.url = line;
+        // Extract numeric stream_id from Xtream HLS URL: /live/user/pass/<id>.m3u8
+        const streamIdMatch = line.match(/\/(\d+)\.m3u8/);
+        if (streamIdMatch) {
+          currentMetadata.stream_id = streamIdMatch[1];
+        }
         channels.push(currentMetadata);
         currentMetadata = null;
       }
