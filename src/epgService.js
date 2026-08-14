@@ -264,11 +264,15 @@ export async function fetchXtreamEPG(portalUrl, username, password, streamId) {
 
 function _decodeB64(str) {
   if (!str) return '';
-  try {
-    if (/^[A-Za-z0-9+/=]+$/.test(str) && str.length % 4 === 0 && str.length > 12) {
-      return decodeURIComponent(escape(atob(str)));
-    }
-  } catch (_) {}
+  const trimmed = str.trim();
+  if (/^[A-Za-z0-9+/=]+$/.test(trimmed) && trimmed.length % 4 === 0 && trimmed.length >= 4) {
+    try {
+      const decoded = decodeURIComponent(escape(atob(trimmed)));
+      if (decoded && !/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(decoded)) {
+        return decoded;
+      }
+    } catch (_) {}
+  }
   return str;
 }
 

@@ -4995,15 +4995,19 @@ function setupEPGControls() {
 async function updatePlayerEPG(channel) {
   if (!channel) return;
 
-  const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://kstv.us:8080';
-  const username = (localStorage.getItem('iptv_username') || '').trim();
-  const password = (localStorage.getItem('iptv_password') || '').trim();
-  const streamId = channel.stream_id || channel.id;
+  // 1. Try local XMLTV guide data first (matches channel card)
+  let epg = getChannelEPGInfo(channel);
 
-  // Try real server EPG first, fallback to procedural EPG
-  let epg = await fetchXtreamEPG(portalUrl, username, password, streamId);
-  if (!epg) {
-    epg = getChannelEPGInfo(channel);
+  // 2. If XMLTV has no data for this channel, query Xtream short EPG API
+  if (!epg || !epg.title) {
+    const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://kstv.us:8080';
+    const username = (localStorage.getItem('iptv_username') || '').trim();
+    const password = (localStorage.getItem('iptv_password') || '').trim();
+    const streamId = channel.stream_id || channel.id;
+    const serverEpg = await fetchXtreamEPG(portalUrl, username, password, streamId);
+    if (serverEpg && serverEpg.title) {
+      epg = serverEpg;
+    }
   }
 
   state.currentEPGInfo = epg;
