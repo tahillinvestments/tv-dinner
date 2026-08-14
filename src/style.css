@@ -1058,6 +1058,15 @@ body {
   pointer-events: none !important;
 }
 
+/* Podcast mode: completely suppress all custom controls so YouTube iframe is unobstructed */
+.player-wrapper.podcast-mode .video-controls-bar,
+.player-wrapper.podcast-mode #video-controls {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
 .player-wrapper.user-idle:not(.embed-active) {
   cursor: none !important;
 }

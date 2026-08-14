@@ -1991,6 +1991,10 @@ function resetPlayerWindow() {
   // Restore video controls bar visibility for standard media
   const videoControls = document.getElementById('video-controls');
   if (videoControls) videoControls.style.display = '';
+
+  // Clear podcast-mode class so controls are restored
+  const pw = document.querySelector('.player-wrapper');
+  if (pw) pw.classList.remove('podcast-mode');
 }
 
 // Open HD Video Player Modal (Podcast Episode)
@@ -2063,7 +2067,11 @@ async function openPodcastModal(podcast) {
   if (chNextBtn) chNextBtn.style.display = 'none';
   if (liveIndicatorDot) liveIndicatorDot.style.display = 'none';
   if (liveIndicatorText) liveIndicatorText.textContent = 'VIDEO PODCAST';
-  if (seekContainer) seekContainer.style.display = 'flex';
+  if (seekContainer) seekContainer.style.display = 'none';
+
+  // Mark player wrapper as podcast-mode — CSS !important rule hides the controls bar
+  const playerWrapper = document.querySelector('.player-wrapper');
+  if (playerWrapper) playerWrapper.classList.add('podcast-mode');
 
   const titleEl = document.getElementById('details-title');
   const metaEl = document.getElementById('details-meta-info');
@@ -4797,7 +4805,7 @@ function renderChannelsGrid() {
     card.dataset.channelId = channel.id;
 
     const content = document.createElement('div');
-    content.className = "flex items-center gap-3 min-w-0 flex-1 overflow-hidden";
+    content.className = "flex items-center gap-3 min-w-0 flex-1";
     content.addEventListener('click', () => playChannel(channel));
 
     const logoContainer = document.createElement('div');
