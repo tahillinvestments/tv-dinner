@@ -26,12 +26,28 @@ export function getStreamSources(
   let cancelled = false;
   let eventSource = null;
   let pollTimer = null;
+  let attempts = 0;
+  const MAX_ATTEMPTS = 3;
 
   async function wake() {
     if (cancelled) return;
+    attempts++;
+
+    if (attempts > MAX_ATTEMPTS) {
+      console.warn('[Vyla] Max wake attempts reached. Using fallback embed servers.');
+      if (onError) onError(new Error('Vyla stream server unreachable'));
+      return;
+    }
 
     try {
-      const res = await fetch(sseUrl, { headers: { Accept: 'text/event-stream' } });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const res = await fetch(sseUrl, { 
+        headers: { Accept: 'text/event-stream' },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
 
       if (cancelled) return;
 
@@ -42,14 +58,18 @@ export function getStreamSources(
         // Space awake but wrong content type on this fetch — try EventSource
         connect();
       } else {
-        // Still loading (206 or other) — notify caller and retry
-        if (onWaking) onWaking();
-        pollTimer = setTimeout(wake, 2000);
+        // Still loading — retry up to MAX_ATTEMPTS
+        if (onWaking && attempts === 1) onWaking();
+        pollTimer = setTimeout(wake, 2500);
       }
     } catch (err) {
       if (cancelled) return;
-      if (onWaking) onWaking();
-      pollTimer = setTimeout(wake, 3000);
+      if (attempts >= MAX_ATTEMPTS) {
+        console.warn('[Vyla] Wake request failed, falling back to embeds:', err.message);
+        if (onError) onError(err);
+      } else {
+        pollTimer = setTimeout(wake, 2500);
+      }
     }
   }
 

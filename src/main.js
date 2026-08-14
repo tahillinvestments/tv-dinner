@@ -150,7 +150,7 @@ function getPlaylistUrl() {
 
 const MAX_RECENTS = 20;
 
-// Embed providers — ranked by speed, quality, and proven playback (2026)
+// Embed providers — ranked by speed, quality, and playback reliability (2026)
 const EMBED_PROVIDERS = [
   {
     name: 'VidLink PRO (Fastest)',
@@ -161,6 +161,21 @@ const EMBED_PROVIDERS = [
     name: 'Videasy HD',
     movie: (id) => `https://player.videasy.net/movie/${id}`,
     tv: (id, s, e) => `https://player.videasy.net/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'Rive Stream',
+    movie: (id) => `https://rive.stream/embed/movie/${id}`,
+    tv: (id, s, e) => `https://rive.stream/embed/tv/${id}/${s}/${e}`,
+  },
+  {
+    name: 'SmashyStream',
+    movie: (id) => `https://player.smashystream.com/movie/${id}`,
+    tv: (id, s, e) => `https://player.smashystream.com/tv/${id}?s=${s}&e=${e}`,
+  },
+  {
+    name: 'AutoEmbed.co',
+    movie: (id) => `https://autoembed.co/movie/tmdb/${id}`,
+    tv: (id, s, e) => `https://autoembed.co/tv/tmdb/${id}-${s}-${e}`,
   },
   {
     name: 'VidSrc.to',
@@ -3358,7 +3373,9 @@ function startStreamResolution({ type, id, season = 1, episode = 1 }) {
     { type, id, season, episode },
     {
       onWaking: () => {
-        statusText.textContent = 'Streaming server waking, resolving direct links...';
+        if (!state.resolvedSources || state.resolvedSources.length === 0 || state.activeSourceIndex === -1) {
+          if (statusText) statusText.textContent = 'Streaming server waking, resolving direct links...';
+        }
       },
       onMeta: (meta) => {
         console.log('[Vyla] Meta resolved:', meta);
@@ -3381,15 +3398,21 @@ function startStreamResolution({ type, id, season = 1, episode = 1 }) {
         }
       },
       onDone: () => {
-        if (state.resolvedSources.some(s => s.type === 'stream')) {
-          statusText.textContent = 'Direct streams ready. Choose a server to play.';
-        } else {
-          statusText.textContent = 'No direct streams found. Streaming via fallback embed.';
+        if (statusText) {
+          if (state.resolvedSources.some(s => s.type === 'stream')) {
+            statusText.textContent = 'Direct streams ready. Choose a server to play.';
+          } else if (state.activeSourceIndex >= 0 && state.resolvedSources[state.activeSourceIndex]) {
+            const cur = state.resolvedSources[state.activeSourceIndex];
+            statusText.textContent = `Streaming via ${cur.name}. Use player controls on video.`;
+          }
         }
       },
       onError: (err) => {
-        console.error('[Vyla] SSE resolution error:', err);
-        statusText.textContent = 'Using embed servers.';
+        console.warn('[Vyla] Direct stream resolution error:', err);
+        if (statusText && state.activeSourceIndex >= 0 && state.resolvedSources[state.activeSourceIndex]) {
+          const cur = state.resolvedSources[state.activeSourceIndex];
+          statusText.textContent = `Streaming via ${cur.name}. Use player controls on video.`;
+        }
       }
     }
   );
