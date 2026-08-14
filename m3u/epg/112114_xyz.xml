@@ -49602,11 +49602,17 @@
 	<programme channel="newtv超级综艺" start="20260815002400 +0800" stop="20260815011000 +0800">
 		<title lang="zh">11_很想很想你</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260815011000 +0800" stop="20260815015700 +0800">
+		<title lang="zh">12_很想很想你</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
 	<programme channel="newtv超级体育" start="20260815000000 +0800" stop="20260815010100 +0800">
 		<title lang="zh">实况录像-2026年世界击剑锦标赛 3</title>
+	</programme>
+	<programme channel="newtv超级体育" start="20260815010100 +0800" stop="20260815023100 +0800">
+		<title lang="zh">实况录像-2026世界杯 1/8决赛 葡萄牙队-西班牙队</title>
 	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
@@ -50174,6 +50180,9 @@
 	</channel>
 	<programme channel="newtv金牌综艺" start="20260815001700 +0800" stop="20260815010200 +0800">
 		<title lang="zh">01_国家机密</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260815010200 +0800" stop="20260815013200 +0800">
+		<title lang="zh">杏花村好物推荐</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>

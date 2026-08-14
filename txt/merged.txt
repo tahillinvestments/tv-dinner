@@ -1817,6 +1817,7 @@ iHOT爱悬疑,http://gslbserv.itv.cmvideo.cn/6000000006000050630/1.m3u8?channel-
 iHOT爱幼教,http://gslbserv.itv.cmvideo.cn/6000000006000180630/1.m3u8?channel-id=wasusyt&Contentid=6000000006000180630&livemode=1&stbId=3
 iHOT爱院线,http://gslbserv.itv.cmvideo.cn/6000000006000030630/1.m3u8?channel-id=wasusyt&Contentid=6000000006000030630&livemode=1&stbId=3
 
+
 Movies,#genre#
 00s_Replay,https://jmp2.uk/plu-62ba60f059624e000781c436.m3u8
 30A_TV_Classic_Movies_(720p),https://30a-tv.com/feeds/pzaz/30atvmovies.m3u8
