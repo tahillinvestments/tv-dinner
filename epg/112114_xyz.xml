@@ -59340,6 +59340,9 @@
 	<programme channel="newtv超级电影" start="20260814083400 +0800" stop="20260814101900 +0800">
 		<title lang="zh">音乐永不停歇</title>
 	</programme>
+	<programme channel="newtv超级电影" start="20260814101900 +0800" stop="20260814114300 +0800">
+		<title lang="zh">复仇乌鸦</title>
+	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
 	</channel>
@@ -59381,6 +59384,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260814092400 +0800" stop="20260814100900 +0800">
 		<title lang="zh">07_纯真年代的爱情</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260814101400 +0800" stop="20260814110000 +0800">
+		<title lang="zh">19_问心2</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
