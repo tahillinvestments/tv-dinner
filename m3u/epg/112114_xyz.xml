@@ -49719,6 +49719,9 @@
 	<programme channel="newtv超级综艺" start="20260815015700 +0800" stop="20260815024400 +0800">
 		<title lang="zh">13_很想很想你</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260815024400 +0800" stop="20260815033100 +0800">
+		<title lang="zh">14_很想很想你</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
