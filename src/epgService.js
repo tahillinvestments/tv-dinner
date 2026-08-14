@@ -10,8 +10,10 @@
  */
 
 // ─── In-memory state ─────────────────────────────────────────────────────────
-/** Maps epg_channel_id → [ { title, desc, start (ms), stop (ms) } ] */
+/** Maps epg_channel_id or stream_id or normalized key → [ { title, desc, start (ms), stop (ms) } ] */
 const xmltvEpgTable = new Map();
+/** Maps normalized channel display name → canonical XMLTV channel id */
+const channelNameToIdMap = new Map();
 let xmltvLoaded = false;
 let xmltvLoadPromise = null;
 
@@ -22,7 +24,7 @@ const shortEpgCache = new Map();
 let currentEpgUser = null;
 
 /**
- * Call once after channels load.  Fetches /xmltv.php and populates xmltvEpgTable.
+ * Call once after channels load. Fetches /xmltv.php and populates xmltvEpgTable.
  */
 export async function initEPGFeed(portalUrl, username, password) {
   if (!username) return;
@@ -32,13 +34,17 @@ export async function initEPGFeed(portalUrl, username, password) {
     xmltvLoaded = false;
     xmltvLoadPromise = null;
     xmltvEpgTable.clear();
+    channelNameToIdMap.clear();
   }
 
   if (xmltvLoaded && xmltvEpgTable.size > 0) return Promise.resolve();
   if (xmltvLoadPromise) return xmltvLoadPromise;
 
   xmltvLoadPromise = _loadXmltvFeed(portalUrl, username, password)
-    .then(() => { xmltvLoaded = true; })
+    .then(() => { 
+      xmltvLoaded = true;
+      console.log(`[EPG] XMLTV ready: ${xmltvEpgTable.size} channel listings available`);
+    })
     .catch((e) => {
       console.warn('[EPG] XMLTV feed failed:', e.message);
       xmltvLoaded = false;
@@ -59,7 +65,7 @@ async function _loadXmltvFeed(portalUrl, username, password) {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Date.now() - parsed.ts < 30 * 60 * 1000) {
-        _populateTableFromSerialized(parsed.data);
+        _populateTableFromSerialized(parsed.data, parsed.nameMap);
         console.log(`[EPG] Loaded XMLTV from cache (${xmltvEpgTable.size} channels)`);
         return;
       }
@@ -68,31 +74,60 @@ async function _loadXmltvFeed(portalUrl, username, password) {
 
   const cleanPortal = portalUrl.trim().replace(/\/+$/, '');
   const xmlUrl = `${cleanPortal}/xmltv.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
-  const proxied = _buildProxyUrl(xmlUrl);
 
-  console.log('[EPG] Fetching XMLTV feed…');
-  const res = await fetch(proxied, { signal: AbortSignal.timeout(25000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  console.log('[EPG] Fetching XMLTV feed via multi-proxy racer…');
+  
+  const proxyEndpoints = [
+    _buildProxyUrl(xmlUrl),
+    `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(xmlUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(xmlUrl)}`
+  ];
 
-  const text = await res.text();
-  if (!text.includes('<tv') && !text.includes('</programme>')) {
-    throw new Error('Response does not look like XMLTV');
+  if (typeof window !== 'undefined' && (window.location.protocol === 'http:' || xmlUrl.startsWith('https://'))) {
+    proxyEndpoints.unshift(xmlUrl);
+  }
+
+  let text = '';
+  for (const endpoint of proxyEndpoints) {
+    try {
+      const res = await fetch(endpoint, { signal: AbortSignal.timeout(30000) });
+      if (res && res.ok) {
+        const candidateText = await res.text();
+        if (candidateText && (candidateText.includes('<tv') || candidateText.includes('</programme>') || candidateText.includes('<programme'))) {
+          text = candidateText;
+          break;
+        }
+      }
+    } catch (err) {
+      console.debug(`[EPG] Proxy ${endpoint} failed:`, err.message);
+    }
+  }
+
+  if (!text) {
+    throw new Error('All EPG XMLTV proxy endpoints failed or returned invalid XML');
   }
 
   _parseXmltvText(text);
 
-  // Persist to sessionStorage
+  // Persist to sessionStorage if size permits
   try {
     const data = {};
     xmltvEpgTable.forEach((v, k) => { data[k] = v; });
-    sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+    const nameMap = {};
+    channelNameToIdMap.forEach((v, k) => { nameMap[k] = v; });
+    sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data, nameMap }));
   } catch (_) {}
 
-  console.log(`[EPG] XMLTV loaded — ${xmltvEpgTable.size} channels indexed`);
+  console.log(`[EPG] XMLTV loaded — ${xmltvEpgTable.size} channels indexed, ${channelNameToIdMap.size} display names mapped`);
 }
 
-function _populateTableFromSerialized(data) {
-  Object.entries(data).forEach(([k, v]) => xmltvEpgTable.set(k, v));
+function _populateTableFromSerialized(data, nameMap) {
+  if (data) {
+    Object.entries(data).forEach(([k, v]) => xmltvEpgTable.set(k, v));
+  }
+  if (nameMap) {
+    Object.entries(nameMap).forEach(([k, v]) => channelNameToIdMap.set(k, v));
+  }
 }
 
 function _buildProxyUrl(url) {
@@ -107,46 +142,106 @@ function _buildProxyUrl(url) {
   return `${base}?url=${encodeURIComponent(url)}`;
 }
 
+// ─── XML Entity Decoder ───────────────────────────────────────────────────────
+function _decodeXmlEntities(str) {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .trim();
+}
+
 // ─── XMLTV Parser ─────────────────────────────────────────────────────────────
 function _parseXmltvText(xml) {
+  let parsedViaDom = false;
+
   if (typeof DOMParser !== 'undefined') {
     try {
       const doc = new DOMParser().parseFromString(xml, 'text/xml');
-      const programmes = doc.querySelectorAll('programme');
-      programmes.forEach(prog => {
-        const chanId  = prog.getAttribute('channel');
-        if (!chanId) return;
-        const startMs = _xmltvDateToMs(prog.getAttribute('start'));
-        const stopMs  = _xmltvDateToMs(prog.getAttribute('stop'));
-        if (!startMs || !stopMs) return;
-        const title = (prog.querySelector('title')?.textContent || '').trim();
-        const desc  = (prog.querySelector('desc')?.textContent  || '').trim();
-        if (!title) return;
-        if (!xmltvEpgTable.has(chanId)) xmltvEpgTable.set(chanId, []);
-        xmltvEpgTable.get(chanId).push({ title, desc, start: startMs, stop: stopMs });
-      });
-      return;
+      
+      // Check for XML parse errors
+      const parserError = doc.querySelector('parsererror');
+      if (!parserError) {
+        // 1. Map <channel id="..."> <display-name>
+        const channels = doc.querySelectorAll('channel');
+        channels.forEach(ch => {
+          const id = ch.getAttribute('id');
+          if (!id) return;
+          const displayNames = ch.querySelectorAll('display-name');
+          displayNames.forEach(dn => {
+            const name = (dn.textContent || '').trim();
+            if (name) {
+              const norm = _normalize(name);
+              if (norm) {
+                channelNameToIdMap.set(norm, id);
+              }
+            }
+          });
+        });
+
+        // 2. Map <programme channel="..." start="..." stop="...">
+        const programmes = doc.querySelectorAll('programme');
+        programmes.forEach(prog => {
+          const chanId  = prog.getAttribute('channel');
+          if (!chanId) return;
+          const startMs = _xmltvDateToMs(prog.getAttribute('start'));
+          const stopMs  = _xmltvDateToMs(prog.getAttribute('stop'));
+          if (!startMs || !stopMs) return;
+          const title = _decodeXmlEntities(prog.querySelector('title')?.textContent || '');
+          const desc  = _decodeXmlEntities(prog.querySelector('desc')?.textContent  || '');
+          if (!title) return;
+          if (!xmltvEpgTable.has(chanId)) xmltvEpgTable.set(chanId, []);
+          xmltvEpgTable.get(chanId).push({ title, desc, start: startMs, stop: stopMs });
+        });
+
+        parsedViaDom = true;
+      }
     } catch (e) {
       console.warn('[EPG] DOMParser failed, using regex fallback:', e.message);
     }
   }
 
-  // Regex fallback
-  const progRe = /<programme\s([^>]*)>([\s\S]*?)<\/programme>/gi;
-  let m;
-  while ((m = progRe.exec(xml)) !== null) {
-    const attrs  = m[1];
-    const body   = m[2];
-    const chanId = (attrs.match(/channel="([^"]*)"/) || [])[1];
-    if (!chanId) continue;
-    const startMs = _xmltvDateToMs((attrs.match(/start="([^"]*)"/) || [])[1]);
-    const stopMs  = _xmltvDateToMs((attrs.match(/stop="([^"]*)"/)  || [])[1]);
-    if (!startMs || !stopMs) continue;
-    const title = ((body.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || '').trim();
-    const desc  = ((body.match(/<desc[^>]*>([\s\S]*?)<\/desc>/i)  || [])[1] || '').trim();
-    if (!title) continue;
-    if (!xmltvEpgTable.has(chanId)) xmltvEpgTable.set(chanId, []);
-    xmltvEpgTable.get(chanId).push({ title, desc, start: startMs, stop: stopMs });
+  if (!parsedViaDom) {
+    // Regex parsing for channels
+    const chanRe = /<channel\s+id="([^"]+)"[^>]*>([\s\S]*?)<\/channel>/gi;
+    let cm;
+    while ((cm = chanRe.exec(xml)) !== null) {
+      const id = cm[1];
+      const body = cm[2];
+      const dnRe = /<display-name[^>]*>([^<]+)<\/display-name>/gi;
+      let dnm;
+      while ((dnm = dnRe.exec(body)) !== null) {
+        const name = _decodeXmlEntities(dnm[1]);
+        const norm = _normalize(name);
+        if (norm) {
+          channelNameToIdMap.set(norm, id);
+        }
+      }
+    }
+
+    // Regex parsing for programmes
+    const progRe = /<programme\s([^>]*)>([\s\S]*?)<\/programme>/gi;
+    let m;
+    while ((m = progRe.exec(xml)) !== null) {
+      const attrs  = m[1];
+      const body   = m[2];
+      const chanId = (attrs.match(/channel="([^"]*)"/) || [])[1];
+      if (!chanId) continue;
+      const startMs = _xmltvDateToMs((attrs.match(/start="([^"]*)"/) || [])[1]);
+      const stopMs  = _xmltvDateToMs((attrs.match(/stop="([^"]*)"/)  || [])[1]);
+      if (!startMs || !stopMs) continue;
+      const rawTitle = (body.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || '';
+      const rawDesc  = (body.match(/<desc[^>]*>([\s\S]*?)<\/desc>/i)  || [])[1] || '';
+      const title = _decodeXmlEntities(rawTitle);
+      const desc  = _decodeXmlEntities(rawDesc);
+      if (!title) continue;
+      if (!xmltvEpgTable.has(chanId)) xmltvEpgTable.set(chanId, []);
+      xmltvEpgTable.get(chanId).push({ title, desc, start: startMs, stop: stopMs });
+    }
   }
 }
 
@@ -182,28 +277,55 @@ function _placeholder() {
 export function getChannelEPGInfo(channel) {
   if (!channel) return _placeholder();
 
-  // 1. Match by epg_channel_id (tvg-id) — the canonical XMLTV key
-  const epgId = (channel.epg_channel_id || channel.id || '').trim();
-  if (epgId && xmltvEpgTable.has(epgId)) {
-    const prog = _findCurrentProgram(xmltvEpgTable.get(epgId));
-    if (prog) return prog;
+  // 1. Check direct keys in priority order: epg_channel_id, tvg_id, stream_id, id, tvg_name
+  const candidateKeys = [
+    channel.epg_channel_id,
+    channel.tvg_id,
+    channel.stream_id,
+    channel.id,
+    channel.tvg_name
+  ].filter(Boolean).map(k => String(k).trim());
+
+  for (const key of candidateKeys) {
+    if (key && xmltvEpgTable.has(key)) {
+      const prog = _findCurrentProgram(xmltvEpgTable.get(key));
+      if (prog) return prog;
+    }
   }
 
-  // 2. Fuzzy-match channel name across all XMLTV keys (handles minor formatting diffs)
-  if (xmltvLoaded && xmltvEpgTable.size > 0) {
-    const nameNorm = _normalize(channel.name || '');
-    if (nameNorm.length >= 3) {
-      for (const [key, listings] of xmltvEpgTable) {
-        const keyNorm = _normalize(key);
-        if (keyNorm === nameNorm || keyNorm.startsWith(nameNorm) || nameNorm.startsWith(keyNorm)) {
-          const prog = _findCurrentProgram(listings);
+  // 2. Check channel name via display name map
+  const nameNorm = _normalize(channel.name || channel.tvg_name || '');
+  if (nameNorm && channelNameToIdMap.has(nameNorm)) {
+    const mappedId = channelNameToIdMap.get(nameNorm);
+    if (mappedId && xmltvEpgTable.has(mappedId)) {
+      const prog = _findCurrentProgram(xmltvEpgTable.get(mappedId));
+      if (prog) return prog;
+    }
+  }
+
+  // 3. Fuzzy-match channel name across all XMLTV keys and display names
+  if (xmltvLoaded && xmltvEpgTable.size > 0 && nameNorm.length >= 3) {
+    // Check exact or prefix in XMLTV keys
+    for (const [key, listings] of xmltvEpgTable) {
+      const keyNorm = _normalize(key);
+      if (keyNorm === nameNorm || (keyNorm.length >= 4 && (keyNorm.startsWith(nameNorm) || nameNorm.startsWith(keyNorm)))) {
+        const prog = _findCurrentProgram(listings);
+        if (prog) return prog;
+      }
+    }
+
+    // Check against display name map keys
+    for (const [mappedName, targetId] of channelNameToIdMap) {
+      if (mappedName === nameNorm || (mappedName.length >= 4 && (mappedName.startsWith(nameNorm) || nameNorm.startsWith(mappedName)))) {
+        if (xmltvEpgTable.has(targetId)) {
+          const prog = _findCurrentProgram(xmltvEpgTable.get(targetId));
           if (prog) return prog;
         }
       }
     }
   }
 
-  // 3. No verified data
+  // 4. No verified data
   return _placeholder();
 }
 
@@ -241,10 +363,25 @@ export async function fetchXtreamEPG(portalUrl, username, password, streamId) {
   try {
     const cleanPortal = portalUrl.trim().replace(/\/+$/, '');
     const epgUrl = `${cleanPortal}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_short_epg&stream_id=${encodeURIComponent(streamId)}&limit=8`;
-    const res = await fetch(_buildProxyUrl(epgUrl), { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    
+    const endpoints = [
+      _buildProxyUrl(epgUrl),
+      `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(epgUrl)}`
+    ];
 
-    const json = await res.json();
+    let json = null;
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep, { signal: AbortSignal.timeout(8000) });
+        if (res && res.ok) {
+          json = await res.json();
+          if (json && Array.isArray(json.epg_listings) && json.epg_listings.length > 0) {
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
     if (json && Array.isArray(json.epg_listings) && json.epg_listings.length > 0) {
       const listings = json.epg_listings;
       const now = Date.now();

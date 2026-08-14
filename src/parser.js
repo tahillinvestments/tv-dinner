@@ -34,8 +34,8 @@ export function parseM3U(rawContent) {
       // This is the URL line for the preceding metadata
       if (currentMetadata) {
         currentMetadata.url = line;
-        // Extract numeric stream_id from Xtream HLS URL: /live/user/pass/<id>.m3u8
-        const streamIdMatch = line.match(/\/(\d+)\.m3u8/);
+        // Extract numeric stream_id from Xtream URL: /live/user/pass/<id>.m3u8, /<id>.ts, or query params
+        const streamIdMatch = line.match(/\/(\d+)(?:\.(?:m3u8|ts|mp4))?(?:$|\?)/) || line.match(/[?&]stream_id=(\d+)/);
         if (streamIdMatch) {
           currentMetadata.stream_id = streamIdMatch[1];
         }
@@ -59,7 +59,11 @@ function parseExtInf(line) {
     name: '',
     logo: '',
     group: 'General', // Default group if not specified
-    url: ''
+    url: '',
+    epg_channel_id: '',
+    tvg_id: '',
+    tvg_name: '',
+    stream_id: ''
   };
 
   // Find the comma that separates tags from the channel display name
@@ -76,14 +80,17 @@ function parseExtInf(line) {
     return match ? match[1].trim() : null;
   };
 
-  metadata.id = extractAttribute('tvg-id') || extractAttribute('tvg-name') || metadata.name.toLowerCase().replace(/\s+/g, '-');
-  metadata.logo = extractAttribute('tvg-logo') || '';
-  metadata.group = extractAttribute('group-title') || 'General';
+  const tvgId = extractAttribute('tvg-id') || extractAttribute('tvg_id') || extractAttribute('epg-id') || '';
+  const tvgName = extractAttribute('tvg-name') || extractAttribute('tvg_name') || '';
+  const tvgLogo = extractAttribute('tvg-logo') || extractAttribute('tvg_logo') || extractAttribute('logo') || '';
+  const groupTitle = extractAttribute('group-title') || extractAttribute('group_title') || 'General';
 
-  // Cleanup group name (if it's empty or placeholder)
-  if (!metadata.group || metadata.group.trim() === '') {
-    metadata.group = 'General';
-  }
+  metadata.id = tvgId || tvgName || metadata.name.toLowerCase().replace(/\s+/g, '-');
+  metadata.epg_channel_id = tvgId || '';
+  metadata.tvg_id = tvgId || '';
+  metadata.tvg_name = tvgName || '';
+  metadata.logo = tvgLogo;
+  metadata.group = (!groupTitle || groupTitle.trim() === '') ? 'General' : groupTitle.trim();
 
   return metadata;
 }

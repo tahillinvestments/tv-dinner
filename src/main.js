@@ -326,6 +326,10 @@ function stopAllMediaPlayback(options = {}) {
 
   // 2. Clear VOD Embed Iframe & Wrapper
   if (!keepVod) {
+    if (state.embedFallbackTimer) {
+      clearTimeout(state.embedFallbackTimer);
+      state.embedFallbackTimer = null;
+    }
     const embedIframe = document.getElementById('embed-iframe');
     if (embedIframe) embedIframe.src = '';
     const embedWrapper = document.getElementById('embed-player-wrapper');
@@ -969,6 +973,7 @@ function createPocketCastsShowCard(channel, isSubscribedView = false) {
   card.innerHTML = `
     <div class="podcast-show-thumb-wrap">
       <img src="${avatarUrl}" alt="${channel.channelName}" class="podcast-show-thumb" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
+      ${channel.recommendationReason ? `<span class="podcast-reason-badge">${channel.recommendationReason}</span>` : ''}
       ${isSubscribed ? `<span class="podcast-show-unplayed-badge">${epCount} eps</span>` : ''}
     </div>
     <div class="podcast-show-info">
@@ -1010,20 +1015,15 @@ async function renderForYouPodcasts() {
   if (!section || !grid) return;
 
   const subscribedShows = pocketcastsState.subscribedShows || [];
+  const favoritePodcasts = state.favoritePodcasts || [];
+  const history = pocketcastsState.history || [];
   const activeCat = pocketcastsState.activeCategory || 'all';
 
-  // HIDE "For You" section if NOTHING is subscribed to!
-  if (!subscribedShows || subscribedShows.length === 0) {
-    section.classList.add('hidden');
-    section.style.display = 'none';
-    grid.innerHTML = '';
-    return;
-  }
-
+  // Always keep "For You" section active with personalized / starter recommendations
   section.classList.remove('hidden');
   section.style.display = '';
 
-  const cacheKey = `${activeCat}_${subscribedShows.map(s => s.id).sort().join(',')}`;
+  const cacheKey = `${activeCat}_${subscribedShows.map(s => s.id).sort().join(',')}_${favoritePodcasts.length}_${history.length}`;
 
   if (forYouCache.key === cacheKey && forYouCache.items.length > 0) {
     grid.innerHTML = '';
@@ -1046,11 +1046,14 @@ async function renderForYouPodcasts() {
   `).join('');
 
   try {
-    const freshRecommended = await fetchForYouCuratedPodcasts(subscribedShows, activeCat);
+    const freshRecommended = await fetchForYouCuratedPodcasts({
+      subscribedShows,
+      favoritePodcasts,
+      history,
+      activeCategory: activeCat
+    }, activeCat);
+
     if (!freshRecommended || freshRecommended.length === 0) {
-      if (subscribedShows.length === 0) {
-        section.classList.add('hidden');
-      }
       grid.innerHTML = '';
       return;
     }
@@ -1067,9 +1070,6 @@ async function renderForYouPodcasts() {
     createIcons(iconConfig);
   } catch (err) {
     console.warn('[ForYou] Failed to fetch smart query recommendations:', err);
-    if (subscribedShows.length === 0) {
-      section.classList.add('hidden');
-    }
   }
 }
 
@@ -3539,15 +3539,10 @@ function selectActiveSource(index) {
 
       embedIframe.src = embedUrl;
 
-      // Auto-fallback timer: if current embed server fails/times out, switch to next provider
-      clearTimeout(state.embedFallbackTimer);
-      if (index + 1 < state.resolvedSources.length) {
-        state.embedFallbackTimer = setTimeout(() => {
-          if (state.activeSourceIndex === index) {
-            console.warn(`[VOD Fallback] Source "${source.name}" timed out. Auto-switching to next source...`);
-            selectActiveSource(index + 1);
-          }
-        }, 8000);
+      // Always clear any previous fallback timers so the user's chosen stream/source plays stably
+      if (state.embedFallbackTimer) {
+        clearTimeout(state.embedFallbackTimer);
+        state.embedFallbackTimer = null;
       }
     }
 
@@ -3570,6 +3565,10 @@ function selectActiveSource(index) {
 
 // Close active stream EventSource connection
 function closeActiveSse() {
+  if (state.embedFallbackTimer) {
+    clearTimeout(state.embedFallbackTimer);
+    state.embedFallbackTimer = null;
+  }
   if (state.activeStreamSse) {
     console.log('Closing VOD stream resolver');
     if (typeof state.activeStreamSse.cancel === 'function') {
@@ -4637,9 +4636,17 @@ async function loadIPTVPlaylist() {
       // Kick off bulk XMLTV EPG feed in background (non-blocking)
       initEPGFeed(portalUrl, username, password)
         .then(() => {
-          if (state.activeTab === 'live') applyFilterAndRender();
+          console.log('[IPTV] EPG feed loaded. Refreshing channel cards and player...');
+          if (state.activeTab === 'live') {
+            applyFilterAndRender();
+          }
+          if (state.currentPlayingChannel) {
+            updatePlayerEPG(state.currentPlayingChannel);
+          }
         })
-        .catch(() => {});
+        .catch((e) => {
+          console.debug('[IPTV] initEPGFeed background fetch error:', e);
+        });
     }
   } catch (error) {
     console.error("Failed to load IPTV playlist:", error);
@@ -5178,10 +5185,23 @@ function updateLiveEPGTickers() {
       if (!epgInfo.title) return; // no verified data — nothing to update
 
       const progress = getProgramProgress(epgInfo);
+      const nowWrap = card.querySelector('.channel-epg-now');
+      const nowText = card.querySelector('.channel-epg-now span.truncate');
+      const nowDot = card.querySelector('.channel-epg-now-dot');
       const timeText = card.querySelector('.epg-time-text');
       const pctText  = card.querySelector('.epg-pct-text');
       const fillBar  = card.querySelector('.channel-card-epg-progress-fill');
 
+      if (nowWrap) nowWrap.setAttribute('title', epgInfo.title);
+      if (nowText) {
+        nowText.textContent = epgInfo.title;
+        nowText.style.color = '';
+        nowText.style.fontStyle = '';
+      }
+      if (nowDot) {
+        nowDot.style.background = '';
+        nowDot.style.boxShadow = '';
+      }
       if (timeText) timeText.textContent = `${progress.formattedStart} - ${progress.formattedEnd}`;
       if (pctText)  pctText.textContent  = `${progress.percent}%`;
       if (fillBar)  fillBar.style.width  = `${progress.percent}%`;
@@ -5192,4 +5212,3 @@ function updateLiveEPGTickers() {
     renderPlayerEPGPanel(state.currentEPGInfo);
   }
 }
-

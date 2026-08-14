@@ -448,72 +448,140 @@ export function searchPodcastChannels(query) {
   return searchRealPodcastAPI(query);
 }
 
-// Dynamically curate "For You" YouTube Video Podcasts smartly matched to user's subscriptions.
-export async function fetchForYouCuratedPodcasts(subscribedShows = [], activeCategory = 'all') {
-  if (!Array.isArray(subscribedShows) || subscribedShows.length === 0) {
-    return [];
+// Dynamically curate "For You" YouTube Video Podcasts smartly matched to user's subscriptions, favorites, and history.
+export async function fetchForYouCuratedPodcasts(options = {}, activeCategory = 'all') {
+  let subscribedShows = [];
+  let favoritePodcasts = [];
+  let history = [];
+
+  if (Array.isArray(options)) {
+    subscribedShows = options;
+  } else if (options && typeof options === 'object') {
+    subscribedShows = options.subscribedShows || [];
+    favoritePodcasts = options.favoritePodcasts || [];
+    history = options.history || [];
+    if (options.activeCategory) activeCategory = options.activeCategory;
   }
 
   const allChannels = getAllPodcastChannels();
   const subIdsSet = new Set((subscribedShows || []).map(s => String(s.id)));
   const subNamesSet = new Set((subscribedShows || []).map(s => (s.channelName || s.title || '').toLowerCase().trim()));
 
-  // 1. Build smart similarity search queries based on user's subscribed shows
-  const searchQueries = [];
-  const subCategories = [];
-  const subKeywords = [];
+  // 1. If user has NO subscriptions, favorites, or history: generate a rich, diverse starter recommendation set!
+  if (subscribedShows.length === 0 && favoritePodcasts.length === 0 && history.length === 0) {
+    const starterRecommendations = [
+      { id: 'chan_mkbhd_waveform', reason: '⚡ Top Tech & Gadgets' },
+      { id: 'chan_huberman_lab', reason: '🧠 Health & Science' },
+      { id: 'chan_jre', reason: '🎙️ Popular Culture' },
+      { id: 'chan_acquired', reason: '💼 Business Deep Dive' },
+      { id: 'chan_lex_fridman', reason: '🤖 AI & Philosophy' },
+      { id: 'chan_kill_tony', reason: '🔥 Trending Comedy' },
+      { id: 'chan_all_in', reason: '📈 Venture & Economics' },
+      { id: 'chan_theo_von', reason: '✨ Fan Favorite' },
+      { id: 'chan_veritasium', reason: '🔬 Science Explained' },
+      { id: 'chan_pat_mcafee', reason: '🏈 Sports Commentary' },
+      { id: 'chan_diary_ceo', reason: '💡 Mindset & Growth' },
+      { id: 'chan_bad_friends', reason: '😂 Stand-Up Comedy' }
+    ];
 
-  subscribedShows.forEach(s => {
+    const results = [];
+    starterRecommendations.forEach(item => {
+      const found = allChannels.find(c => c.id === item.id);
+      if (found) {
+        results.push({
+          ...found,
+          recommendationReason: item.reason,
+          score: 10
+        });
+      }
+    });
+
+    if (activeCategory && activeCategory !== 'all') {
+      const catFiltered = results.filter(c => (c.category || '').toLowerCase().includes(activeCategory.toLowerCase()));
+      if (catFiltered.length >= 4) return catFiltered;
+    }
+    return results;
+  }
+
+  // 2. Build smart similarity search queries and profile user's affinity
+  const categoryFreq = new Map();
+  const keywordFreq = new Map();
+  const interactedShows = [...subscribedShows, ...favoritePodcasts, ...history];
+
+  interactedShows.forEach(s => {
     const cat = (s.category || '').trim();
-    if (cat && !subCategories.includes(cat)) subCategories.push(cat);
+    if (cat) {
+      categoryFreq.set(cat, (categoryFreq.get(cat) || 0) + 1);
+    }
 
     const title = (s.channelName || s.title || '');
     title.toLowerCase().split(/\s+/).forEach(w => {
       const clean = w.replace(/[^a-z0-9]/g, '');
-      if (clean.length > 3 && !['podcast', 'show', 'with', 'official', 'the'].includes(clean) && !subKeywords.includes(clean)) {
-        subKeywords.push(clean);
+      if (clean.length > 3 && !['podcast', 'show', 'with', 'official', 'the', 'episode', 'live'].includes(clean)) {
+        keywordFreq.set(clean, (keywordFreq.get(clean) || 0) + 1);
       }
     });
   });
 
-  if (subCategories.length > 0) {
-    searchQueries.push(`${subCategories[0]} podcast`);
-    if (subCategories.length > 1) searchQueries.push(`${subCategories[1]} podcast`);
-  }
-  if (subKeywords.length > 0) {
-    searchQueries.push(`${subKeywords.slice(0, 2).join(' ')} podcast`);
-  }
+  // Sort top categories
+  const sortedCategories = Array.from(categoryFreq.entries()).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+  const sortedKeywords = Array.from(keywordFreq.entries()).sort((a, b) => b[1] - a[1]).map(e => e[0]);
 
-  // 2. Fetch live YouTube Video Podcast channels concurrently
+  const searchQueries = [];
+  if (sortedCategories.length > 0) searchQueries.push(`${sortedCategories[0]} podcast`);
+  if (sortedCategories.length > 1) searchQueries.push(`${sortedCategories[1]} podcast`);
+  if (sortedKeywords.length > 0) searchQueries.push(`${sortedKeywords.slice(0, 2).join(' ')} podcast`);
+
+  // 3. Score catalog channels
   const similarMap = new Map();
 
-  // A. First score catalog YouTube channels for instant matching
   allChannels.forEach(c => {
     const cNameLower = (c.channelName || '').toLowerCase().trim();
     if (subIdsSet.has(String(c.id)) || subNamesSet.has(cNameLower)) return;
 
     let score = 0;
+    let matchReason = '✨ Recommended For You';
     const catLower = (c.category || '').toLowerCase();
     const nameLower = (c.channelName || '').toLowerCase();
 
-    subCategories.forEach(cat => {
-      if (catLower.includes(cat.toLowerCase())) score += 10;
-    });
-    subKeywords.forEach(kw => {
-      if (nameLower.includes(kw)) score += 5;
-    });
-
-    if (score > 0) {
-      similarMap.set(c.id, { ...c, score });
+    // Check category match
+    for (const [cat, freq] of categoryFreq.entries()) {
+      if (catLower.includes(cat.toLowerCase()) || cat.toLowerCase().includes(catLower)) {
+        score += 15 * freq;
+        matchReason = `🎯 Because you like ${cat}`;
+        break;
+      }
     }
+
+    // Check keyword match
+    for (const [kw, freq] of keywordFreq.entries()) {
+      if (nameLower.includes(kw)) {
+        score += 8 * freq;
+        if (!matchReason.startsWith('🎯')) {
+          matchReason = `Similar to your favorites`;
+        }
+      }
+    }
+
+    // Default base score for high quality catalog shows
+    if (score === 0) {
+      score = 3;
+      matchReason = `🔥 Trending in ${c.category || 'Podcasts'}`;
+    }
+
+    similarMap.set(c.id, {
+      ...c,
+      recommendationReason: matchReason,
+      score
+    });
   });
 
-  // B. Search YouTube / Invidious Channel API for 100% YouTube Video Podcast channels
+  // 4. Concurrently search Invidious / YouTube for additional live podcast channels (with timeout)
   const fetchPromises = searchQueries.map(async (query) => {
     try {
       const q = encodeURIComponent(`${query} channel`);
       const url = `https://inv.tux.pizza/api/v1/search?q=${q}&type=channel`;
-      const res = await fetchWithTimeout(url, {}, 3500);
+      const res = await fetchWithTimeout(url, {}, 2500);
       if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -531,24 +599,31 @@ export async function fetchForYouCuratedPodcasts(subscribedShows = [], activeCat
                 ytChannelId: item.authorId,
                 channelName: item.author,
                 host: item.author,
-                category: subCategories[0] || 'Podcast',
+                category: sortedCategories[0] || 'Podcast',
                 subscribers: subCountText,
                 avatar: item.authorThumbnails ? item.authorThumbnails[item.authorThumbnails.length - 1].url : 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
                 description: item.description || `Discover new YouTube video podcast channel ${item.author}.`,
-                score: 8
+                recommendationReason: sortedCategories[0] ? `🎯 Because you like ${sortedCategories[0]}` : '✨ New on YouTube',
+                score: 12
               });
             }
           });
         }
       }
-    } catch (e) {}
+    } catch (_) {}
   });
 
   await Promise.allSettled(fetchPromises);
 
   const results = Array.from(similarMap.values());
   results.sort((a, b) => (b.score || 0) - (a.score || 0));
-  return results.slice(0, 20);
+
+  if (activeCategory && activeCategory !== 'all') {
+    const filtered = results.filter(c => (c.category || '').toLowerCase().includes(activeCategory.toLowerCase()));
+    if (filtered.length >= 4) return filtered.slice(0, 18);
+  }
+
+  return results.slice(0, 18);
 }
 
 
