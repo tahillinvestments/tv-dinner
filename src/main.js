@@ -343,6 +343,12 @@ function resetPlayerUiToDefaultLiveTv() {
   if (embedWrapper) embedWrapper.style.display = 'none';
   if (embedIframe) embedIframe.src = 'about:blank';
 
+  const playerWrapper = document.querySelector('.player-wrapper');
+  if (playerWrapper) {
+    playerWrapper.classList.remove('embed-active');
+    playerWrapper.classList.remove('podcast-mode');
+  }
+
   if (player && typeof player.setControlMode === 'function') {
     player.setControlMode('live');
   }
@@ -4914,7 +4920,10 @@ function playChannel(channel) {
   const embedWrapper = document.getElementById('embed-player-wrapper');
   if (embedWrapper) embedWrapper.style.display = 'none';
   const playerWrapper = document.querySelector('.player-wrapper');
-  if (playerWrapper) playerWrapper.classList.remove('embed-active');
+  if (playerWrapper) {
+    playerWrapper.classList.remove('embed-active');
+    playerWrapper.classList.remove('podcast-mode');
+  }
   if (player && typeof player.setControlMode === 'function') {
     player.setControlMode('live');
   }
