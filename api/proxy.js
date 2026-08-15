@@ -121,7 +121,10 @@ export default async function handler(req, res) {
       targetUrl.pathname.endsWith('.ts') ||
       targetUrl.pathname.endsWith('.aac') ||
       targetUrl.pathname.endsWith('.mp3') ||
-      targetUrl.pathname.endsWith('.mp4');
+      targetUrl.pathname.endsWith('.mp4') ||
+      targetUrl.pathname.endsWith('.mkv') ||
+      targetUrl.pathname.includes('/movie/') ||
+      targetUrl.pathname.includes('/series/');
 
     if (!isVideoOrAudio) {
       try {

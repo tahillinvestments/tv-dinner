@@ -42,11 +42,13 @@ export class XtreamVODClient {
 
     const targetUrl = `${this.baseUrl}/player_api.php?${query.toString()}`;
     
-    // On localhost / web browsers, route via CORS proxy
-    const isLocalhost = typeof window !== 'undefined' && 
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    // In web browsers (Vercel, localhost, etc.), route via CORS proxy to prevent HTTPS mixed-content blocks
+    const isAndroid = typeof window !== 'undefined' && 
+      (window.location.host === 'appassets.androidplatform.net' || 
+       window.location.protocol === 'file:' || 
+       (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
 
-    const url = isLocalhost ? `/api/proxy?url=${encodeURIComponent(targetUrl)}` : targetUrl;
+    const url = isAndroid ? targetUrl : `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
 
     const res = await fetch(url);
     if (!res.ok) {
