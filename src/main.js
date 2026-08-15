@@ -3428,16 +3428,7 @@ function startStreamResolution({ type, id, season = 1, episode = 1, streamUrl = 
 
   statusText.textContent = 'Connecting to high-speed stream server...';
 
-  // Populate fast direct embed stream providers (zero proxy bandwidth, pristine HD)
-  EMBED_PROVIDERS.forEach((provider) => {
-    const embedUrl = type === 'tv'
-      ? provider.tv(id, season, episode)
-      : provider.movie(id);
-
-    state.resolvedSources.push({ name: provider.name, url: embedUrl, type: 'embed' });
-  });
-
-  // If direct Xtream stream URL is present, provide it as an option in the sources list
+  // 1. Xtream Direct HD Server as #1 default source whenever streamUrl is available
   if (streamUrl) {
     state.resolvedSources.push({
       name: 'Xtream Direct HD Server',
@@ -3445,6 +3436,15 @@ function startStreamResolution({ type, id, season = 1, episode = 1, streamUrl = 
       type: 'stream'
     });
   }
+
+  // 2. Populate fast direct embed stream providers as fallbacks
+  EMBED_PROVIDERS.forEach((provider) => {
+    const embedUrl = type === 'tv'
+      ? provider.tv(id, season, episode)
+      : provider.movie(id);
+
+    state.resolvedSources.push({ name: provider.name, url: embedUrl, type: 'embed' });
+  });
 
   renderSourcesUI();
   if (state.resolvedSources.length > 0) {
