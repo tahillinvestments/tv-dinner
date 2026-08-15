@@ -50247,6 +50247,9 @@
 	<programme channel="newtv超级综艺" start="20260816025600 +0800" stop="20260816034200 +0800">
 		<title lang="zh">19_很想很想你</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260816034200 +0800" stop="20260816042800 +0800">
+		<title lang="zh">20_很想很想你</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -50852,6 +50855,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260816031100 +0800" stop="20260816034100 +0800">
 		<title lang="zh">杏花村好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260816034100 +0800" stop="20260816042700 +0800">
+		<title lang="zh">09_国家机密</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
