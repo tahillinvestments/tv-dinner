@@ -572,26 +572,13 @@ function renderAccessLockedState(containerId, featureName) {
   }
 }
 
-// Helper to populate category rows with Xtream VOD items or seamless TMDB fallbacks
-async function loadRowData(container, xtreamPromise, tmdbPromise) {
+// Helper to populate category rows with Xtream VOD items directly
+async function loadRowData(container, xtreamPromise) {
   if (!container) return;
   try {
-    const xtreamItems = await Promise.race([
-      xtreamPromise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3500))
-    ]);
+    const xtreamItems = await xtreamPromise;
     if (Array.isArray(xtreamItems) && xtreamItems.length > 0) {
       const sorted = sortVODByPopularity(xtreamItems);
-      renderCardRow(sorted.slice(0, 30), container);
-      return;
-    }
-  } catch (e) {}
-
-  try {
-    const tmdbData = await tmdbPromise;
-    const items = tmdbData?.results || (Array.isArray(tmdbData) ? tmdbData : []);
-    if (items.length > 0) {
-      const sorted = sortVODByPopularity(items);
       renderCardRow(sorted.slice(0, 30), container);
     }
   } catch (e) {
@@ -599,7 +586,7 @@ async function loadRowData(container, xtreamPromise, tmdbPromise) {
   }
 }
 
-// Load Movies Dashboard hero + curated category carousels with latest TMDB trending cross-referenced with Xtream
+// Load Movies Dashboard hero + curated category carousels directly from real Xtream VOD server catalog
 async function loadMoviesDashboard() {
   if (!isLiveTvActive()) {
     renderAccessLockedState('tab-movies', 'Movies & VOD');
@@ -627,53 +614,52 @@ async function loadMoviesDashboard() {
   }
 
   try {
-    // 1. Fetch latest real-time trending movies from TMDB (2024-2026 latest blockbuster releases)
-    let tmdbTrending = [];
-    try {
-      const tmdbData = await getTrendingMovies(1);
-      tmdbTrending = tmdbData?.results || [];
-    } catch (e) {
-      console.warn("TMDB trending movies fetch fallback:", e);
-    }
+    // 1. Fetch real Xtream movies from popular categories
+    const [actionRes, advRes, comRes, scifiRes] = await Promise.allSettled([
+      xtreamVOD.getMovies('1'),
+      xtreamVOD.getMovies('2'),
+      xtreamVOD.getMovies('4'),
+      xtreamVOD.getMovies('17')
+    ]);
 
-    // 2. Fetch Xtream server movies
     let xtreamMovies = [];
-    try {
-      xtreamMovies = await xtreamVOD.getMovies('1');
-    } catch (e) {
-      console.warn("Xtream VOD movies fetch fallback:", e);
-    }
+    [actionRes, advRes, comRes, scifiRes].forEach(res => {
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        xtreamMovies = xtreamMovies.concat(res.value);
+      }
+    });
 
-    // 3. Cross-reference TMDB trending with Xtream catalogue to attach direct stream_ids
-    const crossReferenced = await Promise.all(tmdbTrending.map(async (tmdbItem) => {
-      try {
-        const match = await xtreamVOD.findMovieByTitle(tmdbItem.title);
-        if (match) {
-          return {
-            ...tmdbItem,
-            stream_id: match.stream_id || match.id,
-            container_extension: match.container_extension || 'mp4',
-            direct_source: match.direct_source,
-            media_type: 'movie'
-          };
-        }
-      } catch (e) {}
-      return { ...tmdbItem, media_type: 'movie' };
-    }));
-
-    // 4. Merge cross-referenced TMDB trending with Xtream movies
-    const mergedList = [...crossReferenced];
-    if (Array.isArray(xtreamMovies)) {
-      for (const xm of xtreamMovies) {
-        const title = (xm.name || xm.title || '').toLowerCase();
-        if (!mergedList.some(m => (m.title || m.name || '').toLowerCase() === title)) {
-          mergedList.push({ ...xm, media_type: 'movie', id: xm.stream_id || xm.id, stream_id: xm.stream_id || xm.id });
-        }
+    // Deduplicate by stream_id
+    const seen = new Set();
+    const uniqueXtreamMovies = [];
+    for (const m of xtreamMovies) {
+      const sId = m.stream_id || m.id;
+      if (sId && !seen.has(sId)) {
+        seen.add(sId);
+        uniqueXtreamMovies.push({ ...m, media_type: 'movie', id: sId, stream_id: sId });
       }
     }
 
-    // Sort by popularity and trending score
-    const sortedMovies = sortVODByPopularity(mergedList.length > 0 ? mergedList : (xtreamMovies || []));
+    // 2. Fetch TMDB trending titles to cross-reference and boost top blockbusters
+    let tmdbTrendingTitles = [];
+    try {
+      const tmdbData = await getTrendingMovies(1);
+      if (tmdbData && Array.isArray(tmdbData.results)) {
+        tmdbTrendingTitles = tmdbData.results.map(t => (t.title || t.name || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+      }
+    } catch (e) {}
+
+    // Score Xtream movies: boost if in TMDB trending list + sort by popularity / recency
+    const rankedMovies = uniqueXtreamMovies.map(movie => {
+      const cleanTitle = (movie.name || movie.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const isTrending = tmdbTrendingTitles.some(tt => tt && (cleanTitle.includes(tt) || tt.includes(cleanTitle)));
+      return {
+        ...movie,
+        popularity: (movie.popularity || 0) + (isTrending ? 500 : 0)
+      };
+    });
+
+    const sortedMovies = sortVODByPopularity(rankedMovies.length > 0 ? rankedMovies : uniqueXtreamMovies);
 
     if (sortedMovies.length > 0) {
       const heroItem = sortedMovies.find(m => m.backdrop_path || m.poster_path || m.stream_icon) || sortedMovies[0];
@@ -707,14 +693,14 @@ async function loadMoviesDashboard() {
 
     if (trendingRow) renderCardRow(sortedMovies.slice(0, 30), trendingRow);
 
-    // Fetch movie curation category rows concurrently with guaranteed fallback
+    // Fetch movie curation category rows directly from Xtream categories
     Promise.allSettled([
-      loadRowData(topRatedRow, xtreamVOD.getMovies('2'), getTopRated()),
-      loadRowData(actionRow, xtreamVOD.getMovies('1'), getByGenre(28, 'movie')),
-      loadRowData(comedyRow, xtreamVOD.getMovies('4'), getByGenre(35, 'movie')),
-      loadRowData(scifiRow, xtreamVOD.getMovies('17'), getByGenre(878, 'movie')),
-      loadRowData(horrorRow, xtreamVOD.getMovies('11'), getByGenre(27, 'movie')),
-      loadRowData(animationRow, xtreamVOD.getMovies('3'), getByGenre(16, 'movie'))
+      loadRowData(topRatedRow, xtreamVOD.getMovies('2')),
+      loadRowData(actionRow, xtreamVOD.getMovies('1')),
+      loadRowData(comedyRow, xtreamVOD.getMovies('4')),
+      loadRowData(scifiRow, xtreamVOD.getMovies('17')),
+      loadRowData(horrorRow, xtreamVOD.getMovies('11')),
+      loadRowData(animationRow, xtreamVOD.getMovies('3'))
     ]);
 
   } catch (err) {
@@ -723,7 +709,7 @@ async function loadMoviesDashboard() {
   }
 }
 
-// Load TV Series Dashboard hero + curated category carousels with latest TMDB trending cross-referenced with Xtream
+// Load TV Series Dashboard hero + curated category carousels directly from real Xtream VOD server catalog
 async function loadSeriesDashboard() {
   if (!isLiveTvActive()) {
     renderAccessLockedState('tab-series', 'TV Series & VOD');
@@ -751,51 +737,50 @@ async function loadSeriesDashboard() {
   }
 
   try {
-    // 1. Fetch latest real-time trending series from TMDB (House of the Dragon, Shogun, The Penguin, The Boys, Fallout, etc.)
-    let tmdbTrendingTV = [];
-    try {
-      const tmdbData = await getTrendingTV(1);
-      tmdbTrendingTV = tmdbData?.results || [];
-    } catch (e) {
-      console.warn("TMDB trending series fetch fallback:", e);
-    }
+    // 1. Fetch real Xtream series across top categories
+    const [actionRes, advRes, comRes, scifiRes, dramaRes] = await Promise.allSettled([
+      xtreamVOD.getSeries('21'),
+      xtreamVOD.getSeries('22'),
+      xtreamVOD.getSeries('24'),
+      xtreamVOD.getSeries('39'),
+      xtreamVOD.getSeries('27')
+    ]);
 
-    // 2. Fetch Xtream server series
     let xtreamSeries = [];
-    try {
-      xtreamSeries = await xtreamVOD.getSeries('21');
-    } catch (e) {
-      console.warn("Xtream VOD series fetch fallback:", e);
-    }
+    [actionRes, advRes, comRes, scifiRes, dramaRes].forEach(res => {
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        xtreamSeries = xtreamSeries.concat(res.value);
+      }
+    });
 
-    // 3. Cross-reference TMDB trending series with Xtream catalogue to attach direct series_ids
-    const crossReferencedTV = await Promise.all(tmdbTrendingTV.map(async (tmdbItem) => {
-      try {
-        const match = await xtreamVOD.findSeriesByTitle(tmdbItem.name || tmdbItem.title);
-        if (match) {
-          return {
-            ...tmdbItem,
-            series_id: match.series_id || match.id,
-            cover: match.cover || match.stream_icon,
-            media_type: 'tv'
-          };
-        }
-      } catch (e) {}
-      return { ...tmdbItem, media_type: 'tv' };
-    }));
-
-    // 4. Merge cross-referenced TMDB trending with Xtream series
-    const mergedSeries = [...crossReferencedTV];
-    if (Array.isArray(xtreamSeries)) {
-      for (const xs of xtreamSeries) {
-        const name = (xs.name || xs.title || '').toLowerCase();
-        if (!mergedSeries.some(s => (s.name || s.title || '').toLowerCase() === name)) {
-          mergedSeries.push({ ...xs, media_type: 'tv', id: xs.series_id || xs.id, series_id: xs.series_id || xs.id });
-        }
+    const seenSeries = new Set();
+    const uniqueXtreamSeries = [];
+    for (const s of xtreamSeries) {
+      const sId = s.series_id || s.id;
+      if (sId && !seenSeries.has(sId)) {
+        seenSeries.add(sId);
+        uniqueXtreamSeries.push({ ...s, media_type: 'tv', id: sId, series_id: sId });
       }
     }
 
-    const sortedSeries = sortVODByPopularity(mergedSeries.length > 0 ? mergedSeries : (xtreamSeries || []));
+    let tmdbTrendingSeriesTitles = [];
+    try {
+      const tmdbData = await getTrendingTV(1);
+      if (tmdbData && Array.isArray(tmdbData.results)) {
+        tmdbTrendingSeriesTitles = tmdbData.results.map(t => (t.name || t.title || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+      }
+    } catch (e) {}
+
+    const rankedSeries = uniqueXtreamSeries.map(series => {
+      const cleanTitle = (series.name || series.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const isTrending = tmdbTrendingSeriesTitles.some(tt => tt && (cleanTitle.includes(tt) || tt.includes(cleanTitle)));
+      return {
+        ...series,
+        popularity: (series.popularity || 0) + (isTrending ? 500 : 0)
+      };
+    });
+
+    const sortedSeries = sortVODByPopularity(rankedSeries.length > 0 ? rankedSeries : uniqueXtreamSeries);
 
     if (sortedSeries.length > 0) {
       const heroItem = sortedSeries.find(s => s.backdrop_path || s.cover || s.poster_path) || sortedSeries[0];
@@ -829,14 +814,14 @@ async function loadSeriesDashboard() {
 
     if (trendingRow) renderCardRow(sortedSeries.slice(0, 30), trendingRow);
 
-    // Fetch TV curation category rows concurrently with guaranteed fallback
+    // Fetch TV Series category rows directly from Xtream categories
     Promise.allSettled([
-      loadRowData(topRatedRow, xtreamVOD.getSeries('23'), getTopRatedTV()),
-      loadRowData(actionRow, xtreamVOD.getSeries('21'), getByGenre(10759, 'tv')),
-      loadRowData(comedyRow, xtreamVOD.getSeries('25'), getByGenre(35, 'tv')),
-      loadRowData(scifiRow, xtreamVOD.getSeries('27'), getByGenre(10765, 'tv')),
-      loadRowData(crimeRow, xtreamVOD.getSeries('22'), getByGenre(80, 'tv')),
-      loadRowData(animationRow, xtreamVOD.getSeries('24'), getByGenre(16, 'tv'))
+      loadRowData(topRatedRow, xtreamVOD.getSeries('22')),
+      loadRowData(actionRow, xtreamVOD.getSeries('21')),
+      loadRowData(comedyRow, xtreamVOD.getSeries('24')),
+      loadRowData(scifiRow, xtreamVOD.getSeries('39')),
+      loadRowData(crimeRow, xtreamVOD.getSeries('25')),
+      loadRowData(animationRow, xtreamVOD.getSeries('23'))
     ]);
 
   } catch (err) {
@@ -2932,23 +2917,37 @@ async function loadCategoryPageItems(isReset = false) {
   const isTV = config.mediaType === 'tv' || config.type === 'trending_tv' || config.type === 'top_rated_tv';
   const gridEl = isTV ? document.getElementById('series-category-view-grid') : document.getElementById('movies-category-view-grid');
 
+  const TMDB_TO_XTREAM_MOVIES = {
+    '28': '1', '12': '2', '16': '3', '35': '4', '80': '5',
+    '99': '6', '18': '7', '10751': '8', '14': '9', '36': '10',
+    '27': '11', '10402': '13', '9648': '14', '878': '17', '53': '18'
+  };
+
+  const TMDB_TO_XTREAM_SERIES = {
+    '10759': '21', '16': '23', '35': '24', '80': '25',
+    '99': '26', '18': '27', '10751': '28', '10765': '39', '9648': '35'
+  };
+
   try {
     let items = [];
-    if (config.type === 'trending_movies') {
-      const data = await getTrendingMovies(page);
-      items = data.results || [];
-    } else if (config.type === 'trending_tv') {
-      const data = await getTrendingTV(page);
-      items = data.results || [];
-    } else if (config.type === 'top_rated') {
-      const data = await getTopRated(page);
-      items = data.results || [];
-    } else if (config.type === 'top_rated_tv') {
-      const data = await getTopRatedTV(page);
-      items = data.results || [];
-    } else if (config.type === 'genre') {
-      const data = await getByGenre(config.genreId, config.mediaType || 'movie', page);
-      items = data.results || [];
+    if (isTV) {
+      if (config.type === 'trending_tv') {
+        items = await xtreamVOD.getSeries('21');
+      } else if (config.type === 'top_rated_tv') {
+        items = await xtreamVOD.getSeries('22');
+      } else if (config.type === 'genre') {
+        const catId = TMDB_TO_XTREAM_SERIES[config.genreId] || config.genreId || '21';
+        items = await xtreamVOD.getSeries(catId);
+      }
+    } else {
+      if (config.type === 'trending_movies') {
+        items = await xtreamVOD.getMovies('1');
+      } else if (config.type === 'top_rated') {
+        items = await xtreamVOD.getMovies('2');
+      } else if (config.type === 'genre') {
+        const catId = TMDB_TO_XTREAM_MOVIES[config.genreId] || config.genreId || '1';
+        items = await xtreamVOD.getMovies(catId);
+      }
     }
 
     const sortedItems = sortVODByPopularity(items);
@@ -3433,18 +3432,23 @@ async function openDetailsView(mediaItem) {
       }
       
       let directStreamUrl = null;
-      if (mediaItem.stream_id) {
-        directStreamUrl = xtreamVOD.getMovieStreamUrl(mediaItem.stream_id, mediaItem.container_extension || 'mp4');
+      const sId = mediaItem.stream_id || (mediaItem.stream_type === 'movie' ? mediaItem.id : null);
+      if (sId) {
+        directStreamUrl = xtreamVOD.getMovieStreamUrl(sId, mediaItem.container_extension || 'mp4');
       } else {
         try {
           const found = await xtreamVOD.findMovieByTitle(title);
-          if (found && found.stream_id) {
+          if (found && (found.stream_id || found.id)) {
             console.log('[Xtream VOD] Matched title to Xtream stream:', found);
-            directStreamUrl = xtreamVOD.getMovieStreamUrl(found.stream_id, found.container_extension || 'mp4');
+            directStreamUrl = xtreamVOD.getMovieStreamUrl(found.stream_id || found.id, found.container_extension || 'mp4');
           }
         } catch (e) {
           console.warn('[Xtream VOD] findMovieByTitle error:', e);
         }
+      }
+
+      if (!directStreamUrl && mediaItem.id) {
+        directStreamUrl = xtreamVOD.getMovieStreamUrl(mediaItem.id, mediaItem.container_extension || 'mp4');
       }
 
       startStreamResolution({ type: 'movie', id: mediaItem.stream_id || mediaItem.id, streamUrl: directStreamUrl });
@@ -3592,16 +3596,32 @@ function startStreamResolution({ type, id, season = 1, episode = 1, streamUrl = 
 
   statusText.textContent = 'Connecting to high-speed stream server...';
 
-  // 1. Xtream Direct HD Server as #1 default source whenever streamUrl is available
-  if (streamUrl) {
+  // 1. Resolve Xtream direct stream URL
+  let resolvedXtreamUrl = streamUrl;
+  if (!resolvedXtreamUrl) {
+    if (type === 'movie') {
+      const sId = state.selectedMedia?.stream_id || state.selectedMedia?.id || id;
+      if (sId) {
+        resolvedXtreamUrl = xtreamVOD.getMovieStreamUrl(sId, state.selectedMedia?.container_extension || 'mp4');
+      }
+    } else if (type === 'tv') {
+      const epId = id || state.selectedMedia?.series_id;
+      if (epId) {
+        resolvedXtreamUrl = xtreamVOD.getSeriesStreamUrl(epId, 'mp4');
+      }
+    }
+  }
+
+  // 2. ALWAYS register Xtream Direct HD Server as #1 default source
+  if (resolvedXtreamUrl) {
     state.resolvedSources.push({
       name: 'Xtream Direct HD Server',
-      url: streamUrl,
+      url: resolvedXtreamUrl,
       type: 'stream'
     });
   }
 
-  // 2. Populate fast direct embed stream providers as fallbacks
+  // 3. Populate fast direct embed stream providers as fallbacks
   EMBED_PROVIDERS.forEach((provider) => {
     const embedUrl = type === 'tv'
       ? provider.tv(id, season, episode)
