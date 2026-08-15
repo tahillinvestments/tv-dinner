@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite';
 import http from 'http';
 import https from 'https';
+import fs from 'fs';
+import path from 'path';
 import { URL } from 'url';
 
 // Headers to strip from incoming proxy requests
-const STRIP_REQ_HEADERS = new Set(['host', 'referer', 'origin', 'x-forwarded-for', 'x-real-ip']);
+const STRIP_REQ_HEADERS = new Set(['host', 'referer', 'origin', 'x-forwarded-for', 'x-real-ip', 'accept-encoding']);
 
 // Known IPTV portal hosts that need the VLC user-agent spoof
 const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us']);
@@ -12,9 +14,6 @@ const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us']);
 /**
  * Rewrite an HLS playlist so all segment and sub-playlist URLs are
  * proxied back through our local /api/proxy endpoint.
- * @param {string} m3uText  - raw m3u8 content
- * @param {string} baseUrl  - the absolute URL the m3u8 was fetched from (used to resolve relative URIs)
- * @returns {string}        - rewritten m3u8 content
  */
 function rewriteM3U8(m3uText, baseUrl, proxySegments = false) {
   const base = new URL(baseUrl);
@@ -22,10 +21,8 @@ function rewriteM3U8(m3uText, baseUrl, proxySegments = false) {
 
   return m3uText.split('\n').map(line => {
     const trimmed = line.trim();
-    // Skip comment / tag lines
     if (!trimmed || trimmed.startsWith('#')) return line;
     try {
-      // Resolve relative or absolute segment/playlist URIs
       const absolute = new URL(trimmed, base).href;
       const lower = absolute.toLowerCase();
       const isNestedPlaylist = lower.includes('.m3u8') || lower.includes('.m3u') || lower.includes('player_api.php');
@@ -35,7 +32,7 @@ function rewriteM3U8(m3uText, baseUrl, proxySegments = false) {
       }
       return absolute;
     } catch {
-      return line; // leave malformed lines as-is
+      return line;
     }
   }).join('\n');
 }
@@ -53,7 +50,6 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
   const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('portal5458') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/');
   const transport = targetUrl.protocol === 'https:' ? https : http;
 
-  // Build clean outbound headers (strip browser-specific ones)
   const outHeaders = {};
   for (const [k, v] of Object.entries(req.headers)) {
     if (!STRIP_REQ_HEADERS.has(k.toLowerCase())) {
@@ -62,13 +58,11 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
   }
   outHeaders['host'] = targetUrl.host;
 
-  // Spoof VLC user-agent for IPTV portal requests
   if (isIptvHost) {
     for (const key of Object.keys(outHeaders)) {
       if (key.toLowerCase() === 'user-agent') delete outHeaders[key];
     }
     outHeaders['user-agent'] = 'VLC/3.0.21 LibVLC/3.0.21';
-    // Disable keep-alive to prevent connection reuse/token issues
     outHeaders['connection'] = 'close';
   }
 
@@ -76,10 +70,6 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
     const parsed = new URL(url);
     const t = parsed.protocol === 'https:' ? https : http;
 
-    const isOriginalIptvHost = IPTV_HOSTS.has(new URL(originalUrl).hostname);
-
-    // When following redirects to CDN, keep using VLC UA since CDN segments
-    // are authorized by token in the URL (no UA check on CDN usually)
     const reqHeaders = { ...outHeaders, host: parsed.host };
 
     const options = {
@@ -92,9 +82,8 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
 
     const proxyReq = t.request(options, (proxyRes) => {
       console.log(`[Proxy] ${req.method} ${url} -> ${proxyRes.statusCode}`);
-      // Follow redirects
       if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location && redirectsLeft > 0) {
-        proxyRes.resume(); // drain body
+        proxyRes.resume();
         let redirectUrl = proxyRes.headers.location;
         if (!redirectUrl.startsWith('http')) {
           redirectUrl = `${parsed.protocol}//${parsed.host}${redirectUrl}`;
@@ -107,22 +96,19 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
       const contentType = (proxyRes.headers['content-type'] || '').toLowerCase();
       const isM3U8 = contentType.includes('mpegurl') || url.includes('.m3u8') || originalUrl.includes('.m3u8');
 
-      // Build response headers with CORS overrides
       const resHeaders = { ...proxyRes.headers };
       resHeaders['Access-Control-Allow-Origin'] = '*';
       resHeaders['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, PUT, PATCH, DELETE';
       resHeaders['Access-Control-Allow-Headers'] = '*';
-      // Remove hop-by-hop headers
       delete resHeaders['connection'];
       delete resHeaders['transfer-encoding'];
+      delete resHeaders['content-encoding'];
 
       if (isM3U8) {
-        // Buffer the m3u8 so we can rewrite URLs before sending
         let body = '';
         proxyRes.setEncoding('utf8');
         proxyRes.on('data', chunk => { body += chunk; });
         proxyRes.on('end', () => {
-          // Use the final (possibly redirected) URL as base for resolution
           const rewritten = rewriteM3U8(body, url, proxySegments);
           const buf = Buffer.from(rewritten, 'utf8');
           resHeaders['content-length'] = buf.byteLength;
@@ -131,7 +117,6 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
           res.end(buf);
         });
       } else {
-        // Pass through binary data (TS segments, etc.) unchanged
         res.writeHead(proxyRes.statusCode || 200, resHeaders);
         proxyRes.pipe(res, { end: true });
       }
@@ -155,6 +140,18 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
   doRequest(targetUrlStr, 5, targetUrlStr);
 }
 
+function getLocalCatalog() {
+  try {
+    const catalogPath = path.resolve(process.cwd(), 'data', 'vod_catalog.json');
+    if (fs.existsSync(catalogPath)) {
+      return JSON.parse(fs.readFileSync(catalogPath, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Failed to read local vod_catalog.json:', e);
+  }
+  return { vod_categories: [], vod_streams: [], series_categories: [], series: [], series_info: {} };
+}
+
 export default defineConfig({
   server: {
     port: 5173,
@@ -162,10 +159,67 @@ export default defineConfig({
   },
   plugins: [
     {
-      name: 'dynamic-cors-proxy',
+      name: 'dynamic-cors-proxy-and-vod',
       configureServer(server) {
+        // 1. Xtream Codes API Emulator & VOD endpoints
+        server.middlewares.use((req, res, next) => {
+          const urlObj = new URL(req.url, 'http://localhost:5173');
+          const pathname = urlObj.pathname;
+
+          // Enable CORS
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', '*');
+
+          if (req.method === 'OPTIONS') {
+            res.writeHead(204).end();
+            return;
+          }
+
+          // 1. Forward Xtream player_api.php queries to local vxparser (port 8888) with fallback
+          if (pathname === '/player_api.php') {
+            const targetUrl = `http://127.0.0.1:8888${req.url}`;
+            proxyRequest(req, res, targetUrl, false);
+            return;
+          }
+
+          // 2. Forward movie and series streaming requests to vxparser
+          if (pathname.startsWith('/movie/') || pathname.startsWith('/series/')) {
+            const targetUrl = `http://127.0.0.1:8888${req.url}`;
+            proxyRequest(req, res, targetUrl, true);
+            return;
+          }
+
+          const seriesMatch = pathname.match(/^\/series\/([^/]+)\/([^/]+)\/(\d+)\.(\w+)$/);
+          if (seriesMatch) {
+            const streamId = seriesMatch[3];
+            const catalog = getLocalCatalog();
+            let directUrl = null;
+            if (catalog.series_info) {
+              for (const sInfo of Object.values(catalog.series_info)) {
+                if (sInfo.episodes) {
+                  for (const epList of Object.values(sInfo.episodes)) {
+                    const ep = epList.find(e => String(e.id) === String(streamId));
+                    if (ep && ep.direct_source) {
+                      directUrl = ep.direct_source;
+                      break;
+                    }
+                  }
+                }
+                if (directUrl) break;
+              }
+            }
+            if (directUrl) {
+              proxyRequest(req, res, directUrl, false);
+              return;
+            }
+          }
+
+          next();
+        });
+
+        // 2. CORS Proxy for HLS and media segments
         server.middlewares.use('/api/proxy', (req, res) => {
-          // Handle CORS preflight
           if (req.method === 'OPTIONS') {
             res.writeHead(204, {
               'Access-Control-Allow-Origin': '*',
@@ -176,7 +230,6 @@ export default defineConfig({
             return;
           }
 
-          // Parse ?url= query param
           const qIndex = req.url.indexOf('?');
           if (qIndex === -1) { res.statusCode = 400; res.end('Missing url parameter'); return; }
           const params = new URLSearchParams(req.url.slice(qIndex + 1));

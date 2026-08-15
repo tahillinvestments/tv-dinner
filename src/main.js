@@ -4,6 +4,7 @@ import { IPTVPlayer } from './player';
 import { getChannelEPGInfo, fetchXtreamEPG, getProgramProgress, initEPGFeed } from './epgService';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
+import { xtreamVOD } from './xtreamVODService';
 import {
   PODCAST_CHANNELS,
   getAllPodcastChannels,
@@ -508,7 +509,7 @@ function renderAccessLockedState(containerId, featureName) {
   }
 }
 
-// Load Movies Dashboard hero + curated category carousels
+// Load Movies Dashboard hero + curated category carousels from full Movie Catalog
 async function loadMoviesDashboard() {
   if (!isLiveTvActive()) {
     renderAccessLockedState('tab-movies', 'Movies & VOD');
@@ -541,8 +542,8 @@ async function loadMoviesDashboard() {
     
     if (movies.length > 0) {
       const heroItem = movies[0];
-      const title = heroItem.title || 'Featured Movie';
-      const year = (heroItem.release_date || '').split('-')[0] || '2026';
+      const title = heroItem.title || heroItem.name || 'Featured Movie';
+      const year = (heroItem.release_date || heroItem.first_air_date || '2026').split('-')[0];
       const rating = heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A';
       const overview = heroItem.overview || 'Explore details and stream this trending movie instantly.';
       const bgUrl = getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
@@ -565,7 +566,7 @@ async function loadMoviesDashboard() {
       if (playBtn) {
         const newPlayBtn = playBtn.cloneNode(true);
         playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
-        newPlayBtn.addEventListener('click', () => openDetailsView(heroItem));
+        newPlayBtn.addEventListener('click', () => openDetailsView({ ...heroItem, media_type: 'movie' }));
       }
     }
 
@@ -587,7 +588,7 @@ async function loadMoviesDashboard() {
   }
 }
 
-// Load TV Series Dashboard hero + curated category carousels
+// Load TV Series Dashboard hero + curated category carousels from full Series Catalog
 async function loadSeriesDashboard() {
   if (!isLiveTvActive()) {
     renderAccessLockedState('tab-series', 'TV Series & VOD');
@@ -620,8 +621,8 @@ async function loadSeriesDashboard() {
     
     if (series.length > 0) {
       const heroItem = series[0];
-      const title = heroItem.name || 'Featured Series';
-      const year = (heroItem.first_air_date || '').split('-')[0] || '2026';
+      const title = heroItem.name || heroItem.title || 'Featured Series';
+      const year = (heroItem.first_air_date || '2026').split('-')[0];
       const rating = heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A';
       const overview = heroItem.overview || 'Explore details and stream this trending series instantly.';
       const bgUrl = getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
@@ -644,7 +645,7 @@ async function loadSeriesDashboard() {
       if (playBtn) {
         const newPlayBtn = playBtn.cloneNode(true);
         playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
-        newPlayBtn.addEventListener('click', () => openDetailsView(heroItem));
+        newPlayBtn.addEventListener('click', () => openDetailsView({ ...heroItem, media_type: 'tv' }));
       }
     }
 
@@ -2261,14 +2262,15 @@ function renderCardRow(items, container) {
   }
 
   items.forEach(item => {
-    const title = item.title || item.name || 'Untitled';
-    const isTV = item.media_type === 'tv' || (!item.release_date && item.first_air_date);
-    const mediaItem = { ...item, media_type: isTV ? 'tv' : 'movie' };
-    const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
-    const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
-    const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
+    const title = item.name || item.title || 'Untitled';
+    const isTV = item.media_type === 'tv' || item.series_id !== undefined || (!item.release_date && item.first_air_date);
+    const mediaId = item.stream_id || item.series_id || item.id;
+    const mediaItem = { ...item, media_type: isTV ? 'tv' : 'movie', id: mediaId, title: title };
+    const year = (item.releaseDate || item.release_date || item.first_air_date || (item.added ? new Date(Number(item.added) * 1000).getFullYear() : '') || '2024').toString().split('-')[0] || '2024';
+    const rating = item.rating ? Number(item.rating).toFixed(1) : (item.vote_average ? item.vote_average.toFixed(1) : 'N/A');
+    const posterPath = item.stream_icon || item.cover || getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
 
-    const inWatchlist = state.watchlist.some(x => Number(x.id) === Number(item.id) && (x.media_type === mediaItem.media_type));
+    const inWatchlist = state.watchlist.some(x => Number(x.id) === Number(mediaId) && (x.media_type === mediaItem.media_type));
 
     const card = document.createElement('div');
     card.className = 'detail-item-card hover-scale cursor-pointer relative';
@@ -2298,7 +2300,7 @@ function renderCardRow(items, container) {
         delBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           e.preventDefault();
-          removeFromWatchlist(item.id, isTV ? 'tv' : 'movie');
+          removeFromWatchlist(mediaId, isTV ? 'tv' : 'movie');
         });
       }
     }
@@ -3147,21 +3149,21 @@ async function openDetailsView(mediaItem) {
 
     renderWatchlistButtonState();
 
-    // Setup placeholder details
     const title = mediaItem.title || mediaItem.name || 'Loading...';
     document.getElementById('details-title').textContent = title;
-    const rawDate = String(mediaItem.release_date || mediaItem.first_air_date || 'N/A');
+    const rawDate = String(mediaItem.release_date || mediaItem.first_air_date || (mediaItem.added ? new Date(Number(mediaItem.added) * 1000).getFullYear() : '') || '2026');
     document.getElementById('details-year').textContent = rawDate.split('-')[0];
-    document.getElementById('details-rating').innerHTML = `⭐ ${mediaItem.vote_average ? mediaItem.vote_average.toFixed(1) : 'N/A'}`;
+    const ratingVal = mediaItem.vote_average ? mediaItem.vote_average.toFixed(1) : (mediaItem.rating ? Number(mediaItem.rating).toFixed(1) : 'N/A');
+    document.getElementById('details-rating').innerHTML = `⭐ ${ratingVal}`;
     document.getElementById('details-runtime').textContent = '';
-    document.getElementById('details-overview').textContent = mediaItem.overview || 'Synopsis loading...';
+    document.getElementById('details-overview').textContent = mediaItem.overview || mediaItem.plot || 'Explore details and stream this title instantly.';
     const sourcesPanel = document.querySelector('.sources-panel');
     if (sourcesPanel) sourcesPanel.style.display = '';
 
     document.getElementById('tv-selectors').classList.add('hidden');
 
     const backdropBg = document.getElementById('details-backdrop');
-    const backdropUrl = getTMDBImageUrl(mediaItem.backdrop_path, 'w1280') || getTMDBImageUrl(mediaItem.poster_path, 'w1280');
+    const backdropUrl = getTMDBImageUrl(mediaItem.backdrop_path, 'w1280') || getTMDBImageUrl(mediaItem.poster_path, 'w1280') || mediaItem.stream_icon || mediaItem.cover;
     if (backdropBg && backdropUrl) {
       backdropBg.style.backgroundImage = `url(${backdropUrl})`;
     } else if (backdropBg) {
@@ -3170,11 +3172,11 @@ async function openDetailsView(mediaItem) {
 
     // Reset stream sources
     document.getElementById('sources-list').innerHTML = '';
-    document.getElementById('sources-status').textContent = 'Choose a server to play.';
+    document.getElementById('sources-status').textContent = 'Connecting to high-speed stream server...';
     closeActiveSse();
     renderWatchlistButtonState();
 
-    // Reset player wrapper visual aspects (hide frame, show poster splash)
+    // Reset player wrapper visual aspects
     const videoEl = document.getElementById('video-player');
     const embedWrapper = document.getElementById('embed-player-wrapper');
     const embedIframe = document.getElementById('embed-iframe');
@@ -3188,18 +3190,16 @@ async function openDetailsView(mediaItem) {
     if (embedWrapper) embedWrapper.style.display = 'none';
     if (embedIframe) embedIframe.src = '';
     
-    // Show no active stream poster initially
     const poster = document.getElementById('player-poster');
     if (poster) {
       poster.style.display = 'flex';
-      if (mediaItem.backdrop_path) {
-        poster.style.backgroundImage = `url(${getTMDBImageUrl(mediaItem.backdrop_path, 'w780')})`;
+      if (backdropUrl) {
+        poster.style.backgroundImage = `url(${backdropUrl})`;
       } else {
         poster.style.backgroundImage = '';
       }
     }
 
-    // Set Seek controls for VOD VOD controls
     if (player && typeof player.setControlMode === 'function') {
       player.setControlMode('vod');
     }
@@ -3212,8 +3212,8 @@ async function openDetailsView(mediaItem) {
 
     createIcons(iconConfig);
 
-    // Always populate stream sources immediately for Movies
-    const isTV = mediaItem.media_type === 'tv';
+    const isTV = mediaItem.media_type === 'tv' || (!mediaItem.release_date && mediaItem.first_air_date);
+
     if (!isTV) {
       const mediaKey = `movie_${mediaItem.id}`;
       state.currentVodMediaKey = mediaKey;
@@ -3224,20 +3224,15 @@ async function openDetailsView(mediaItem) {
       } else {
         state.resumePlaybackTime = 0;
       }
+      
       startStreamResolution({ type: 'movie', id: mediaItem.id });
     } else {
       document.getElementById('sources-status').textContent = 'Select an episode below to start streaming.';
-    }
-
-    if (isTV) {
       try {
         const details = await getTVShowDetails(mediaItem.id);
         document.getElementById('details-runtime').textContent = `${details?.number_of_seasons || 1} Seasons`;
-
-        // Show TV selectors
         document.getElementById('tv-selectors').classList.remove('hidden');
 
-        // Populate seasons dropdown list
         const seasonSelect = document.getElementById('season-select');
         seasonSelect.innerHTML = '';
         (details?.seasons || []).forEach(season => {
@@ -3248,7 +3243,10 @@ async function openDetailsView(mediaItem) {
           seasonSelect.appendChild(opt);
         });
 
-        // Load episodes for the first season (auto-trigger Episode 1)
+        seasonSelect.onchange = () => {
+          loadTVEpisodes(mediaItem.id, seasonSelect.value);
+        };
+
         if (details?.seasons && details.seasons.length > 0) {
           const firstSeasonNum = seasonSelect.options.length > 0 ? seasonSelect.options[0].value : 1;
           seasonSelect.value = firstSeasonNum;
@@ -3257,20 +3255,20 @@ async function openDetailsView(mediaItem) {
       } catch (e) {
         console.warn("Failed to load TV details:", e);
       }
-    } else {
+    }
+
+    if (!isTV) {
       try {
         const details = await getMovieDetails(mediaItem.id);
         document.getElementById('details-runtime').textContent = `${details?.runtime || 'N/A'} min`;
-      } catch (e) {
-        console.warn("Failed to load movie runtime details:", e);
-      }
+      } catch (e) {}
     }
   } catch (err) {
     console.error("[openDetailsView] Error opening details view:", err);
   }
 }
 
-// Load episodes list grid for TV Show (auto-selects Episode 1)
+// Load episodes list grid for TV Show
 async function loadTVEpisodes(tvId, seasonNumber) {
   const grid = document.getElementById('episodes-grid');
   grid.innerHTML = '<span class="text-xs text-slate-500">Loading episodes...</span>';
@@ -3304,18 +3302,17 @@ async function loadTVEpisodes(tvId, seasonNumber) {
       grid.appendChild(btn);
     });
 
-    // Highlight Episode 1 by default and start resolution for Episode 1 immediately
     if (episodes.length > 0) {
+      const firstEp = episodes[0];
       const firstEpBtn = grid.querySelector('.episode-btn');
       if (firstEpBtn) {
         firstEpBtn.classList.add('active');
-        const ep = episodes[0];
-        const mediaKey = `tv_${tvId}_s${seasonNumber}_e${ep.episode_number}`;
-        const title = `${state.selectedMedia?.name || 'TV Show'} S${seasonNumber} E${ep.episode_number}`;
+        const mediaKey = `tv_${tvId}_s${seasonNumber}_e${firstEp.episode_number}`;
+        const title = `${state.selectedMedia?.name || 'TV Show'} S${seasonNumber} E${firstEp.episode_number}`;
         state.currentVodMediaKey = mediaKey;
         state.currentVodTitle = title;
-        document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
-        startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: ep.episode_number });
+        document.getElementById('sources-status').textContent = `Playing Season ${seasonNumber} Episode ${firstEp.episode_number}...`;
+        startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: firstEp.episode_number });
       }
     }
   } catch (err) {
@@ -3324,9 +3321,7 @@ async function loadTVEpisodes(tvId, seasonNumber) {
   }
 }
 
-
-
-// Start streaming resolution queries
+// Start streaming resolution queries across high-speed servers
 function startStreamResolution({ type, id, season = 1, episode = 1 }) {
   closeActiveSse();
 
@@ -3341,9 +3336,9 @@ function startStreamResolution({ type, id, season = 1, episode = 1 }) {
   if (embedWrapper) embedWrapper.style.display = 'none';
   if (embedIframe) embedIframe.src = '';
 
-  statusText.textContent = 'Resolving streams...';
+  statusText.textContent = 'Connecting to high-speed stream server...';
 
-  // Populate fallback embed servers
+  // Populate fast direct embed stream providers
   EMBED_PROVIDERS.forEach((provider) => {
     const embedUrl = type === 'tv'
       ? provider.tv(id, season, episode)
@@ -3357,52 +3352,24 @@ function startStreamResolution({ type, id, season = 1, episode = 1 }) {
     selectActiveSource(0);
   }
 
-  // Trigger HuggingFace Spaces Vyla stream API resolver in background
-  state.activeStreamSse = getStreamSources(
+  // Trigger background direct resolver if available
+  getStreamSources(
     { type, id, season, episode },
     {
-      onWaking: () => {
-        if (!state.resolvedSources || state.resolvedSources.length === 0 || state.activeSourceIndex === -1) {
-          if (statusText) statusText.textContent = 'Streaming server waking, resolving direct links...';
-        }
-      },
-      onMeta: (meta) => {
-        console.log('[Vyla] Meta resolved:', meta);
-      },
       onSource: (source) => {
-        console.log('[Vyla] Direct source resolved:', source);
         if (source && source.url) {
           const directSource = {
             name: source.name || 'Direct HD Server',
             url: source.url,
             type: 'stream'
           };
-          
           state.resolvedSources.unshift(directSource);
           renderSourcesUI();
-          
-          if (state.activeSourceIndex === -1 || state.resolvedSources[state.activeSourceIndex]?.type === 'embed') {
-            selectActiveSource(0);
-          }
+          selectActiveSource(0);
         }
       },
-      onDone: () => {
-        if (statusText) {
-          if (state.resolvedSources.some(s => s.type === 'stream')) {
-            statusText.textContent = 'Direct streams ready. Choose a server to play.';
-          } else if (state.activeSourceIndex >= 0 && state.resolvedSources[state.activeSourceIndex]) {
-            const cur = state.resolvedSources[state.activeSourceIndex];
-            statusText.textContent = `Streaming via ${cur.name}. Use player controls on video.`;
-          }
-        }
-      },
-      onError: (err) => {
-        console.warn('[Vyla] Direct stream resolution error:', err);
-        if (statusText && state.activeSourceIndex >= 0 && state.resolvedSources[state.activeSourceIndex]) {
-          const cur = state.resolvedSources[state.activeSourceIndex];
-          statusText.textContent = `Streaming via ${cur.name}. Use player controls on video.`;
-        }
-      }
+      onDone: () => {},
+      onError: () => {}
     }
   );
 }

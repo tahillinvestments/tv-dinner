@@ -1,0 +1,102 @@
+{
+  "vod_categories": [
+    { "category_id": "1", "category_name": "Action & Sci-Fi", "parent_id": 0 },
+    { "category_id": "2", "category_name": "Open Cinema 4K", "parent_id": 0 },
+    { "category_id": "3", "category_name": "Animation & Shorts", "parent_id": 0 }
+  ],
+  "vod_streams": [
+    {
+      "num": 1,
+      "name": "Tears of Steel (4K Sci-Fi Master)",
+      "stream_type": "movie",
+      "stream_id": 1001,
+      "stream_icon": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Tears_of_Steel_poster.jpg/640px-Tears_of_Steel_poster.jpg",
+      "rating": "8.8",
+      "rating_5based": 4.4,
+      "added": "1700000000",
+      "category_id": "1",
+      "container_extension": "m3u8",
+      "direct_source": "https://content.jwplatform.com/manifests/vM7nH0Kl.m3u8"
+    },
+    {
+      "num": 2,
+      "name": "Adaptive HLS Multi-Bitrate Showcase",
+      "stream_type": "movie",
+      "stream_id": 1002,
+      "stream_icon": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Big_buck_bunny_poster_big.jpg/640px-Big_buck_bunny_poster_big.jpg",
+      "rating": "9.0",
+      "rating_5based": 4.5,
+      "added": "1700000000",
+      "category_id": "2",
+      "container_extension": "m3u8",
+      "direct_source": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+    },
+    {
+      "num": 3,
+      "name": "Akamai Cinema Test Stream",
+      "stream_type": "movie",
+      "stream_id": 1003,
+      "stream_icon": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Sintel_poster.jpg/640px-Sintel_poster.jpg",
+      "rating": "8.5",
+      "rating_5based": 4.25,
+      "added": "1700000000",
+      "category_id": "3",
+      "container_extension": "m3u8",
+      "direct_source": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8"
+    }
+  ],
+  "series_categories": [
+    { "category_id": "10", "category_name": "Featured Series", "parent_id": 0 }
+  ],
+  "series": [
+    {
+      "num": 1,
+      "name": "Open Cinema Masterworks Anthology",
+      "series_id": 2001,
+      "cover": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Tears_of_Steel_poster.jpg/640px-Tears_of_Steel_poster.jpg",
+      "plot": "A curated mini-series showcasing open-source CGI masterworks and adaptive cinematic streams.",
+      "cast": "Blender Institute Animation Collective",
+      "director": "Ton Roosendaal",
+      "genre": "Sci-Fi / Animation",
+      "releaseDate": "2024",
+      "last_modified": "1700000000",
+      "rating": "9.2",
+      "rating_5based": 4.6,
+      "category_id": "10"
+    }
+  ],
+  "series_info": {
+    "2001": {
+      "seasons": [
+        { "air_date": "2024-01-01", "episode_count": 2, "id": 1, "name": "Season 1", "overview": "Masterworks Collection", "season_number": 1, "cover": "" }
+      ],
+      "episodes": {
+        "1": [
+          {
+            "id": "200101",
+            "episode_num": 1,
+            "title": "Episode 1: Tears of Steel VFX",
+            "container_extension": "m3u8",
+            "direct_source": "https://content.jwplatform.com/manifests/vM7nH0Kl.m3u8",
+            "info": { "plot": "Sci-Fi dystopian VFX test stream.", "duration": "12 min" }
+          },
+          {
+            "id": "200102",
+            "episode_num": 2,
+            "title": "Episode 2: Adaptive Mux Stream",
+            "container_extension": "m3u8",
+            "direct_source": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+            "info": { "plot": "Adaptive multi-bitrate HLS demo.", "duration": "10 min" }
+          }
+        ]
+      },
+      "info": {
+        "name": "Open Cinema Masterworks Anthology",
+        "cover": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Tears_of_Steel_poster.jpg/640px-Tears_of_Steel_poster.jpg",
+        "plot": "A curated mini-series showcasing open-source CGI masterworks.",
+        "genre": "Sci-Fi / Animation",
+        "rating": "9.2"
+      }
+    }
+  }
+}
