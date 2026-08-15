@@ -959,7 +959,7 @@ function getGuaranteedChannelEpisodes(channel) {
 
 function getPodcastsProxyUrl(targetUrl) {
   if (!targetUrl) return '';
-  let baseProxy = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+  let baseProxy = '/api/proxy';
   try {
     const saved = (localStorage.getItem('external_proxy_url') || '').trim();
     if (saved) baseProxy = saved;
@@ -976,7 +976,7 @@ function getPodcastsProxyUrl(targetUrl) {
     return `${origin}${p}?url=${encodeURIComponent(targetUrl)}`;
   }
 
-  return `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
+  return `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
 }
 
 // Dynamically fetch past episodes for a channel (via YouTube XML RSS feed, iTunes RSS & live APIs)

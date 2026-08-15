@@ -53,11 +53,18 @@ export class XtreamVODClient {
       proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
     } catch (e) {}
     if (!proxyBase) {
-      proxyBase = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+      proxyBase = '/api/proxy';
     }
-    const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
 
-    const url = isAndroid ? targetUrl : `${p}?url=${encodeURIComponent(targetUrl)}`;
+    let url;
+    if (isAndroid) {
+      url = targetUrl;
+    } else if (proxyBase.startsWith('http://') || proxyBase.startsWith('https://')) {
+      const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
+      url = `${p}?url=${encodeURIComponent(targetUrl)}`;
+    } else {
+      url = `${proxyBase}?url=${encodeURIComponent(targetUrl)}`;
+    }
 
     const res = await fetch(url);
     if (!res.ok) {

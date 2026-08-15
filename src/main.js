@@ -76,8 +76,8 @@ const iconConfig = {
   }
 })();
 
-// Default Proxy URL fallback (Cloudflare Worker with unlimited bandwidth / $0 origin fees)
-const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+// Default Proxy URL fallback
+const DEFAULT_RENDER_PROXY = '/api/proxy';
 
 // Global State
 const state = {
@@ -3428,16 +3428,7 @@ function startStreamResolution({ type, id, season = 1, episode = 1, streamUrl = 
 
   statusText.textContent = 'Connecting to high-speed stream server...';
 
-  // If direct Xtream stream URL is present, prioritize it as #1 source!
-  if (streamUrl) {
-    state.resolvedSources.push({
-      name: 'Xtream Direct HD Server',
-      url: streamUrl,
-      type: 'stream'
-    });
-  }
-
-  // Populate fast direct embed stream providers
+  // Populate fast direct embed stream providers (zero proxy bandwidth, pristine HD)
   EMBED_PROVIDERS.forEach((provider) => {
     const embedUrl = type === 'tv'
       ? provider.tv(id, season, episode)
@@ -3446,31 +3437,19 @@ function startStreamResolution({ type, id, season = 1, episode = 1, streamUrl = 
     state.resolvedSources.push({ name: provider.name, url: embedUrl, type: 'embed' });
   });
 
+  // If direct Xtream stream URL is present, provide it as an option in the sources list
+  if (streamUrl) {
+    state.resolvedSources.push({
+      name: 'Xtream Direct HD Server',
+      url: streamUrl,
+      type: 'stream'
+    });
+  }
+
   renderSourcesUI();
   if (state.resolvedSources.length > 0) {
     selectActiveSource(0);
   }
-
-  // Trigger background direct resolver if available
-  getStreamSources(
-    { type, id, season, episode },
-    {
-      onSource: (source) => {
-        if (source && source.url) {
-          const directSource = {
-            name: source.name || 'Direct HD Server',
-            url: source.url,
-            type: 'stream'
-          };
-          state.resolvedSources.unshift(directSource);
-          renderSourcesUI();
-          selectActiveSource(0);
-        }
-      },
-      onDone: () => {},
-      onError: () => {}
-    }
-  );
 }
 
 // Render the source selector buttons list

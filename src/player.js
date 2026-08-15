@@ -24,15 +24,18 @@ function getPlayerProxyUrl(targetUrl) {
     return cleanTarget;
   }
 
-  // 2. If the user has set a custom external proxy in Settings, use it; otherwise default to Cloudflare Worker proxy.
+  // 2. If the user has set a custom external proxy in Settings, use it; otherwise use /api/proxy
   let savedProxy = '';
   try {
     savedProxy = (localStorage.getItem('external_proxy_url') || '').trim();
   } catch (e) {}
   
-  const proxyBase = savedProxy || 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
-  const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
-  return `${p}?url=${encodeURIComponent(cleanTarget)}`;
+  const proxyBase = savedProxy || '/api/proxy';
+  if (proxyBase.startsWith('http://') || proxyBase.startsWith('https://')) {
+    const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
+    return `${p}?url=${encodeURIComponent(cleanTarget)}`;
+  }
+  return `${proxyBase}?url=${encodeURIComponent(cleanTarget)}`;
 }
 
 export class IPTVPlayer {
@@ -500,7 +503,6 @@ export class IPTVPlayer {
     const originalUrl = rawTargetUrl;
 
     const proxyFallbacks = [
-      (url) => `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(url)}`,
       (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
     ];
@@ -547,9 +549,9 @@ export class IPTVPlayer {
         enableWorker: true,
         lowLatencyMode: false,
         startPosition: (this.controlMode === 'vod' && resumePos > 0) ? resumePos : -1,
-        maxBufferLength: 45,
-        maxMaxBufferLength: 90,
-        maxBufferSize: 60 * 1000 * 1000, // 60MB
+        maxBufferLength: 15,
+        maxMaxBufferLength: 30,
+        maxBufferSize: 20 * 1000 * 1000, // 20MB max to prevent bandwidth waste
         manifestLoadingTimeOut: 20000,
         manifestLoadingMaxRetry: 6,
         levelLoadingTimeOut: 20000,
