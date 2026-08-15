@@ -4,7 +4,7 @@ import { IPTVPlayer } from './player';
 import { getChannelEPGInfo, fetchXtreamEPG, getProgramProgress, initEPGFeed } from './epgService';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
-import { xtreamVOD, sortVODByPopularity, calculateVODScore } from './xtreamVODService';
+import { xtreamVOD, sortVODByPopularity, calculateVODScore, getSafeImageUrl } from './xtreamVODService';
 import {
   PODCAST_CHANNELS,
   getAllPodcastChannels,
@@ -79,10 +79,61 @@ const iconConfig = {
 // Default Proxy URL fallback
 const DEFAULT_RENDER_PROXY = '/api/proxy';
 
-// Safe parsed watchlist excluding any podcasts
+// Robust identifier for podcast items to ensure they never appear in VOD Watchlist
+function isPodcastWatchlistItem(item) {
+  if (!item) return true;
+  if (item.media_type === 'podcast' || item.category === 'Podcast') return true;
+  if (item.youtubeId || item.videoId || item.channelName || item.author || item.audioUrl || item.feedUrl) return true;
+  
+  const title = (item.title || item.name || '').toLowerCase();
+  const desc = (item.overview || item.plot || item.description || '').toLowerCase();
+  const poster = (item.poster_path || item.stream_icon || item.cover || item.thumbnail || '').toLowerCase();
+
+  if (poster.includes('youtube.com') || poster.includes('ytimg.com')) return true;
+
+  if (title.includes('mase') || title.includes('ma$e') || title.includes('cam\'ron') || title.includes('camron') ||
+      title.includes('lil baby shooting') || title.includes('break silence') || title.includes('kill tony') || 
+      title.includes('lex fridman') || title.includes('huberman') || title.includes('podcast') || 
+      title.includes('episode #') || title.includes('shannon sharpe') || title.includes('club shay shay') || 
+      title.includes('flagrant') || title.includes('pbd podcast') || desc.includes('podcast')) {
+    return true;
+  }
+
+  // Pure YouTube ID string format without stream_id or series_id
+  if (typeof item.id === 'string' && (item.id.startsWith('chan_') || item.id.startsWith('pod_') || (item.id.length === 11 && !item.stream_id && !item.series_id))) {
+    return true;
+  }
+
+  return false;
+}
+
+// Helper to resolve safe high-resolution poster for any media item
+function getMediaPoster(item, size = 'w342') {
+  if (!item) return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=342&q=80';
+  
+  if (item.poster_path) {
+    if (typeof item.poster_path === 'string' && item.poster_path.startsWith('http')) return getSafeImageUrl(item.poster_path);
+    return getTMDBImageUrl(item.poster_path, size);
+  }
+  if (item.backdrop_path && typeof item.backdrop_path === 'string' && !item.backdrop_path.startsWith('http')) {
+    return getTMDBImageUrl(item.backdrop_path, size);
+  }
+  if (item.stream_icon) {
+    return getSafeImageUrl(item.stream_icon);
+  }
+  if (item.cover) {
+    return getSafeImageUrl(item.cover);
+  }
+  if (item.thumbnail) {
+    return getSafeImageUrl(item.thumbnail);
+  }
+  return 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=342&q=80';
+}
+
+// Safe parsed watchlist strictly purging any podcasts
 const rawWatchlist = JSON.parse(localStorage.getItem('vod_watchlist') || '[]');
 const initialWatchlist = Array.isArray(rawWatchlist)
-  ? rawWatchlist.filter(item => item && item.media_type !== 'podcast' && item.category !== 'Podcast' && !item.audioUrl && !item.feedUrl)
+  ? rawWatchlist.filter(item => !isPodcastWatchlistItem(item))
   : [];
 if (initialWatchlist.length !== rawWatchlist.length) {
   localStorage.setItem('vod_watchlist', JSON.stringify(initialWatchlist));
@@ -545,7 +596,7 @@ async function loadRowData(container, xtreamPromise, tmdbPromise) {
   }
 }
 
-// Load Movies Dashboard hero + curated category carousels from full Movie Catalog
+// Load Movies Dashboard hero + curated category carousels with latest TMDB trending cross-referenced with Xtream
 async function loadMoviesDashboard() {
   if (!isLiveTvActive()) {
     renderAccessLockedState('tab-movies', 'Movies & VOD');
@@ -561,8 +612,8 @@ async function loadMoviesDashboard() {
   const watchlistRow = document.getElementById('row-movies-watchlist');
   const watchlistSection = document.getElementById('row-movies-watchlist-section');
 
-  // Load Movies Watchlist
-  const movieWatchlist = state.watchlist.filter(x => x.media_type === 'movie' || (!x.media_type && !x.series_id));
+  // Load Movies Watchlist (strictly excluding any podcasts)
+  const movieWatchlist = state.watchlist.filter(x => !isPodcastWatchlistItem(x) && (x.media_type === 'movie' || (!x.media_type && !x.series_id)));
   if (watchlistSection && watchlistRow) {
     if (movieWatchlist.length > 0) {
       watchlistSection.style.display = 'block';
@@ -573,28 +624,59 @@ async function loadMoviesDashboard() {
   }
 
   try {
-    let movies = [];
+    // 1. Fetch latest real-time trending movies from TMDB (2024-2026 latest blockbuster releases)
+    let tmdbTrending = [];
     try {
-      movies = await xtreamVOD.getMovies('1'); // Action / Featured
+      const tmdbData = await getTrendingMovies(1);
+      tmdbTrending = tmdbData?.results || [];
     } catch (e) {
-      console.warn("Xtream VOD movies fetch fallback to TMDB:", e);
+      console.warn("TMDB trending movies fetch fallback:", e);
     }
 
-    if (!Array.isArray(movies) || movies.length === 0) {
-      const data = await getTrendingMovies();
-      movies = data.results || [];
+    // 2. Fetch Xtream server movies
+    let xtreamMovies = [];
+    try {
+      xtreamMovies = await xtreamVOD.getMovies('1');
+    } catch (e) {
+      console.warn("Xtream VOD movies fetch fallback:", e);
     }
-    
-    // Sort movies by popularity/trending score
-    const sortedMovies = sortVODByPopularity(movies);
+
+    // 3. Cross-reference TMDB trending with Xtream catalogue to attach direct stream_ids
+    const crossReferenced = tmdbTrending.map(tmdbItem => {
+      const match = xtreamVOD.findMovieByTitle(tmdbItem.title);
+      if (match) {
+        return {
+          ...tmdbItem,
+          stream_id: match.stream_id || match.id,
+          container_extension: match.container_extension || 'mp4',
+          direct_source: match.direct_source,
+          media_type: 'movie'
+        };
+      }
+      return { ...tmdbItem, media_type: 'movie' };
+    });
+
+    // 4. Merge cross-referenced TMDB trending with Xtream movies
+    const mergedList = [...crossReferenced];
+    if (Array.isArray(xtreamMovies)) {
+      for (const xm of xtreamMovies) {
+        const title = (xm.name || xm.title || '').toLowerCase();
+        if (!mergedList.some(m => (m.title || m.name || '').toLowerCase() === title)) {
+          mergedList.push({ ...xm, media_type: 'movie' });
+        }
+      }
+    }
+
+    // Sort by popularity and trending score
+    const sortedMovies = sortVODByPopularity(mergedList.length > 0 ? mergedList : (xtreamMovies || []));
 
     if (sortedMovies.length > 0) {
-      const heroItem = sortedMovies.find(m => m.stream_icon || m.backdrop_path || m.poster_path) || sortedMovies[0];
+      const heroItem = sortedMovies.find(m => m.backdrop_path || m.poster_path || m.stream_icon) || sortedMovies[0];
       const title = heroItem.title || heroItem.name || 'Featured Movie';
       const year = (heroItem.releaseDate || heroItem.release_date || heroItem.first_air_date || (heroItem.added ? new Date(Number(heroItem.added) * 1000).getFullYear() : '') || '2026').toString().split('-')[0];
       const rating = heroItem.rating ? Number(heroItem.rating).toFixed(1) : (heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A');
       const overview = heroItem.overview || heroItem.plot || 'Explore details and stream this trending movie instantly.';
-      const bgUrl = heroItem.stream_icon || getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
+      const bgUrl = getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original') || getSafeImageUrl(heroItem.stream_icon);
 
       const titleEl = document.getElementById('movies-hero-title');
       if (titleEl) titleEl.textContent = title;
@@ -636,7 +718,7 @@ async function loadMoviesDashboard() {
   }
 }
 
-// Load TV Series Dashboard hero + curated category carousels from full Series Catalog
+// Load TV Series Dashboard hero + curated category carousels with latest TMDB trending cross-referenced with Xtream
 async function loadSeriesDashboard() {
   if (!isLiveTvActive()) {
     renderAccessLockedState('tab-series', 'TV Series & VOD');
@@ -652,8 +734,8 @@ async function loadSeriesDashboard() {
   const watchlistRow = document.getElementById('row-series-watchlist');
   const watchlistSection = document.getElementById('row-series-watchlist-section');
 
-  // Load TV Series Watchlist
-  const seriesWatchlist = state.watchlist.filter(x => x.media_type === 'tv' || x.media_type === 'series' || !!x.series_id);
+  // Load TV Series Watchlist (strictly excluding any podcasts)
+  const seriesWatchlist = state.watchlist.filter(x => !isPodcastWatchlistItem(x) && (x.media_type === 'tv' || x.media_type === 'series' || !!x.series_id));
   if (watchlistSection && watchlistRow) {
     if (seriesWatchlist.length > 0) {
       watchlistSection.style.display = 'block';
@@ -664,28 +746,57 @@ async function loadSeriesDashboard() {
   }
 
   try {
-    let series = [];
+    // 1. Fetch latest real-time trending series from TMDB (House of the Dragon, Shogun, The Penguin, The Boys, Fallout, etc.)
+    let tmdbTrendingTV = [];
     try {
-      series = await xtreamVOD.getSeries('21'); // Action / Trending
+      const tmdbData = await getTrendingTV(1);
+      tmdbTrendingTV = tmdbData?.results || [];
     } catch (e) {
-      console.warn("Xtream VOD series fetch fallback to TMDB:", e);
+      console.warn("TMDB trending series fetch fallback:", e);
     }
 
-    if (!Array.isArray(series) || series.length === 0) {
-      const data = await getTrendingTV();
-      series = data.results || [];
+    // 2. Fetch Xtream server series
+    let xtreamSeries = [];
+    try {
+      xtreamSeries = await xtreamVOD.getSeries('21');
+    } catch (e) {
+      console.warn("Xtream VOD series fetch fallback:", e);
     }
-    
-    // Sort series by popularity/trending score
-    const sortedSeries = sortVODByPopularity(series);
+
+    // 3. Cross-reference TMDB trending series with Xtream catalogue to attach direct series_ids
+    const crossReferencedTV = tmdbTrendingTV.map(tmdbItem => {
+      const match = xtreamVOD.findSeriesByTitle(tmdbItem.name || tmdbItem.title);
+      if (match) {
+        return {
+          ...tmdbItem,
+          series_id: match.series_id || match.id,
+          cover: match.cover || match.stream_icon,
+          media_type: 'tv'
+        };
+      }
+      return { ...tmdbItem, media_type: 'tv' };
+    });
+
+    // 4. Merge cross-referenced TMDB trending with Xtream series
+    const mergedSeries = [...crossReferencedTV];
+    if (Array.isArray(xtreamSeries)) {
+      for (const xs of xtreamSeries) {
+        const name = (xs.name || xs.title || '').toLowerCase();
+        if (!mergedSeries.some(s => (s.name || s.title || '').toLowerCase() === name)) {
+          mergedSeries.push({ ...xs, media_type: 'tv' });
+        }
+      }
+    }
+
+    const sortedSeries = sortVODByPopularity(mergedSeries.length > 0 ? mergedSeries : (xtreamSeries || []));
 
     if (sortedSeries.length > 0) {
-      const heroItem = sortedSeries.find(s => s.cover || s.backdrop_path || s.poster_path) || sortedSeries[0];
+      const heroItem = sortedSeries.find(s => s.backdrop_path || s.cover || s.poster_path) || sortedSeries[0];
       const title = heroItem.name || heroItem.title || 'Featured Series';
       const year = (heroItem.releaseDate || heroItem.first_air_date || heroItem.release_date || '2026').toString().split('-')[0];
       const rating = heroItem.rating ? Number(heroItem.rating).toFixed(1) : (heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A');
       const overview = heroItem.overview || heroItem.plot || 'Explore details and stream this trending series instantly.';
-      const bgUrl = (heroItem.backdrop_path && heroItem.backdrop_path[0]) || heroItem.cover || getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
+      const bgUrl = getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original') || getSafeImageUrl(heroItem.cover);
 
       const titleEl = document.getElementById('series-hero-title');
       if (titleEl) titleEl.textContent = title;
@@ -711,14 +822,14 @@ async function loadSeriesDashboard() {
 
     if (trendingRow) renderCardRow(sortedSeries.slice(0, 30), trendingRow);
 
-    // Fetch series curation category rows concurrently with guaranteed fallback
+    // Fetch TV curation category rows concurrently with guaranteed fallback
     Promise.allSettled([
-      loadRowData(topRatedRow, xtreamVOD.getSeries('22'), getTopRatedTV()),
+      loadRowData(topRatedRow, xtreamVOD.getSeries('23'), getTopRatedTV()),
       loadRowData(actionRow, xtreamVOD.getSeries('21'), getByGenre(10759, 'tv')),
-      loadRowData(comedyRow, xtreamVOD.getSeries('24'), getByGenre(35, 'tv')),
-      loadRowData(scifiRow, xtreamVOD.getSeries('30'), getByGenre(10765, 'tv')),
-      loadRowData(crimeRow, xtreamVOD.getSeries('25'), getByGenre(80, 'tv')),
-      loadRowData(animationRow, xtreamVOD.getSeries('23'), getByGenre(16, 'tv'))
+      loadRowData(comedyRow, xtreamVOD.getSeries('25'), getByGenre(35, 'tv')),
+      loadRowData(scifiRow, xtreamVOD.getSeries('27'), getByGenre(10765, 'tv')),
+      loadRowData(crimeRow, xtreamVOD.getSeries('22'), getByGenre(80, 'tv')),
+      loadRowData(animationRow, xtreamVOD.getSeries('24'), getByGenre(16, 'tv'))
     ]);
 
   } catch (err) {
@@ -2205,6 +2316,10 @@ async function openPodcastModal(podcast) {
   if (ratingEl) ratingEl.innerHTML = `🎙️ ${podcast.channelName || 'Podcast'}`;
   if (runtimeEl) runtimeEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-red-500/20 text-red-400 font-medium">🔴 HD Video Episode</span>`;
 
+  // Podcasts must never show VOD Watchlist button
+  const watchlistBtn = document.getElementById('watchlist-toggle-btn');
+  if (watchlistBtn) watchlistBtn.style.display = 'none';
+
   if (overviewEl) overviewEl.textContent = podcast.description || 'Watch full video podcast episodes directly inside TV DINNER.';
   if (backdropEl) backdropEl.style.backgroundImage = `url(${podcast.thumbnail || podcast.avatar || ''})`;
 
@@ -2287,7 +2402,7 @@ async function openPodcastModal(podcast) {
         const card = document.createElement('div');
         card.className = 'bg-slate-900 border border-slate-800 rounded-lg p-2.5 hover:border-red-500 cursor-pointer transition-all flex items-center gap-3 group';
         card.innerHTML = `
-          <img src="${ep.thumbnail}" class="w-16 h-10 object-cover rounded shrink-0 group-hover:scale-105 transition-transform" alt="${ep.title}">
+          <img src="${ep.thumbnail}" class="w-16 h-10 object-cover rounded shrink-0 group-hover:scale-105 transition-transform" alt="${ep.title}" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=342&q=80';">
           <div class="flex-1 min-w-0">
             <h5 class="text-xs font-bold text-white truncate group-hover:text-red-400">${ep.title}</h5>
             <span class="text-[10px] text-slate-400">${ep.duration || 'Video'} • ${ep.date || 'Past'}</span>
@@ -2328,7 +2443,7 @@ function renderCardRow(items, container) {
     const mediaItem = { ...item, media_type: isTV ? 'tv' : 'movie', id: mediaId, title: title };
     const year = (item.releaseDate || item.release_date || item.first_air_date || (item.added ? new Date(Number(item.added) * 1000).getFullYear() : '') || '2024').toString().split('-')[0] || '2024';
     const rating = item.rating ? Number(item.rating).toFixed(1) : (item.vote_average ? item.vote_average.toFixed(1) : 'N/A');
-    const posterPath = item.stream_icon || item.cover || getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
+    const posterPath = getMediaPoster(item, 'w342');
 
     const inWatchlist = state.watchlist.some(x => isMatchingWatchlistItem(x, mediaId, isTV ? 'tv' : 'movie'));
 
@@ -2342,7 +2457,7 @@ function renderCardRow(items, container) {
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
         </button>
       ` : ''}
-      <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
+      <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=342&q=80';">
       <div class="detail-item-info">
         <h4 class="detail-item-title">${title}</h4>
         <div class="detail-item-meta">
@@ -2399,7 +2514,7 @@ async function loadPopularSearches() {
   }
 }
 
-// Render search results grid
+// Render search results grid with guaranteed high-resolution posters and error fallbacks
 function renderSearchGrid(results, gridContainer) {
   const grid = gridContainer || document.getElementById('movies-search-results-grid');
   if (!grid) return;
@@ -2411,16 +2526,16 @@ function renderSearchGrid(results, gridContainer) {
     const title = item.title || item.name || 'Untitled';
     const isTV = item.media_type === 'tv' || (!item.release_date && item.first_air_date);
     const mediaItem = { ...item, media_type: isTV ? 'tv' : 'movie' };
-    const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
-    const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
-    const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
+    const year = (item.release_date || item.first_air_date || item.releaseDate || (item.added ? new Date(Number(item.added) * 1000).getFullYear() : '') || '').toString().split('-')[0] || 'N/A';
+    const rating = item.vote_average ? Number(item.vote_average).toFixed(1) : (item.rating ? Number(item.rating).toFixed(1) : 'N/A');
+    const posterPath = getMediaPoster(item, 'w342');
 
     const card = document.createElement('div');
     card.className = 'detail-item-card hover-scale cursor-pointer';
     card.setAttribute('role', 'button');
     card.setAttribute('tabindex', '0');
     card.innerHTML = `
-      <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
+      <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=342&q=80';">
       <div class="detail-item-info">
         <h4 class="detail-item-title">${title}</h4>
         <div class="detail-item-meta">
@@ -2839,13 +2954,13 @@ async function loadCategoryPageItems(isReset = false) {
       sortedItems.forEach(item => {
         const card = document.createElement('div');
         card.className = 'detail-item-card hover-scale';
-        const imgUrl = item.stream_icon || item.cover || getTMDBImageUrl(item.poster_path, 'w342') || getTMDBImageUrl(item.backdrop_path, 'w342');
+        const imgUrl = getMediaPoster(item, 'w342');
         const title = item.title || item.name || 'Untitled';
         const year = (item.release_date || item.first_air_date || item.releaseDate || '').split('-')[0] || '';
         const rating = item.rating ? Number(item.rating).toFixed(1) : (item.vote_average ? item.vote_average.toFixed(1) : 'N/A');
 
         card.innerHTML = `
-          <img src="${imgUrl}" alt="${title}" class="detail-item-poster" loading="lazy">
+          <img src="${imgUrl}" alt="${title}" class="detail-item-poster" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=342&q=80';">
           <div class="detail-item-info">
             <h4 class="detail-item-title">${title}</h4>
             <div class="detail-item-sub">
@@ -2957,7 +3072,7 @@ function renderLibraryScreen() {
 
   const favChannels = state.channels ? state.channels.filter(ch => state.favorites.includes(ch.id)) : [];
   // Strictly filter out any podcast items from watchlist
-  const favVOD = (state.watchlist || []).filter(item => item && item.media_type !== 'podcast' && item.category !== 'Podcast' && !item.audioUrl && !item.feedUrl);
+  const favVOD = (state.watchlist || []).filter(item => item && !isPodcastWatchlistItem(item) && item.media_type !== 'podcast' && item.category !== 'Podcast' && !item.audioUrl && !item.feedUrl);
 
   const totalFavs = favChannels.length + favVOD.length;
 
@@ -2994,7 +3109,7 @@ function renderLibraryScreen() {
     const isTV = item.media_type === 'tv' || item.media_type === 'series' || !!item.series_id;
     const year = (item.release_date || item.first_air_date || item.releaseDate || (item.added ? new Date(Number(item.added) * 1000).getFullYear() : '') || '').toString().split('-')[0] || 'N/A';
     const rating = item.vote_average ? Number(item.vote_average).toFixed(1) : (item.rating ? Number(item.rating).toFixed(1) : 'N/A');
-    const posterPath = item.stream_icon || item.cover || getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
+    const posterPath = getMediaPoster(item, 'w342');
 
     const card = document.createElement('div');
     card.className = 'detail-item-card hover-scale cursor-pointer relative';
@@ -3002,7 +3117,7 @@ function renderLibraryScreen() {
       <button class="card-remove-btn" title="Remove from Watchlist">
         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
       </button>
-      <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy">
+      <img src="${posterPath}" alt="${title}" class="detail-item-poster" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=342&q=80';">
       <div class="detail-item-info">
         <h4 class="detail-item-title">${title}</h4>
         <div class="detail-item-meta">
@@ -3221,6 +3336,10 @@ async function openDetailsView(mediaItem) {
       document.body.style.overflow = 'hidden';
     }
 
+    // Ensure Watchlist button is visible for VOD Movies & Series
+    const watchlistBtn = document.getElementById('watchlist-toggle-btn');
+    if (watchlistBtn) watchlistBtn.style.display = '';
+
     // Move player container from hidden holder to details container
     const playerSection = document.getElementById('player-section');
     const vodContainer = document.getElementById('vod-player-container');
@@ -3244,7 +3363,7 @@ async function openDetailsView(mediaItem) {
     document.getElementById('tv-selectors').classList.add('hidden');
 
     const backdropBg = document.getElementById('details-backdrop');
-    const backdropUrl = getTMDBImageUrl(mediaItem.backdrop_path, 'w1280') || getTMDBImageUrl(mediaItem.poster_path, 'w1280') || mediaItem.stream_icon || mediaItem.cover;
+    const backdropUrl = getTMDBImageUrl(mediaItem.backdrop_path, 'w1280') || getTMDBImageUrl(mediaItem.poster_path, 'w1280') || getSafeImageUrl(mediaItem.stream_icon) || getSafeImageUrl(mediaItem.cover);
     if (backdropBg && backdropUrl) {
       backdropBg.style.backgroundImage = `url(${backdropUrl})`;
     } else if (backdropBg) {
@@ -3972,6 +4091,7 @@ function setupSettingsScreen() {
 
   // Admin Credentials Storage & CRUD
   const DEFAULT_ADMIN_CREDENTIALS = [
+    { phone: '(317) 515-0204', user: 'DGOLD001', pswd: 'Louisville' },
     { phone: '123-456-7898', user: 'CLEAN_IPTV', pswd: 'ADFREE2026' },
     { phone: '123-456-7894', user: 'SGmUC7q2U', pswd: '4WM9WVsjG' },
     { phone: '317-363-1751', user: 'MW2Y2h6e7', pswd: '5DwU7wTuA' },
@@ -3995,8 +4115,11 @@ function setupSettingsScreen() {
       }
     }
 
-    // Ensure 123-456-7898 account exists in credentials list
-    if (!list.some(c => c.phone === '123-456-7898')) {
+    // Ensure (317) 515-0204 and 123-456-7898 accounts exist in credentials list
+    if (!list.some(c => (c.phone || '').replace(/\D/g, '') === '3175150204')) {
+      list.unshift({ phone: '(317) 515-0204', user: 'DGOLD001', pswd: 'Louisville' });
+    }
+    if (!list.some(c => (c.phone || '').replace(/\D/g, '') === '1234567898')) {
       list.unshift({ phone: '123-456-7898', user: 'CLEAN_IPTV', pswd: 'ADFREE2026' });
     }
 
@@ -4334,11 +4457,13 @@ function setupSettingsScreen() {
       const formattedPhone = `${strippedPhone.substring(0, 3)}-${strippedPhone.substring(3, 6)}-${strippedPhone.substring(6, 10)}`;
       
       const adminList = getAdminCredentials();
-      const creds = adminList.find(c => c.phone === formattedPhone);
+      const creds = adminList.find(c => (c.phone || '').replace(/\D/g, '') === strippedPhone);
       if (creds) {
         localStorage.setItem('activated_phone', formattedPhone);
         localStorage.setItem('iptv_username', creds.user);
         localStorage.setItem('iptv_password', creds.pswd);
+        localStorage.setItem('xtream_vod_username', creds.user);
+        localStorage.setItem('xtream_vod_password', creds.pswd);
         if (usernameInput) usernameInput.value = creds.user;
         if (passwordInput) passwordInput.value = creds.pswd;
         

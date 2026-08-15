@@ -1,3 +1,20 @@
+import { fetchFromTMDB } from './tmdb';
+
+// Safe image proxy helper to prevent mixed content blocks
+export function getSafeImageUrl(url) {
+  if (!url || typeof url !== 'string' || !url.trim()) return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  if (trimmed.startsWith('https://') || trimmed.startsWith('data:')) return trimmed;
+  if (trimmed.startsWith('http://')) {
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      return `/api/proxy?url=${encodeURIComponent(trimmed)}`;
+    }
+    return trimmed;
+  }
+  return trimmed;
+}
+
 export function calculateVODScore(item) {
   if (!item) return 0;
   let rating = 0;
@@ -157,6 +174,34 @@ export class XtreamVODClient {
     } catch (e) {}
   }
 
+  findMovieByTitle(title) {
+    if (!title) return null;
+    const clean = title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const [k, list] of this._vodCache.entries()) {
+      if (k.startsWith('movies_') && Array.isArray(list)) {
+        for (const m of list) {
+          const mClean = (m.name || m.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (mClean === clean || mClean.startsWith(clean)) return m;
+        }
+      }
+    }
+    return null;
+  }
+
+  findSeriesByTitle(title) {
+    if (!title) return null;
+    const clean = title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const [k, list] of this._vodCache.entries()) {
+      if (k.startsWith('series_') && Array.isArray(list)) {
+        for (const s of list) {
+          const sClean = (s.name || s.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (sClean === clean || sClean.startsWith(clean)) return s;
+        }
+      }
+    }
+    return null;
+  }
+
   /**
    * Searches exclusively within the Xtream VOD Movie Catalogue
    */
@@ -226,7 +271,34 @@ export class XtreamVODClient {
     }
 
     matches.sort((a, b) => b.score - a.score);
-    return matches.map(m => m.item);
+    const topMatches = matches.slice(0, 30);
+
+    // Concurrently enrich top items lacking poster/details with TMDB data
+    await Promise.allSettled(topMatches.map(async (m) => {
+      const item = m.item;
+      const rawTitle = item.name || item.title || '';
+      const yearMatch = rawTitle.match(/\((\d{4})\)/);
+      const year = yearMatch ? yearMatch[1] : '';
+      const cleanTitle = rawTitle.replace(/\(\d{4}\)/g, '').replace(/\[.*?\]/g, '').replace(/1080p|720p|4k|hevc|x264|x265|hd/gi, '').trim();
+
+      if (!item.poster_path || !item.overview || !item.vote_average) {
+        try {
+          const params = { query: cleanTitle };
+          if (year) params.year = year;
+          const tmdbRes = await fetchFromTMDB('/search/movie', params);
+          if (tmdbRes && tmdbRes.results && tmdbRes.results.length > 0) {
+            const best = tmdbRes.results[0];
+            if (!item.poster_path && best.poster_path) item.poster_path = best.poster_path;
+            if (!item.backdrop_path && best.backdrop_path) item.backdrop_path = best.backdrop_path;
+            if ((!item.vote_average || item.vote_average === 'N/A') && best.vote_average) item.vote_average = best.vote_average;
+            if (!item.release_date && best.release_date) item.release_date = best.release_date;
+            if (!item.overview && best.overview) item.overview = best.overview;
+          }
+        } catch (e) {}
+      }
+    }));
+
+    return topMatches.map(m => m.item);
   }
 
   /**
@@ -299,7 +371,33 @@ export class XtreamVODClient {
     }
 
     matches.sort((a, b) => b.score - a.score);
-    return matches.map(m => m.item);
+    const topMatches = matches.slice(0, 30);
+
+    await Promise.allSettled(topMatches.map(async (m) => {
+      const item = m.item;
+      const rawTitle = item.name || item.title || '';
+      const yearMatch = rawTitle.match(/\((\d{4})\)/);
+      const year = yearMatch ? yearMatch[1] : '';
+      const cleanTitle = rawTitle.replace(/\(\d{4}\)/g, '').replace(/\[.*?\]/g, '').replace(/s\d+/gi, '').trim();
+
+      if (!item.poster_path || !item.overview || !item.vote_average) {
+        try {
+          const params = { query: cleanTitle };
+          if (year) params.first_air_date_year = year;
+          const tmdbRes = await fetchFromTMDB('/search/tv', params);
+          if (tmdbRes && tmdbRes.results && tmdbRes.results.length > 0) {
+            const best = tmdbRes.results[0];
+            if (!item.poster_path && best.poster_path) item.poster_path = best.poster_path;
+            if (!item.backdrop_path && best.backdrop_path) item.backdrop_path = best.backdrop_path;
+            if ((!item.vote_average || item.vote_average === 'N/A') && best.vote_average) item.vote_average = best.vote_average;
+            if (!item.first_air_date && best.first_air_date) item.first_air_date = best.first_air_date;
+            if (!item.overview && best.overview) item.overview = best.overview;
+          }
+        } catch (e) {}
+      }
+    }));
+
+    return topMatches.map(m => m.item);
   }
 
   /**
