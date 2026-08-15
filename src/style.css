@@ -568,6 +568,36 @@ body {
   box-shadow: 0 0 14px rgba(239, 68, 68, 0.7);
 }
 
+.detail-item-card.card-deleting {
+  opacity: 0 !important;
+  transform: scale(0.75) translateY(12px) !important;
+  pointer-events: none !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.watchlist-clear-btn {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.watchlist-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+}
+
 /* Compact Card & Thumbnail Restrictions */
 #player-more-episodes-grid img,
 .detail-item-card img,

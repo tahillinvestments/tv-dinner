@@ -4,7 +4,7 @@ import { IPTVPlayer } from './player';
 import { getChannelEPGInfo, fetchXtreamEPG, getProgramProgress, initEPGFeed } from './epgService';
 import { searchMulti, getMovieDetails, getTVShowDetails, getTVSeasonDetails, getTMDBImageUrl, getTrending, getTrendingMovies, getTrendingTV, getTopRated, getTopRatedTV, getByGenre } from './tmdb';
 import { getStreamSources } from './streamApi';
-import { xtreamVOD } from './xtreamVODService';
+import { xtreamVOD, sortVODByPopularity, calculateVODScore } from './xtreamVODService';
 import {
   PODCAST_CHANNELS,
   getAllPodcastChannels,
@@ -79,6 +79,15 @@ const iconConfig = {
 // Default Proxy URL fallback
 const DEFAULT_RENDER_PROXY = '/api/proxy';
 
+// Safe parsed watchlist excluding any podcasts
+const rawWatchlist = JSON.parse(localStorage.getItem('vod_watchlist') || '[]');
+const initialWatchlist = Array.isArray(rawWatchlist)
+  ? rawWatchlist.filter(item => item && item.media_type !== 'podcast' && item.category !== 'Podcast' && !item.audioUrl && !item.feedUrl)
+  : [];
+if (initialWatchlist.length !== rawWatchlist.length) {
+  localStorage.setItem('vod_watchlist', JSON.stringify(initialWatchlist));
+}
+
 // Global State
 const state = {
   activeTab: 'home', // 'home', 'search', 'live', 'library', 'settings'
@@ -90,7 +99,7 @@ const state = {
   favorites: JSON.parse(localStorage.getItem('iptv_favorites') || '[]'),
   favoritePodcasts: JSON.parse(localStorage.getItem('iptv_favorite_podcasts') || '[]'),
   recents: JSON.parse(localStorage.getItem('iptv_recents') || '[]'),
-  watchlist: JSON.parse(localStorage.getItem('vod_watchlist') || '[]'),
+  watchlist: initialWatchlist,
   currentPlayingUrl: null,
   currentPlayingChannel: null,
   currentEPGInfo: null,
@@ -518,7 +527,8 @@ async function loadRowData(container, xtreamPromise, tmdbPromise) {
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3500))
     ]);
     if (Array.isArray(xtreamItems) && xtreamItems.length > 0) {
-      renderCardRow(xtreamItems.slice(0, 30), container);
+      const sorted = sortVODByPopularity(xtreamItems);
+      renderCardRow(sorted.slice(0, 30), container);
       return;
     }
   } catch (e) {}
@@ -527,7 +537,8 @@ async function loadRowData(container, xtreamPromise, tmdbPromise) {
     const tmdbData = await tmdbPromise;
     const items = tmdbData?.results || (Array.isArray(tmdbData) ? tmdbData : []);
     if (items.length > 0) {
-      renderCardRow(items.slice(0, 30), container);
+      const sorted = sortVODByPopularity(items);
+      renderCardRow(sorted.slice(0, 30), container);
     }
   } catch (e) {
     console.warn('[VOD Dashboard] Row load error:', e);
@@ -551,7 +562,7 @@ async function loadMoviesDashboard() {
   const watchlistSection = document.getElementById('row-movies-watchlist-section');
 
   // Load Movies Watchlist
-  const movieWatchlist = state.watchlist.filter(x => x.media_type === 'movie');
+  const movieWatchlist = state.watchlist.filter(x => x.media_type === 'movie' || (!x.media_type && !x.series_id));
   if (watchlistSection && watchlistRow) {
     if (movieWatchlist.length > 0) {
       watchlistSection.style.display = 'block';
@@ -574,8 +585,11 @@ async function loadMoviesDashboard() {
       movies = data.results || [];
     }
     
-    if (movies.length > 0) {
-      const heroItem = movies[0];
+    // Sort movies by popularity/trending score
+    const sortedMovies = sortVODByPopularity(movies);
+
+    if (sortedMovies.length > 0) {
+      const heroItem = sortedMovies.find(m => m.stream_icon || m.backdrop_path || m.poster_path) || sortedMovies[0];
       const title = heroItem.title || heroItem.name || 'Featured Movie';
       const year = (heroItem.releaseDate || heroItem.release_date || heroItem.first_air_date || (heroItem.added ? new Date(Number(heroItem.added) * 1000).getFullYear() : '') || '2026').toString().split('-')[0];
       const rating = heroItem.rating ? Number(heroItem.rating).toFixed(1) : (heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A');
@@ -604,7 +618,7 @@ async function loadMoviesDashboard() {
       }
     }
 
-    if (trendingRow) renderCardRow(movies.slice(0, 30), trendingRow);
+    if (trendingRow) renderCardRow(sortedMovies.slice(0, 30), trendingRow);
 
     // Fetch movie curation category rows concurrently with guaranteed fallback
     Promise.allSettled([
@@ -639,7 +653,7 @@ async function loadSeriesDashboard() {
   const watchlistSection = document.getElementById('row-series-watchlist-section');
 
   // Load TV Series Watchlist
-  const seriesWatchlist = state.watchlist.filter(x => x.media_type === 'tv');
+  const seriesWatchlist = state.watchlist.filter(x => x.media_type === 'tv' || x.media_type === 'series' || !!x.series_id);
   if (watchlistSection && watchlistRow) {
     if (seriesWatchlist.length > 0) {
       watchlistSection.style.display = 'block';
@@ -662,8 +676,11 @@ async function loadSeriesDashboard() {
       series = data.results || [];
     }
     
-    if (series.length > 0) {
-      const heroItem = series[0];
+    // Sort series by popularity/trending score
+    const sortedSeries = sortVODByPopularity(series);
+
+    if (sortedSeries.length > 0) {
+      const heroItem = sortedSeries.find(s => s.cover || s.backdrop_path || s.poster_path) || sortedSeries[0];
       const title = heroItem.name || heroItem.title || 'Featured Series';
       const year = (heroItem.releaseDate || heroItem.first_air_date || heroItem.release_date || '2026').toString().split('-')[0];
       const rating = heroItem.rating ? Number(heroItem.rating).toFixed(1) : (heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A');
@@ -692,7 +709,7 @@ async function loadSeriesDashboard() {
       }
     }
 
-    if (trendingRow) renderCardRow(series.slice(0, 30), trendingRow);
+    if (trendingRow) renderCardRow(sortedSeries.slice(0, 30), trendingRow);
 
     // Fetch series curation category rows concurrently with guaranteed fallback
     Promise.allSettled([
@@ -2313,7 +2330,7 @@ function renderCardRow(items, container) {
     const rating = item.rating ? Number(item.rating).toFixed(1) : (item.vote_average ? item.vote_average.toFixed(1) : 'N/A');
     const posterPath = item.stream_icon || item.cover || getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
 
-    const inWatchlist = state.watchlist.some(x => Number(x.id) === Number(mediaId) && (x.media_type === mediaItem.media_type));
+    const inWatchlist = state.watchlist.some(x => isMatchingWatchlistItem(x, mediaId, isTV ? 'tv' : 'movie'));
 
     const card = document.createElement('div');
     card.className = 'detail-item-card hover-scale cursor-pointer relative';
@@ -2343,7 +2360,7 @@ function renderCardRow(items, container) {
         delBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           e.preventDefault();
-          removeFromWatchlist(mediaId, isTV ? 'tv' : 'movie');
+          removeFromWatchlist(mediaId, isTV ? 'tv' : 'movie', card);
         });
       }
     }
@@ -2812,18 +2829,20 @@ async function loadCategoryPageItems(isReset = false) {
       items = data.results || [];
     }
 
+    const sortedItems = sortVODByPopularity(items);
+
     if (isReset && gridEl) {
       gridEl.innerHTML = '';
     }
 
-    if (items.length > 0 && gridEl) {
-      items.forEach(item => {
+    if (sortedItems.length > 0 && gridEl) {
+      sortedItems.forEach(item => {
         const card = document.createElement('div');
         card.className = 'detail-item-card hover-scale';
-        const imgUrl = getTMDBImageUrl(item.poster_path, 'w342') || getTMDBImageUrl(item.backdrop_path, 'w342');
+        const imgUrl = item.stream_icon || item.cover || getTMDBImageUrl(item.poster_path, 'w342') || getTMDBImageUrl(item.backdrop_path, 'w342');
         const title = item.title || item.name || 'Untitled';
-        const year = (item.release_date || item.first_air_date || '').split('-')[0] || '';
-        const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
+        const year = (item.release_date || item.first_air_date || item.releaseDate || '').split('-')[0] || '';
+        const rating = item.rating ? Number(item.rating).toFixed(1) : (item.vote_average ? item.vote_average.toFixed(1) : 'N/A');
 
         card.innerHTML = `
           <img src="${imgUrl}" alt="${title}" class="detail-item-poster" loading="lazy">
@@ -2846,7 +2865,7 @@ async function loadCategoryPageItems(isReset = false) {
   }
 }
 
-// Execute Movies / Series Search
+// Execute Movies / Series Search (Confined strictly to Xtream VOD catalogue)
 async function triggerSearchQuery(query, filterType = 'all') {
   const isTV = filterType === 'tv';
   const grid = isTV ? document.getElementById('series-search-results-grid') : document.getElementById('movies-search-results-grid');
@@ -2867,38 +2886,23 @@ async function triggerSearchQuery(query, filterType = 'all') {
   if (emptyState) emptyState.classList.add('hidden');
 
   try {
-    const data = await searchMulti(query);
-    let results = data.results || [];
-
+    let results = [];
     if (filterType === 'movie') {
-      let filtered = results.filter(item => item.media_type === 'movie');
-      if (filtered.length === 0) {
-        // Fallback search specifically for movie
-        try {
-          const mData = await fetchFromTMDB('/search/movie', { query });
-          filtered = (mData.results || []).map(m => ({ ...m, media_type: 'movie' }));
-        } catch (e) {
-          console.warn("Fallback movie search failed:", e);
-        }
-      }
-      results = filtered;
+      results = await xtreamVOD.searchMovies(query);
     } else if (filterType === 'tv') {
-      let filtered = results.filter(item => item.media_type === 'tv');
-      if (filtered.length === 0) {
-        // Fallback search specifically for tv
-        try {
-          const tData = await fetchFromTMDB('/search/tv', { query });
-          filtered = (tData.results || []).map(t => ({ ...t, media_type: 'tv' }));
-        } catch (e) {
-          console.warn("Fallback tv search failed:", e);
-        }
-      }
-      results = filtered;
+      results = await xtreamVOD.searchSeries(query);
+    } else {
+      results = await xtreamVOD.searchVOD(query, 'all');
     }
 
-    if (results.length === 0) {
+    if (!results || results.length === 0) {
       if (grid) grid.innerHTML = '';
-      if (emptyState) emptyState.classList.remove('hidden');
+      if (emptyState) {
+        const emptyMsg = isTV ? 'No TV series matching your query were found in your Xtream catalogue.' : 'No movies matching your query were found in your Xtream catalogue.';
+        const p = emptyState.querySelector('p');
+        if (p) p.textContent = emptyMsg;
+        emptyState.classList.remove('hidden');
+      }
       return;
     }
 
@@ -2906,31 +2910,77 @@ async function triggerSearchQuery(query, filterType = 'all') {
       renderSearchGrid(results, grid);
     }
   } catch (err) {
-    console.error("Search failed:", err);
-    if (grid) grid.innerHTML = '<div class="col-span-full text-center text-red-400 py-8">Failed to fetch search results. Please check your connection.</div>';
+    console.error("Xtream VOD Search failed:", err);
+    if (grid) grid.innerHTML = '<div class="col-span-full text-center text-red-400 py-8">Failed to fetch search results from VOD server. Please check your connection.</div>';
   }
 }
 
+// Robust media item matcher for Watchlist comparisons
+function isMatchingWatchlistItem(item, targetId, mediaType) {
+  if (!item || targetId === undefined || targetId === null) return false;
+  const strTarget = String(targetId).trim();
+  const numTarget = Number(targetId);
 
+  const strItemId = String(item.id || '').trim();
+  const strStreamId = String(item.stream_id || '').trim();
+  const strSeriesId = String(item.series_id || '').trim();
 
-// Render watchlist items in Library tab
+  const idMatch = (strItemId && strItemId === strTarget) ||
+                  (strStreamId && strStreamId === strTarget) ||
+                  (strSeriesId && strSeriesId === strTarget) ||
+                  (!isNaN(numTarget) && (Number(item.id) === numTarget || Number(item.stream_id) === numTarget || Number(item.series_id) === numTarget));
+
+  if (!idMatch) return false;
+  if (!mediaType) return true;
+
+  const itemIsTV = item.media_type === 'tv' || item.media_type === 'series' || !!item.series_id;
+  const targetIsTV = mediaType === 'tv' || mediaType === 'series';
+
+  return itemIsTV === targetIsTV;
+}
+
+// Render watchlist items in Library tab (Strictly Movies, TV Series, and saved Channels - NO podcasts)
 function renderLibraryScreen() {
   if (!isLiveTvActive()) {
-    renderAccessLockedState('library-results-grid', 'My Library');
+    renderAccessLockedState('library-results-grid', 'My Watchlist');
     const emptyState = document.getElementById('library-empty-state');
     if (emptyState) emptyState.classList.add('hidden');
+    const clearAllBtn = document.getElementById('watchlist-clear-all-btn');
+    if (clearAllBtn) clearAllBtn.classList.add('hidden');
     return;
   }
   const grid = document.getElementById('library-results-grid');
   const emptyState = document.getElementById('library-empty-state');
+  const clearAllBtn = document.getElementById('watchlist-clear-all-btn');
   if (!grid) return;
   grid.innerHTML = '';
 
   const favChannels = state.channels ? state.channels.filter(ch => state.favorites.includes(ch.id)) : [];
-  const favVOD = state.watchlist || [];
-  const favPodcasts = state.favoritePodcasts || [];
+  // Strictly filter out any podcast items from watchlist
+  const favVOD = (state.watchlist || []).filter(item => item && item.media_type !== 'podcast' && item.category !== 'Podcast' && !item.audioUrl && !item.feedUrl);
 
-  const totalFavs = favChannels.length + favVOD.length + favPodcasts.length;
+  const totalFavs = favChannels.length + favVOD.length;
+
+  if (clearAllBtn) {
+    if (favVOD.length > 0) {
+      clearAllBtn.classList.remove('hidden');
+      clearAllBtn.onclick = () => {
+        if (confirm('Are you sure you want to clear your entire watchlist?')) {
+          state.watchlist = [];
+          localStorage.setItem('vod_watchlist', '[]');
+          if (typeof player !== 'undefined' && player && typeof player.showToast === 'function') {
+            player.showToast("Watchlist cleared");
+          }
+          loadMoviesDashboard();
+          loadSeriesDashboard();
+          renderLibraryScreen();
+          renderWatchlistButtonState();
+        }
+      };
+    } else {
+      clearAllBtn.classList.add('hidden');
+    }
+  }
 
   if (totalFavs === 0) {
     if (emptyState) emptyState.classList.remove('hidden');
@@ -2941,10 +2991,10 @@ function renderLibraryScreen() {
   // 1. Render VOD Favorites (Movies & TV)
   favVOD.forEach(item => {
     const title = item.title || item.name || 'Untitled';
-    const isTV = item.media_type === 'tv';
-    const year = (item.release_date || item.first_air_date || '').split('-')[0] || 'N/A';
-    const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
-    const posterPath = getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
+    const isTV = item.media_type === 'tv' || item.media_type === 'series' || !!item.series_id;
+    const year = (item.release_date || item.first_air_date || item.releaseDate || (item.added ? new Date(Number(item.added) * 1000).getFullYear() : '') || '').toString().split('-')[0] || 'N/A';
+    const rating = item.vote_average ? Number(item.vote_average).toFixed(1) : (item.rating ? Number(item.rating).toFixed(1) : 'N/A');
+    const posterPath = item.stream_icon || item.cover || getTMDBImageUrl(item.poster_path, 'w185') || 'https://via.placeholder.com/185x278/090e1a/475569?text=No+Poster';
 
     const card = document.createElement('div');
     card.className = 'detail-item-card hover-scale cursor-pointer relative';
@@ -2969,11 +3019,11 @@ function renderLibraryScreen() {
       delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
-        removeFromWatchlist(item.id, isTV ? 'tv' : 'movie');
+        removeFromWatchlist(item.stream_id || item.series_id || item.id, isTV ? 'tv' : 'movie', card);
       });
     }
 
-    card.addEventListener('click', () => openDetailsView(item));
+    card.addEventListener('click', () => openDetailsView({ ...item, media_type: isTV ? 'tv' : 'movie' }));
     grid.appendChild(card);
   });
 
@@ -3017,50 +3067,6 @@ function renderLibraryScreen() {
     grid.appendChild(card);
   });
 
-  // 3. Render Favorite Podcasts
-  favPodcasts.forEach(podcast => {
-    const card = document.createElement('div');
-    card.className = 'detail-item-card hover-scale cursor-pointer border border-purple-500/20 relative';
-    card.innerHTML = `
-      <button class="card-remove-btn" title="Remove from Saved Podcasts">
-        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-      </button>
-      <div class="w-full h-36 bg-slate-900/80 flex items-center justify-center p-3 relative rounded-t-xl overflow-hidden">
-        ${podcast.image || podcast.artwork ? `<img src="${podcast.image || podcast.artwork}" alt="${podcast.title}" class="max-h-full max-w-full object-contain" loading="lazy">` : `<i data-lucide="radio" class="w-10 h-10 text-purple-400/60"></i>`}
-        <span class="absolute top-2 left-2 bg-purple-500/20 text-purple-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-500/40">PODCAST</span>
-      </div>
-      <div class="detail-item-info">
-        <h4 class="detail-item-title truncate">${podcast.title || podcast.name}</h4>
-        <div class="detail-item-meta">
-          <span class="detail-item-year">${podcast.author || 'Podcast'}</span>
-          <span class="detail-item-rating flex items-center gap-1 text-purple-400 font-semibold">
-            <i data-lucide="play" class="w-3 h-3 fill-purple-400"></i> Play Audio
-          </span>
-        </div>
-      </div>
-    `;
-
-    const delBtn = card.querySelector('.card-remove-btn');
-    if (delBtn) {
-      delBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        if (typeof togglePodcastFavorite === 'function') {
-          togglePodcastFavorite(podcast);
-          renderLibraryScreen();
-        }
-      });
-    }
-
-    card.addEventListener('click', () => {
-      switchTab('podcasts');
-      if (typeof playPodcastChannel === 'function') {
-        playPodcastChannel(podcast);
-      }
-    });
-    grid.appendChild(card);
-  });
-
   createIcons(iconConfig);
 }
 
@@ -3077,8 +3083,8 @@ function setupDetailsView() {
   const seasonSelect = document.getElementById('season-select');
   if (seasonSelect) {
     seasonSelect.addEventListener('change', (e) => {
-      if (state.selectedMedia && state.selectedMedia.media_type === 'tv') {
-        loadTVEpisodes(state.selectedMedia.id, e.target.value);
+      if (state.selectedMedia && (state.selectedMedia.media_type === 'tv' || state.selectedMedia.series_id)) {
+        loadTVEpisodes(state.selectedMedia.series_id || state.selectedMedia.id, e.target.value);
       }
     });
   }
@@ -3087,21 +3093,30 @@ function setupDetailsView() {
 // Toggle VOD watchlist item
 function toggleWatchlist() {
   if (!state.selectedMedia) return;
-  const index = state.watchlist.findIndex(x => Number(x.id) === Number(state.selectedMedia.id) && x.media_type === state.selectedMedia.media_type);
+  const targetId = state.selectedMedia.stream_id || state.selectedMedia.series_id || state.selectedMedia.id;
+  const isTV = state.selectedMedia.media_type === 'tv' || state.selectedMedia.series_id !== undefined || (!state.selectedMedia.release_date && state.selectedMedia.first_air_date);
+  const mediaType = isTV ? 'tv' : 'movie';
+
+  const index = state.watchlist.findIndex(x => isMatchingWatchlistItem(x, targetId, mediaType));
   
   if (index === -1) {
     // Add to watchlist
     state.watchlist.unshift({
-      id: state.selectedMedia.id,
-      media_type: state.selectedMedia.media_type,
-      title: state.selectedMedia.title,
-      name: state.selectedMedia.name,
+      id: targetId,
+      stream_id: state.selectedMedia.stream_id,
+      series_id: state.selectedMedia.series_id,
+      media_type: mediaType,
+      title: state.selectedMedia.title || state.selectedMedia.name,
+      name: state.selectedMedia.name || state.selectedMedia.title,
       release_date: state.selectedMedia.release_date,
       first_air_date: state.selectedMedia.first_air_date,
-      vote_average: state.selectedMedia.vote_average,
+      vote_average: state.selectedMedia.vote_average || (state.selectedMedia.rating ? Number(state.selectedMedia.rating) : null),
+      rating: state.selectedMedia.rating,
       poster_path: state.selectedMedia.poster_path,
+      stream_icon: state.selectedMedia.stream_icon,
+      cover: state.selectedMedia.cover,
       backdrop_path: state.selectedMedia.backdrop_path,
-      overview: state.selectedMedia.overview
+      overview: state.selectedMedia.overview || state.selectedMedia.plot
     });
     if (typeof player !== 'undefined' && player && typeof player.showToast === 'function') {
       player.showToast("Added to Watchlist");
@@ -3125,21 +3140,40 @@ function toggleWatchlist() {
   }
 }
 
-// Remove item from VOD watchlist
-function removeFromWatchlist(id, mediaType) {
-  const targetId = Number(id) || id;
-  const index = state.watchlist.findIndex(x => Number(x.id) === targetId && (x.media_type === mediaType || (!x.media_type && mediaType === 'movie')));
+// Remove item from VOD watchlist with smooth animated deletion
+function removeFromWatchlist(id, mediaType, cardElement = null) {
+  const index = state.watchlist.findIndex(x => isMatchingWatchlistItem(x, id, mediaType));
   if (index >= 0) {
     state.watchlist.splice(index, 1);
     localStorage.setItem('vod_watchlist', JSON.stringify(state.watchlist));
     if (typeof player !== 'undefined' && player && typeof player.showToast === 'function') {
       player.showToast("Removed from Watchlist");
     }
-    loadMoviesDashboard();
-    loadSeriesDashboard();
-    if (state.activeTab === 'library') {
+
+    if (cardElement && cardElement.classList) {
+      cardElement.classList.add('card-deleting');
+      setTimeout(() => {
+        if (cardElement.parentNode) {
+          cardElement.parentNode.removeChild(cardElement);
+        }
+        if (state.activeTab === 'library') {
+          const grid = document.getElementById('library-results-grid');
+          const emptyState = document.getElementById('library-empty-state');
+          const clearAllBtn = document.getElementById('watchlist-clear-all-btn');
+          const remainingCards = grid ? grid.querySelectorAll('.detail-item-card') : [];
+          if (remainingCards.length === 0) {
+            if (emptyState) emptyState.classList.remove('hidden');
+            if (clearAllBtn) clearAllBtn.classList.add('hidden');
+          }
+        }
+      }, 250);
+    } else if (state.activeTab === 'library') {
       renderLibraryScreen();
     }
+
+    loadMoviesDashboard();
+    loadSeriesDashboard();
+    renderWatchlistButtonState();
   }
 }
 
@@ -3149,7 +3183,11 @@ function renderWatchlistButtonState() {
   const label = document.getElementById('watchlist-text');
   if (!icon || !label || !state.selectedMedia) return;
 
-  const inWatchlist = state.watchlist.some(x => x.id === state.selectedMedia.id && x.media_type === state.selectedMedia.media_type);
+  const targetId = state.selectedMedia.stream_id || state.selectedMedia.series_id || state.selectedMedia.id;
+  const isTV = state.selectedMedia.media_type === 'tv' || state.selectedMedia.series_id !== undefined;
+  const mediaType = isTV ? 'tv' : 'movie';
+
+  const inWatchlist = state.watchlist.some(x => isMatchingWatchlistItem(x, targetId, mediaType));
   if (inWatchlist) {
     icon.setAttribute('class', 'w-4 h-4 fill-amber-400 text-amber-400');
     label.textContent = 'In Watchlist';

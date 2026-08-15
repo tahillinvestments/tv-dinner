@@ -1,5 +1,36 @@
-// Xtream Codes VOD Client Service
-// Connects to active Xtream Codes servers with live movie and series catalogs
+export function calculateVODScore(item) {
+  if (!item) return 0;
+  let rating = 0;
+  if (item.rating && !isNaN(Number(item.rating))) {
+    rating = Number(item.rating);
+  } else if (item.rating_5based && !isNaN(Number(item.rating_5based))) {
+    rating = Number(item.rating_5based) * 2;
+  } else if (item.vote_average && !isNaN(Number(item.vote_average))) {
+    rating = Number(item.vote_average);
+  }
+  
+  let added = 0;
+  if (item.added && !isNaN(Number(item.added))) {
+    added = Number(item.added);
+  } else if (item.last_modified && !isNaN(Number(item.last_modified))) {
+    added = Number(item.last_modified);
+  }
+
+  let popularity = 0;
+  if (item.popularity && !isNaN(Number(item.popularity))) {
+    popularity = Number(item.popularity);
+  }
+
+  const hasArt = (item.stream_icon || item.cover || item.poster_path || item.backdrop_path) ? 5 : 0;
+  const recencyScore = added > 0 ? (added / 100000000) : 0;
+  
+  return (rating * 15) + (popularity * 2) + recencyScore + hasArt;
+}
+
+export function sortVODByPopularity(items) {
+  if (!Array.isArray(items)) return [];
+  return [...items].sort((a, b) => calculateVODScore(b) - calculateVODScore(a));
+}
 
 export class XtreamVODClient {
   constructor(baseUrl = '') {
@@ -126,6 +157,170 @@ export class XtreamVODClient {
     } catch (e) {}
   }
 
+  /**
+   * Searches exclusively within the Xtream VOD Movie Catalogue
+   */
+  async searchMovies(query) {
+    if (!query || !query.trim()) return [];
+    const trimmed = query.trim().toLowerCase();
+    const cleanTokens = trimmed.split(/\s+/).filter(Boolean);
+
+    let allMovies = [];
+    try {
+      allMovies = await this.getMovies();
+    } catch (e) {
+      console.warn('[Xtream VOD] Failed to fetch full movie catalogue for search, searching cache:', e);
+      for (const [k, v] of this._vodCache.entries()) {
+        if (k.startsWith('movies_') && Array.isArray(v)) {
+          allMovies = allMovies.concat(v);
+        }
+      }
+    }
+
+    if (!Array.isArray(allMovies) || allMovies.length === 0) {
+      return [];
+    }
+
+    // Deduplicate by stream_id
+    const seen = new Set();
+    const uniqueMovies = [];
+    for (const m of allMovies) {
+      const sId = m.stream_id || m.id;
+      if (sId && !seen.has(sId)) {
+        seen.add(sId);
+        uniqueMovies.push(m);
+      }
+    }
+
+    const matches = [];
+    for (const movie of uniqueMovies) {
+      const name = (movie.name || movie.title || '').toLowerCase();
+      const genre = (movie.genre || movie.category_name || '').toLowerCase();
+      const director = (movie.director || '').toLowerCase();
+      const cast = (movie.cast || '').toLowerCase();
+      const combined = `${name} ${genre} ${director} ${cast}`;
+
+      let matchScore = 0;
+      if (name === trimmed) {
+        matchScore += 100;
+      } else if (name.startsWith(trimmed)) {
+        matchScore += 60;
+      } else if (name.includes(trimmed)) {
+        matchScore += 40;
+      } else {
+        const tokenMatches = cleanTokens.filter(t => combined.includes(t));
+        if (tokenMatches.length === cleanTokens.length) {
+          matchScore += 30;
+        } else if (tokenMatches.length > 0) {
+          matchScore += (tokenMatches.length / cleanTokens.length) * 20;
+        }
+      }
+
+      if (matchScore > 0) {
+        const popScore = calculateVODScore(movie);
+        matches.push({
+          item: { ...movie, media_type: 'movie', id: movie.stream_id || movie.id, title: movie.name || movie.title },
+          score: matchScore * 10 + popScore
+        });
+      }
+    }
+
+    matches.sort((a, b) => b.score - a.score);
+    return matches.map(m => m.item);
+  }
+
+  /**
+   * Searches exclusively within the Xtream VOD TV Series Catalogue
+   */
+  async searchSeries(query) {
+    if (!query || !query.trim()) return [];
+    const trimmed = query.trim().toLowerCase();
+    const cleanTokens = trimmed.split(/\s+/).filter(Boolean);
+
+    let allSeries = [];
+    try {
+      allSeries = await this.getSeries();
+    } catch (e) {
+      console.warn('[Xtream VOD] Failed to fetch full series catalogue for search, searching cache:', e);
+      for (const [k, v] of this._vodCache.entries()) {
+        if (k.startsWith('series_') && Array.isArray(v)) {
+          allSeries = allSeries.concat(v);
+        }
+      }
+    }
+
+    if (!Array.isArray(allSeries) || allSeries.length === 0) {
+      return [];
+    }
+
+    // Deduplicate by series_id
+    const seen = new Set();
+    const uniqueSeries = [];
+    for (const s of allSeries) {
+      const sId = s.series_id || s.id;
+      if (sId && !seen.has(sId)) {
+        seen.add(sId);
+        uniqueSeries.push(s);
+      }
+    }
+
+    const matches = [];
+    for (const s of uniqueSeries) {
+      const name = (s.name || s.title || '').toLowerCase();
+      const genre = (s.genre || s.category_name || '').toLowerCase();
+      const plot = (s.plot || s.overview || '').toLowerCase();
+      const cast = (s.cast || '').toLowerCase();
+      const director = (s.director || '').toLowerCase();
+      const combined = `${name} ${genre} ${plot} ${cast} ${director}`;
+
+      let matchScore = 0;
+      if (name === trimmed) {
+        matchScore += 100;
+      } else if (name.startsWith(trimmed)) {
+        matchScore += 60;
+      } else if (name.includes(trimmed)) {
+        matchScore += 40;
+      } else {
+        const tokenMatches = cleanTokens.filter(t => combined.includes(t));
+        if (tokenMatches.length === cleanTokens.length) {
+          matchScore += 30;
+        } else if (tokenMatches.length > 0) {
+          matchScore += (tokenMatches.length / cleanTokens.length) * 20;
+        }
+      }
+
+      if (matchScore > 0) {
+        const popScore = calculateVODScore(s);
+        matches.push({
+          item: { ...s, media_type: 'tv', id: s.series_id || s.id, name: s.name || s.title },
+          score: matchScore * 10 + popScore
+        });
+      }
+    }
+
+    matches.sort((a, b) => b.score - a.score);
+    return matches.map(m => m.item);
+  }
+
+  /**
+   * Unified VOD search confined strictly to Xtream catalogue
+   */
+  async searchVOD(query, type = 'all') {
+    if (type === 'movie') {
+      return this.searchMovies(query);
+    }
+    if (type === 'tv') {
+      return this.searchSeries(query);
+    }
+    const [movies, series] = await Promise.allSettled([
+      this.searchMovies(query),
+      this.searchSeries(query)
+    ]);
+    const mList = movies.status === 'fulfilled' ? movies.value : [];
+    const sList = series.status === 'fulfilled' ? series.value : [];
+    return [...mList, ...sList].sort((a, b) => calculateVODScore(b) - calculateVODScore(a));
+  }
+
   async findMovieByTitle(title) {
     if (!title) return null;
     const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -202,3 +397,4 @@ export class XtreamVODClient {
 }
 
 export const xtreamVOD = new XtreamVODClient();
+

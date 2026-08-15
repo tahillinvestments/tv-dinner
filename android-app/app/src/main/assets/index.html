@@ -8,10 +8,20 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="/assets/index-C64EABEw.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-D84b-eGF.css">
-
-  <style>#admin-toggle-header, #admin-panel-container, #admin-cred-modal, #admin-login-section, #admin-dashboard-section { display: none !important; visibility: hidden !important; pointer-events: none !important; opacity: 0 !important; max-height: 0 !important; height: 0 !important; overflow: hidden !important; }</style>
+  <script>
+    window.addEventListener('error', (e) => {
+      console.error('[Global Error Listener]', e.message, e.error ? e.error.stack : '');
+      localStorage.setItem('debug_error', e.message);
+      localStorage.setItem('debug_error_stack', e.error ? e.error.stack : '');
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('[Global Rejection Listener]', e.reason ? e.reason.message : 'rejection', e.reason ? e.reason.stack : '');
+      localStorage.setItem('debug_error', e.reason ? e.reason.message : 'rejection');
+      localStorage.setItem('debug_error_stack', e.reason ? e.reason.stack : '');
+    });
+  </script>
+  <script type="module" crossorigin src="/assets/index-D2HuHntu.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-Tp6GB94y.css">
 </head>
 <body class="dark-theme">
   
@@ -139,6 +149,7 @@
           
           <!-- 1. Live TV Card -->
           <div class="home-select-card theme-red" data-nav="live">
+            <div class="home-card-bg-img" style="background-image: url('/images/livetv_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="tv" class="w-24 h-24"></i>
             </div>
@@ -162,6 +173,7 @@
 
           <!-- 2. Movies Card -->
           <div class="home-select-card theme-indigo" data-nav="movies">
+            <div class="home-card-bg-img" style="background-image: url('/images/movies_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="film" class="w-24 h-24"></i>
             </div>
@@ -185,6 +197,7 @@
 
           <!-- 3. TV Series Card -->
           <div class="home-select-card theme-cyan" data-nav="series">
+            <div class="home-card-bg-img" style="background-image: url('/images/series_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="monitor" class="w-24 h-24"></i>
             </div>
@@ -208,6 +221,7 @@
 
           <!-- 4. Podcasts Card -->
           <div class="home-select-card theme-amber" data-nav="podcasts">
+            <div class="home-card-bg-img" style="background-image: url('/images/podcasts_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="radio" class="w-24 h-24"></i>
             </div>
@@ -231,6 +245,7 @@
 
           <!-- 5. Favorites & Library Card -->
           <div class="home-select-card theme-emerald" data-nav="library">
+            <div class="home-card-bg-img" style="background-image: url('/images/watchlist_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="star" class="w-24 h-24"></i>
             </div>
@@ -254,6 +269,7 @@
 
           <!-- 6. Settings Card -->
           <div class="home-select-card theme-slate" data-nav="settings">
+            <div class="home-card-bg-img" style="background-image: url('/images/settings_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="settings" class="w-24 h-24"></i>
             </div>
@@ -729,6 +745,22 @@
             <button class="podcast-cat-pill" data-category="History, True Crime & Deep Dives">History</button>
           </div>
 
+          <!-- For You Smart Recommended Podcasts Section -->
+          <div id="podcasts-for-you-section" class="mb-8">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h2 class="text-xl font-bold text-amber-400 flex items-center gap-2">
+                  <i data-lucide="sparkles" class="w-5 h-5 text-amber-400"></i> For You
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">Personalized video podcast recommendations tuned to your taste</p>
+              </div>
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                <i data-lucide="compass" class="w-3.5 h-3.5"></i> Tailored
+              </span>
+            </div>
+            <div id="podcasts-for-you-grid" class="podcast-shows-grid mb-6"></div>
+          </div>
+
           <!-- Top Charts Directory Grid -->
           <div class="podcast-section-header">
             <h2 id="podcast-discover-heading" class="podcast-section-title">Top & Trending Podcasts</h2>
@@ -850,9 +882,15 @@
 
     <!-- Tab 3: Watchlist Library Screen -->
     <div id="tab-library" class="tab-screen hidden">
-      <div class="library-header">
-        <h2>My Library</h2>
-        <p>Your watchlisted movies and television shows</p>
+      <div class="library-header flex items-center justify-between pb-2 mb-4 border-b border-slate-800/80">
+        <div>
+          <h2 class="text-xl font-bold text-white">My Watchlist</h2>
+          <p class="text-xs text-slate-400">Your watchlisted movies and television shows</p>
+        </div>
+        <button id="watchlist-clear-all-btn" class="watchlist-clear-btn hidden" title="Clear all watchlist items">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          <span>Clear All</span>
+        </button>
       </div>
       <div class="library-scroll custom-scrollbar">
         <div id="library-results-grid" class="library-grid">
@@ -861,7 +899,7 @@
         <div id="library-empty-state" class="empty-state-card">
           <i data-lucide="star"></i>
           <h3>Watchlist is Empty</h3>
-          <p>Explore Home or Search to add movies and TV shows to your personal watchlist library.</p>
+          <p>Explore Movies, Series, or Search to add titles to your personal watchlist.</p>
         </div>
       </div>
     </div>
@@ -1039,11 +1077,10 @@
 
         <!-- Iframe Embed Player (Movies & TV servers) -->
         <div id="embed-player-wrapper" style="display:none;position:absolute;inset:0;z-index:5;">
-          <div id="embed-shield" style="position:absolute;inset:0;z-index:10;cursor:pointer;"></div>
           <iframe
             id="embed-iframe"
             allowfullscreen
-            allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
+            allow="fullscreen; autoplay; encrypted-media; picture-in-picture; accelerometer; gyroscope; web-share"
             style="width:100%;height:100%;border:none;background:#000;"
           ></iframe>
         </div>
@@ -1082,6 +1119,35 @@
           <button id="retry-stream-btn" class="btn btn-primary">
             <i data-lucide="refresh-cw"></i> Retry Stream
           </button>
+        </div>
+
+        <!-- Live EPG Program Guide Overlay Panel -->
+        <div id="player-epg-drawer" class="player-epg-panel hidden">
+          <div class="epg-panel-header">
+            <div class="epg-badge-wrap">
+              <span class="epg-pulse-dot"></span>
+              <span class="epg-badge-text">NOW PLAYING</span>
+            </div>
+            <button id="epg-close-btn" class="epg-close-btn" title="Hide Guide">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+          <div class="epg-panel-content">
+            <h3 id="epg-show-title" class="epg-show-title">Program Title</h3>
+            <div class="epg-show-time-bar">
+              <span id="epg-show-times" class="epg-show-times">8:00 PM — 9:00 PM</span>
+              <span id="epg-show-remaining" class="epg-show-remaining">30 mins left</span>
+            </div>
+            <div class="epg-progress-track">
+              <div id="epg-progress-fill" class="epg-progress-fill" style="width: 0%;"></div>
+            </div>
+            <p id="epg-show-desc" class="epg-show-desc">Program description...</p>
+            <div id="epg-next-container" class="epg-next-box hidden">
+              <span class="epg-next-label"><i data-lucide="clock" class="w-3.5 h-3.5 inline mr-1"></i> UP NEXT</span>
+              <div id="epg-next-title" class="epg-next-title">Next Show Title</div>
+              <span id="epg-next-time" class="epg-next-time">@ 9:00 PM</span>
+            </div>
+          </div>
         </div>
 
         <!-- Custom Video Player Controls Bar -->
@@ -1146,6 +1212,9 @@
               </div>
             </div>
             <div class="actions-right">
+              <button id="epg-toggle-btn" class="control-btn live-control-btn" title="Toggle Program Info (EPG)">
+                <i data-lucide="tv"></i>
+              </button>
               <button id="aspect-ratio-btn" class="control-btn ratio-btn" title="Aspect Ratio">
                 <i data-lucide="monitor"></i> <span id="aspect-label">FIT</span>
               </button>
@@ -1339,7 +1408,7 @@
 
         <div>
           <label class="block text-xs font-semibold text-slate-300 mb-1">Xtream Username</label>
-          <input type="text" id="admin-modal-user" class="settings-input-control w-full" placeholder="e.g. SAPPTV12" required>
+          <input type="text" id="admin-modal-user" class="settings-input-control w-full" placeholder="e.g. SAPPTV13" required>
         </div>
 
         <div>
@@ -1354,6 +1423,27 @@
           </button>
         </div>
       </form>
+    </div>
+  <!-- VOD Resume Playback Choice Modal Overlay -->
+  <div id="vod-resume-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-[110] flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800/90 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 text-center transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+      <div class="w-12 h-12 mx-auto rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+        <i data-lucide="play-circle" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-white">Resume Playback?</h3>
+        <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">
+          You previously watched <span id="resume-modal-title" class="text-slate-200 font-semibold">Media Title</span> up to <span id="resume-modal-time" class="text-indigo-400 font-mono font-semibold">0:00</span>.
+        </p>
+      </div>
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+        <button id="resume-modal-start-over-btn" class="w-full sm:w-1/2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors border border-slate-700/60">
+          <i data-lucide="rotate-ccw" class="w-4 h-4 text-slate-400"></i> Start Over
+        </button>
+        <button id="resume-modal-resume-btn" class="w-full sm:w-1/2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25">
+          <i data-lucide="play" class="w-4 h-4 fill-white"></i> <span id="resume-modal-btn-text">Resume</span>
+        </button>
+      </div>
     </div>
   </div>
 
