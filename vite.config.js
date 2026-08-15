@@ -9,7 +9,7 @@ import { URL } from 'url';
 const STRIP_REQ_HEADERS = new Set(['host', 'referer', 'origin', 'x-forwarded-for', 'x-real-ip', 'accept-encoding']);
 
 // Known IPTV portal hosts that need the VLC user-agent spoof
-const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us']);
+const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us', 'asoseller.org', '91.239.79.63']);
 
 /**
  * Rewrite an HLS playlist so all segment and sub-playlist URLs are
@@ -17,7 +17,7 @@ const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us']);
  */
 function rewriteM3U8(m3uText, baseUrl, proxySegments = false) {
   const base = new URL(baseUrl);
-  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('portal5458') || base.protocol === 'http:' || base.pathname.includes('/live/');
+  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('portal5458') || base.hostname.includes('asoseller') || base.protocol === 'http:' || base.pathname.includes('/live/') || base.pathname.includes('/movie/') || base.pathname.includes('/series/');
 
   return m3uText.split('\n').map(line => {
     const trimmed = line.trim();
@@ -176,16 +176,16 @@ export default defineConfig({
             return;
           }
 
-          // 1. Forward Xtream player_api.php queries to local vxparser (port 8888) with fallback
+          // 1. Forward Xtream player_api.php queries to active Xtream server (asoseller.org:8080)
           if (pathname === '/player_api.php') {
-            const targetUrl = `http://127.0.0.1:8888${req.url}`;
+            const targetUrl = `http://asoseller.org:8080${req.url}`;
             proxyRequest(req, res, targetUrl, false);
             return;
           }
 
-          // 2. Forward movie and series streaming requests to vxparser
+          // 2. Forward movie and series streaming requests to active Xtream server
           if (pathname.startsWith('/movie/') || pathname.startsWith('/series/')) {
-            const targetUrl = `http://127.0.0.1:8888${req.url}`;
+            const targetUrl = `http://asoseller.org:8080${req.url}`;
             proxyRequest(req, res, targetUrl, true);
             return;
           }

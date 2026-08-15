@@ -47,7 +47,7 @@ async function forwardStream(req, res, targetUrlStr) {
     return;
   }
 
-  const isIptvHost = targetUrl.hostname.includes('portal5458') || targetUrl.hostname.includes('kstv') || targetUrl.pathname.includes('/live/');
+  const isIptvHost = targetUrl.hostname.includes('portal5458') || targetUrl.hostname.includes('kstv') || targetUrl.hostname.includes('asoseller') || targetUrl.pathname.includes('/live/') || targetUrl.pathname.includes('/movie/') || targetUrl.pathname.includes('/series/');
   const outgoingHeaders = {
     'user-agent': isIptvHost ? 'VLC/3.0.21 LibVLC/3.0.21' : (req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'),
     'accept': '*/*',

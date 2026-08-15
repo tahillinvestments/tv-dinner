@@ -509,6 +509,31 @@ function renderAccessLockedState(containerId, featureName) {
   }
 }
 
+// Helper to populate category rows with Xtream VOD items or seamless TMDB fallbacks
+async function loadRowData(container, xtreamPromise, tmdbPromise) {
+  if (!container) return;
+  try {
+    const xtreamItems = await Promise.race([
+      xtreamPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3500))
+    ]);
+    if (Array.isArray(xtreamItems) && xtreamItems.length > 0) {
+      renderCardRow(xtreamItems.slice(0, 30), container);
+      return;
+    }
+  } catch (e) {}
+
+  try {
+    const tmdbData = await tmdbPromise;
+    const items = tmdbData?.results || (Array.isArray(tmdbData) ? tmdbData : []);
+    if (items.length > 0) {
+      renderCardRow(items.slice(0, 30), container);
+    }
+  } catch (e) {
+    console.warn('[VOD Dashboard] Row load error:', e);
+  }
+}
+
 // Load Movies Dashboard hero + curated category carousels from full Movie Catalog
 async function loadMoviesDashboard() {
   if (!isLiveTvActive()) {
@@ -537,16 +562,25 @@ async function loadMoviesDashboard() {
   }
 
   try {
-    const data = await getTrendingMovies();
-    const movies = data.results || [];
+    let movies = [];
+    try {
+      movies = await xtreamVOD.getMovies('1'); // Action / Featured
+    } catch (e) {
+      console.warn("Xtream VOD movies fetch fallback to TMDB:", e);
+    }
+
+    if (!Array.isArray(movies) || movies.length === 0) {
+      const data = await getTrendingMovies();
+      movies = data.results || [];
+    }
     
     if (movies.length > 0) {
       const heroItem = movies[0];
       const title = heroItem.title || heroItem.name || 'Featured Movie';
-      const year = (heroItem.release_date || heroItem.first_air_date || '2026').split('-')[0];
-      const rating = heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A';
-      const overview = heroItem.overview || 'Explore details and stream this trending movie instantly.';
-      const bgUrl = getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
+      const year = (heroItem.releaseDate || heroItem.release_date || heroItem.first_air_date || (heroItem.added ? new Date(Number(heroItem.added) * 1000).getFullYear() : '') || '2026').toString().split('-')[0];
+      const rating = heroItem.rating ? Number(heroItem.rating).toFixed(1) : (heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A');
+      const overview = heroItem.overview || heroItem.plot || 'Explore details and stream this trending movie instantly.';
+      const bgUrl = heroItem.stream_icon || getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
 
       const titleEl = document.getElementById('movies-hero-title');
       if (titleEl) titleEl.textContent = title;
@@ -570,16 +604,16 @@ async function loadMoviesDashboard() {
       }
     }
 
-    if (trendingRow) renderCardRow(movies, trendingRow);
+    if (trendingRow) renderCardRow(movies.slice(0, 30), trendingRow);
 
-    // Fetch movie curation category rows concurrently
+    // Fetch movie curation category rows concurrently with guaranteed fallback
     Promise.allSettled([
-      getTopRated().then(res => topRatedRow && renderCardRow(res.results, topRatedRow)),
-      getByGenre(28, 'movie').then(res => actionRow && renderCardRow(res.results, actionRow)),
-      getByGenre(35, 'movie').then(res => comedyRow && renderCardRow(res.results, comedyRow)),
-      getByGenre(878, 'movie').then(res => scifiRow && renderCardRow(res.results, scifiRow)),
-      getByGenre(27, 'movie').then(res => horrorRow && renderCardRow(res.results, horrorRow)),
-      getByGenre(16, 'movie').then(res => animationRow && renderCardRow(res.results, animationRow))
+      loadRowData(topRatedRow, xtreamVOD.getMovies('2'), getTopRated()),
+      loadRowData(actionRow, xtreamVOD.getMovies('1'), getByGenre(28, 'movie')),
+      loadRowData(comedyRow, xtreamVOD.getMovies('4'), getByGenre(35, 'movie')),
+      loadRowData(scifiRow, xtreamVOD.getMovies('17'), getByGenre(878, 'movie')),
+      loadRowData(horrorRow, xtreamVOD.getMovies('11'), getByGenre(27, 'movie')),
+      loadRowData(animationRow, xtreamVOD.getMovies('3'), getByGenre(16, 'movie'))
     ]);
 
   } catch (err) {
@@ -616,16 +650,25 @@ async function loadSeriesDashboard() {
   }
 
   try {
-    const data = await getTrendingTV();
-    const series = data.results || [];
+    let series = [];
+    try {
+      series = await xtreamVOD.getSeries('21'); // Action / Trending
+    } catch (e) {
+      console.warn("Xtream VOD series fetch fallback to TMDB:", e);
+    }
+
+    if (!Array.isArray(series) || series.length === 0) {
+      const data = await getTrendingTV();
+      series = data.results || [];
+    }
     
     if (series.length > 0) {
       const heroItem = series[0];
       const title = heroItem.name || heroItem.title || 'Featured Series';
-      const year = (heroItem.first_air_date || '2026').split('-')[0];
-      const rating = heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A';
-      const overview = heroItem.overview || 'Explore details and stream this trending series instantly.';
-      const bgUrl = getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
+      const year = (heroItem.releaseDate || heroItem.first_air_date || heroItem.release_date || '2026').toString().split('-')[0];
+      const rating = heroItem.rating ? Number(heroItem.rating).toFixed(1) : (heroItem.vote_average ? heroItem.vote_average.toFixed(1) : 'N/A');
+      const overview = heroItem.overview || heroItem.plot || 'Explore details and stream this trending series instantly.';
+      const bgUrl = (heroItem.backdrop_path && heroItem.backdrop_path[0]) || heroItem.cover || getTMDBImageUrl(heroItem.backdrop_path, 'original') || getTMDBImageUrl(heroItem.poster_path, 'original');
 
       const titleEl = document.getElementById('series-hero-title');
       if (titleEl) titleEl.textContent = title;
@@ -649,16 +692,16 @@ async function loadSeriesDashboard() {
       }
     }
 
-    if (trendingRow) renderCardRow(series, trendingRow);
+    if (trendingRow) renderCardRow(series.slice(0, 30), trendingRow);
 
-    // Fetch series curation category rows concurrently
+    // Fetch series curation category rows concurrently with guaranteed fallback
     Promise.allSettled([
-      getTopRatedTV().then(res => topRatedRow && renderCardRow(res.results, topRatedRow)),
-      getByGenre(10759, 'tv').then(res => actionRow && renderCardRow(res.results, actionRow)),
-      getByGenre(35, 'tv').then(res => comedyRow && renderCardRow(res.results, comedyRow)),
-      getByGenre(10765, 'tv').then(res => scifiRow && renderCardRow(res.results, scifiRow)),
-      getByGenre(80, 'tv').then(res => crimeRow && renderCardRow(res.results, crimeRow)),
-      getByGenre(16, 'tv').then(res => animationRow && renderCardRow(res.results, animationRow))
+      loadRowData(topRatedRow, xtreamVOD.getSeries('22'), getTopRatedTV()),
+      loadRowData(actionRow, xtreamVOD.getSeries('21'), getByGenre(10759, 'tv')),
+      loadRowData(comedyRow, xtreamVOD.getSeries('24'), getByGenre(35, 'tv')),
+      loadRowData(scifiRow, xtreamVOD.getSeries('30'), getByGenre(10765, 'tv')),
+      loadRowData(crimeRow, xtreamVOD.getSeries('25'), getByGenre(80, 'tv')),
+      loadRowData(animationRow, xtreamVOD.getSeries('23'), getByGenre(16, 'tv'))
     ]);
 
   } catch (err) {
@@ -3212,10 +3255,10 @@ async function openDetailsView(mediaItem) {
 
     createIcons(iconConfig);
 
-    const isTV = mediaItem.media_type === 'tv' || (!mediaItem.release_date && mediaItem.first_air_date);
+    const isTV = mediaItem.media_type === 'tv' || mediaItem.series_id !== undefined || (!mediaItem.release_date && mediaItem.first_air_date);
 
     if (!isTV) {
-      const mediaKey = `movie_${mediaItem.id}`;
+      const mediaKey = `movie_${mediaItem.stream_id || mediaItem.id}`;
       state.currentVodMediaKey = mediaKey;
       state.currentVodTitle = title;
       const saved = getVodPlaybackPosition(mediaKey);
@@ -3225,39 +3268,80 @@ async function openDetailsView(mediaItem) {
         state.resumePlaybackTime = 0;
       }
       
-      startStreamResolution({ type: 'movie', id: mediaItem.id });
+      let directStreamUrl = null;
+      if (mediaItem.stream_id) {
+        directStreamUrl = xtreamVOD.getMovieStreamUrl(mediaItem.stream_id, mediaItem.container_extension || 'mp4');
+      } else {
+        try {
+          const found = await xtreamVOD.findMovieByTitle(title);
+          if (found && found.stream_id) {
+            console.log('[Xtream VOD] Matched title to Xtream stream:', found);
+            directStreamUrl = xtreamVOD.getMovieStreamUrl(found.stream_id, found.container_extension || 'mp4');
+          }
+        } catch (e) {
+          console.warn('[Xtream VOD] findMovieByTitle error:', e);
+        }
+      }
+
+      startStreamResolution({ type: 'movie', id: mediaItem.stream_id || mediaItem.id, streamUrl: directStreamUrl });
     } else {
-      document.getElementById('sources-status').textContent = 'Select an episode below to start streaming.';
+      document.getElementById('sources-status').textContent = 'Loading seasons & episodes...';
       try {
-        const details = await getTVShowDetails(mediaItem.id);
-        document.getElementById('details-runtime').textContent = `${details?.number_of_seasons || 1} Seasons`;
+        let seasons = [];
+        let sInfo = null;
+        let seriesId = mediaItem.series_id;
+
+        if (!seriesId) {
+          try {
+            const allSeriesList = await xtreamVOD.getSeries('21');
+            const cleanTitle = (mediaItem.name || mediaItem.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const foundSeries = (allSeriesList || []).find(s => {
+              const sName = (s.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              return sName.includes(cleanTitle) || cleanTitle.includes(sName);
+            });
+            if (foundSeries) {
+              seriesId = foundSeries.series_id;
+            }
+          } catch (e) {}
+        }
+
+        if (seriesId) {
+          sInfo = await xtreamVOD.getSeriesInfo(seriesId);
+          seasons = sInfo?.seasons || [];
+        } else {
+          const details = await getTVShowDetails(mediaItem.id);
+          seasons = details?.seasons || [];
+        }
+
+        document.getElementById('details-runtime').textContent = `${seasons.length || 1} Seasons`;
         document.getElementById('tv-selectors').classList.remove('hidden');
 
         const seasonSelect = document.getElementById('season-select');
         seasonSelect.innerHTML = '';
-        (details?.seasons || []).forEach(season => {
-          if (season.season_number === 0 && (details?.seasons?.length || 0) > 1) return;
+        seasons.forEach(season => {
+          const sNum = season.season_number !== undefined ? season.season_number : (season.season || 1);
+          if (sNum === 0 && seasons.length > 1) return;
           const opt = document.createElement('option');
-          opt.value = season.season_number;
-          opt.textContent = season.name || `Season ${season.season_number}`;
+          opt.value = sNum;
+          opt.textContent = season.name || `Season ${sNum}`;
           seasonSelect.appendChild(opt);
         });
 
         seasonSelect.onchange = () => {
-          loadTVEpisodes(mediaItem.id, seasonSelect.value);
+          loadTVEpisodes(seriesId || mediaItem.id, seasonSelect.value, sInfo);
         };
 
-        if (details?.seasons && details.seasons.length > 0) {
+        if (seasons.length > 0) {
           const firstSeasonNum = seasonSelect.options.length > 0 ? seasonSelect.options[0].value : 1;
           seasonSelect.value = firstSeasonNum;
-          await loadTVEpisodes(mediaItem.id, firstSeasonNum);
+          await loadTVEpisodes(seriesId || mediaItem.id, firstSeasonNum, sInfo);
         }
       } catch (e) {
         console.warn("Failed to load TV details:", e);
       }
     }
 
-    if (!isTV) {
+    if (!isTV && !mediaItem.stream_id) {
       try {
         const details = await getMovieDetails(mediaItem.id);
         document.getElementById('details-runtime').textContent = `${details?.runtime || 'N/A'} min`;
@@ -3269,15 +3353,26 @@ async function openDetailsView(mediaItem) {
 }
 
 // Load episodes list grid for TV Show
-async function loadTVEpisodes(tvId, seasonNumber) {
+async function loadTVEpisodes(tvId, seasonNumber, sInfo = null) {
   const grid = document.getElementById('episodes-grid');
   grid.innerHTML = '<span class="text-xs text-slate-500">Loading episodes...</span>';
 
   try {
-    const data = await getTVSeasonDetails(tvId, seasonNumber);
+    let episodes = [];
+    if (sInfo && sInfo.episodes && sInfo.episodes[seasonNumber]) {
+      episodes = sInfo.episodes[seasonNumber].map(ep => ({
+        id: ep.id,
+        episode_number: ep.episode_num || ep.episode_number || 1,
+        name: ep.title || ep.name || `Episode ${ep.episode_num || 1}`,
+        stream_url: xtreamVOD.getSeriesStreamUrl(ep.id, ep.container_extension || 'mp4')
+      }));
+    } else {
+      const data = await getTVSeasonDetails(tvId, seasonNumber);
+      episodes = data.episodes || [];
+    }
+
     grid.innerHTML = '';
     
-    const episodes = data.episodes || [];
     episodes.forEach((ep) => {
       const btn = document.createElement('button');
       btn.className = 'episode-btn';
@@ -3295,7 +3390,7 @@ async function loadTVEpisodes(tvId, seasonNumber) {
 
         checkAndShowVodResumeBanner(mediaKey, title, () => {
           document.getElementById('sources-status').textContent = `Resolving Season ${seasonNumber} Episode ${ep.episode_number}...`;
-          startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: ep.episode_number });
+          startStreamResolution({ type: 'tv', id: ep.id || tvId, season: seasonNumber, episode: ep.episode_number, streamUrl: ep.stream_url });
         });
       });
 
@@ -3312,7 +3407,7 @@ async function loadTVEpisodes(tvId, seasonNumber) {
         state.currentVodMediaKey = mediaKey;
         state.currentVodTitle = title;
         document.getElementById('sources-status').textContent = `Playing Season ${seasonNumber} Episode ${firstEp.episode_number}...`;
-        startStreamResolution({ type: 'tv', id: tvId, season: seasonNumber, episode: firstEp.episode_number });
+        startStreamResolution({ type: 'tv', id: firstEp.id || tvId, season: seasonNumber, episode: firstEp.episode_number, streamUrl: firstEp.stream_url });
       }
     }
   } catch (err) {
@@ -3322,7 +3417,7 @@ async function loadTVEpisodes(tvId, seasonNumber) {
 }
 
 // Start streaming resolution queries across high-speed servers
-function startStreamResolution({ type, id, season = 1, episode = 1 }) {
+function startStreamResolution({ type, id, season = 1, episode = 1, streamUrl = null }) {
   closeActiveSse();
 
   const listContainer = document.getElementById('sources-list');
@@ -3337,6 +3432,15 @@ function startStreamResolution({ type, id, season = 1, episode = 1 }) {
   if (embedIframe) embedIframe.src = '';
 
   statusText.textContent = 'Connecting to high-speed stream server...';
+
+  // If direct Xtream stream URL is present, prioritize it as #1 source!
+  if (streamUrl) {
+    state.resolvedSources.push({
+      name: 'Xtream Direct HD Server',
+      url: streamUrl,
+      type: 'stream'
+    });
+  }
 
   // Populate fast direct embed stream providers
   EMBED_PROVIDERS.forEach((provider) => {

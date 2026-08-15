@@ -15,17 +15,12 @@ function getPlayerProxyUrl(targetUrl) {
     } catch (e) {}
   }
 
-  // 1. If we are running on localhost, 127.0.0.1, or inside the Android App (WebView),
-  // we do NOT need to proxy the stream. Direct requests work perfectly and bypass Vercel/Cloudflare IP blocks.
   const isAndroid = typeof window !== 'undefined' && 
     (window.location.host === 'appassets.androidplatform.net' || 
      window.location.protocol === 'file:' || 
      (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
   
-  const isLocalhost = typeof window !== 'undefined' && 
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-  if (isLocalhost || isAndroid) {
+  if (isAndroid) {
     return cleanTarget;
   }
 
@@ -513,10 +508,43 @@ export class IPTVPlayer {
       (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
     ];
 
-    // Check HLS compatibility
-    let hlsRetryAttempts = 0;
+    // Check if URL is a direct MP4/video file or an HLS playlist
+    const isDirectVideo = !rawTargetUrl.includes('.m3u8') && (rawTargetUrl.includes('.mp4') || rawTargetUrl.includes('.mkv') || rawTargetUrl.includes('.webm') || rawTargetUrl.includes('.avi') || rawTargetUrl.includes('/movie/') || rawTargetUrl.includes('/series/'));
 
-    if (Hls.isSupported()) {
+    if (isDirectVideo) {
+      this.destroyHls();
+      this.video.src = this.currentUrl;
+      this.video.load();
+
+      const onMeta = () => {
+        if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
+        this.showLoading(false);
+        this.showError(false);
+        if (resumePos && resumePos > 0) {
+          try {
+            this.video.currentTime = resumePos;
+            this.showToast(`Resumed from ${this.formatTime(resumePos)}`);
+          } catch (e) {}
+        }
+        this.video.play().then(() => {
+          this.video.muted = false;
+          this.video.volume = 1.0;
+          this.updatePlayPauseUI(false);
+          this.updateVolumeUI();
+        }).catch(() => {
+          this.updatePlayPauseUI(true);
+        });
+      };
+
+      this.video.addEventListener('loadedmetadata', onMeta, { once: true });
+      this.video.addEventListener('canplay', () => this.showLoading(false), { once: true });
+      this.video.addEventListener('error', (e) => {
+        console.warn("[Player] Direct video playback error:", e);
+        if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
+        this.showLoading(false);
+        this.showError(true, 'Video stream could not be loaded. Server may be unreachable.');
+      }, { once: true });
+    } else if (Hls.isSupported()) {
       this.destroyHls();
       this.hls = new Hls({
         enableWorker: true,
