@@ -52,9 +52,17 @@ export function getStreamSources(
           if (!r.ok) return null;
           const json = await r.json();
           if (json && json.stream && json.stream.playlist) {
+            let proxyBase = '';
+            try {
+              proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
+            } catch (e) {}
+            if (!proxyBase) {
+              proxyBase = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+            }
+            const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
             return {
               name: 'VidLink Direct 1080p',
-              url: `/api/proxy?url=${encodeURIComponent(json.stream.playlist)}`,
+              url: `${p}?url=${encodeURIComponent(json.stream.playlist)}`,
               type: 'stream',
               subtitles: json.stream.subtitles || []
             };

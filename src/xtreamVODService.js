@@ -42,13 +42,22 @@ export class XtreamVODClient {
 
     const targetUrl = `${this.baseUrl}/player_api.php?${query.toString()}`;
     
-    // In web browsers (Vercel, localhost, etc.), route via CORS proxy to prevent HTTPS mixed-content blocks
+    // In Android app, route directly; in web browsers, route via Cloudflare Worker proxy to prevent HTTPS mixed-content blocks
     const isAndroid = typeof window !== 'undefined' && 
       (window.location.host === 'appassets.androidplatform.net' || 
        window.location.protocol === 'file:' || 
        (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
 
-    const url = isAndroid ? targetUrl : `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+    let proxyBase = '';
+    try {
+      proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
+    } catch (e) {}
+    if (!proxyBase) {
+      proxyBase = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+    }
+    const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
+
+    const url = isAndroid ? targetUrl : `${p}?url=${encodeURIComponent(targetUrl)}`;
 
     const res = await fetch(url);
     if (!res.ok) {

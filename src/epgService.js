@@ -134,7 +134,7 @@ function _buildProxyUrl(url) {
   const external = (() => {
     try { return localStorage.getItem('external_proxy_url'); } catch (_) { return null; }
   })();
-  const base = external || '/api/proxy';
+  const base = external || 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
   if (base.startsWith('http://') || base.startsWith('https://')) {
     const p = base.endsWith('/') ? base : base + '/';
     return `${p}?url=${encodeURIComponent(url)}`;

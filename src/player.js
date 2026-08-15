@@ -24,18 +24,15 @@ function getPlayerProxyUrl(targetUrl) {
     return cleanTarget;
   }
 
-  // 2. If the user has set a custom external proxy in Settings, use it.
+  // 2. If the user has set a custom external proxy in Settings, use it; otherwise default to Cloudflare Worker proxy.
   let savedProxy = '';
   try {
     savedProxy = (localStorage.getItem('external_proxy_url') || '').trim();
   } catch (e) {}
   
-  if (savedProxy) {
-    const p = savedProxy.endsWith('/') ? savedProxy : savedProxy + '/';
-    return `${p}?url=${encodeURIComponent(cleanTarget)}`;
-  }
-
-  return `/api/proxy?url=${encodeURIComponent(cleanTarget)}`;
+  const proxyBase = savedProxy || 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+  const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
+  return `${p}?url=${encodeURIComponent(cleanTarget)}`;
 }
 
 export class IPTVPlayer {
@@ -503,8 +500,8 @@ export class IPTVPlayer {
     const originalUrl = rawTargetUrl;
 
     const proxyFallbacks = [
-      (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(url)}`,
+      (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
     ];
 

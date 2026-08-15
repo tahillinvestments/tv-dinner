@@ -76,8 +76,8 @@ const iconConfig = {
   }
 })();
 
-// Default Proxy URL fallback
-const DEFAULT_RENDER_PROXY = '/api/proxy';
+// Default Proxy URL fallback (Cloudflare Worker with unlimited bandwidth / $0 origin fees)
+const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
 
 // Global State
 const state = {
@@ -3399,16 +3399,11 @@ async function loadTVEpisodes(tvId, seasonNumber, sInfo = null) {
 
     if (episodes.length > 0) {
       const firstEp = episodes[0];
-      const firstEpBtn = grid.querySelector('.episode-btn');
-      if (firstEpBtn) {
-        firstEpBtn.classList.add('active');
-        const mediaKey = `tv_${tvId}_s${seasonNumber}_e${firstEp.episode_number}`;
-        const title = `${state.selectedMedia?.name || 'TV Show'} S${seasonNumber} E${firstEp.episode_number}`;
-        state.currentVodMediaKey = mediaKey;
-        state.currentVodTitle = title;
-        document.getElementById('sources-status').textContent = `Playing Season ${seasonNumber} Episode ${firstEp.episode_number}...`;
-        startStreamResolution({ type: 'tv', id: firstEp.id || tvId, season: seasonNumber, episode: firstEp.episode_number, streamUrl: firstEp.stream_url });
-      }
+      const mediaKey = `tv_${tvId}_s${seasonNumber}_e${firstEp.episode_number}`;
+      const title = `${state.selectedMedia?.name || 'TV Show'} S${seasonNumber} E${firstEp.episode_number}`;
+      state.currentVodMediaKey = mediaKey;
+      state.currentVodTitle = title;
+      document.getElementById('sources-status').textContent = `Select an episode above to start streaming.`;
     }
   } catch (err) {
     console.error("Failed to load TV episodes:", err);
@@ -3852,15 +3847,6 @@ function getProxyBase() {
     saved = (localStorage.getItem('external_proxy_url') || '').trim();
   } catch (e) {}
   if (saved) return saved;
-
-  if (
-    typeof window !== 'undefined' &&
-    (window.location.host === 'appassets.androidplatform.net' ||
-      window.location.protocol === 'file:' ||
-      (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')))
-  ) {
-    return 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
-  }
 
   return DEFAULT_RENDER_PROXY;
 }

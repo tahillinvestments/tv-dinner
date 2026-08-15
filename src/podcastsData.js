@@ -959,18 +959,10 @@ function getGuaranteedChannelEpisodes(channel) {
 
 function getPodcastsProxyUrl(targetUrl) {
   if (!targetUrl) return '';
-  let baseProxy = '/api/proxy';
+  let baseProxy = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
   try {
     const saved = (localStorage.getItem('external_proxy_url') || '').trim();
     if (saved) baseProxy = saved;
-    else if (
-      typeof window !== 'undefined' &&
-      (window.location.host === 'appassets.androidplatform.net' ||
-        window.location.protocol === 'file:' ||
-        (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')))
-    ) {
-      baseProxy = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
-    }
   } catch (e) {}
 
   if (baseProxy.startsWith('http://') || baseProxy.startsWith('https://')) {
