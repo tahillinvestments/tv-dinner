@@ -295,6 +295,9 @@ async function initApp() {
 
   // Load playlist (Live TV mode data) in background
   loadIPTVPlaylist();
+
+  // Preload common Xtream VOD categories in background for instant search and playback
+  xtreamVOD.preloadCommon().catch(() => {});
 }
 
 if (document.readyState === 'loading') {
@@ -642,19 +645,21 @@ async function loadMoviesDashboard() {
     }
 
     // 3. Cross-reference TMDB trending with Xtream catalogue to attach direct stream_ids
-    const crossReferenced = tmdbTrending.map(tmdbItem => {
-      const match = xtreamVOD.findMovieByTitle(tmdbItem.title);
-      if (match) {
-        return {
-          ...tmdbItem,
-          stream_id: match.stream_id || match.id,
-          container_extension: match.container_extension || 'mp4',
-          direct_source: match.direct_source,
-          media_type: 'movie'
-        };
-      }
+    const crossReferenced = await Promise.all(tmdbTrending.map(async (tmdbItem) => {
+      try {
+        const match = await xtreamVOD.findMovieByTitle(tmdbItem.title);
+        if (match) {
+          return {
+            ...tmdbItem,
+            stream_id: match.stream_id || match.id,
+            container_extension: match.container_extension || 'mp4',
+            direct_source: match.direct_source,
+            media_type: 'movie'
+          };
+        }
+      } catch (e) {}
       return { ...tmdbItem, media_type: 'movie' };
-    });
+    }));
 
     // 4. Merge cross-referenced TMDB trending with Xtream movies
     const mergedList = [...crossReferenced];
@@ -662,7 +667,7 @@ async function loadMoviesDashboard() {
       for (const xm of xtreamMovies) {
         const title = (xm.name || xm.title || '').toLowerCase();
         if (!mergedList.some(m => (m.title || m.name || '').toLowerCase() === title)) {
-          mergedList.push({ ...xm, media_type: 'movie' });
+          mergedList.push({ ...xm, media_type: 'movie', id: xm.stream_id || xm.id, stream_id: xm.stream_id || xm.id });
         }
       }
     }
@@ -764,18 +769,20 @@ async function loadSeriesDashboard() {
     }
 
     // 3. Cross-reference TMDB trending series with Xtream catalogue to attach direct series_ids
-    const crossReferencedTV = tmdbTrendingTV.map(tmdbItem => {
-      const match = xtreamVOD.findSeriesByTitle(tmdbItem.name || tmdbItem.title);
-      if (match) {
-        return {
-          ...tmdbItem,
-          series_id: match.series_id || match.id,
-          cover: match.cover || match.stream_icon,
-          media_type: 'tv'
-        };
-      }
+    const crossReferencedTV = await Promise.all(tmdbTrendingTV.map(async (tmdbItem) => {
+      try {
+        const match = await xtreamVOD.findSeriesByTitle(tmdbItem.name || tmdbItem.title);
+        if (match) {
+          return {
+            ...tmdbItem,
+            series_id: match.series_id || match.id,
+            cover: match.cover || match.stream_icon,
+            media_type: 'tv'
+          };
+        }
+      } catch (e) {}
       return { ...tmdbItem, media_type: 'tv' };
-    });
+    }));
 
     // 4. Merge cross-referenced TMDB trending with Xtream series
     const mergedSeries = [...crossReferencedTV];
@@ -783,7 +790,7 @@ async function loadSeriesDashboard() {
       for (const xs of xtreamSeries) {
         const name = (xs.name || xs.title || '').toLowerCase();
         if (!mergedSeries.some(s => (s.name || s.title || '').toLowerCase() === name)) {
-          mergedSeries.push({ ...xs, media_type: 'tv' });
+          mergedSeries.push({ ...xs, media_type: 'tv', id: xs.series_id || xs.id, series_id: xs.series_id || xs.id });
         }
       }
     }

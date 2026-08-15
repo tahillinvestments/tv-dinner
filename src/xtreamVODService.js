@@ -66,7 +66,7 @@ export class XtreamVODClient {
 
   get username() {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('xtream_vod_username');
+      const saved = localStorage.getItem('xtream_vod_username') || localStorage.getItem('iptv_username');
       if (saved && saved.trim()) return saved.trim();
     }
     return 'gj3526@gmail.com';
@@ -74,7 +74,7 @@ export class XtreamVODClient {
 
   get password() {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('xtream_vod_password');
+      const saved = localStorage.getItem('xtream_vod_password') || localStorage.getItem('iptv_password');
       if (saved && saved.trim()) return saved.trim();
     }
     return 'ck9sd6Nc4TZA';
@@ -168,35 +168,77 @@ export class XtreamVODClient {
   }
 
   async preloadCommon() {
-    const commonCats = ['1', '2', '4', '17', '11', '3', '5', '8', '7', '10', '18'];
+    const commonMovieCats = ['1', '2', '4', '17', '11', '3', '5', '8', '7', '10', '18'];
+    const commonSeriesCats = ['21', '22', '24', '30', '25', '23', '27', '28'];
     try {
-      await Promise.allSettled(commonCats.map(cat => this.getMovies(cat)));
+      await Promise.allSettled([
+        ...commonMovieCats.map(cat => this.getMovies(cat)),
+        ...commonSeriesCats.map(cat => this.getSeries(cat))
+      ]);
     } catch (e) {}
   }
 
-  findMovieByTitle(title) {
+  async findMovieByTitle(title) {
     if (!title) return null;
-    const clean = title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!cleanTitle) return null;
+
+    // 1. Check all already-cached categories in memory
     for (const [k, list] of this._vodCache.entries()) {
-      if (k.startsWith('movies_') && Array.isArray(list)) {
-        for (const m of list) {
-          const mClean = (m.name || m.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (mClean === clean || mClean.startsWith(clean)) return m;
-        }
+      if (k.startsWith('movies_cat_') && Array.isArray(list)) {
+        const found = list.find(m => {
+          const mName = (m.name || m.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          return mName.includes(cleanTitle) || cleanTitle.includes(mName);
+        });
+        if (found) return found;
+      }
+    }
+
+    // 2. Query common categories in parallel
+    const commonCats = ['1', '2', '4', '17', '11', '3', '5', '8', '7', '10', '18'];
+    const results = await Promise.allSettled(
+      commonCats.map(cat => this.getMovies(cat))
+    );
+
+    for (const res of results) {
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        const found = res.value.find(m => {
+          const mName = (m.name || m.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          return mName.includes(cleanTitle) || cleanTitle.includes(mName);
+        });
+        if (found) return found;
       }
     }
     return null;
   }
 
-  findSeriesByTitle(title) {
+  async findSeriesByTitle(title) {
     if (!title) return null;
-    const clean = title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!cleanTitle) return null;
+
     for (const [k, list] of this._vodCache.entries()) {
-      if (k.startsWith('series_') && Array.isArray(list)) {
-        for (const s of list) {
-          const sClean = (s.name || s.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (sClean === clean || sClean.startsWith(clean)) return s;
-        }
+      if (k.startsWith('series_cat_') && Array.isArray(list)) {
+        const found = list.find(s => {
+          const sName = (s.name || s.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          return sName.includes(cleanTitle) || cleanTitle.includes(sName);
+        });
+        if (found) return found;
+      }
+    }
+
+    const seriesCats = ['21', '22', '24', '30', '25', '23', '27', '28'];
+    const results = await Promise.allSettled(
+      seriesCats.map(cat => this.getSeries(cat))
+    );
+
+    for (const res of results) {
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        const found = res.value.find(s => {
+          const sName = (s.name || s.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          return sName.includes(cleanTitle) || cleanTitle.includes(sName);
+        });
+        if (found) return found;
       }
     }
     return null;
@@ -210,20 +252,24 @@ export class XtreamVODClient {
     const trimmed = query.trim().toLowerCase();
     const cleanTokens = trimmed.split(/\s+/).filter(Boolean);
 
+    // Ensure common movie categories are populated
+    const commonCats = ['1', '2', '4', '17', '11', '3', '5', '8', '7', '10', '18'];
+    if (this._vodCache.size < 2) {
+      await Promise.allSettled(commonCats.map(cat => this.getMovies(cat)));
+    }
+
     let allMovies = [];
-    try {
-      allMovies = await this.getMovies();
-    } catch (e) {
-      console.warn('[Xtream VOD] Failed to fetch full movie catalogue for search, searching cache:', e);
-      for (const [k, v] of this._vodCache.entries()) {
-        if (k.startsWith('movies_') && Array.isArray(v)) {
-          allMovies = allMovies.concat(v);
-        }
+    for (const [k, v] of this._vodCache.entries()) {
+      if (k.startsWith('movies_cat_') && Array.isArray(v)) {
+        allMovies = allMovies.concat(v);
       }
     }
 
-    if (!Array.isArray(allMovies) || allMovies.length === 0) {
-      return [];
+    if (allMovies.length === 0) {
+      try {
+        const cat1 = await this.getMovies('1');
+        if (Array.isArray(cat1)) allMovies = allMovies.concat(cat1);
+      } catch (e) {}
     }
 
     // Deduplicate by stream_id
@@ -263,42 +309,25 @@ export class XtreamVODClient {
 
       if (matchScore > 0) {
         const popScore = calculateVODScore(movie);
+        const posterUrl = movie.stream_icon || movie.cover || movie.poster_path;
         matches.push({
-          item: { ...movie, media_type: 'movie', id: movie.stream_id || movie.id, title: movie.name || movie.title },
+          item: {
+            ...movie,
+            media_type: 'movie',
+            id: movie.stream_id || movie.id,
+            stream_id: movie.stream_id || movie.id,
+            title: movie.name || movie.title,
+            container_extension: movie.container_extension || 'mp4',
+            stream_icon: posterUrl,
+            poster_path: posterUrl
+          },
           score: matchScore * 10 + popScore
         });
       }
     }
 
     matches.sort((a, b) => b.score - a.score);
-    const topMatches = matches.slice(0, 30);
-
-    // Concurrently enrich top items lacking poster/details with TMDB data
-    await Promise.allSettled(topMatches.map(async (m) => {
-      const item = m.item;
-      const rawTitle = item.name || item.title || '';
-      const yearMatch = rawTitle.match(/\((\d{4})\)/);
-      const year = yearMatch ? yearMatch[1] : '';
-      const cleanTitle = rawTitle.replace(/\(\d{4}\)/g, '').replace(/\[.*?\]/g, '').replace(/1080p|720p|4k|hevc|x264|x265|hd/gi, '').trim();
-
-      if (!item.poster_path || !item.overview || !item.vote_average) {
-        try {
-          const params = { query: cleanTitle };
-          if (year) params.year = year;
-          const tmdbRes = await fetchFromTMDB('/search/movie', params);
-          if (tmdbRes && tmdbRes.results && tmdbRes.results.length > 0) {
-            const best = tmdbRes.results[0];
-            if (!item.poster_path && best.poster_path) item.poster_path = best.poster_path;
-            if (!item.backdrop_path && best.backdrop_path) item.backdrop_path = best.backdrop_path;
-            if ((!item.vote_average || item.vote_average === 'N/A') && best.vote_average) item.vote_average = best.vote_average;
-            if (!item.release_date && best.release_date) item.release_date = best.release_date;
-            if (!item.overview && best.overview) item.overview = best.overview;
-          }
-        } catch (e) {}
-      }
-    }));
-
-    return topMatches.map(m => m.item);
+    return matches.slice(0, 50).map(m => m.item);
   }
 
   /**
@@ -309,20 +338,23 @@ export class XtreamVODClient {
     const trimmed = query.trim().toLowerCase();
     const cleanTokens = trimmed.split(/\s+/).filter(Boolean);
 
+    const seriesCats = ['21', '22', '24', '30', '25', '23', '27', '28'];
+    if (this._vodCache.size < 2) {
+      await Promise.allSettled(seriesCats.map(cat => this.getSeries(cat)));
+    }
+
     let allSeries = [];
-    try {
-      allSeries = await this.getSeries();
-    } catch (e) {
-      console.warn('[Xtream VOD] Failed to fetch full series catalogue for search, searching cache:', e);
-      for (const [k, v] of this._vodCache.entries()) {
-        if (k.startsWith('series_') && Array.isArray(v)) {
-          allSeries = allSeries.concat(v);
-        }
+    for (const [k, v] of this._vodCache.entries()) {
+      if (k.startsWith('series_cat_') && Array.isArray(v)) {
+        allSeries = allSeries.concat(v);
       }
     }
 
-    if (!Array.isArray(allSeries) || allSeries.length === 0) {
-      return [];
+    if (allSeries.length === 0) {
+      try {
+        const cat21 = await this.getSeries('21');
+        if (Array.isArray(cat21)) allSeries = allSeries.concat(cat21);
+      } catch (e) {}
     }
 
     // Deduplicate by series_id
@@ -363,41 +395,25 @@ export class XtreamVODClient {
 
       if (matchScore > 0) {
         const popScore = calculateVODScore(s);
+        const posterUrl = s.cover || s.stream_icon || s.poster_path;
         matches.push({
-          item: { ...s, media_type: 'tv', id: s.series_id || s.id, name: s.name || s.title },
+          item: {
+            ...s,
+            media_type: 'tv',
+            id: s.series_id || s.id,
+            series_id: s.series_id || s.id,
+            name: s.name || s.title,
+            title: s.name || s.title,
+            cover: posterUrl,
+            poster_path: posterUrl
+          },
           score: matchScore * 10 + popScore
         });
       }
     }
 
     matches.sort((a, b) => b.score - a.score);
-    const topMatches = matches.slice(0, 30);
-
-    await Promise.allSettled(topMatches.map(async (m) => {
-      const item = m.item;
-      const rawTitle = item.name || item.title || '';
-      const yearMatch = rawTitle.match(/\((\d{4})\)/);
-      const year = yearMatch ? yearMatch[1] : '';
-      const cleanTitle = rawTitle.replace(/\(\d{4}\)/g, '').replace(/\[.*?\]/g, '').replace(/s\d+/gi, '').trim();
-
-      if (!item.poster_path || !item.overview || !item.vote_average) {
-        try {
-          const params = { query: cleanTitle };
-          if (year) params.first_air_date_year = year;
-          const tmdbRes = await fetchFromTMDB('/search/tv', params);
-          if (tmdbRes && tmdbRes.results && tmdbRes.results.length > 0) {
-            const best = tmdbRes.results[0];
-            if (!item.poster_path && best.poster_path) item.poster_path = best.poster_path;
-            if (!item.backdrop_path && best.backdrop_path) item.backdrop_path = best.backdrop_path;
-            if ((!item.vote_average || item.vote_average === 'N/A') && best.vote_average) item.vote_average = best.vote_average;
-            if (!item.first_air_date && best.first_air_date) item.first_air_date = best.first_air_date;
-            if (!item.overview && best.overview) item.overview = best.overview;
-          }
-        } catch (e) {}
-      }
-    }));
-
-    return topMatches.map(m => m.item);
+    return matches.slice(0, 50).map(m => m.item);
   }
 
   /**
@@ -419,78 +435,32 @@ export class XtreamVODClient {
     return [...mList, ...sList].sort((a, b) => calculateVODScore(b) - calculateVODScore(a));
   }
 
-  async findMovieByTitle(title) {
-    if (!title) return null;
-    const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!cleanTitle) return null;
-
-    // 1. Check all already-cached categories in memory
-    for (const list of this._vodCache.values()) {
-      if (Array.isArray(list)) {
-        const found = list.find(m => {
-          const mName = (m.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          return mName.includes(cleanTitle) || cleanTitle.includes(mName);
-        });
-        if (found) return found;
-      }
-    }
-
-    // 2. Search common categories in PARALLEL
-    const commonCats = ['1', '2', '4', '17', '11', '3', '5', '8', '7', '10', '18'];
-    const results = await Promise.allSettled(
-      commonCats.map(cat => this.getMovies(cat))
-    );
-
-    for (const res of results) {
-      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
-        const found = res.value.find(m => {
-          const mName = (m.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          return mName.includes(cleanTitle) || cleanTitle.includes(mName);
-        });
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  async findSeriesByTitle(title) {
-    if (!title) return null;
-    const cleanTitle = title.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!cleanTitle) return null;
-
-    for (const list of this._vodCache.values()) {
-      if (Array.isArray(list)) {
-        const found = list.find(s => {
-          const sName = (s.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          return sName.includes(cleanTitle) || cleanTitle.includes(sName);
-        });
-        if (found) return found;
-      }
-    }
-
-    const seriesCats = ['21', '22', '24', '30', '25', '23', '27', '28'];
-    const results = await Promise.allSettled(
-      seriesCats.map(cat => this.getSeries(cat))
-    );
-
-    for (const res of results) {
-      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
-        const found = res.value.find(s => {
-          const sName = (s.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          return sName.includes(cleanTitle) || cleanTitle.includes(sName);
-        });
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
   getMovieStreamUrl(streamId, ext = 'mp4') {
-    return `${this.baseUrl}/movie/${this.username}/${this.password}/${streamId}.${ext}`;
+    const raw = `${this.baseUrl}/movie/${this.username}/${this.password}/${streamId}.${ext}`;
+    const isAndroid = typeof window !== 'undefined' && 
+      (window.location.host === 'appassets.androidplatform.net' || 
+       window.location.protocol === 'file:' || 
+       (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
+    if (isAndroid) return raw;
+    let proxyBase = (localStorage.getItem('external_proxy_url') || '').trim() || '/api/proxy';
+    const p = proxyBase.startsWith('http://') || proxyBase.startsWith('https://')
+      ? (proxyBase.endsWith('/') ? proxyBase : proxyBase + '/')
+      : (proxyBase.startsWith('/') ? proxyBase : '/' + proxyBase);
+    return `${p}?url=${encodeURIComponent(raw)}`;
   }
 
   getSeriesStreamUrl(streamId, ext = 'mp4') {
-    return `${this.baseUrl}/series/${this.username}/${this.password}/${streamId}.${ext}`;
+    const raw = `${this.baseUrl}/series/${this.username}/${this.password}/${streamId}.${ext}`;
+    const isAndroid = typeof window !== 'undefined' && 
+      (window.location.host === 'appassets.androidplatform.net' || 
+       window.location.protocol === 'file:' || 
+       (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
+    if (isAndroid) return raw;
+    let proxyBase = (localStorage.getItem('external_proxy_url') || '').trim() || '/api/proxy';
+    const p = proxyBase.startsWith('http://') || proxyBase.startsWith('https://')
+      ? (proxyBase.endsWith('/') ? proxyBase : proxyBase + '/')
+      : (proxyBase.startsWith('/') ? proxyBase : '/' + proxyBase);
+    return `${p}?url=${encodeURIComponent(raw)}`;
   }
 }
 
