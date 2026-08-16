@@ -260,9 +260,24 @@ async function initApp() {
   window.fetchChannelPastEpisodesNextPage = fetchChannelPastEpisodesNextPage;
 
   console.log('[App Init] Initializing application components...');
-  // Init player with Channel Up / Channel Down handler
+  // Init player with Channel Up / Channel Down handler and VOD auto-source fallback
   player = new IPTVPlayer('video-player', {
-    onChannelChange: (dir) => changeLiveChannel(dir)
+    onChannelChange: (dir) => changeLiveChannel(dir),
+    onStreamError: (err, failedUrl) => {
+      const isVodActive = state.activeTab === 'movies' || state.activeTab === 'series' || 
+                          (document.getElementById('details-view') && !document.getElementById('details-view').classList.contains('hidden'));
+      if (isVodActive && state.resolvedSources && state.resolvedSources.length > 1) {
+        const nextIndex = state.activeSourceIndex + 1;
+        if (nextIndex < state.resolvedSources.length) {
+          const nextSource = state.resolvedSources[nextIndex];
+          console.log(`[VOD Stream] Auto-switching from failed stream to source #${nextIndex} (${nextSource.name})`);
+          player.showToast(`Switching to backup server (${nextSource.name})...`);
+          selectActiveSource(nextIndex);
+          return true;
+        }
+      }
+      return false;
+    }
   });
   
   // Initially append player to live container

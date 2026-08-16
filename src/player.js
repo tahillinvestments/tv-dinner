@@ -68,6 +68,7 @@ export class IPTVPlayer {
 
     // Callback handlers
     this.onChannelChange = options.onChannelChange || null;
+    this.onStreamError = options.onStreamError || null;
 
     // Seek VOD Controls & Buttons
     this.seekContainer = document.getElementById('seek-container');
@@ -541,6 +542,10 @@ export class IPTVPlayer {
         console.warn("[Player] Direct video playback error:", e);
         if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
         this.showLoading(false);
+        if (typeof this.onStreamError === 'function') {
+          const handled = this.onStreamError(e, this.currentUrl);
+          if (handled) return;
+        }
         this.showError(true, 'Video stream could not be loaded. Server may be unreachable.');
       }, { once: true });
     } else if (Hls.isSupported()) {
@@ -1037,8 +1042,12 @@ export class IPTVPlayer {
   }
 
   handleNativeError(event) {
-    if (this.video.error && this.currentUrl) {
+    if (this.video && this.video.error && this.currentUrl) {
       console.error("Native HTML5 video error:", this.video.error);
+      if (typeof this.onStreamError === 'function') {
+        const handled = this.onStreamError(this.video.error, this.currentUrl);
+        if (handled) return;
+      }
       this.showError(true, `Playback error code: ${this.video.error.code}. Stream might be offline.`);
     }
   }
