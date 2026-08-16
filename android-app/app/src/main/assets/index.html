@@ -20,8 +20,8 @@
       localStorage.setItem('debug_error_stack', e.reason ? e.reason.stack : '');
     });
   </script>
-  <script type="module" crossorigin src="/assets/index-C8iH0A_z.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-Tp6GB94y.css">
+  <script type="module" crossorigin src="/assets/index-CS_1klWu.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-FTVbja9T.css">
 </head>
 <body class="dark-theme">
   
@@ -1128,7 +1128,7 @@
               <span class="epg-pulse-dot"></span>
               <span class="epg-badge-text">NOW PLAYING</span>
             </div>
-            <button id="epg-close-btn" class="epg-close-btn" title="Hide Guide">
+            <button id="epg-close-btn" class="epg-close-btn" title="Hide Guide" onclick="const d=document.getElementById('player-epg-drawer'); if(d){d.classList.add('hidden'); d.style.display='none';} if(window.state) window.state.epgDrawerManuallyClosed=true;">
               <i data-lucide="x"></i>
             </button>
           </div>

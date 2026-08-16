@@ -1126,7 +1126,7 @@
               <span class="epg-pulse-dot"></span>
               <span class="epg-badge-text">NOW PLAYING</span>
             </div>
-            <button id="epg-close-btn" class="epg-close-btn" title="Hide Guide">
+            <button id="epg-close-btn" class="epg-close-btn" title="Hide Guide" onclick="const d=document.getElementById('player-epg-drawer'); if(d){d.classList.add('hidden'); d.style.display='none';} if(window.state) window.state.epgDrawerManuallyClosed=true;">
               <i data-lucide="x"></i>
             </button>
           </div>

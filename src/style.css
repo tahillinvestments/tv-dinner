@@ -1049,6 +1049,7 @@ body {
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(8px);
   transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 
 .player-toast i {
@@ -4241,13 +4242,13 @@ body.body-pseudo-fullscreen {
   position: absolute;
   top: 1rem;
   right: 1rem;
-  z-index: 25;
+  z-index: 55;
   width: 320px;
   max-width: calc(100% - 2rem);
-  background: rgba(15, 23, 42, 0.88);
+  background: rgba(15, 23, 42, 0.92);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 16px;
   padding: 1rem;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
@@ -4255,13 +4256,14 @@ body.body-pseudo-fullscreen {
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto !important;
 }
 
 .player-epg-panel.hidden {
   display: none !important;
   opacity: 0;
   transform: translateY(-10px);
-  pointer-events: none;
+  pointer-events: none !important;
 }
 
 .epg-panel-header {
@@ -4303,21 +4305,27 @@ body.body-pseudo-fullscreen {
 }
 
 .epg-close-btn {
-  background: transparent;
-  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: #94a3b8;
   cursor: pointer;
-  padding: 0.2rem;
+  padding: 0.35rem;
+  min-width: 28px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: var(--transition-smooth);
+  position: relative;
+  z-index: 60;
+  pointer-events: auto !important;
 }
 
 .epg-close-btn:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .epg-show-title {

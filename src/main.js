@@ -5339,19 +5339,55 @@ function setupEPGControls() {
   const epgCloseBtn = document.getElementById('epg-close-btn');
   const epgDrawer = document.getElementById('player-epg-drawer');
 
+  const closeDrawer = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    state.epgDrawerManuallyClosed = true;
+    if (epgDrawer) {
+      epgDrawer.classList.add('hidden');
+      epgDrawer.style.display = 'none';
+    }
+  };
+
+  const openDrawer = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    state.epgDrawerManuallyClosed = false;
+    if (epgDrawer) {
+      epgDrawer.classList.remove('hidden');
+      epgDrawer.style.display = 'block';
+    }
+  };
+
   if (epgToggleBtn && epgDrawer) {
     epgToggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      epgDrawer.classList.toggle('hidden');
+      const isHidden = epgDrawer.classList.contains('hidden') || epgDrawer.style.display === 'none';
+      if (isHidden) {
+        openDrawer(e);
+      } else {
+        closeDrawer(e);
+      }
     });
   }
 
-  if (epgCloseBtn && epgDrawer) {
-    epgCloseBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      epgDrawer.classList.add('hidden');
-    });
+  if (epgCloseBtn) {
+    epgCloseBtn.addEventListener('click', closeDrawer);
+    epgCloseBtn.addEventListener('touchstart', closeDrawer, { passive: false });
+    epgCloseBtn.addEventListener('pointerdown', closeDrawer);
   }
+
+  // Delegated fallback for any click on close button or icon inside drawer
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('#epg-close-btn, .epg-close-btn');
+    if (btn) {
+      closeDrawer(e);
+    }
+  });
 }
 
 // Update Active Player EPG Overlay Panel
@@ -5382,14 +5418,17 @@ function renderPlayerEPGPanel(epg) {
 
   const drawer = document.getElementById('player-epg-drawer');
 
-  // If no verified title, keep the drawer closed and just show channel name in controls bar
-  if (!epg.title) {
+  // If no verified title or if user closed it manually, keep the drawer hidden
+  if (!epg.title || state.epgDrawerManuallyClosed) {
     const playerChannelTitle = document.getElementById('player-channel-title');
     if (playerChannelTitle && state.currentPlayingChannel) {
-      playerChannelTitle.textContent = state.currentPlayingChannel.name;
+      playerChannelTitle.textContent = epg.title ? `${state.currentPlayingChannel.name} · ${epg.title}` : state.currentPlayingChannel.name;
     }
-    if (drawer) drawer.classList.add('hidden');
-    return;
+    if (drawer) {
+      drawer.classList.add('hidden');
+      drawer.style.display = 'none';
+    }
+    if (!epg.title) return;
   }
 
   const progress = getProgramProgress(epg);
