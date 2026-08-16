@@ -66,16 +66,18 @@ export class XtreamVODClient {
 
   get username() {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('xtream_vod_username') || localStorage.getItem('iptv_username');
-      if (saved && saved.trim()) return saved.trim();
+      const saved = localStorage.getItem('xtream_vod_username');
+      if (saved && saved.trim() && saved.includes('@')) return saved.trim();
     }
     return 'gj3526@gmail.com';
   }
 
   get password() {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('xtream_vod_password') || localStorage.getItem('iptv_password');
-      if (saved && saved.trim()) return saved.trim();
+      const saved = localStorage.getItem('xtream_vod_password');
+      if (saved && saved.trim() && saved !== 'Louisville' && saved !== 'ADFREE2026' && saved !== 'TV4LIFE' && saved !== 'REMOTE6202' && saved !== '2611596317' && saved !== '4WM9WVsjG' && saved !== '5DwU7wTuA' && saved !== 'JaKXrfMP7') {
+        return saved.trim();
+      }
     }
     return 'ck9sd6Nc4TZA';
   }

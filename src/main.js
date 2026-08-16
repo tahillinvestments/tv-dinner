@@ -290,6 +290,15 @@ async function initApp() {
   // Render initial icons
   createIcons(iconConfig);
 
+  // Ensure Xtream VOD credentials are not corrupted by Live TV usernames
+  try {
+    const vUser = localStorage.getItem('xtream_vod_username');
+    if (vUser && (!vUser.includes('@') || vUser === 'DGOLD001' || vUser === 'CLEAN_IPTV' || vUser === 'SGmUC7q2U' || vUser === 'MW2Y2h6e7' || vUser === 'Hn9a6bus9' || vUser === 'TONE2' || vUser === 'SAPPTV13' || vUser === 'DAMETV')) {
+      localStorage.removeItem('xtream_vod_username');
+      localStorage.removeItem('xtream_vod_password');
+    }
+  } catch (e) {}
+
   // Set default landing tab to Home Select Screen
   switchTab('home');
 
@@ -572,17 +581,32 @@ function renderAccessLockedState(containerId, featureName) {
   }
 }
 
-// Helper to populate category rows with Xtream VOD items directly
-async function loadRowData(container, xtreamPromise) {
+// Helper to populate category rows with Xtream VOD items or seamless TMDB fallbacks
+async function loadRowData(container, xtreamPromise, tmdbPromise = null) {
   if (!container) return;
   try {
-    const xtreamItems = await xtreamPromise;
+    const xtreamItems = await Promise.race([
+      xtreamPromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+    ]);
     if (Array.isArray(xtreamItems) && xtreamItems.length > 0) {
       const sorted = sortVODByPopularity(xtreamItems);
       renderCardRow(sorted.slice(0, 30), container);
+      return;
     }
-  } catch (e) {
-    console.warn('[VOD Dashboard] Row load error:', e);
+  } catch (e) {}
+
+  if (tmdbPromise) {
+    try {
+      const tmdbData = await tmdbPromise;
+      const items = tmdbData?.results || (Array.isArray(tmdbData) ? tmdbData : []);
+      if (items.length > 0) {
+        const sorted = sortVODByPopularity(items);
+        renderCardRow(sorted.slice(0, 30), container);
+      }
+    } catch (e) {
+      console.warn('[VOD Dashboard] Fallback row load error:', e);
+    }
   }
 }
 
@@ -641,16 +665,18 @@ async function loadMoviesDashboard() {
     }
 
     // 2. Fetch TMDB trending titles to cross-reference and boost top blockbusters
+    let tmdbTrending = [];
     let tmdbTrendingTitles = [];
     try {
       const tmdbData = await getTrendingMovies(1);
       if (tmdbData && Array.isArray(tmdbData.results)) {
+        tmdbTrending = tmdbData.results;
         tmdbTrendingTitles = tmdbData.results.map(t => (t.title || t.name || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
       }
     } catch (e) {}
 
     // Score Xtream movies: boost if in TMDB trending list + sort by popularity / recency
-    const rankedMovies = uniqueXtreamMovies.map(movie => {
+    let rankedMovies = uniqueXtreamMovies.map(movie => {
       const cleanTitle = (movie.name || movie.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const isTrending = tmdbTrendingTitles.some(tt => tt && (cleanTitle.includes(tt) || tt.includes(cleanTitle)));
       return {
@@ -659,7 +685,12 @@ async function loadMoviesDashboard() {
       };
     });
 
-    const sortedMovies = sortVODByPopularity(rankedMovies.length > 0 ? rankedMovies : uniqueXtreamMovies);
+    let sortedMovies = sortVODByPopularity(rankedMovies.length > 0 ? rankedMovies : uniqueXtreamMovies);
+
+    // Fallback if Xtream is slow / returns 0: show TMDB trending
+    if (sortedMovies.length === 0 && tmdbTrending.length > 0) {
+      sortedMovies = tmdbTrending.map(t => ({ ...t, media_type: 'movie' }));
+    }
 
     if (sortedMovies.length > 0) {
       const heroItem = sortedMovies.find(m => m.backdrop_path || m.poster_path || m.stream_icon) || sortedMovies[0];
@@ -693,14 +724,14 @@ async function loadMoviesDashboard() {
 
     if (trendingRow) renderCardRow(sortedMovies.slice(0, 30), trendingRow);
 
-    // Fetch movie curation category rows directly from Xtream categories
+    // Fetch movie curation category rows with guaranteed TMDB fallback
     Promise.allSettled([
-      loadRowData(topRatedRow, xtreamVOD.getMovies('2')),
-      loadRowData(actionRow, xtreamVOD.getMovies('1')),
-      loadRowData(comedyRow, xtreamVOD.getMovies('4')),
-      loadRowData(scifiRow, xtreamVOD.getMovies('17')),
-      loadRowData(horrorRow, xtreamVOD.getMovies('11')),
-      loadRowData(animationRow, xtreamVOD.getMovies('3'))
+      loadRowData(topRatedRow, xtreamVOD.getMovies('2'), getTopRated()),
+      loadRowData(actionRow, xtreamVOD.getMovies('1'), getByGenre(28, 'movie')),
+      loadRowData(comedyRow, xtreamVOD.getMovies('4'), getByGenre(35, 'movie')),
+      loadRowData(scifiRow, xtreamVOD.getMovies('17'), getByGenre(878, 'movie')),
+      loadRowData(horrorRow, xtreamVOD.getMovies('11'), getByGenre(27, 'movie')),
+      loadRowData(animationRow, xtreamVOD.getMovies('3'), getByGenre(16, 'movie'))
     ]);
 
   } catch (err) {
@@ -763,10 +794,12 @@ async function loadSeriesDashboard() {
       }
     }
 
+    let tmdbTrendingTV = [];
     let tmdbTrendingSeriesTitles = [];
     try {
       const tmdbData = await getTrendingTV(1);
       if (tmdbData && Array.isArray(tmdbData.results)) {
+        tmdbTrendingTV = tmdbData.results;
         tmdbTrendingSeriesTitles = tmdbData.results.map(t => (t.name || t.title || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
       }
     } catch (e) {}
@@ -780,7 +813,11 @@ async function loadSeriesDashboard() {
       };
     });
 
-    const sortedSeries = sortVODByPopularity(rankedSeries.length > 0 ? rankedSeries : uniqueXtreamSeries);
+    let sortedSeries = sortVODByPopularity(rankedSeries.length > 0 ? rankedSeries : uniqueXtreamSeries);
+
+    if (sortedSeries.length === 0 && tmdbTrendingTV.length > 0) {
+      sortedSeries = tmdbTrendingTV.map(t => ({ ...t, media_type: 'tv' }));
+    }
 
     if (sortedSeries.length > 0) {
       const heroItem = sortedSeries.find(s => s.backdrop_path || s.cover || s.poster_path) || sortedSeries[0];
@@ -814,14 +851,14 @@ async function loadSeriesDashboard() {
 
     if (trendingRow) renderCardRow(sortedSeries.slice(0, 30), trendingRow);
 
-    // Fetch TV Series category rows directly from Xtream categories
+    // Fetch TV Series category rows with guaranteed TMDB fallback
     Promise.allSettled([
-      loadRowData(topRatedRow, xtreamVOD.getSeries('22')),
-      loadRowData(actionRow, xtreamVOD.getSeries('21')),
-      loadRowData(comedyRow, xtreamVOD.getSeries('24')),
-      loadRowData(scifiRow, xtreamVOD.getSeries('39')),
-      loadRowData(crimeRow, xtreamVOD.getSeries('25')),
-      loadRowData(animationRow, xtreamVOD.getSeries('23'))
+      loadRowData(topRatedRow, xtreamVOD.getSeries('22'), getTopRatedTV()),
+      loadRowData(actionRow, xtreamVOD.getSeries('21'), getByGenre(10759, 'tv')),
+      loadRowData(comedyRow, xtreamVOD.getSeries('24'), getByGenre(35, 'tv')),
+      loadRowData(scifiRow, xtreamVOD.getSeries('39'), getByGenre(10765, 'tv')),
+      loadRowData(crimeRow, xtreamVOD.getSeries('25'), getByGenre(80, 'tv')),
+      loadRowData(animationRow, xtreamVOD.getSeries('23'), getByGenre(16, 'tv'))
     ]);
 
   } catch (err) {
@@ -4489,8 +4526,6 @@ function setupSettingsScreen() {
         localStorage.setItem('activated_phone', formattedPhone);
         localStorage.setItem('iptv_username', creds.user);
         localStorage.setItem('iptv_password', creds.pswd);
-        localStorage.setItem('xtream_vod_username', creds.user);
-        localStorage.setItem('xtream_vod_password', creds.pswd);
         if (usernameInput) usernameInput.value = creds.user;
         if (passwordInput) passwordInput.value = creds.pswd;
         
