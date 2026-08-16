@@ -58272,6 +58272,9 @@
 	<programme channel="newtv超级电影" start="20260816061200 +0800" stop="20260816074200 +0800">
 		<title lang="zh">唯一的受害者</title>
 	</programme>
+	<programme channel="newtv超级电影" start="20260816074200 +0800" stop="20260816092400 +0800">
+		<title lang="zh">烈血狂沙</title>
+	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
 	</channel>
@@ -58304,6 +58307,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260816065400 +0800" stop="20260816073900 +0800">
 		<title lang="zh">12_纯真年代的爱情</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260816073900 +0800" stop="20260816082500 +0800">
+		<title lang="zh">13_纯真年代的爱情</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
