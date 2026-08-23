@@ -84,7 +84,6 @@ function forwardStream(req, res, targetUrlStr, maxRedirects = 5) {
   const outgoingHeaders = {
     'user-agent': isIptvHost ? 'VLC/3.0.21 LibVLC/3.0.21' : (req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'),
     'accept': '*/*',
-    'host': targetUrl.host,
   };
   if (req.headers.range) {
     outgoingHeaders['range'] = req.headers.range;
@@ -93,12 +92,14 @@ function forwardStream(req, res, targetUrlStr, maxRedirects = 5) {
   const requestOptions = {
     method: req.method === 'POST' ? 'POST' : 'GET',
     headers: outgoingHeaders,
-    timeout: 15000,
   };
 
   let proxyReq;
   try {
     proxyReq = client.request(targetUrl, requestOptions, (proxyRes) => {
+      // Clear connect timeout once stream headers arrive so long-running live streams never abort
+      proxyReq.setTimeout(0);
+
       // Follow 301, 302, 303, 307, 308 redirects automatically
       if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
         try {
