@@ -18,19 +18,15 @@ function getPlayerProxyUrl(targetUrl) {
   const isAndroid = typeof window !== 'undefined' && 
     (window.location.host === 'appassets.androidplatform.net' || 
      window.location.protocol === 'file:' || 
-     (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
+     (navigator.userAgent && (navigator.userAgent.includes('TVDinnerMobileApp') || navigator.userAgent.includes('JoyfulIPTVMobileApp'))));
   
-  if (isAndroid) {
-    return cleanTarget;
-  }
-
-  // 2. If the user has set a custom external proxy in Settings, use it; otherwise use /api/proxy
+  // If the user has set a custom external proxy in Settings, use it; otherwise default to Render proxy
   let savedProxy = '';
   try {
     savedProxy = (localStorage.getItem('external_proxy_url') || '').trim();
   } catch (e) {}
   
-  const proxyBase = savedProxy || '/api/proxy';
+  const proxyBase = savedProxy || 'https://tv-dinner-proxy.onrender.com/';
   if (proxyBase.startsWith('http://') || proxyBase.startsWith('https://')) {
     const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
     return `${p}?url=${encodeURIComponent(cleanTarget)}`;
@@ -84,8 +80,18 @@ export class IPTVPlayer {
     this.isMuted = false;
     this.volume = 1;
     this.aspectRatio = 'fit'; // 'fit' or 'stretch'
+    this.unmuteTimers = [];
     
     this.initEventListeners();
+  }
+
+  clearUnmuteTimers() {
+    if (this.unmuteTimers && this.unmuteTimers.length > 0) {
+      this.unmuteTimers.forEach(id => {
+        try { clearTimeout(id); } catch (e) {}
+      });
+      this.unmuteTimers = [];
+    }
   }
 
   initEventListeners() {
@@ -120,10 +126,14 @@ export class IPTVPlayer {
     }
     
     // Volume & Muting
-    this.muteBtn.addEventListener('click', () => this.toggleMute());
-    this.volumeSlider.addEventListener('input', (e) => {
-      this.setVolume(e.target.value);
-    });
+    if (this.muteBtn) {
+      this.muteBtn.addEventListener('click', () => this.toggleMute());
+    }
+    if (this.volumeSlider) {
+      this.volumeSlider.addEventListener('input', (e) => {
+        this.setVolume(e.target.value);
+      });
+    }
 
     // Global user interaction listener to permanently unlock unmuted audio across browser contexts
     const unlockUnmutedAudio = () => {
@@ -294,7 +304,7 @@ export class IPTVPlayer {
     this.video.addEventListener('durationchange', () => this.updateDuration());
     this.video.addEventListener('loadedmetadata', () => this.updateDuration());
 
-    // Keyboard shortcuts
+    // Keyboard shortcuts - only intercept navigation keys when player is fullscreen or actively focused
     document.addEventListener('keydown', (e) => {
       // Don't trigger if user is typing in inputs or select fields
       if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT') {
@@ -308,43 +318,57 @@ export class IPTVPlayer {
       }
 
       const key = e.key.toLowerCase();
+      const isPlayerFullscreen = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        (container && container.classList.contains('is-pseudo-fullscreen'))
+      );
+      const isPlayerFocused = !!(container && container.contains(document.activeElement));
+
       if (key === ' ' || key === 'k') { // Space or K for Play/Pause
-        e.preventDefault();
-        this.togglePlay();
+        if (isPlayerFullscreen || isPlayerFocused || document.activeElement === document.body) {
+          e.preventDefault();
+          this.togglePlay();
+        }
       } else if (key === 'f') { // F for Fullscreen
         e.preventDefault();
         this.toggleFullscreen();
       } else if (key === 'm') { // M for Mute
         e.preventDefault();
         this.toggleMute();
-      } else if (key === 'arrowright') { // Arrow Right to seek +10s
-        e.preventDefault();
-        if (this.video.duration && isFinite(this.video.duration)) {
-          this.video.currentTime = Math.min(this.video.duration, this.video.currentTime + 10);
-          this.showToast("Seeked +10s");
+      } else if (isPlayerFullscreen || isPlayerFocused) {
+        // Only capture arrow keys when user is actively interacting with / viewing the video in fullscreen
+        if (key === 'arrowright') { // Arrow Right to seek +10s
+          e.preventDefault();
+          if (this.video.duration && isFinite(this.video.duration)) {
+            this.video.currentTime = Math.min(this.video.duration, this.video.currentTime + 10);
+            this.showToast("Seeked +10s");
+          }
+        } else if (key === 'arrowleft') { // Arrow Left to seek -10s
+          e.preventDefault();
+          if (this.video.duration && isFinite(this.video.duration)) {
+            this.video.currentTime = Math.max(0, this.video.currentTime - 10);
+            this.showToast("Seeked -10s");
+          }
+        } else if (key === 'arrowup') { // Arrow Up to increase volume
+          e.preventDefault();
+          const newVolume = Math.min(1, this.volume + 0.05);
+          this.setVolume(newVolume);
+          this.showToast(`Volume: ${Math.round(newVolume * 100)}%`);
+        } else if (key === 'arrowdown') { // Arrow Down to decrease volume
+          e.preventDefault();
+          const newVolume = Math.max(0, this.volume - 0.05);
+          this.setVolume(newVolume);
+          this.showToast(`Volume: ${Math.round(newVolume * 100)}%`);
         }
-      } else if (key === 'arrowleft') { // Arrow Left to seek -10s
-        e.preventDefault();
-        if (this.video.duration && isFinite(this.video.duration)) {
-          this.video.currentTime = Math.max(0, this.video.currentTime - 10);
-          this.showToast("Seeked -10s");
-        }
-      } else if (key === 'pageup' || key === ']' || key === 'channelup') {
+      }
+
+      if (key === 'pageup' || key === ']' || key === 'channelup') {
         e.preventDefault();
         if (typeof this.onChannelChange === 'function') this.onChannelChange(1);
       } else if (key === 'pagedown' || key === '[' || key === 'channeldown') {
         e.preventDefault();
         if (typeof this.onChannelChange === 'function') this.onChannelChange(-1);
-      } else if (key === 'arrowup') { // Arrow Up to increase volume
-        e.preventDefault();
-        const newVolume = Math.min(1, this.volume + 0.05);
-        this.setVolume(newVolume);
-        this.showToast(`Volume: ${Math.round(newVolume * 100)}%`);
-      } else if (key === 'arrowdown') { // Arrow Down to decrease volume
-        e.preventDefault();
-        const newVolume = Math.max(0, this.volume - 0.05);
-        this.setVolume(newVolume);
-        this.showToast(`Volume: ${Math.round(newVolume * 100)}%`);
       }
     });
   }
@@ -360,10 +384,14 @@ export class IPTVPlayer {
       if (!this.lastSaveTime || now - this.lastSaveTime > 5000) {
         this.lastSaveTime = now;
         
-        const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
-        const keys = Object.keys(resumeData);
-        if (keys.length > 100) {
-          delete resumeData[keys[0]]; // remove oldest record
+        let resumeData = {};
+        try {
+          resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+          if (!resumeData || typeof resumeData !== 'object' || Array.isArray(resumeData)) {
+            resumeData = {};
+          }
+        } catch (e) {
+          resumeData = {};
         }
         
         const key = this.currentMediaKey || this.currentUrl;
@@ -373,11 +401,24 @@ export class IPTVPlayer {
           delete resumeData[key];
         } else if (this.video.currentTime > 10) {
           resumeData[key] = {
-            position: this.video.currentTime,
+            position: Math.floor(this.video.currentTime),
+            duration: Math.floor(this.video.duration),
             timestamp: now
           };
+          
+          // LRU pruning: maintain at most 100 entries sorted by timestamp ascending
+          const keys = Object.keys(resumeData);
+          if (keys.length > 100) {
+            const sortedKeys = keys.sort((a, b) => (resumeData[a]?.timestamp || 0) - (resumeData[b]?.timestamp || 0));
+            const excess = sortedKeys.length - 100;
+            for (let i = 0; i < excess; i++) {
+              delete resumeData[sortedKeys[i]];
+            }
+          }
         }
-        localStorage.setItem('vod_resume_positions', JSON.stringify(resumeData));
+        try {
+          localStorage.setItem('vod_resume_positions', JSON.stringify(resumeData));
+        } catch (e) {}
       }
     }
   }
@@ -433,7 +474,7 @@ export class IPTVPlayer {
       } catch (e) {}
     }
 
-    // Ensure stream URL uses the user's active entered credentials & .m3u8 format for HLS
+    // Ensure live stream URL uses the user's active entered credentials & .m3u8 format for HLS
     const activeUser = (localStorage.getItem('iptv_username') || '').trim();
     const activePass = (localStorage.getItem('iptv_password') || '').trim();
     if (activeUser && activePass && rawTargetUrl.includes('/live/')) {
@@ -476,7 +517,15 @@ export class IPTVPlayer {
     // Check for saved resume position (ONLY for VOD media)
     let resumePos = 0;
     if (this.controlMode === 'vod' && channel && channel.mediaKey) {
-      const resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+      let resumeData = {};
+      try {
+        resumeData = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+        if (!resumeData || typeof resumeData !== 'object' || Array.isArray(resumeData)) {
+          resumeData = {};
+        }
+      } catch (e) {
+        resumeData = {};
+      }
       const saved = resumeData[channel.mediaKey];
       resumePos = (typeof startPosition === 'number') ? startPosition : (saved ? saved.position : 0);
     } else {
@@ -500,10 +549,12 @@ export class IPTVPlayer {
       }
     }, 15000);
 
+    let hlsRetryAttempts = 0;
     let networkRetryIndex = 0;
     const originalUrl = rawTargetUrl;
 
     const proxyFallbacks = [
+      (url) => `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(url)}`,
       (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
     ];
@@ -513,13 +564,31 @@ export class IPTVPlayer {
 
     if (isDirectVideo) {
       this.destroyHls();
-      this.video.src = this.currentUrl;
-      this.video.load();
+      if (this.video) {
+        this.video.style.display = 'block';
+        this.video.style.width = '100%';
+        this.video.style.height = '100%';
+        this.video.style.objectFit = 'contain';
+        this.video.style.opacity = '1';
+        this.video.src = this.currentUrl;
+        this.video.load();
+      }
+      if (this.poster) {
+        this.poster.style.display = 'none';
+        this.poster.classList.add('opacity-0', 'pointer-events-none');
+      }
 
       const onMeta = () => {
         if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
         this.showLoading(false);
         this.showError(false);
+        if (this.poster) {
+          this.poster.style.display = 'none';
+          this.poster.classList.add('opacity-0', 'pointer-events-none');
+        }
+        if (this.video) {
+          this.video.style.display = 'block';
+        }
         if (resumePos && resumePos > 0) {
           try {
             this.video.currentTime = resumePos;
@@ -537,7 +606,10 @@ export class IPTVPlayer {
       };
 
       this.video.addEventListener('loadedmetadata', onMeta, { once: true });
-      this.video.addEventListener('canplay', () => this.showLoading(false), { once: true });
+      this.video.addEventListener('canplay', () => {
+        this.showLoading(false);
+        if (this.poster) this.poster.style.display = 'none';
+      }, { once: true });
       this.video.addEventListener('error', (e) => {
         console.warn("[Player] Direct video playback error:", e);
         if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
@@ -611,11 +683,14 @@ export class IPTVPlayer {
             this.video.muted = true;
             this.video.play().then(() => {
               this.updatePlayPauseUI(false);
-              setTimeout(() => {
-                this.video.muted = false;
-                this.video.volume = 1.0;
-                this.updateMuteUI();
+              const timer = setTimeout(() => {
+                if (this.video && !this.video.paused && this.currentUrl) {
+                  this.video.muted = false;
+                  this.video.volume = 1.0;
+                  this.updateMuteUI();
+                }
               }, 150);
+              this.unmuteTimers.push(timer);
             }).catch(() => {
               this.updatePlayPauseUI(true);
             });
@@ -632,11 +707,12 @@ export class IPTVPlayer {
               if (hlsRetryAttempts <= 5) {
                 console.warn(`[Player] HLS network jitter retry #${hlsRetryAttempts}...`);
                 this.showLoading(true);
-                setTimeout(() => {
+                const retryTimer = setTimeout(() => {
                   if (this.hls) {
                     this.hls.startLoad();
                   }
                 }, 1000);
+                this.unmuteTimers.push(retryTimer);
               } else if (networkRetryIndex < proxyFallbacks.length) {
                 hlsRetryAttempts = 0;
                 const nextProxyFunc = proxyFallbacks[networkRetryIndex++];
@@ -786,12 +862,12 @@ export class IPTVPlayer {
     } else {
       controlsBar.classList.remove('live-mode');
       controlsBar.classList.add('vod-mode');
-      controlsBar.style.display = 'none';
+      controlsBar.style.display = '';
       if (playerWrapper) {
         playerWrapper.classList.add('vod-active');
       }
       if (this.video) {
-        this.video.controls = true;
+        this.video.controls = false;
       }
     }
   }
@@ -815,7 +891,7 @@ export class IPTVPlayer {
   }
 
   formatTime(seconds) {
-    if (isNaN(seconds) || seconds === Infinity) return "0:00";
+    if (!seconds || isNaN(seconds) || seconds <= 0 || seconds === Infinity) return "0:00";
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
@@ -883,22 +959,30 @@ export class IPTVPlayer {
   }
 
   updateMuteUI() {
-    const icon = this.muteBtn.querySelector('i');
-    if (!icon) return;
+    if (this.muteBtn) {
+      const icon = this.muteBtn.querySelector('i');
+      if (icon) {
+        if (this.isMuted) {
+          icon.setAttribute('data-lucide', 'volume-x');
+        } else if (this.volume < 0.4) {
+          icon.setAttribute('data-lucide', 'volume-1');
+        } else {
+          icon.setAttribute('data-lucide', 'volume-2');
+        }
+      }
+    }
+    
+    if (this.volumeSlider) {
+      this.volumeSlider.value = this.isMuted ? 0 : this.volume;
+    }
+    
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      try { window.lucide.createIcons(); } catch (e) {}
+    }
+  }
 
-    if (this.isMuted) {
-      icon.setAttribute('data-lucide', 'volume-x');
-    } else if (this.volume < 0.4) {
-      icon.setAttribute('data-lucide', 'volume-1');
-    } else {
-      icon.setAttribute('data-lucide', 'volume-2');
-    }
-    
-    this.volumeSlider.value = this.isMuted ? 0 : this.volume;
-    
-    if (window.lucide) {
-      window.lucide.createIcons();
-    }
+  updateVolumeUI() {
+    this.updateMuteUI();
   }
 
   toggleFullscreen() {
@@ -1007,16 +1091,45 @@ export class IPTVPlayer {
     }
   }
 
+  setAspectRatio(mode) {
+    const validModes = ['fit', 'stretch', 'contain', 'cover', '4:3', '16:9'];
+    let normalized = (mode || 'fit').toLowerCase();
+    if (normalized === 'contain') normalized = 'fit';
+    if (normalized === '16:9') normalized = 'stretch';
+
+    if (!validModes.includes(normalized) && normalized !== '4:3') {
+      normalized = 'fit';
+    }
+
+    this.aspectRatio = normalized;
+    if (this.video) {
+      if (normalized === 'stretch') {
+        this.video.className = "w-full h-full video-stretch";
+        if (this.aspectLabel) this.aspectLabel.textContent = "STRETCH";
+        this.video.style.objectFit = 'fill';
+      } else if (normalized === 'cover') {
+        this.video.className = "w-full h-full video-cover";
+        if (this.aspectLabel) this.aspectLabel.textContent = "COVER";
+        this.video.style.objectFit = 'cover';
+      } else if (normalized === '4:3') {
+        this.video.className = "w-full h-full video-4-3";
+        if (this.aspectLabel) this.aspectLabel.textContent = "4:3";
+        this.video.style.objectFit = 'fill';
+      } else {
+        this.aspectRatio = 'fit';
+        this.video.className = "w-full h-full video-fit";
+        if (this.aspectLabel) this.aspectLabel.textContent = "FIT";
+        this.video.style.objectFit = 'contain';
+      }
+    }
+  }
+
   toggleAspectRatio() {
     if (this.aspectRatio === 'fit') {
-      this.aspectRatio = 'stretch';
-      this.video.className = "w-full h-full video-stretch";
-      this.aspectLabel.textContent = "STRETCH";
+      this.setAspectRatio('stretch');
       this.showToast("Aspect Ratio: Stretch to fill");
     } else {
-      this.aspectRatio = 'fit';
-      this.video.className = "w-full h-full video-fit";
-      this.aspectLabel.textContent = "FIT";
+      this.setAspectRatio('fit');
       this.showToast("Aspect Ratio: Fit screen");
     }
   }
@@ -1053,6 +1166,7 @@ export class IPTVPlayer {
   }
 
   resetVideoFrame() {
+    this.clearUnmuteTimers();
     this.destroyHls();
     this.showError(false);
     this.showLoading(false);
@@ -1067,6 +1181,7 @@ export class IPTVPlayer {
   }
 
   destroyHls() {
+    this.clearUnmuteTimers();
     if (this.bufferTimeout) {
       clearTimeout(this.bufferTimeout);
       this.bufferTimeout = null;

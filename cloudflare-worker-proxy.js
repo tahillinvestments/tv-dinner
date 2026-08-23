@@ -75,6 +75,9 @@ export default {
       'user-agent': 'VLC/3.0.21 LibVLC/3.0.21',
       'accept': '*/*',
     };
+    if (targetUrl.hostname.includes('portal5458') || targetUrl.hostname.includes('kstv')) {
+      outgoingHeaders['host'] = targetUrl.hostname;
+    }
     const rangeHeader = request.headers.get('range');
     if (rangeHeader) outgoingHeaders['range'] = rangeHeader;
 

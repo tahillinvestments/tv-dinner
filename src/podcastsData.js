@@ -957,9 +957,172 @@ function getGuaranteedChannelEpisodes(channel) {
   return [];
 }
 
+export function decodeXmlEntities(str) {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
+export function extractXmlCdataOrText(xml, tagName) {
+  if (!xml) return '';
+  const match = xml.match(new RegExp(`<${tagName}[^>]*>(?:<\\!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([\\s\\S]*?))<\\/${tagName}>`, 'i'));
+  if (!match) return '';
+  const raw = match[1] !== undefined ? match[1] : (match[2] || '');
+  return decodeXmlEntities(raw.trim());
+}
+
+export function formatPodcastDuration(raw) {
+  if (!raw) return '30m';
+  const str = String(raw).trim();
+  if (str.includes(':')) {
+    const parts = str.split(':').map(Number);
+    if (parts.length === 3) return `${parts[0] * 60 + parts[1]}m`;
+    if (parts.length === 2) return `${parts[0]}m`;
+  }
+  const sec = Number(str);
+  if (!isNaN(sec) && sec > 0) return `${Math.round(sec / 60)}m`;
+  return str;
+}
+
+export function parseRss2AudioFeed(xmlText, channel = {}) {
+  if (!xmlText || typeof xmlText !== 'string') return [];
+
+  const episodes = [];
+  const channelTitle = extractXmlCdataOrText(xmlText, 'title') || channel.channelName || 'Podcast';
+  const channelDesc = extractXmlCdataOrText(xmlText, 'description') || channel.description || '';
+  const channelAuthor = extractXmlCdataOrText(xmlText, 'itunes:author') || channel.host || 'Host';
+
+  let channelImage = '';
+  const itunesImgM = xmlText.match(/<itunes:image\s+href="([^"]+)"/i);
+  if (itunesImgM) {
+    channelImage = itunesImgM[1];
+  } else {
+    const imgUrlM = xmlText.match(/<image>[\s\S]*?<url>([^<]+)<\/url>[\s\S]*?<\/image>/i);
+    if (imgUrlM) channelImage = imgUrlM[1].trim();
+  }
+
+  // Parse all <item> tags (RSS 2.0)
+  const itemMatches = [...xmlText.matchAll(/<item>([\s\S]*?)<\/item>/gi)];
+
+  itemMatches.forEach((itemMatch, idx) => {
+    const itemXml = itemMatch[1];
+    
+    // Check for enclosure tag
+    const encMatch = itemXml.match(/<enclosure\s+([^>]+)>/i);
+    let audioUrl = '';
+    let enclosureType = 'audio/mpeg';
+    let enclosureLength = 0;
+
+    if (encMatch) {
+      const attrs = encMatch[1];
+      const urlM = attrs.match(/url="([^"]+)"/i);
+      const typeM = attrs.match(/type="([^"]+)"/i);
+      const lenM = attrs.match(/length="([^"]+)"/i);
+      if (urlM) audioUrl = urlM[1].trim();
+      if (typeM) enclosureType = typeM[1].trim();
+      if (lenM) enclosureLength = parseInt(lenM[1], 10) || 0;
+    } else {
+      const mediaContentM = itemXml.match(/<media:content\s+([^>]+)>/i);
+      if (mediaContentM) {
+        const urlM = mediaContentM[1].match(/url="([^"]+)"/i);
+        const typeM = mediaContentM[1].match(/type="([^"]+)"/i);
+        if (urlM) audioUrl = urlM[1].trim();
+        if (typeM) enclosureType = typeM[1].trim();
+      }
+    }
+
+    const title = extractXmlCdataOrText(itemXml, 'title') || `${channelTitle} Episode ${idx + 1}`;
+    const desc = extractXmlCdataOrText(itemXml, 'description') || extractXmlCdataOrText(itemXml, 'itunes:summary') || '';
+    const guid = extractXmlCdataOrText(itemXml, 'guid') || extractXmlCdataOrText(itemXml, 'link') || `ep_${idx}_${Date.now()}`;
+    const pubDateRaw = extractXmlCdataOrText(itemXml, 'pubDate') || extractXmlCdataOrText(itemXml, 'dc:date') || '';
+    
+    let pubDate = 'Recent';
+    let pubYear = 2026;
+    let pubTimestamp = 0;
+    if (pubDateRaw) {
+      try {
+        const d = new Date(pubDateRaw);
+        if (!isNaN(d.getTime())) {
+          pubDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          pubYear = d.getFullYear();
+          pubTimestamp = d.getTime();
+        }
+      } catch (_) {}
+    }
+
+    const durationRaw = extractXmlCdataOrText(itemXml, 'itunes:duration') || '';
+    const duration = formatPodcastDuration(durationRaw);
+
+    let epImage = '';
+    const epItunesImgM = itemXml.match(/<itunes:image\s+href="([^"]+)"/i);
+    if (epItunesImgM) epImage = epItunesImgM[1];
+
+    const isVideo = enclosureType.startsWith('video') || (audioUrl && (audioUrl.includes('.mp4') || audioUrl.includes('.mkv')));
+
+    episodes.push({
+      id: `ep_rss_${guid.replace(/[^a-zA-Z0-9_-]/g, '_').slice(-40)}`,
+      guid,
+      title,
+      audioUrl: audioUrl || '',
+      enclosure: audioUrl ? {
+        url: audioUrl,
+        type: enclosureType,
+        length: enclosureLength
+      } : null,
+      mediaType: isVideo ? 'video' : 'audio',
+      channelId: channel.id || '',
+      channelName: channel.channelName || channelTitle,
+      host: channel.host || channelAuthor,
+      category: channel.category || 'Podcast',
+      date: pubDate,
+      year: pubYear,
+      timestamp: pubTimestamp,
+      duration: duration || '30m',
+      thumbnail: epImage || channelImage || channel.avatar || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+      description: desc || channelDesc || 'Podcast episode.'
+    });
+  });
+
+  return episodes;
+}
+
+export async function fetchPodcastRssFeed(feedUrl, channel = {}) {
+  if (!feedUrl) return [];
+
+  const proxies = [
+    getPodcastsProxyUrl(feedUrl),
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(feedUrl)}`,
+    `https://corsproxy.io/?${encodeURIComponent(feedUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`
+  ];
+
+  for (const proxyUrl of proxies) {
+    try {
+      const res = await fetchWithTimeout(proxyUrl, {}, 5000);
+      if (!res.ok) continue;
+      const xmlText = await res.text();
+      if (!xmlText || xmlText.length < 100) continue;
+      const eps = parseRss2AudioFeed(xmlText, channel);
+      if (eps && eps.length > 0) {
+        return eps;
+      }
+    } catch (e) {
+      console.warn('[Podcasts] RSS feed proxy fetch error:', e.message);
+    }
+  }
+
+  return [];
+}
+
 function getPodcastsProxyUrl(targetUrl) {
   if (!targetUrl) return '';
-  let baseProxy = '/api/proxy';
+  let baseProxy = 'https://tv-dinner-proxy.onrender.com/';
   try {
     const saved = (localStorage.getItem('external_proxy_url') || '').trim();
     if (saved) baseProxy = saved;
@@ -976,14 +1139,23 @@ function getPodcastsProxyUrl(targetUrl) {
     return `${origin}${p}?url=${encodeURIComponent(targetUrl)}`;
   }
 
-  return `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+  return `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(targetUrl)}`;
 }
 
-// Dynamically fetch past episodes for a channel (via YouTube XML RSS feed, iTunes RSS & live APIs)
+// Dynamically fetch past episodes for a channel (via standard RSS 2.0 audio feed, YouTube XML RSS feed & live APIs)
 export async function fetchChannelPastEpisodes(channel) {
   if (!channel) return [];
 
-  // A. Try YouTube XML RSS feed via CORS proxies (4-proxy failover)
+  // A. Try standard RSS 2.0 audio feed if channel specifies one
+  const feedUrl = channel.rssFeed || channel.feedUrl || channel.audioRssUrl;
+  if (feedUrl) {
+    const audioEpisodes = await fetchPodcastRssFeed(feedUrl, channel);
+    if (audioEpisodes && audioEpisodes.length > 0) {
+      return audioEpisodes;
+    }
+  }
+
+  // B. Try YouTube XML RSS feed via CORS proxies (4-proxy failover)
   if (channel.ytChannelId) {
     const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.ytChannelId}`;
     const proxies = [

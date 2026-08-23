@@ -1,4 +1,4 @@
-import { fetchFromTMDB } from './tmdb';
+import { fetchFromTMDB } from './tmdb.js';
 
 // Safe image proxy helper to prevent mixed content blocks
 export function getSafeImageUrl(url) {
@@ -56,7 +56,7 @@ export class XtreamVODClient {
   }
 
   get baseUrl() {
-    if (this._baseUrl) return this._baseUrl;
+    if (this._baseUrl) return this._baseUrl.trim().replace(/\/+$/, '');
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('xtream_vod_portal');
       if (saved && saved.trim()) return saved.trim().replace(/\/+$/, '');
@@ -92,24 +92,21 @@ export class XtreamVODClient {
 
     const targetUrl = `${this.baseUrl}/player_api.php?${query.toString()}`;
     
-    // In Android app, route directly; in web browsers, route via Cloudflare Worker proxy to prevent HTTPS mixed-content blocks
     const isAndroid = typeof window !== 'undefined' && 
       (window.location.host === 'appassets.androidplatform.net' || 
        window.location.protocol === 'file:' || 
-       (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
+       (navigator.userAgent && (navigator.userAgent.includes('TVDinnerMobileApp') || navigator.userAgent.includes('JoyfulIPTVMobileApp'))));
 
     let proxyBase = '';
     try {
       proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
     } catch (e) {}
     if (!proxyBase) {
-      proxyBase = '/api/proxy';
+      proxyBase = 'https://tv-dinner-proxy.onrender.com/';
     }
 
     let url;
-    if (isAndroid) {
-      url = targetUrl;
-    } else if (proxyBase.startsWith('http://') || proxyBase.startsWith('https://')) {
+    if (proxyBase.startsWith('http://') || proxyBase.startsWith('https://')) {
       const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
       url = `${p}?url=${encodeURIComponent(targetUrl)}`;
     } else {
@@ -170,10 +167,12 @@ export class XtreamVODClient {
   }
 
   async preloadCommon() {
-    const commonMovieCats = ['1', '2', '4', '17', '11', '3', '5', '8', '7', '10', '18'];
-    const commonSeriesCats = ['21', '22', '24', '30', '25', '23', '27', '28'];
+    const commonMovieCats = ['1', '2', '3', '4', '5', '7', '8', '11', '16', '17', '18'];
+    const commonSeriesCats = ['21', '22', '23', '24', '25', '27', '28', '30', '39'];
     try {
       await Promise.allSettled([
+        this.getMovieCategories(),
+        this.getSeriesCategories(),
         ...commonMovieCats.map(cat => this.getMovies(cat)),
         ...commonSeriesCats.map(cat => this.getSeries(cat))
       ]);
@@ -438,13 +437,19 @@ export class XtreamVODClient {
   }
 
   getMovieStreamUrl(streamId, ext = 'mp4') {
-    const raw = `${this.baseUrl}/movie/${this.username}/${this.password}/${streamId}.${ext}`;
+    const cleanExt = (ext || 'mp4').toString().trim().split('?')[0].split('#')[0].replace(/^\.+/, '').trim().toLowerCase() || 'mp4';
+    const raw = `${this.baseUrl}/movie/${this.username}/${this.password}/${streamId}.${cleanExt}`;
     const isAndroid = typeof window !== 'undefined' && 
       (window.location.host === 'appassets.androidplatform.net' || 
        window.location.protocol === 'file:' || 
-       (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
-    if (isAndroid) return raw;
-    let proxyBase = (localStorage.getItem('external_proxy_url') || '').trim() || '/api/proxy';
+       (navigator.userAgent && (navigator.userAgent.includes('TVDinnerMobileApp') || navigator.userAgent.includes('JoyfulIPTVMobileApp'))));
+    let proxyBase = '';
+    try {
+      proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
+    } catch (e) {}
+    if (!proxyBase) {
+      proxyBase = 'https://tv-dinner-proxy.onrender.com/';
+    }
     const p = proxyBase.startsWith('http://') || proxyBase.startsWith('https://')
       ? (proxyBase.endsWith('/') ? proxyBase : proxyBase + '/')
       : (proxyBase.startsWith('/') ? proxyBase : '/' + proxyBase);
@@ -452,13 +457,15 @@ export class XtreamVODClient {
   }
 
   getSeriesStreamUrl(streamId, ext = 'mp4') {
-    const raw = `${this.baseUrl}/series/${this.username}/${this.password}/${streamId}.${ext}`;
-    const isAndroid = typeof window !== 'undefined' && 
-      (window.location.host === 'appassets.androidplatform.net' || 
-       window.location.protocol === 'file:' || 
-       (navigator.userAgent && navigator.userAgent.includes('JoyfulIPTVMobileApp')));
-    if (isAndroid) return raw;
-    let proxyBase = (localStorage.getItem('external_proxy_url') || '').trim() || '/api/proxy';
+    const cleanExt = (ext || 'mp4').toString().trim().split('?')[0].split('#')[0].replace(/^\.+/, '').trim().toLowerCase() || 'mp4';
+    const raw = `${this.baseUrl}/series/${this.username}/${this.password}/${streamId}.${cleanExt}`;
+    let proxyBase = '';
+    try {
+      proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
+    } catch (e) {}
+    if (!proxyBase) {
+      proxyBase = 'https://tv-dinner-proxy.onrender.com/';
+    }
     const p = proxyBase.startsWith('http://') || proxyBase.startsWith('https://')
       ? (proxyBase.endsWith('/') ? proxyBase : proxyBase + '/')
       : (proxyBase.startsWith('/') ? proxyBase : '/' + proxyBase);

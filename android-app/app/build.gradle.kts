@@ -5,19 +5,32 @@ plugins {
 }
 
 android {
-    namespace = "com.example.joyfuliptv"
+    namespace = "com.troyh.tvdinner"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.joyfuliptv"
+        applicationId = "com.troyh.tvdinner"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("release.keystore")
+            storePassword = "tvdinner123"
+            keyAlias = "tvdinner"
+            keyPassword = "tvdinner123"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -48,6 +61,9 @@ dependencies {
   implementation(composeBom)
   androidTestImplementation(composeBom)
 
+  // Networking & Proxying
+  implementation(libs.okhttp)
+
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -77,6 +93,21 @@ dependencies {
   androidTestImplementation(libs.androidx.test.ext.junit)
   androidTestImplementation(libs.androidx.test.runner)
   androidTestImplementation(libs.androidx.test.espresso.core)
+
+  // Media Playback (Media3 ExoPlayer)
+  implementation(libs.media3.exoplayer)
+  implementation(libs.media3.ui)
+  implementation(libs.media3.datasource.okhttp)
+  implementation(libs.media3.exoplayer.hls)
+
+  // Image Loading
+  implementation(libs.coil.compose)
+
+  // JSON Parsing
+  implementation(libs.gson)
+
+  // Icons
+  implementation(libs.androidx.compose.material.icons)
 
   // Navigation
   implementation(libs.androidx.navigation3.ui)

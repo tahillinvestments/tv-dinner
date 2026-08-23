@@ -79,7 +79,7 @@ async function _loadXmltvFeed(portalUrl, username, password) {
   
   const proxyEndpoints = [
     _buildProxyUrl(xmlUrl),
-    `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(xmlUrl)}`,
+    `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(xmlUrl)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(xmlUrl)}`
   ];
 
@@ -134,7 +134,7 @@ function _buildProxyUrl(url) {
   const external = (() => {
     try { return localStorage.getItem('external_proxy_url'); } catch (_) { return null; }
   })();
-  const base = external || '/api/proxy';
+  const base = external || 'https://tv-dinner-proxy.onrender.com/';
   if (base.startsWith('http://') || base.startsWith('https://')) {
     const p = base.endsWith('/') ? base : base + '/';
     return `${p}?url=${encodeURIComponent(url)}`;
@@ -366,7 +366,8 @@ export async function fetchXtreamEPG(portalUrl, username, password, streamId) {
     
     const endpoints = [
       _buildProxyUrl(epgUrl),
-      `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(epgUrl)}`
+      `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(epgUrl)}`,
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(epgUrl)}`
     ];
 
     let json = null;
@@ -439,13 +440,13 @@ export function formatTime(val) {
 
 export function getProgramProgress(program) {
   if (!program || !program.startTime || !program.endTime) {
-    return { percent: 0, remainingMinutes: 0, formattedStart: '', formattedEnd: '', isLive: false };
+    return { percent: 0, remainingMinutes: 0, formattedStart: '', formattedEnd: '', isLive: false, title: (program && program.title) ? program.title : '' };
   }
   const now     = Date.now();
   const start   = new Date(program.startTime).getTime();
   const end     = new Date(program.endTime).getTime();
   if (isNaN(start) || isNaN(end) || end <= start) {
-    return { percent: 0, remainingMinutes: 0, formattedStart: '', formattedEnd: '', isLive: false };
+    return { percent: 0, remainingMinutes: 0, formattedStart: '', formattedEnd: '', isLive: false, title: program.title || '' };
   }
   const total     = end - start;
   const elapsed   = Math.max(0, now - start);
@@ -455,6 +456,7 @@ export function getProgramProgress(program) {
     remainingMinutes: Math.ceil(remaining / 60000),
     formattedStart:   formatTime(start),
     formattedEnd:     formatTime(end),
-    isLive:           now >= start && now <= end
+    isLive:           now >= start && now <= end,
+    title:            program.title || ''
   };
 }

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>TV DINNER - Premium Streaming & Live TV</title>
   <meta name="description" content="A premium, ad-free streaming player for movies, TV shows, and live TV channels.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -68,16 +68,7 @@
     </div>
   </aside>
 
-  <!-- Mobile Top Bar (header-branding & hamburger) -->
-  <header class="mobile-header lg-hidden">
-    <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle Sidebar">
-      <i data-lucide="menu"></i>
-    </button>
-    <span class="mobile-title">TV DINNER</span>
-    <span id="channel-count-header" class="mobile-badge-count">Loading...</span>
-  </header>
-
-  <!-- Mobile Drawer Menu Overlay -->
+  <!-- Mobile Drawer Menu Overlay (Fixed position overlay) -->
   <div id="mobile-drawer-overlay" class="mobile-drawer-backdrop hidden">
     <div class="mobile-drawer-sheet">
       <div class="mobile-drawer-header">
@@ -117,6 +108,15 @@
   <!-- Main Scrollable App Container -->
   <main class="app-main-content">
     
+    <!-- Mobile Top Bar (header-branding & hamburger) -->
+    <header class="mobile-header lg-hidden">
+      <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle Sidebar">
+        <i data-lucide="menu"></i>
+      </button>
+      <span class="mobile-title">TV DINNER</span>
+      <span id="channel-count-header" class="mobile-badge-count">Loading...</span>
+    </header>
+    
     <!-- Tab 0: Home / Select Hub Screen (Default Landing View) -->
     <div id="tab-home" class="tab-screen">
       <div class="home-hub-container">
@@ -146,7 +146,7 @@
         <div class="home-select-grid">
           
           <!-- 1. Live TV Card -->
-          <div class="home-select-card theme-red" data-nav="live">
+          <div class="home-select-card theme-red" data-nav="live" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/livetv_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="tv" class="w-24 h-24"></i>
@@ -170,7 +170,7 @@
           </div>
 
           <!-- 2. Movies Card -->
-          <div class="home-select-card theme-indigo" data-nav="movies">
+          <div class="home-select-card theme-indigo" data-nav="movies" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/movies_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="film" class="w-24 h-24"></i>
@@ -194,7 +194,7 @@
           </div>
 
           <!-- 3. TV Series Card -->
-          <div class="home-select-card theme-cyan" data-nav="series">
+          <div class="home-select-card theme-cyan" data-nav="series" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/series_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="monitor" class="w-24 h-24"></i>
@@ -218,7 +218,7 @@
           </div>
 
           <!-- 4. Podcasts Card -->
-          <div class="home-select-card theme-amber" data-nav="podcasts">
+          <div class="home-select-card theme-amber" data-nav="podcasts" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/podcasts_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="radio" class="w-24 h-24"></i>
@@ -242,7 +242,7 @@
           </div>
 
           <!-- 5. Favorites & Library Card -->
-          <div class="home-select-card theme-emerald" data-nav="library">
+          <div class="home-select-card theme-emerald" data-nav="library" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/watchlist_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="star" class="w-24 h-24"></i>
@@ -266,7 +266,7 @@
           </div>
 
           <!-- 6. Settings Card -->
-          <div class="home-select-card theme-slate" data-nav="settings">
+          <div class="home-select-card theme-slate" data-nav="settings" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/settings_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="settings" class="w-24 h-24"></i>

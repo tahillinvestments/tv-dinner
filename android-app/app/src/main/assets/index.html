@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>TV DINNER - Premium Streaming & Live TV</title>
   <meta name="description" content="A premium, ad-free streaming player for movies, TV shows, and live TV channels.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  
+  
   <script>
     window.addEventListener('error', (e) => {
       console.error('[Global Error Listener]', e.message, e.error ? e.error.stack : '');
@@ -20,8 +20,36 @@
       localStorage.setItem('debug_error_stack', e.reason ? e.reason.stack : '');
     });
   </script>
-  <script type="module" crossorigin src="/assets/index-CS_1klWu.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-FTVbja9T.css">
+  <script defer src="/assets/index-COnEkcAW.js"></script>
+  <link rel="stylesheet" href="/assets/index-B9EHf7El.css">
+
+  <style>
+    /* Android APK: hide admin UI */
+    #admin-toggle-header, #admin-panel-container, #admin-cred-modal,
+    #admin-login-section, #admin-dashboard-section {
+      display: none !important; visibility: hidden !important;
+      pointer-events: none !important; opacity: 0 !important;
+      max-height: 0 !important; height: 0 !important; overflow: hidden !important;
+    }
+    /* Android APK: fallback system font stack */
+    :root {
+      --font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    body {
+      font-family: var(--font-family);
+    }
+    /* Ensure home tab is visible by default */
+    .tab-screen.hidden { display: none !important; }
+    #tab-home { display: flex; }
+    /* Debug error overlay */
+    #apk-debug-overlay {
+      display: none; position: fixed; top: 10px; left: 80px; right: 10px; bottom: 10px;
+      background: rgba(0,0,0,0.95); color: #ff4444; font-family: monospace;
+      font-size: 12px; padding: 16px; z-index: 99999; overflow: auto;
+      border: 2px solid #ef4444; border-radius: 8px;
+      white-space: pre-wrap; word-break: break-all;
+    }
+  </style>
 </head>
 <body class="dark-theme">
   
@@ -70,16 +98,7 @@
     </div>
   </aside>
 
-  <!-- Mobile Top Bar (header-branding & hamburger) -->
-  <header class="mobile-header lg-hidden">
-    <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle Sidebar">
-      <i data-lucide="menu"></i>
-    </button>
-    <span class="mobile-title">TV DINNER</span>
-    <span id="channel-count-header" class="mobile-badge-count">Loading...</span>
-  </header>
-
-  <!-- Mobile Drawer Menu Overlay -->
+  <!-- Mobile Drawer Menu Overlay (Fixed position overlay) -->
   <div id="mobile-drawer-overlay" class="mobile-drawer-backdrop hidden">
     <div class="mobile-drawer-sheet">
       <div class="mobile-drawer-header">
@@ -119,6 +138,15 @@
   <!-- Main Scrollable App Container -->
   <main class="app-main-content">
     
+    <!-- Mobile Top Bar (header-branding & hamburger) -->
+    <header class="mobile-header lg-hidden">
+      <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle Sidebar">
+        <i data-lucide="menu"></i>
+      </button>
+      <span class="mobile-title">TV DINNER</span>
+      <span id="channel-count-header" class="mobile-badge-count">Loading...</span>
+    </header>
+    
     <!-- Tab 0: Home / Select Hub Screen (Default Landing View) -->
     <div id="tab-home" class="tab-screen">
       <div class="home-hub-container">
@@ -148,7 +176,7 @@
         <div class="home-select-grid">
           
           <!-- 1. Live TV Card -->
-          <div class="home-select-card theme-red" data-nav="live">
+          <div class="home-select-card theme-red" data-nav="live" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/livetv_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="tv" class="w-24 h-24"></i>
@@ -172,7 +200,7 @@
           </div>
 
           <!-- 2. Movies Card -->
-          <div class="home-select-card theme-indigo" data-nav="movies">
+          <div class="home-select-card theme-indigo" data-nav="movies" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/movies_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="film" class="w-24 h-24"></i>
@@ -196,7 +224,7 @@
           </div>
 
           <!-- 3. TV Series Card -->
-          <div class="home-select-card theme-cyan" data-nav="series">
+          <div class="home-select-card theme-cyan" data-nav="series" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/series_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="monitor" class="w-24 h-24"></i>
@@ -220,7 +248,7 @@
           </div>
 
           <!-- 4. Podcasts Card -->
-          <div class="home-select-card theme-amber" data-nav="podcasts">
+          <div class="home-select-card theme-amber" data-nav="podcasts" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/podcasts_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="radio" class="w-24 h-24"></i>
@@ -244,7 +272,7 @@
           </div>
 
           <!-- 5. Favorites & Library Card -->
-          <div class="home-select-card theme-emerald" data-nav="library">
+          <div class="home-select-card theme-emerald" data-nav="library" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/watchlist_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="star" class="w-24 h-24"></i>
@@ -268,7 +296,7 @@
           </div>
 
           <!-- 6. Settings Card -->
-          <div class="home-select-card theme-slate" data-nav="settings">
+          <div class="home-select-card theme-slate" data-nav="settings" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/settings_card_bg.jpg');"></div>
             <div class="home-card-bg-icon">
               <i data-lucide="settings" class="w-24 h-24"></i>
@@ -1447,5 +1475,35 @@
     </div>
   </div>
 
+
+  <div id="apk-debug-overlay"></div>
+  <script>
+    (function() {
+      var overlay = null;
+      function getOverlay() {
+        if (!overlay) overlay = document.getElementById('apk-debug-overlay');
+        return overlay;
+      }
+      function showError(msg) {
+        var el = getOverlay();
+        if (el) { el.style.display = 'block'; el.textContent += msg + '\n---\n'; }
+      }
+      window.addEventListener('error', function(e) {
+        showError('[JS ERROR] ' + e.message + '\n' + e.filename + ':' + e.lineno + '\n' + (e.error ? e.error.stack : ''));
+        try { localStorage.setItem('debug_error', e.message); localStorage.setItem('debug_error_stack', e.error ? e.error.stack : ''); } catch(_) {}
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var msg = e.reason ? (e.reason.message || String(e.reason)) : 'unhandled rejection';
+        var stack = e.reason && e.reason.stack ? e.reason.stack : '';
+        showError('[UNHANDLED REJECTION] ' + msg + '\n' + stack);
+        try { localStorage.setItem('debug_error', msg); localStorage.setItem('debug_error_stack', stack); } catch(_) {}
+      });
+      setTimeout(function() {
+        if (!window.__tvdinner_loaded) {
+          showError('[SENTINEL] Main JS bundle did NOT execute within 5 seconds.\nURL: ' + location.href + '\nUA: ' + navigator.userAgent);
+        }
+      }, 5000);
+    })();
+  </script>
 </body>
 </html>
