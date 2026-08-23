@@ -48,18 +48,10 @@ function rewriteM3U8(m3uText, finalUrl, proxyOrigin) {
 }
 
 /**
- * Crash-proof native HTTP/HTTPS stream forwarder.
- * Uses native Node.js streams without undici/fetch to eliminate assertion crashes.
+ * Crash-proof HTTP/HTTPS stream forwarder using async reader pump.
+ * Completely avoids Readable.fromWeb / undici pause assertion bug.
  */
-function forwardStream(req, res, targetUrlStr, maxRedirects = 5) {
-  if (maxRedirects < 0) {
-    if (!res.headersSent) {
-      res.writeHead(502, { 'Access-Control-Allow-Origin': '*' });
-      res.end('Too many redirects');
-    }
-    return;
-  }
-
+async function forwardStream(req, res, targetUrlStr) {
   let targetUrl;
   try {
     targetUrl = new URL(targetUrlStr);
@@ -70,9 +62,6 @@ function forwardStream(req, res, targetUrlStr, maxRedirects = 5) {
     }
     return;
   }
-
-  const isHttps = targetUrl.protocol === 'https:';
-  const client = isHttps ? https : http;
 
   const isIptvHost = targetUrl.hostname.includes('portal5458') ||
     targetUrl.hostname.includes('kstv') ||
@@ -89,114 +78,91 @@ function forwardStream(req, res, targetUrlStr, maxRedirects = 5) {
     outgoingHeaders['range'] = req.headers.range;
   }
 
-  const requestOptions = {
-    method: req.method === 'POST' ? 'POST' : 'GET',
-    headers: outgoingHeaders,
-  };
-
-  let proxyReq;
   try {
-    proxyReq = client.request(targetUrl, requestOptions, (proxyRes) => {
-      // Clear connect timeout once stream headers arrive so long-running live streams never abort
-      proxyReq.setTimeout(0);
+    const response = await fetch(targetUrl.href, {
+      method: req.method === 'POST' ? 'POST' : 'GET',
+      headers: outgoingHeaders,
+      redirect: 'follow',
+    });
 
-      // Follow 301, 302, 303, 307, 308 redirects automatically
-      if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location) {
-        try {
-          const redirectUrl = new URL(proxyRes.headers.location, targetUrl).href;
-          proxyRes.resume();
-          return forwardStream(req, res, redirectUrl, maxRedirects - 1);
-        } catch (e) {
-          console.error('[Redirect Parse Error]', e.message);
+    const finalUrl = response.url || targetUrl.href;
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    const isM3U8 =
+      contentType.includes('mpegurl') ||
+      targetUrl.pathname.endsWith('.m3u8') ||
+      targetUrl.pathname.endsWith('.m3u');
+
+    const outHeaders = {};
+    for (const [k, v] of response.headers.entries()) {
+      if (!STRIP_RES_HEADERS.has(k.toLowerCase())) {
+        outHeaders[k] = v;
+      }
+    }
+    outHeaders['Access-Control-Allow-Origin'] = '*';
+    outHeaders['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
+    outHeaders['Access-Control-Allow-Headers'] = '*';
+
+    if (isM3U8) {
+      const text = await response.text();
+      const host = req.headers.host || `localhost:${PORT}`;
+      const proto = req.headers['x-forwarded-proto'] || (host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https');
+      const proxyOrigin = `${proto}://${host}/`;
+      const rewritten = rewriteM3U8(text, finalUrl, proxyOrigin);
+      outHeaders['content-type'] = 'application/vnd.apple.mpegurl';
+      outHeaders['content-length'] = Buffer.byteLength(rewritten).toString();
+      if (!res.headersSent) {
+        res.writeHead(response.status, outHeaders);
+        res.end(rewritten);
+      }
+      return;
+    }
+
+    if (!res.headersSent) {
+      res.writeHead(response.status, outHeaders);
+    }
+
+    if (response.body) {
+      const reader = response.body.getReader();
+      let isClientClosed = false;
+
+      const cleanup = () => {
+        if (!isClientClosed) {
+          isClientClosed = true;
+          reader.cancel().catch(() => {});
+        }
+      };
+
+      req.on('close', cleanup);
+      res.on('close', cleanup);
+
+      try {
+        while (!isClientClosed) {
+          const { done, value } = await reader.read();
+          if (done || isClientClosed) break;
+          if (res.writableEnded || res.destroyed) break;
+          const canContinue = res.write(value);
+          if (!canContinue) {
+            await new Promise((resolve) => res.once('drain', resolve));
+          }
+        }
+      } catch (readErr) {
+        console.error('[Stream Reader Error]', readErr.message);
+      } finally {
+        cleanup();
+        if (!res.writableEnded && !res.destroyed) {
+          res.end();
         }
       }
-
-      const contentType = (proxyRes.headers['content-type'] || '').toLowerCase();
-      const isM3U8 = contentType.includes('mpegurl') ||
-        targetUrl.pathname.endsWith('.m3u8') ||
-        targetUrl.pathname.endsWith('.m3u');
-
-      const outHeaders = {};
-      for (const [k, v] of Object.entries(proxyRes.headers)) {
-        if (!STRIP_RES_HEADERS.has(k.toLowerCase())) {
-          outHeaders[k] = v;
-        }
-      }
-      outHeaders['Access-Control-Allow-Origin'] = '*';
-      outHeaders['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
-      outHeaders['Access-Control-Allow-Headers'] = '*';
-
-      if (isM3U8) {
-        let rawBody = '';
-        proxyRes.setEncoding('utf8');
-        proxyRes.on('data', (chunk) => { rawBody += chunk; });
-        proxyRes.on('end', () => {
-          const host = req.headers.host || `localhost:${PORT}`;
-          const proto = req.headers['x-forwarded-proto'] || (host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https');
-          const proxyOrigin = `${proto}://${host}/`;
-          const rewritten = rewriteM3U8(rawBody, targetUrl.href, proxyOrigin);
-          outHeaders['content-type'] = 'application/vnd.apple.mpegurl';
-          outHeaders['content-length'] = Buffer.byteLength(rewritten).toString();
-          if (!res.headersSent) {
-            res.writeHead(proxyRes.statusCode || 200, outHeaders);
-            res.end(rewritten);
-          }
-        });
-        proxyRes.on('error', (err) => {
-          console.error('[M3U8 Read Error]', err.message);
-          if (!res.headersSent) {
-            res.writeHead(502, { 'Access-Control-Allow-Origin': '*' });
-            res.end('M3U8 Read Error: ' + err.message);
-          }
-        });
-        return;
-      }
-
-      // Stream binary media directly with backpressure handling
-      if (!res.headersSent) {
-        res.writeHead(proxyRes.statusCode || 200, outHeaders);
-      }
-
-      proxyRes.pipe(res);
-
-      proxyRes.on('error', (err) => {
-        console.error('[Pipe Error]', err.message);
-        if (!res.writableEnded) res.end();
-      });
-    });
-
-    proxyReq.on('error', (err) => {
-      console.error('[ProxyReq Error]', err.message);
-      if (!res.headersSent) {
-        res.writeHead(502, { 'Access-Control-Allow-Origin': '*' });
-        res.end('Proxy Error: ' + err.message);
-      } else if (!res.writableEnded) {
-        res.end();
-      }
-    });
-
-    proxyReq.on('timeout', () => {
-      proxyReq.destroy(new Error('Connection timed out'));
-    });
-
-    // Cleanup upstream connection immediately if client aborts/navigates away
-    req.on('close', () => {
-      proxyReq.destroy();
-    });
-    res.on('close', () => {
-      proxyReq.destroy();
-    });
-
-    if (req.method === 'POST') {
-      req.pipe(proxyReq);
     } else {
-      proxyReq.end();
+      res.end();
     }
   } catch (err) {
-    console.error('[Forward Error]', err.message);
+    console.error('[Proxy Error]', err.message);
     if (!res.headersSent) {
       res.writeHead(502, { 'Access-Control-Allow-Origin': '*' });
-      res.end('Proxy Exception: ' + err.message);
+      res.end('Proxy Error: ' + err.message);
+    } else if (!res.writableEnded) {
+      res.end();
     }
   }
 }
