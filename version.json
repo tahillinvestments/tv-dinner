@@ -1,0 +1,9 @@
+{
+  "versionCode": 205,
+  "versionName": "2.0.5",
+  "title": "Live TV Navigation, Category Reorder, History, Poster Fixes & Remote Aspect Ratio",
+  "releaseNotes": "• Live TV: Smooth D-pad Left & Back navigation directly from preview controls to channel list\n• Category Reorder: Moved News Network, Sports Network, Movie Network, Kids Network, Prime, PPV & Events, 4K Relax under Entertainment\n• Removed 'All Channels' category\n• Added 🕒 Channel History category (last 5 channels watched) with 'Clear History' in Settings\n• Enhanced Movies & Series poster loading with automatic TMDB resolution on missing/broken links (no fallback card art)\n• Added remote control aspect ratio toggle (Fit / Stretch / Zoom) with on-screen HUD pill overlay\n• Removed Next Episode button from series player\n• In-app network disconnect detection with automatic stream recovery and socket eviction\n• YouTube Music remote navigation: D-Pad Up (Previous) & Down (Next) with on-screen button\n• Ambient neon glow halo on focused cards",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.5/app-release.apk",
+  "mandatory": false,
+  "publishedAt": "2026-09-02T21:50:29.399Z"
+}
