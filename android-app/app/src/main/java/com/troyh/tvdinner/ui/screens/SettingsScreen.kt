@@ -19,6 +19,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import com.troyh.tvdinner.BuildConfig
 import com.troyh.tvdinner.data.network.XtreamApiClient
 import com.troyh.tvdinner.data.repository.AuthRepository
@@ -55,8 +60,7 @@ fun SettingsScreen(
 
     var customUser by remember { mutableStateOf(authRepo.getActiveUsername()) }
     var customPswd by remember { mutableStateOf(authRepo.getActivePassword()) }
-    var primaryPortal by remember { mutableStateOf(authRepo.getLivePortalUrl()) }
-    var backupPortal by remember { mutableStateOf(authRepo.getBackupPortalUrl()) }
+    var editingField by remember { mutableStateOf<String?>(null) }
     var credsSavedMessage by remember { mutableStateOf<String?>(null) }
 
     // Subtitle Preferences State
@@ -146,81 +150,73 @@ fun SettingsScreen(
                             color = TextSecondary
                         )
 
-                        OutlinedTextField(
-                            value = customUser,
-                            onValueChange = { 
-                                customUser = it
-                                credsSavedMessage = null
-                            },
-                            label = { Text("Username", color = TextMuted) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = CinemaAccent,
-                                unfocusedBorderColor = CinemaSurfaceLight,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                cursorColor = CinemaAccent
-                            ),
+                        // Username Field (Click to Edit - no keyboard on D-pad navigation)
+                        TvFocusableCard(
+                            onClick = { editingField = "user" },
                             shape = RoundedCornerShape(8.dp),
+                            backgroundColor = CinemaSurfaceVariant,
+                            focusedBorderColor = CinemaFocus,
+                            focusedScale = 1.02f,
                             modifier = Modifier.fillMaxWidth()
-                        )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Username", color = TextMuted, fontSize = 11.sp)
+                                    Text(
+                                        text = customUser.ifBlank { "Click to enter username" },
+                                        color = if (customUser.isNotBlank()) TextPrimary else TextMuted,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Username",
+                                    tint = CinemaAccent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
 
-                        OutlinedTextField(
-                            value = customPswd,
-                            onValueChange = { 
-                                customPswd = it
-                                credsSavedMessage = null
-                            },
-                            label = { Text("Password", color = TextMuted) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = CinemaAccent,
-                                unfocusedBorderColor = CinemaSurfaceLight,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                cursorColor = CinemaAccent
-                            ),
+                        // Password Field (Click to Edit - no keyboard on D-pad navigation)
+                        TvFocusableCard(
+                            onClick = { editingField = "pswd" },
                             shape = RoundedCornerShape(8.dp),
+                            backgroundColor = CinemaSurfaceVariant,
+                            focusedBorderColor = CinemaFocus,
+                            focusedScale = 1.02f,
                             modifier = Modifier.fillMaxWidth()
-                        )
-
-                        OutlinedTextField(
-                            value = primaryPortal,
-                            onValueChange = { 
-                                primaryPortal = it
-                                credsSavedMessage = null
-                            },
-                            label = { Text("Primary Portal URL", color = TextMuted) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = CinemaAccent,
-                                unfocusedBorderColor = CinemaSurfaceLight,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                cursorColor = CinemaAccent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        OutlinedTextField(
-                            value = backupPortal,
-                            onValueChange = { 
-                                backupPortal = it
-                                credsSavedMessage = null
-                            },
-                            label = { Text("Backup Failover Portal URL", color = TextMuted) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = CinemaAccent,
-                                unfocusedBorderColor = CinemaSurfaceLight,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary,
-                                cursorColor = CinemaAccent
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Password", color = TextMuted, fontSize = 11.sp)
+                                    Text(
+                                        text = if (customPswd.isNotBlank()) "••••••••••••" else "Click to enter password",
+                                        color = if (customPswd.isNotBlank()) TextPrimary else TextMuted,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Password",
+                                    tint = CinemaAccent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                     }
 
                     if (credsSavedMessage != null) {
@@ -271,20 +267,13 @@ fun SettingsScreen(
                                     credsSavedMessage = "Please enter both username and password."
                                     return@Button
                                 }
-                                if (primaryPortal.isNotBlank()) {
-                                    authRepo.setLivePortalUrl(primaryPortal.trim())
-                                    authRepo.setVodPortalUrl(primaryPortal.trim())
-                                }
-                                if (backupPortal.isNotBlank()) {
-                                    authRepo.setBackupPortalUrl(backupPortal.trim())
-                                }
                                 authRepo.setDirectCredentials(u, p)
                                 catalogManager?.clearAllCaches()
                                 isTestingCreds = true
                                 accountStatus = "TESTING..."
                                 credsSavedMessage = "Testing credentials with server..."
                                 coroutineScope.launch {
-                                    val testPortal = primaryPortal.trim().ifBlank { AuthRepository.DEFAULT_SERVER_URL }
+                                    val testPortal = authRepo.getLivePortalUrl()
                                     val result = apiClient.testCredentials(testPortal, u, p)
                                     isTestingCreds = false
                                     if (result.isValid) {
@@ -735,6 +724,87 @@ fun SettingsScreen(
                                 ),
                                 modifier = Modifier.scale(0.85f)
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Credential Edit Dialog (Keyboard activates ONLY when user clicks into field)
+        if (editingField != null) {
+            val isUserField = editingField == "user"
+            var tempValue by remember(editingField) {
+                mutableStateOf(if (isUserField) customUser else customPswd)
+            }
+            val editFocusRequester = remember { FocusRequester() }
+
+            Dialog(onDismissRequest = { editingField = null }) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = CinemaSurface,
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, CinemaAccent),
+                    modifier = Modifier.fillMaxWidth(0.9f).padding(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = if (isUserField) "Edit Username" else "Edit Password",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+
+                        OutlinedTextField(
+                            value = tempValue,
+                            onValueChange = { tempValue = it },
+                            singleLine = true,
+                            visualTransformation = if (!isUserField) PasswordVisualTransformation() else VisualTransformation.None,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CinemaAccent,
+                                unfocusedBorderColor = CinemaSurfaceLight,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = CinemaAccent
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(editFocusRequester)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
+                        ) {
+                            Button(
+                                onClick = { editingField = null },
+                                colors = ButtonDefaults.buttonColors(containerColor = CinemaSurfaceVariant),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Cancel", color = TextSecondary)
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (isUserField) {
+                                        customUser = tempValue
+                                    } else {
+                                        customPswd = tempValue
+                                    }
+                                    credsSavedMessage = null
+                                    editingField = null
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        LaunchedEffect(Unit) {
+                            editFocusRequester.requestFocus()
                         }
                     }
                 }

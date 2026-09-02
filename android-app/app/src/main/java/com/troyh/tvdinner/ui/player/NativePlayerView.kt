@@ -57,6 +57,7 @@ fun NativePlayerView(
     val position by playerManager.currentPosition.collectAsState()
     val duration by playerManager.duration.collectAsState()
     val errorMessage by playerManager.errorMessage.collectAsState()
+    val isStreamStalled by playerManager.isStreamStalled.collectAsState()
     val resizeMode by playerManager.resizeMode.collectAsState()
     val isCcEnabled by playerManager.isClosedCaptionsEnabled.collectAsState()
 
@@ -198,69 +199,66 @@ fun NativePlayerView(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Buffering Indicator
-        if (isBuffering) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    color = CinemaAccent,
-                    modifier = Modifier.size(54.dp),
-                    strokeWidth = 4.dp
-                )
-            }
-        }
-
-        // Error Message Overlay
-        if (errorMessage != null) {
+        // Buffering / Interrupted Stream Overlay
+        if (isBuffering || isStreamStalled || errorMessage != null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.8f)),
+                    .background(
+                        if (errorMessage != null || isStreamStalled) Color.Black.copy(alpha = 0.78f)
+                        else Color.Transparent
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.padding(24.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ErrorOutline,
-                        contentDescription = "Error",
-                        tint = CinemaRed,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Text(
-                        text = errorMessage ?: "Playback failed",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    TvFocusableCard(
-                        onClick = {
-                            playerManager.reconnectCurrentStream()
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        backgroundColor = CinemaPrimary
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+                    if (isBuffering && !isStreamStalled && errorMessage == null) {
+                        CircularProgressIndicator(
+                            color = CinemaAccent,
+                            modifier = Modifier.size(52.dp),
+                            strokeWidth = 4.dp
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            color = CinemaAccent,
+                            modifier = Modifier.size(36.dp),
+                            strokeWidth = 3.dp
+                        )
+                        Text(
+                            text = errorMessage ?: "Stream interrupted. Auto-recovering...",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TvFocusableCard(
+                            onClick = {
+                                playerManager.reconnectCurrentStream()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            backgroundColor = CinemaPrimary,
+                            focusedBorderColor = CinemaAccent
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "Reconnect Stream",
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Reconnect Stream",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }

@@ -3,6 +3,7 @@ package com.troyh.tvdinner.ui.screens
 import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
+import android.widget.Toast
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -96,6 +97,7 @@ fun LiveTvScreen(
     val favoriteControlFocusRequester = remember { FocusRequester() }
     val ccControlFocusRequester = remember { FocusRequester() }
     val aspectControlFocusRequester = remember { FocusRequester() }
+    val reconnectControlFocusRequester = remember { FocusRequester() }
     val fullscreenControlFocusRequester = remember { FocusRequester() }
     val fullscreenFocusRequester = remember { FocusRequester() }
     val searchBarFocusRequester = remember { FocusRequester() }
@@ -424,20 +426,10 @@ fun LiveTvScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = CinemaPrimary,
-                                modifier = Modifier.size(38.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = if (ch.num > 0) "${ch.num}" else "TV",
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
+                            ChannelLogoImage(
+                                channel = ch,
+                                size = 40.dp
+                            )
 
                             Column(modifier = Modifier.weight(1f)) {
                                 val cleanChName = remember(ch.name) { CatalogManager.cleanChannelDisplayName(ch.name) }
@@ -732,32 +724,10 @@ fun LiveTvScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    if (!channel.streamIcon.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = channel.streamIcon,
-                                            contentDescription = channel.name,
-                                            contentScale = ContentScale.Fit,
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(Color.Black.copy(alpha = 0.3f))
-                                        )
-                                    } else {
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = CinemaSurfaceVariant,
-                                            modifier = Modifier.size(36.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Tv,
-                                                    contentDescription = null,
-                                                    tint = TextMuted,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        }
-                                    }
+                                    ChannelLogoImage(
+                                        channel = channel,
+                                        size = 36.dp
+                                    )
 
                                     Column(modifier = Modifier.weight(1f)) {
                                         Row(
@@ -1198,32 +1168,10 @@ fun LiveTvScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        if (!channel.streamIcon.isNullOrBlank()) {
-                                            AsyncImage(
-                                                model = channel.streamIcon,
-                                                contentDescription = channel.name,
-                                                contentScale = ContentScale.Fit,
-                                                modifier = Modifier
-                                                    .size(42.dp)
-                                                    .clip(RoundedCornerShape(6.dp))
-                                                    .background(Color.Black.copy(alpha = 0.3f))
-                                            )
-                                        } else {
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = CinemaSurfaceVariant,
-                                                modifier = Modifier.size(42.dp)
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Tv,
-                                                        contentDescription = null,
-                                                        tint = TextMuted,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
+                                        ChannelLogoImage(
+                                            channel = channel,
+                                            size = 42.dp
+                                        )
 
                                         Column(modifier = Modifier.weight(1f)) {
                                             Row(
@@ -1687,7 +1635,7 @@ fun LiveTvScreen(
                                                         }
                                                         Key.DirectionRight -> {
                                                             try {
-                                                                fullscreenControlFocusRequester.requestFocus()
+                                                                reconnectControlFocusRequester.requestFocus()
                                                                 true
                                                             } catch (_: Exception) {
                                                                 false
@@ -1716,7 +1664,61 @@ fun LiveTvScreen(
                                         }
                                     }
 
-                                    // 5. Fullscreen Button (Icon only)
+                                    // 5. Reconnect Button (Icon only)
+                                    TvFocusableCard(
+                                        onClick = {
+                                            Toast.makeText(context, "Reconnecting stream...", Toast.LENGTH_SHORT).show()
+                                            playerManager.reconnectCurrentStream()
+                                        },
+                                        backgroundColor = CinemaSurfaceVariant,
+                                        focusedBorderColor = CinemaAccent,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .focusRequester(reconnectControlFocusRequester)
+                                            .onPreviewKeyEvent { keyEvent ->
+                                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    when (keyEvent.key) {
+                                                        Key.DirectionLeft -> {
+                                                            try {
+                                                                aspectControlFocusRequester.requestFocus()
+                                                                true
+                                                            } catch (_: Exception) {
+                                                                navigateBackToChannels()
+                                                            }
+                                                        }
+                                                        Key.DirectionRight -> {
+                                                            try {
+                                                                fullscreenControlFocusRequester.requestFocus()
+                                                                true
+                                                            } catch (_: Exception) {
+                                                                false
+                                                            }
+                                                        }
+                                                        Key.Back, Key.Escape -> {
+                                                            navigateBackToChannels()
+                                                        }
+                                                        else -> false
+                                                    }
+                                                } else {
+                                                    false
+                                                }
+                                            }
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = "Reconnect Stream",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // 6. Fullscreen Button (Icon only)
                                     TvFocusableCard(
                                         onClick = {
                                             onToggleFullscreen(true)
@@ -1731,7 +1733,7 @@ fun LiveTvScreen(
                                                     when (keyEvent.key) {
                                                         Key.DirectionLeft -> {
                                                             try {
-                                                                aspectControlFocusRequester.requestFocus()
+                                                                reconnectControlFocusRequester.requestFocus()
                                                                 true
                                                             } catch (_: Exception) {
                                                                 false
@@ -1928,4 +1930,69 @@ fun formatEpgTimeLocal(rawTimestamp: String?, rawDateStr: String?): String {
     }
 
     return str
+}
+
+@Composable
+fun ChannelLogoImage(
+    channel: Channel,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 42.dp
+) {
+    val logoUrl = remember(channel.streamId, channel.name, channel.streamIcon) {
+        CatalogManager.resolveChannelLogoUrl(channel.name, channel.streamIcon)
+    }
+
+    if (!logoUrl.isNullOrBlank()) {
+        val context = LocalContext.current
+        val imageRequest = remember(logoUrl) {
+            coil.request.ImageRequest.Builder(context)
+                .data(logoUrl)
+                .crossfade(true)
+                .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                .build()
+        }
+        coil.compose.SubcomposeAsyncImage(
+            model = imageRequest,
+            contentDescription = channel.name,
+            contentScale = ContentScale.Fit,
+            modifier = modifier
+                .size(size)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color.Black.copy(alpha = 0.35f)),
+            error = {
+                ChannelFallbackBadge(name = channel.name, size = size, modifier = modifier)
+            },
+            loading = {
+                ChannelFallbackBadge(name = channel.name, size = size, modifier = modifier)
+            }
+        )
+    } else {
+        ChannelFallbackBadge(name = channel.name, size = size, modifier = modifier)
+    }
+}
+
+@Composable
+fun ChannelFallbackBadge(
+    name: String,
+    size: androidx.compose.ui.unit.Dp = 42.dp,
+    modifier: Modifier = Modifier
+) {
+    val initials = remember(name) { CatalogManager.getChannelInitials(name) }
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = CinemaSurfaceVariant,
+        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+        modifier = modifier.size(size)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = initials,
+                color = CinemaAccent,
+                fontSize = if (size < 40.dp) 10.sp else 12.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 0.5.sp
+            )
+        }
+    }
 }

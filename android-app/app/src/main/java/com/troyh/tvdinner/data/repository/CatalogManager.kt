@@ -281,6 +281,104 @@ class CatalogManager(
     private val cachedPodcastEpisodesByCat = mutableMapOf<String, List<PodcastEpisode>>()
 
     companion object {
+        fun cleanChannelName(name: String): String {
+            return name
+                .replace(Regex("""^\s*\|?\s*[A-Z]{2,4}\s*\|\s*""", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("""^\s*\[.*?\]\s*"""), "")
+                .replace(Regex("""\s*\(\d+p\).*$""", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("""\b(4K|UHD|FHD|1080P|720P|HD|HEVC|H\.265|RAW|EAST|WEST|PACIFIC|CENTRAL)\b""", RegexOption.IGNORE_CASE), "")
+                .trim()
+        }
+
+        fun getChannelInitials(name: String): String {
+            val clean = cleanChannelName(name)
+            val parts = clean.split(" ").filter { it.isNotBlank() }
+            return when {
+                parts.isEmpty() -> "TV"
+                parts.size == 1 -> parts[0].take(4).uppercase()
+                else -> parts.take(3).map { it.take(1) }.joinToString("").uppercase()
+            }
+        }
+
+        fun resolveChannelLogoUrl(channelName: String, rawIcon: String?): String? {
+            if (!rawIcon.isNullOrBlank() && rawIcon.startsWith("http") && !rawIcon.endsWith(".ts") && !rawIcon.endsWith(".m3u8")) {
+                return rawIcon
+            }
+
+            val upper = cleanChannelName(channelName).uppercase()
+            return when {
+                upper.contains("HBO") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/HBO_logo.svg/512px-HBO_logo.svg.png"
+                upper.contains("CINEMAX") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Cinemax_logo_2020.svg/512px-Cinemax_logo_2020.svg.png"
+                upper.contains("SHOWTIME") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Showtime.svg/512px-Showtime.svg.png"
+                upper.contains("STARZ") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Starz_2022.svg/512px-Starz_2022.svg.png"
+                upper.contains("ESPN2") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/ESPN2_logo.svg/512px-ESPN2_logo.svg.png"
+                upper.contains("ESPNU") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/ESPNU_logo.svg/512px-ESPNU_logo.svg.png"
+                upper.contains("ESPNEWS") || upper.contains("ESPN NEWS") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/ESPNews_2022_logo.svg/512px-ESPNews_2022_logo.svg.png"
+                upper.contains("ESPN") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/512px-ESPN_wordmark.svg.png"
+                upper.contains("FS1") || upper.contains("FOX SPORTS 1") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/Fox_Sports_1_logo.svg/512px-Fox_Sports_1_logo.svg.png"
+                upper.contains("FS2") || upper.contains("FOX SPORTS 2") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Fox_Sports_2_logo.svg/512px-Fox_Sports_2_logo.svg.png"
+                upper.contains("FOX NEWS") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/512px-Fox_News_Channel_logo.svg.png"
+                upper.contains("FOX BUSINESS") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Fox_Business.svg/512px-Fox_Business.svg.png"
+                upper.contains("FOX") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/FOX_wordmark-red.svg/512px-FOX_wordmark-red.svg.png"
+                upper.contains("CNN") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/CNN.svg/512px-CNN.svg.png"
+                upper.contains("MSNBC") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/MSNBC_2021_logo.svg/512px-MSNBC_2021_logo.svg.png"
+                upper.contains("CNBC") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/CNBC_logo.svg/512px-CNBC_logo.svg.png"
+                upper.contains("TNT") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/TNT_Logo_2016.svg/512px-TNT_Logo_2016.svg.png"
+                upper.contains("TBS") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/TBS_logo_2016.svg/512px-TBS_logo_2016.svg.png"
+                upper.contains("USA NETWORK") || upper.contains("USA NET") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/USA_Network_logo_2016.svg/512px-USA_Network_logo_2016.svg.png"
+                upper.contains("FXM") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/FXM_logo.svg/512px-FXM_logo.svg.png"
+                upper.contains("FXX") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/FXX_2013.svg/512px-FXX_2013.svg.png"
+                upper.contains("FX") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/FX_logo.svg/512px-FX_logo.svg.png"
+                upper.contains("AMC") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/Amc_logo.svg/512px-Amc_logo.svg.png"
+                upper.contains("BRAVO") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Bravo_2017_logo.svg/512px-Bravo_2017_logo.svg.png"
+                upper.contains("INVESTIGATION DISCOVERY") || upper.contains(" ID ") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Investigation_Discovery_2020.svg/512px-Investigation_Discovery_2020.svg.png"
+                upper.contains("DISCOVERY") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/Discovery_Channel_2019.svg/512px-Discovery_Channel_2019.svg.png"
+                upper.contains("HGTV") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/HGTV_2015_logo.svg/512px-HGTV_2015_logo.svg.png"
+                upper.contains("FOOD NETWORK") || upper.contains("FOOD") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Food_Network_logo.svg/512px-Food_Network_logo.svg.png"
+                upper.contains("TLC") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/TLC_Logo_2020.svg/512px-TLC_Logo_2020.svg.png"
+                upper.contains("HISTORY") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/History_Logo.svg/512px-History_Logo.svg.png"
+                upper.contains("A&E") || upper.contains("A & E") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/A%26E_Network_logo_2021.svg/512px-A%26E_Network_logo_2021.svg.png"
+                upper.contains("ANIMAL PLANET") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Animal_Planet_2018.svg/512px-Animal_Planet_2018.svg.png"
+                upper.contains("NAT GEO WILD") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Nat_Geo_Wild_logo.svg/512px-Nat_Geo_Wild_logo.svg.png"
+                upper.contains("NATIONAL GEOGRAPHIC") || upper.contains("NAT GEO") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/National_Geographic_Logo.svg/512px-National_Geographic_Logo.svg.png"
+                upper.contains("COMEDY CENTRAL") || upper.contains("COMEDY") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Comedy_Central_2018.svg/512px-Comedy_Central_2018.svg.png"
+                upper.contains("MTV") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/MTV_logo_%282021%29.svg/512px-MTV_logo_%282021%29.svg.png"
+                upper.contains("VH1") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/VH1_logo_2013.svg/512px-VH1_logo_2013.svg.png"
+                upper.contains("BET") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/BET_logo_2021.svg/512px-BET_logo_2021.svg.png"
+                upper.contains("DISNEY JUNIOR") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Disney_Junior_2020.svg/512px-Disney_Junior_2020.svg.png"
+                upper.contains("DISNEY XD") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Disney_XD_2015.svg/512px-Disney_XD_2015.svg.png"
+                upper.contains("DISNEY") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/2019_Disney_Channel_logo.svg/512px-2019_Disney_Channel_logo.svg.png"
+                upper.contains("NICK JR") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Nick_Jr._2023.svg/512px-Nick_Jr._2023.svg.png"
+                upper.contains("NICKELODEON") || upper.contains("NICK") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Nickelodeon_2023_logo.svg/512px-Nickelodeon_2023_logo.svg.png"
+                upper.contains("CARTOON NETWORK") || upper.contains("CARTOON") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Cartoon_Network_2010_logo.svg/512px-Cartoon_Network_2010_logo.svg.png"
+                upper.contains("BOOMERANG") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Boomerang_2014_logo.svg/512px-Boomerang_2014_logo.svg.png"
+                upper.contains("SYFY") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Syfy_2017.svg/512px-Syfy_2017.svg.png"
+                upper.contains("PARAMOUNT") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Paramount_Network.svg/512px-Paramount_Network.svg.png"
+                upper.contains("HALLMARK") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Hallmark_Channel_Logo.svg/512px-Hallmark_Channel_Logo.svg.png"
+                upper.contains("LIFETIME") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Lifetime_logo_2020.svg/512px-Lifetime_logo_2020.svg.png"
+                upper.contains("OXYGEN") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/Oxygen_True_Crime_2022.svg/512px-Oxygen_True_Crime_2022.svg.png"
+                upper.contains("E!") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/E%21_logo_2012.svg/512px-E%21_logo_2012.svg.png"
+                upper.contains("CW") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/The_CW_2024.svg/512px-The_CW_2024.svg.png"
+                upper.contains("ION") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Ion_Television_logo_2016.svg/512px-Ion_Television_logo_2016.svg.png"
+                upper.contains("ABC") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/ABC_Logo_2021.svg/512px-ABC_Logo_2021.svg.png"
+                upper.contains("CBS") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/CBS_logo_%282020%29.svg/512px-CBS_logo_%282020%29.svg.png"
+                upper.contains("NBC") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/NBC_logo_2022.svg/512px-NBC_logo_2022.svg.png"
+                upper.contains("NFL REDZONE") || upper.contains("REDZONE") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5d/NFL_RedZone_logo.svg/512px-NFL_RedZone_logo.svg.png"
+                upper.contains("NFL") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/NFL_Network_logo.svg/512px-NFL_Network_logo.svg.png"
+                upper.contains("NBA TV") || upper.contains("NBA") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/NBA_TV_logo.svg/512px-NBA_TV_logo.svg.png"
+                upper.contains("MLB") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/MLB_Network_logo.svg/512px-MLB_Network_logo.svg.png"
+                upper.contains("NHL") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/NHL_Network_logo.svg/512px-NHL_Network_logo.svg.png"
+                upper.contains("GOLF") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Golf_Channel_logo_2014.svg/512px-Golf_Channel_logo_2014.svg.png"
+                upper.contains("TENNIS") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Tennis_Channel_logo.svg/512px-Tennis_Channel_logo.svg.png"
+                upper.contains("WEATHER") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/The_Weather_Channel_logo_2005.svg/512px-The_Weather_Channel_logo_2005.svg.png"
+                upper.contains("C-SPAN") || upper.contains("CSPAN") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7a/C-SPAN_logo_2019.svg/512px-C-SPAN_logo_2019.svg.png"
+                upper.contains("TELEMUNDO") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Telemundo_logo_2018.svg/512px-Telemundo_logo_2018.svg.png"
+                upper.contains("UNIVISION") -> "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Univision_logo_2019.svg/512px-Univision_logo_2019.svg.png"
+                upper.contains("RELAX") -> "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=200&q=80"
+                else -> null
+            }
+        }
+
         // MARK: - Category Filtering & Priority Helpers
         fun isEnglishOrUsLiveCategory(catName: String): Boolean {
             val n = catName.trim().uppercase()

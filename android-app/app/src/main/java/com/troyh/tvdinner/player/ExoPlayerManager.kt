@@ -65,6 +65,9 @@ class ExoPlayerManager(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private val _isStreamStalled = MutableStateFlow(false)
+    val isStreamStalled: StateFlow<Boolean> = _isStreamStalled.asStateFlow()
+
     private val _resizeMode = MutableStateFlow(AspectRatioFrameLayout.RESIZE_MODE_FIT)
     val resizeMode: StateFlow<Int> = _resizeMode.asStateFlow()
 
@@ -258,26 +261,34 @@ class ExoPlayerManager(
                         when (playbackState) {
                             Player.STATE_BUFFERING -> {
                                 _isBuffering.value = true
-                                _errorMessage.value = null
                                 bufferWatchdogJob?.cancel()
                                 bufferWatchdogJob = scope.launch {
                                     if (_isLiveStream.value) {
-                                        delay(15000) // 15s timeout for WiFi jitter instead of aggressive 4s
+                                        delay(3500)
+                                        if (_isBuffering.value && _isLiveStream.value) {
+                                            _isStreamStalled.value = true
+                                        }
+                                        delay(1500)
                                         if (_isBuffering.value && _isLiveStream.value && player != null) {
-                                            Log.w(tag, "Live stream stalled in buffering for 15s. Auto-recovering...")
-                                            recoverLiveStream()
+                                            Log.w(tag, "Live stream stalled in buffering for 5s. Auto-recovering...")
+                                            recoverLiveStream(forceFailover = liveRecoveryAttempt >= 1)
                                         }
                                     } else {
-                                        delay(10000) // 10s watchdog for VOD
+                                        delay(4000)
+                                        if (_isBuffering.value && !_isLiveStream.value) {
+                                            _isStreamStalled.value = true
+                                        }
+                                        delay(4000)
                                         if (_isBuffering.value && !_isLiveStream.value && player != null) {
-                                            Log.w(tag, "VOD playback stalled in buffering for 10s. Auto-recovering at ${_currentPosition.value}ms...")
-                                            recoverVodStream()
+                                            Log.w(tag, "VOD playback stalled in buffering for 8s. Auto-recovering at ${_currentPosition.value}ms...")
+                                            recoverVodStream(forceFailover = vodRecoveryAttempt >= 1)
                                         }
                                     }
                                 }
                             }
                             Player.STATE_READY -> {
                                 _isBuffering.value = false
+                                _isStreamStalled.value = false
                                 bufferWatchdogJob?.cancel()
                                 liveRecoveryAttempt = 0
                                 vodRecoveryAttempt = 0
@@ -287,6 +298,7 @@ class ExoPlayerManager(
                             }
                             Player.STATE_ENDED -> {
                                 _isBuffering.value = false
+                                _isStreamStalled.value = false
                                 bufferWatchdogJob?.cancel()
                                 _isPlaying.value = false
                                 if (_isLiveStream.value) {
@@ -316,21 +328,28 @@ class ExoPlayerManager(
                         Log.e(tag, "ExoPlayer playback error: ${error.message} (${error.errorCodeName})", error)
                         _isBuffering.value = false
                         _isPlaying.value = false
+                        _isStreamStalled.value = true
                         bufferWatchdogJob?.cancel()
 
                         val isBadHttpStatus = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
                                               error.cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
 
+                        _errorMessage.value = if (isBadHttpStatus) {
+                            "Connection interrupted (HTTP error). Reconnecting..."
+                        } else {
+                            "Playback issue (${error.errorCodeName}). Reconnecting..."
+                        }
+
                         if (_isLiveStream.value && liveRecoveryAttempt < 6) {
                             scope.launch {
-                                delay(1200)
-                                recoverLiveStream(forceFailover = isBadHttpStatus || liveRecoveryAttempt >= 2)
+                                delay(1000)
+                                recoverLiveStream(forceFailover = isBadHttpStatus || liveRecoveryAttempt >= 1)
                             }
                             return
                         } else if (!_isLiveStream.value && vodRecoveryAttempt < 6) {
                             scope.launch {
-                                delay(1500)
-                                recoverVodStream(forceFailover = isBadHttpStatus || vodRecoveryAttempt >= 2)
+                                delay(1200)
+                                recoverVodStream(forceFailover = isBadHttpStatus || vodRecoveryAttempt >= 1)
                             }
                             return
                         }
@@ -338,7 +357,7 @@ class ExoPlayerManager(
                         _errorMessage.value = if (isBadHttpStatus) {
                             "Stream disconnected (Server busy/HTTP error). Click Reconnect Stream."
                         } else {
-                            "Playback error: ${error.errorCodeName}"
+                            "Playback error: ${error.errorCodeName}. Click Reconnect Stream."
                         }
                     }
                 })
