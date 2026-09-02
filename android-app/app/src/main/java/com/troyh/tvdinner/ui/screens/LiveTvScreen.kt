@@ -1670,7 +1670,7 @@ fun LiveTvScreen(
                                             Toast.makeText(context, "Reconnecting stream...", Toast.LENGTH_SHORT).show()
                                             playerManager.reconnectCurrentStream()
                                         },
-                                        backgroundColor = CinemaSurfaceVariant,
+                                        backgroundColor = CinemaPrimary.copy(alpha = 0.85f),
                                         focusedBorderColor = CinemaAccent,
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier

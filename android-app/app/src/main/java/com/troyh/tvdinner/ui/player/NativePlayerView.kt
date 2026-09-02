@@ -389,6 +389,37 @@ fun NativePlayerView(
                                 )
                             }
                         }
+
+                        // Reconnect Stream Button in HUD
+                        TvFocusableCard(
+                            onClick = {
+                                playerManager.reconnectCurrentStream()
+                                lastInteractionTime = System.currentTimeMillis()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            backgroundColor = CinemaPrimary,
+                            focusedBorderColor = CinemaAccent,
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxHeight().padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Reconnect Stream",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Reconnect",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
 

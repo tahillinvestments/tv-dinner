@@ -45,6 +45,9 @@
         </div>
       </div>
       <div class="flex items-center gap-3">
+        <a href="https://github.com/tahillinvestments/tv-dinner/releases" target="_blank" class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-200 border border-[#243048] rounded-xl text-xs font-bold transition flex items-center gap-2">
+          <i class="fa-brands fa-github"></i> View GitHub Releases
+        </a>
         <button id="btn-create-update" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-indigo-600/20">
           <i class="fa-solid fa-plus"></i> Stage New Update
         </button>
@@ -261,8 +264,8 @@
       document.getElementById('live-version-time').textContent = current.publishedAt ? `Published: ${new Date(current.publishedAt).toLocaleDateString()}` : 'Active';
       const liveBtn = document.getElementById('btn-download-live-apk');
       if (liveBtn) {
-        liveBtn.href = current.localApkUrl || `public/apks/tv-dinner-v${current.versionName}.apk` || current.apkUrl || 'public/apks/tv-dinner-latest.apk';
-        liveBtn.download = `tv-dinner-v${current.versionName || 'live'}.apk`;
+        liveBtn.href = current.apkUrl || `https://github.com/tahillinvestments/tv-dinner/releases/download/v${current.versionName || '2.0.7'}/app-release.apk`;
+        liveBtn.download = `tv-dinner-v${current.versionName || '2.0.7'}.apk`;
       }
 
       const stagedCount = data.releases.filter(r => r.status === 'STAGED').length;
@@ -276,7 +279,7 @@
         tr.className = rel.status === 'PUBLISHED' ? "bg-emerald-950/10 hover:bg-[#1E293B]/40 transition" : "hover:bg-[#1E293B]/40 transition";
 
         const isPublished = rel.status === 'PUBLISHED';
-        const downloadHref = rel.localApkUrl || `public/apks/tv-dinner-v${rel.versionName}.apk` || rel.apkPath || rel.apkUrl;
+        const downloadHref = rel.apkUrl || (rel.versionName ? `https://github.com/tahillinvestments/tv-dinner/releases/download/v${rel.versionName}/app-release.apk` : 'https://github.com/tahillinvestments/tv-dinner/releases/latest');
         const downloadFileName = `tv-dinner-v${rel.versionName}.apk`;
         const adbCommand = `adb install -r "${rel.apkPath || 'android-app/app/build/outputs/apk/release/app-release.apk'}"`;
 
@@ -430,18 +433,72 @@
     };
 
     async function initDashboard() {
+      renderDashboard(); // First render from local storage / defaults
+
+      // 1. Fetch live releases dynamically directly from GitHub Releases API
+      try {
+        const ghRes = await fetch('https://api.github.com/repos/tahillinvestments/tv-dinner/releases');
+        if (ghRes.ok) {
+          const ghReleases = await ghRes.json();
+          if (Array.isArray(ghReleases) && ghReleases.length > 0) {
+            const mappedReleases = ghReleases.map(gr => {
+              const tag = gr.tag_name || '';
+              const cleanVer = tag.replace(/^v/, '');
+              const codeMatch = (gr.body || gr.name || '').match(/Build\s*(\d+)/i) || (gr.tag_name || '').match(/(\d+)\.(\d+)\.(\d+)/);
+              let vCode = 207;
+              if (codeMatch && codeMatch[1] && !isNaN(codeMatch[1])) {
+                vCode = parseInt(codeMatch[1], 10);
+              }
+
+              // Prefer app-release.apk or any .apk asset
+              const apkAsset = (gr.assets || []).find(a => a.name === 'app-release.apk') 
+                || (gr.assets || []).find(a => a.name.endsWith('.apk')) 
+                || {};
+
+              const downloadUrl = apkAsset.browser_download_url || `https://github.com/tahillinvestments/tv-dinner/releases/download/${tag}/app-release.apk`;
+
+              return {
+                id: `gh-${gr.id}`,
+                versionCode: vCode,
+                versionName: cleanVer,
+                title: gr.name || `TV Dinner v${cleanVer}`,
+                status: 'PUBLISHED',
+                releaseNotes: gr.body || 'Production release',
+                apkPath: downloadUrl,
+                localApkUrl: downloadUrl,
+                apkUrl: downloadUrl,
+                mandatory: false,
+                createdAt: gr.created_at,
+                publishedAt: gr.published_at
+              };
+            });
+
+            const current = mappedReleases[0] || {};
+            const liveData = {
+              currentVersion: current,
+              releases: mappedReleases
+            };
+
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(liveData, null, 2));
+            renderDashboard();
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Live GitHub API fetch failed, falling back to updates.json', e);
+      }
+
+      // 2. Fallback to local updates.json
       try {
         const res = await fetch('./updates.json?nocache=' + Date.now());
         if (res.ok) {
           const diskData = await res.json();
           if (diskData && Array.isArray(diskData.releases)) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(diskData, null, 2));
+            renderDashboard();
           }
         }
-      } catch (e) {
-        // May be running from file:/// where local fetch is restricted
-      }
-      renderDashboard();
+      } catch (e) {}
     }
 
     // Initialize
