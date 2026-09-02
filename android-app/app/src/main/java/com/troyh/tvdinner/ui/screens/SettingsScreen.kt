@@ -55,6 +55,8 @@ fun SettingsScreen(
 
     var customUser by remember { mutableStateOf(authRepo.getActiveUsername()) }
     var customPswd by remember { mutableStateOf(authRepo.getActivePassword()) }
+    var primaryPortal by remember { mutableStateOf(authRepo.getLivePortalUrl()) }
+    var backupPortal by remember { mutableStateOf(authRepo.getBackupPortalUrl()) }
     var credsSavedMessage by remember { mutableStateOf<String?>(null) }
 
     // Subtitle Preferences State
@@ -181,6 +183,44 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        OutlinedTextField(
+                            value = primaryPortal,
+                            onValueChange = { 
+                                primaryPortal = it
+                                credsSavedMessage = null
+                            },
+                            label = { Text("Primary Portal URL", color = TextMuted) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CinemaAccent,
+                                unfocusedBorderColor = CinemaSurfaceLight,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = CinemaAccent
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = backupPortal,
+                            onValueChange = { 
+                                backupPortal = it
+                                credsSavedMessage = null
+                            },
+                            label = { Text("Backup Failover Portal URL", color = TextMuted) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CinemaAccent,
+                                unfocusedBorderColor = CinemaSurfaceLight,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = CinemaAccent
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
 
                     if (credsSavedMessage != null) {
@@ -231,13 +271,21 @@ fun SettingsScreen(
                                     credsSavedMessage = "Please enter both username and password."
                                     return@Button
                                 }
+                                if (primaryPortal.isNotBlank()) {
+                                    authRepo.setLivePortalUrl(primaryPortal.trim())
+                                    authRepo.setVodPortalUrl(primaryPortal.trim())
+                                }
+                                if (backupPortal.isNotBlank()) {
+                                    authRepo.setBackupPortalUrl(backupPortal.trim())
+                                }
                                 authRepo.setDirectCredentials(u, p)
                                 catalogManager?.clearAllCaches()
                                 isTestingCreds = true
                                 accountStatus = "TESTING..."
                                 credsSavedMessage = "Testing credentials with server..."
                                 coroutineScope.launch {
-                                    val result = apiClient.testCredentials(AuthRepository.DEFAULT_SERVER_URL, u, p)
+                                    val testPortal = primaryPortal.trim().ifBlank { AuthRepository.DEFAULT_SERVER_URL }
+                                    val result = apiClient.testCredentials(testPortal, u, p)
                                     isTestingCreds = false
                                     if (result.isValid) {
                                         isAccountActive = true

@@ -239,19 +239,29 @@ fun NativePlayerView(
                     )
                     TvFocusableCard(
                         onClick = {
-                            val url = playerManager.currentStreamUrl.value
-                            playerManager.playStream(url, title, isLive)
+                            playerManager.reconnectCurrentStream()
                         },
                         shape = RoundedCornerShape(8.dp),
                         backgroundColor = CinemaPrimary
                     ) {
-                        Text(
-                            text = "Retry Stream",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-                        )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Reconnect Stream",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

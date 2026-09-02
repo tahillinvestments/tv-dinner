@@ -1,4 +1,4 @@
-﻿import fs from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -6,20 +6,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
-const versionCode = 205;
-const versionName = '2.0.5';
-const releaseTitle = 'Live TV Navigation, Category Reorder, History, Poster Fixes & Remote Aspect Ratio';
+const gradlePath = path.join(projectRoot, 'android-app', 'app', 'build.gradle.kts');
+const gradleContent = fs.readFileSync(gradlePath, 'utf8');
+const codeMatch = gradleContent.match(/versionCode\s*=\s*(\d+)/);
+const nameMatch = gradleContent.match(/versionName\s*=\s*"([^"]+)"/);
+const versionCode = codeMatch ? parseInt(codeMatch[1], 10) : 206;
+const versionName = nameMatch ? nameMatch[1] : '2.0.6';
+
+const releaseTitle = 'Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading';
 const releaseNotes = [
-  '• Live TV: Smooth D-pad Left & Back navigation directly from preview controls to channel list',
-  '• Category Reorder: Moved News Network, Sports Network, Movie Network, Kids Network, Prime, PPV & Events, 4K Relax under Entertainment',
-  '• Removed \'All Channels\' category',
-  '• Added 🕒 Channel History category (last 5 channels watched) with \'Clear History\' in Settings',
-  '• Enhanced Movies & Series poster loading with automatic TMDB resolution on missing/broken links (no fallback card art)',
-  '• Added remote control aspect ratio toggle (Fit / Stretch / Zoom) with on-screen HUD pill overlay',
-  '• Removed Next Episode button from series player',
-  '• In-app network disconnect detection with automatic stream recovery and socket eviction',
-  '• YouTube Music remote navigation: D-Pad Up (Previous) & Down (Next) with on-screen button',
-  '• Ambient neon glow halo on focused cards'
+  '• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)',
+  '• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery',
+  '• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed',
+  '• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts',
+  '• Settings: Added Primary and Backup Portal URL configuration fields'
 ].join('\n');
 
 const releaseApkSource = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');

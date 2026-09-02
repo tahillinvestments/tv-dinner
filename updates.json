@@ -1,15 +1,28 @@
 {
   "currentVersion": {
-    "versionCode": 203,
-    "versionName": "2.0.3",
-    "title": "Direct Server Migration & Fast Playback",
-    "releaseNotes": "Stable release with direct stream connectivity.",
-    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.3/app-release.apk",
-    "localApkUrl": "public/apks/tv-dinner-latest.apk",
+    "versionCode": 206,
+    "versionName": "2.0.6",
+    "title": "Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading",
+    "releaseNotes": "• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)\n• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery\n• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed\n• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts\n• Settings: Added Primary and Backup Portal URL configuration fields",
+    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.6/app-release.apk",
     "mandatory": false,
-    "publishedAt": "2026-08-28T12:00:00Z"
+    "publishedAt": "2026-09-02T22:41:33.685Z"
   },
   "releases": [
+    {
+      "id": "rel-206",
+      "versionCode": 206,
+      "versionName": "2.0.6",
+      "title": "Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading",
+      "status": "PUBLISHED",
+      "releaseNotes": "• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)\n• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery\n• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed\n• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts\n• Settings: Added Primary and Backup Portal URL configuration fields",
+      "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+      "localApkUrl": "public/apks/tv-dinner-v2.0.6.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.6/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-02T22:41:28.623Z",
+      "publishedAt": "2026-09-02T22:41:33.685Z"
+    },
     {
       "id": "rel-205",
       "versionCode": 205,
@@ -21,7 +34,7 @@
       "localApkUrl": "public/apks/tv-dinner-v2.0.5.apk",
       "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.5/app-release.apk",
       "mandatory": false,
-      "createdAt": "2026-09-02T21:52:10.414Z",
+      "createdAt": "2026-09-02T22:41:03.203Z",
       "publishedAt": null
     }
   ]

@@ -14,10 +14,12 @@ class AuthRepository(context: Context) {
         private const val KEY_ACTIVATED_PHONE = "activated_phone"
         private const val KEY_ADMIN_CREDENTIALS = "admin_credentials"
         private const val KEY_IPTV_PORTAL = "iptv_portal_url"
+        private const val KEY_BACKUP_IPTV_PORTAL = "backup_iptv_portal_url"
         private const val KEY_VOD_PORTAL = "vod_portal_url"
         private const val KEY_ACTIVE_USERNAME = "active_xtream_username"
         private const val KEY_ACTIVE_PASSWORD = "active_xtream_password"
         const val DEFAULT_SERVER_URL = "http://vpn.uhdp.top:80"
+        const val BACKUP_SERVER_URL = "http://vpn.uhd4.top:80"
 
         val DEFAULT_CREDENTIALS = emptyList<CredentialEntry>()
     }
@@ -114,6 +116,36 @@ class AuthRepository(context: Context) {
     fun setLivePortalUrl(url: String) {
         val clean = url.trim().removeSuffix("/")
         prefs.edit().putString(KEY_IPTV_PORTAL, clean).apply()
+    }
+
+    fun getBackupPortalUrl(): String {
+        val saved = prefs.getString(KEY_BACKUP_IPTV_PORTAL, null)
+        return if (!saved.isNullOrBlank()) {
+            saved.trim().removeSuffix("/")
+        } else {
+            BACKUP_SERVER_URL
+        }
+    }
+
+    fun setBackupPortalUrl(url: String) {
+        val clean = url.trim().removeSuffix("/")
+        prefs.edit().putString(KEY_BACKUP_IPTV_PORTAL, clean).apply()
+    }
+
+    fun getFailoverUrl(currentUrl: String): String {
+        val primary = getLivePortalUrl()
+        val backup = getBackupPortalUrl()
+        return if (currentUrl.contains(primary)) {
+            currentUrl.replace(primary, backup)
+        } else if (currentUrl.contains(backup)) {
+            currentUrl.replace(backup, primary)
+        } else if (currentUrl.contains("vpn.uhdp.top:80")) {
+            currentUrl.replace("vpn.uhdp.top:80", "vpn.uhd4.top:80")
+        } else if (currentUrl.contains("vpn.uhd4.top:80")) {
+            currentUrl.replace("vpn.uhd4.top:80", "vpn.uhdp.top:80")
+        } else {
+            currentUrl
+        }
     }
 
     fun getVodPortalUrl(): String {

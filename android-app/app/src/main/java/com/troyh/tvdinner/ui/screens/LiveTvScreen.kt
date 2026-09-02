@@ -927,6 +927,12 @@ fun LiveTvScreen(
                                                         } catch (_: Exception) {}
                                                         if (!moved) {
                                                             try {
+                                                                visibleChannelFocusRequester.requestFocus()
+                                                                moved = true
+                                                            } catch (_: Exception) {}
+                                                        }
+                                                        if (!moved) {
+                                                            try {
                                                                 firstChannelFocusRequester.requestFocus()
                                                                 moved = true
                                                             } catch (_: Exception) {}
@@ -942,7 +948,19 @@ fun LiveTvScreen(
                                                                 moved = focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
                                                             } catch (_: Exception) {}
                                                         }
-                                                        moved
+                                                        if (!moved) {
+                                                            coroutineScope.launch {
+                                                                delay(60)
+                                                                try {
+                                                                    visibleChannelFocusRequester.requestFocus()
+                                                                } catch (_: Exception) {
+                                                                    try {
+                                                                        firstChannelFocusRequester.requestFocus()
+                                                                    } catch (_: Exception) {}
+                                                                }
+                                                            }
+                                                        }
+                                                        true
                                                     }
                                                     else -> false
                                                 }
@@ -1110,14 +1128,9 @@ fun LiveTvScreen(
                                     focusedScale = 1.02f,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .then(
-                                            when {
-                                                isActive -> Modifier.focusRequester(activeCardFocusRequester).focusRequester(visibleChannelFocusRequester)
-                                                isFirstVisible -> Modifier.focusRequester(visibleChannelFocusRequester)
-                                                isFirstChannel -> Modifier.focusRequester(firstChannelFocusRequester)
-                                                else -> Modifier
-                                            }
-                                        )
+                                        .then(if (isActive) Modifier.focusRequester(activeCardFocusRequester) else Modifier)
+                                        .then(if (isFirstVisible) Modifier.focusRequester(visibleChannelFocusRequester) else Modifier)
+                                        .then(if (isFirstChannel) Modifier.focusRequester(firstChannelFocusRequester) else Modifier)
                                         .onPreviewKeyEvent { keyEvent ->
                                             if (keyEvent.type == KeyEventType.KeyDown) {
                                                 when (keyEvent.key) {

@@ -64,9 +64,16 @@ class MainActivity : ComponentActivity() {
         authRepository = AuthRepository(this)
         xtreamApiClient = XtreamApiClient()
 
-        // Configure high-performance Coil ImageLoader with SSL bypass, custom User-Agent, and disk/memory cache
+        // Configure high-performance Coil ImageLoader with fast 4s timeout, SSL bypass, custom User-Agent, and disk/memory cache
+        val imageOkHttpClient = xtreamApiClient.okHttpClient.newBuilder()
+            .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
+            .connectionPool(okhttp3.ConnectionPool(32, 2, java.util.concurrent.TimeUnit.MINUTES))
+            .build()
+
         val imageLoader = ImageLoader.Builder(this)
-            .okHttpClient(xtreamApiClient.okHttpClient)
+            .okHttpClient(imageOkHttpClient)
             .memoryCache {
                 MemoryCache.Builder(this)
                     .maxSizePercent(0.25)
@@ -75,7 +82,7 @@ class MainActivity : ComponentActivity() {
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(150L * 1024L * 1024L)
+                    .maxSizeBytes(200L * 1024L * 1024L)
                     .build()
             }
             .respectCacheHeaders(false)

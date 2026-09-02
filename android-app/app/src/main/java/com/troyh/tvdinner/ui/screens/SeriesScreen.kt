@@ -213,6 +213,13 @@ fun SeriesScreen(
         }
     }
 
+    // Proactively preload posters for the first visible page in viewing priority
+    LaunchedEffect(sortedAndFilteredSeries) {
+        if (sortedAndFilteredSeries.isNotEmpty()) {
+            catalogManager.preloadSeriesPosters(sortedAndFilteredSeries, limit = 24)
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
         if (isMobile) {
             // Mobile Portrait / Compact View: Single Column with horizontal categories
@@ -839,11 +846,17 @@ fun SeriesPosterImage(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var coverUrl by remember(series.seriesId, series.cover) {
-        mutableStateOf(series.cover)
+        val initial = if (!series.cover.isNullOrBlank() && series.cover.startsWith("http") &&
+            !series.cover.endsWith(".ts") && !series.cover.endsWith(".m3u8")) {
+            series.cover
+        } else {
+            catalogManager.getCachedPosterUrl(series.displayTitle, isSeries = true)
+        }
+        mutableStateOf(initial)
     }
 
-    LaunchedEffect(series.seriesId, series.cover) {
-        if (coverUrl.isNullOrBlank()) {
+    LaunchedEffect(series.seriesId, series.displayTitle, series.cover) {
+        if (coverUrl.isNullOrBlank() || coverUrl?.startsWith("http") != true) {
             val resolved = catalogManager.resolvePosterUrl(series.displayTitle, isSeries = true)
             if (!resolved.isNullOrBlank()) {
                 coverUrl = resolved

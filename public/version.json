@@ -1,9 +1,9 @@
 {
-  "versionCode": 205,
-  "versionName": "2.0.5",
-  "title": "Live TV Navigation, Category Reorder, History, Poster Fixes & Remote Aspect Ratio",
-  "releaseNotes": "• Live TV: Smooth D-pad Left & Back navigation directly from preview controls to channel list\n• Category Reorder: Moved News Network, Sports Network, Movie Network, Kids Network, Prime, PPV & Events, 4K Relax under Entertainment\n• Removed 'All Channels' category\n• Added 🕒 Channel History category (last 5 channels watched) with 'Clear History' in Settings\n• Enhanced Movies & Series poster loading with automatic TMDB resolution on missing/broken links (no fallback card art)\n• Added remote control aspect ratio toggle (Fit / Stretch / Zoom) with on-screen HUD pill overlay\n• Removed Next Episode button from series player\n• In-app network disconnect detection with automatic stream recovery and socket eviction\n• YouTube Music remote navigation: D-Pad Up (Previous) & Down (Next) with on-screen button\n• Ambient neon glow halo on focused cards",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.5/app-release.apk",
+  "versionCode": 206,
+  "versionName": "2.0.6",
+  "title": "Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading",
+  "releaseNotes": "• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)\n• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery\n• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed\n• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts\n• Settings: Added Primary and Backup Portal URL configuration fields",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.6/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-02T21:50:29.399Z"
+  "publishedAt": "2026-09-02T22:41:33.685Z"
 }

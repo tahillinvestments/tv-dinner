@@ -94,61 +94,90 @@ class ExoPlayerManager(
         initializePlayer()
     }
 
-    fun recoverLiveStream() {
+    fun recoverLiveStream(forceFailover: Boolean = false) {
         val currentUrl = _currentStreamUrl.value
         if (currentUrl.isBlank() || !_isLiveStream.value) return
         liveRecoveryAttempt++
-        Log.w(tag, "Recovering live stream: attempt $liveRecoveryAttempt (current: $currentUrl)")
+        Log.w(tag, "Recovering live stream: attempt $liveRecoveryAttempt (current: $currentUrl, forceFailover: $forceFailover)")
 
-        player?.let { p ->
-            // Attempt 1: Re-seek to live edge and re-prepare
-            if (liveRecoveryAttempt == 1) {
-                try {
-                    p.seekToDefaultPosition()
-                    p.prepare()
-                    p.play()
-                    return
-                } catch (_: Exception) {}
+        // 1. Immediately terminate hung connections and free socket descriptors
+        try {
+            xtreamApiClient.okHttpClient.dispatcher.cancelAll()
+            xtreamApiClient.okHttpClient.connectionPool.evictAll()
+        } catch (_: Exception) {}
+
+        // 2. Stop player to close current socket
+        try {
+            player?.stop()
+            player?.clearMediaItems()
+        } catch (_: Exception) {}
+
+        // 3. Failover to backup portal if bad HTTP status or second attempt
+        var nextUrl = currentUrl
+        if (forceFailover || liveRecoveryAttempt >= 2) {
+            val failover = authRepo?.getFailoverUrl(currentUrl)
+            if (!failover.isNullOrBlank() && failover != currentUrl) {
+                Log.i(tag, "Failing over live stream to backup portal: $failover")
+                nextUrl = failover
             }
-
-            // Attempt 2: Toggle format (.ts <-> .m3u8) or edge relay
-            val nextUrl = if (currentUrl.endsWith(".ts")) {
-                currentUrl.replace(".ts", ".m3u8")
-            } else if (currentUrl.endsWith(".m3u8")) {
-                currentUrl.replace(".m3u8", ".ts")
-            } else {
-                currentUrl
-            }
-
-            // Full re-init
-            playStream(
-                url = nextUrl,
-                title = _currentTitle.value,
-                isLive = true,
-                recoveryAttempt = liveRecoveryAttempt
-            )
         }
+
+        // 4. Re-initiate stream fresh
+        playStream(
+            url = nextUrl,
+            title = _currentTitle.value,
+            isLive = true,
+            recoveryAttempt = liveRecoveryAttempt
+        )
     }
 
-    fun recoverVodStream() {
+    fun recoverVodStream(forceFailover: Boolean = false) {
         val currentUrl = _currentStreamUrl.value
         if (currentUrl.isBlank() || _isLiveStream.value) return
         vodRecoveryAttempt++
         val resumePos = _currentPosition.value
-        Log.w(tag, "Recovering VOD stream: attempt $vodRecoveryAttempt from ${resumePos}ms (url: $currentUrl)")
+        Log.w(tag, "Recovering VOD stream: attempt $vodRecoveryAttempt from ${resumePos}ms (url: $currentUrl, forceFailover: $forceFailover)")
 
-        // Evict any hung sockets in OkHttp connection pool from WiFi drops or deep seek stalls
+        // 1. Evict any hung sockets in OkHttp connection pool
         try {
+            xtreamApiClient.okHttpClient.dispatcher.cancelAll()
             xtreamApiClient.okHttpClient.connectionPool.evictAll()
         } catch (_: Exception) {}
 
+        // 2. Stop player
+        try {
+            player?.stop()
+            player?.clearMediaItems()
+        } catch (_: Exception) {}
+
+        // 3. Failover to backup portal if bad HTTP status or second attempt
+        var nextUrl = currentUrl
+        if (forceFailover || vodRecoveryAttempt >= 2) {
+            val failover = authRepo?.getFailoverUrl(currentUrl)
+            if (!failover.isNullOrBlank() && failover != currentUrl) {
+                Log.i(tag, "Failing over VOD stream to backup portal: $failover")
+                nextUrl = failover
+            }
+        }
+
         playStream(
-            url = currentUrl,
+            url = nextUrl,
             title = _currentTitle.value,
             isLive = false,
             startPositionMs = resumePos,
             streamKey = currentStreamKey
         )
+    }
+
+    fun reconnectCurrentStream() {
+        liveRecoveryAttempt = 0
+        vodRecoveryAttempt = 0
+        _errorMessage.value = null
+        if (_isLiveStream.value) {
+            recoverLiveStream(forceFailover = true)
+        } else {
+            recoverVodStream(forceFailover = true)
+        }
     }
 
     private fun initializePlayer() {
@@ -289,21 +318,28 @@ class ExoPlayerManager(
                         _isPlaying.value = false
                         bufferWatchdogJob?.cancel()
 
-                        if (_isLiveStream.value && liveRecoveryAttempt < 5) {
+                        val isBadHttpStatus = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+                                              error.cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+
+                        if (_isLiveStream.value && liveRecoveryAttempt < 6) {
                             scope.launch {
-                                delay(1000)
-                                recoverLiveStream()
+                                delay(1200)
+                                recoverLiveStream(forceFailover = isBadHttpStatus || liveRecoveryAttempt >= 2)
                             }
                             return
-                        } else if (!_isLiveStream.value && vodRecoveryAttempt < 5) {
+                        } else if (!_isLiveStream.value && vodRecoveryAttempt < 6) {
                             scope.launch {
                                 delay(1500)
-                                recoverVodStream()
+                                recoverVodStream(forceFailover = isBadHttpStatus || vodRecoveryAttempt >= 2)
                             }
                             return
                         }
 
-                        _errorMessage.value = "Playback error: ${error.errorCodeName}"
+                        _errorMessage.value = if (isBadHttpStatus) {
+                            "Stream disconnected (Server busy/HTTP error). Click Reconnect Stream."
+                        } else {
+                            "Playback error: ${error.errorCodeName}"
+                        }
                     }
                 })
             }

@@ -775,6 +775,18 @@ class CatalogManager(
                 apiClient.getLiveStreams(portal, user, pswd, key)
             }
 
+            // Failover to backup portal if primary returned empty
+            if (fetched.isEmpty()) {
+                val backupPortal = authRepo.getBackupPortalUrl()
+                if (backupPortal.isNotBlank() && backupPortal != portal) {
+                    fetched = if (key == "all") {
+                        apiClient.getLiveStreams(backupPortal, user, pswd, null)
+                    } else {
+                        apiClient.getLiveStreams(backupPortal, user, pswd, key)
+                    }
+                }
+            }
+
             // Fallback: If specific category_id returned empty from server, check full catalog if cached
             if (fetched.isEmpty() && key != "all" && cachedLiveChannelsByCat.containsKey("all")) {
                 val allChannels = cachedLiveChannelsByCat["all"] ?: emptyList()
@@ -871,6 +883,37 @@ class CatalogManager(
         null
     }
 
+    fun getCachedPosterUrl(title: String, isSeries: Boolean = false): String? {
+        val clean = title
+            .replace(Regex("""^\s*\|?\s*EN\s*\|\s*""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""^\s*\[.*?\]\s*"""), "")
+            .replace(Regex("""\s*\(\d{4}\).*$"""), "")
+            .replace(Regex("""\b(4K|UHD|FHD|1080P|720P|HD|HEVC|H\.265)\b""", RegexOption.IGNORE_CASE), "")
+            .trim()
+        val cacheKey = "${if (isSeries) "tv" else "movie"}_$clean"
+        return resolvedPosterCache[cacheKey]
+    }
+
+    suspend fun preloadMoviePosters(movies: List<Movie>, limit: Int = 24) = withContext(Dispatchers.IO) {
+        val target = movies.take(limit)
+        for (m in target) {
+            val icon = m.streamIcon
+            if (icon.isNullOrBlank() || !icon.startsWith("http") || icon.endsWith(".ts") || icon.endsWith(".m3u8")) {
+                resolvePosterUrl(m.displayTitle, isSeries = false)
+            }
+        }
+    }
+
+    suspend fun preloadSeriesPosters(seriesList: List<Series>, limit: Int = 24) = withContext(Dispatchers.IO) {
+        val target = seriesList.take(limit)
+        for (s in target) {
+            val cover = s.cover
+            if (cover.isNullOrBlank() || !cover.startsWith("http") || cover.endsWith(".ts") || cover.endsWith(".m3u8")) {
+                resolvePosterUrl(s.displayTitle, isSeries = true)
+            }
+        }
+    }
+
     suspend fun getMovies(categoryId: String? = null, forceRefresh: Boolean = false): List<Movie> = withContext(Dispatchers.IO) {
         val targetCatId = categoryId ?: getMovieCategories().firstOrNull()?.categoryId ?: return@withContext emptyList()
         val key = targetCatId
@@ -890,7 +933,13 @@ class CatalogManager(
             val portal = authRepo.getVodPortalUrl()
             val user = authRepo.getVodUsername()
             val pswd = authRepo.getVodPassword()
-            val fetched = apiClient.getVodStreams(portal, user, pswd, targetCatId)
+            var fetched = apiClient.getVodStreams(portal, user, pswd, targetCatId)
+            if (fetched.isEmpty()) {
+                val backupPortal = authRepo.getBackupPortalUrl()
+                if (backupPortal.isNotBlank() && backupPortal != portal) {
+                    fetched = apiClient.getVodStreams(backupPortal, user, pswd, targetCatId)
+                }
+            }
             cachedMoviesByCat[key] = fetched
             fetched
         }
@@ -1006,7 +1055,13 @@ class CatalogManager(
             val user = authRepo.getVodUsername()
             val pswd = authRepo.getVodPassword()
 
-            val fetched = apiClient.getSeries(portal, user, pswd, key)
+            var fetched = apiClient.getSeries(portal, user, pswd, key)
+            if (fetched.isEmpty()) {
+                val backupPortal = authRepo.getBackupPortalUrl()
+                if (backupPortal.isNotBlank() && backupPortal != portal) {
+                    fetched = apiClient.getSeries(backupPortal, user, pswd, key)
+                }
+            }
             cachedSeriesByCat[key] = fetched
             fetched
         }

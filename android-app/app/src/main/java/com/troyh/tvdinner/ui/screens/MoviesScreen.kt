@@ -178,6 +178,13 @@ fun MoviesScreen(
         }
     }
 
+    // Proactively preload posters for the first visible page in viewing priority
+    LaunchedEffect(sortedAndFilteredMovies) {
+        if (sortedAndFilteredMovies.isNotEmpty()) {
+            catalogManager.preloadMoviePosters(sortedAndFilteredMovies, limit = 24)
+        }
+    }
+
     // Auto-scroll to the movie card that was just playing when returning from fullscreen
     LaunchedEffect(isPlayingFullscreen, lastPlayedMovieId) {
         if (!isPlayingFullscreen && lastPlayedMovieId > 0 && sortedAndFilteredMovies.isNotEmpty()) {
@@ -697,11 +704,17 @@ fun MoviePosterImage(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var posterUrl by remember(movie.streamId, movie.streamIcon) {
-        mutableStateOf(movie.streamIcon)
+        val initial = if (!movie.streamIcon.isNullOrBlank() && movie.streamIcon.startsWith("http") &&
+            !movie.streamIcon.endsWith(".ts") && !movie.streamIcon.endsWith(".m3u8")) {
+            movie.streamIcon
+        } else {
+            catalogManager.getCachedPosterUrl(movie.displayTitle, isSeries = false)
+        }
+        mutableStateOf(initial)
     }
 
-    LaunchedEffect(movie.streamId, movie.streamIcon) {
-        if (posterUrl.isNullOrBlank()) {
+    LaunchedEffect(movie.streamId, movie.displayTitle, movie.streamIcon) {
+        if (posterUrl.isNullOrBlank() || posterUrl?.startsWith("http") != true) {
             val resolved = catalogManager.resolvePosterUrl(movie.displayTitle, isSeries = false)
             if (!resolved.isNullOrBlank()) {
                 posterUrl = resolved
