@@ -1,48 +1,75 @@
 package com.troyh.tvdinner.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import com.troyh.tvdinner.BuildConfig
+import com.troyh.tvdinner.data.network.XtreamApiClient
 import com.troyh.tvdinner.data.repository.AuthRepository
+import com.troyh.tvdinner.data.repository.CatalogManager
 import com.troyh.tvdinner.ui.components.TvFocusableCard
 import com.troyh.tvdinner.ui.theme.*
+import com.troyh.tvdinner.update.UpdateManifest
+import com.troyh.tvdinner.update.UpdateManager
+import kotlinx.coroutines.launch
+import java.io.File
 
 @Composable
 fun SettingsScreen(
     authRepo: AuthRepository,
-    onSignOut: () -> Unit,
+    catalogManager: CatalogManager? = null,
+    onSignOut: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val activePhone = remember { authRepo.getActivatedPhone() ?: "Not Activated" }
-    val activeCred = remember { authRepo.getActiveLiveCredentials() }
-    var credentialsList by remember { mutableStateOf(authRepo.getAllCredentials()) }
-    var showAddDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val apiClient = remember { XtreamApiClient() }
+    val updateManager = remember { UpdateManager(context) }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Admin Password Protection
-    var isAdminUnlocked by remember { mutableStateOf(false) }
-    var passwordInput by remember { mutableStateOf("") }
-    var passwordError by remember { mutableStateOf<String?>(null) }
+    // Account & Credentials State
+    var isTestingCreds by remember { mutableStateOf(false) }
+    val hasValidCreds = remember(authRepo.getActiveUsername(), authRepo.getActivePassword()) {
+        authRepo.hasValidCredentials()
+    }
+    var accountStatus by remember { mutableStateOf(if (hasValidCreds) "ACTIVE & SAVED" else "CREDENTIALS REQUIRED") }
+    var isAccountActive by remember { mutableStateOf(hasValidCreds) }
+    var accountStatusDetail by remember { 
+        mutableStateOf<String?>(if (hasValidCreds) "Credentials loaded from local storage." else "Enter your username and password below to activate live TV & movies.") 
+    }
 
-    var newPhone by remember { mutableStateOf("") }
-    var newUser by remember { mutableStateOf("") }
-    var newPswd by remember { mutableStateOf("") }
+    var customUser by remember { mutableStateOf(authRepo.getActiveUsername()) }
+    var customPswd by remember { mutableStateOf(authRepo.getActivePassword()) }
+    var credsSavedMessage by remember { mutableStateOf<String?>(null) }
+
+    // Subtitle Preferences State
+    var vodSubtitlesEnabled by remember { mutableStateOf(authRepo.isVodSubtitlesEnabled()) }
+
+    // Content Filtering State
+    var adultContentEnabled by remember { mutableStateOf(authRepo.isAdultContentEnabled()) }
+
+    // Update Management State
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var availableUpdate by remember { mutableStateOf<UpdateManifest?>(null) }
+    var updateCheckMessage by remember { mutableStateOf<String?>(null) }
+    var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0f) }
+    var downloadedApkFile by remember { mutableStateOf<File?>(null) }
 
     Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
         Column(
@@ -60,42 +87,37 @@ fun SettingsScreen(
                 color = TextPrimary
             )
 
-            // Current Session Card (Always visible)
+            // 1. Subscription & Credentials Card
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = CinemaSurface,
                 border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "Active Account",
-                                fontSize = 14.sp,
-                                color = TextSecondary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = activePhone,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = CinemaAccent
-                            )
-                        }
+                        Text(
+                            text = "Subscription",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
 
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = CinemaGreen.copy(alpha = 0.2f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, CinemaGreen.copy(alpha = 0.5f))
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isAccountActive) CinemaGreen.copy(alpha = 0.15f) else CinemaYellow.copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isAccountActive) CinemaGreen.copy(alpha = 0.4f) else CinemaYellow.copy(alpha = 0.4f))
                         ) {
                             Text(
-                                text = "ACTIVE & UNLOCKED",
-                                color = CinemaGreen,
+                                text = accountStatus,
+                                color = if (isAccountActive) CinemaGreen else CinemaYellow,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -103,385 +125,568 @@ fun SettingsScreen(
                         }
                     }
 
-                    if (activeCred != null) {
+                    if (accountStatusDetail != null) {
                         Text(
-                            text = "Linked Account: ${activeCred.user}",
-                            fontSize = 13.sp,
-                            color = TextSecondary
+                            text = accountStatusDetail!!,
+                            fontSize = 12.sp,
+                            color = if (isAccountActive) CinemaGreen else TextMuted,
+                            fontWeight = FontWeight.Medium
                         )
                     }
 
-                    // Sign Out CTA Button (Always accessible)
-                    TvFocusableCard(
-                        onClick = {
-                            authRepo.signOut()
-                            onSignOut()
-                        },
-                        backgroundColor = CinemaRed.copy(alpha = 0.2f),
-                        focusedBorderColor = CinemaRed,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(42.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxHeight().padding(horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    HorizontalDivider(color = CinemaSurfaceLight, thickness = 1.dp)
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Server Credentials",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextSecondary
+                        )
+
+                        OutlinedTextField(
+                            value = customUser,
+                            onValueChange = { 
+                                customUser = it
+                                credsSavedMessage = null
+                            },
+                            label = { Text("Username", color = TextMuted) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CinemaAccent,
+                                unfocusedBorderColor = CinemaSurfaceLight,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = CinemaAccent
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        OutlinedTextField(
+                            value = customPswd,
+                            onValueChange = { 
+                                customPswd = it
+                                credsSavedMessage = null
+                            },
+                            label = { Text("Password", color = TextMuted) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CinemaAccent,
+                                unfocusedBorderColor = CinemaSurfaceLight,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = CinemaAccent
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    if (credsSavedMessage != null) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isAccountActive) CinemaGreen.copy(alpha = 0.15f) else CinemaRed.copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isAccountActive) CinemaGreen.copy(alpha = 0.3f) else CinemaRed.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = "Sign Out", tint = CinemaRed)
-                            Text("Sign Out / Switch Phone Account", color = CinemaRed, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(
+                                text = credsSavedMessage!!,
+                                color = if (isAccountActive) CinemaGreen else CinemaRed,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                customUser = ""
+                                customPswd = ""
+                                authRepo.clearCredentials()
+                                catalogManager?.clearAllCaches()
+                                isAccountActive = false
+                                accountStatus = "CREDENTIALS REQUIRED"
+                                accountStatusDetail = "Credentials cleared. Enter new credentials above to connect."
+                                credsSavedMessage = "Credentials cleared."
+                            },
+                            enabled = !isTestingCreds,
+                            colors = ButtonDefaults.buttonColors(containerColor = CinemaSurfaceVariant),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) {
+                            Text("Clear", color = TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        Button(
+                            onClick = {
+                                val u = customUser.trim()
+                                val p = customPswd.trim()
+                                if (u.isBlank() || p.isBlank()) {
+                                    credsSavedMessage = "Please enter both username and password."
+                                    return@Button
+                                }
+                                authRepo.setDirectCredentials(u, p)
+                                catalogManager?.clearAllCaches()
+                                isTestingCreds = true
+                                accountStatus = "TESTING..."
+                                credsSavedMessage = "Testing credentials with server..."
+                                coroutineScope.launch {
+                                    val result = apiClient.testCredentials(AuthRepository.DEFAULT_SERVER_URL, u, p)
+                                    isTestingCreds = false
+                                    if (result.isValid) {
+                                        isAccountActive = true
+                                        accountStatus = "ACTIVE & VERIFIED"
+                                        accountStatusDetail = result.message
+                                        credsSavedMessage = "Credentials verified & activated! Feeds updated."
+                                    } else {
+                                        isAccountActive = true
+                                        accountStatus = "ACTIVE & SAVED"
+                                        accountStatusDetail = result.message
+                                        credsSavedMessage = "Credentials saved locally & active."
+                                    }
+                                }
+                            },
+                            enabled = !isTestingCreds,
+                            colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) {
+                            if (isTestingCreds) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("Save & Apply", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             }
 
-            // Admin Portal (Locked behind 'admintvd')
-            if (!isAdminUnlocked) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = CinemaSurface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
-                    modifier = Modifier.fillMaxWidth()
+            // 2. Playback & Subtitles Card
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = CinemaSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Protected",
+                                imageVector = Icons.Default.ClosedCaption,
+                                contentDescription = "Subtitles",
+                                tint = CinemaAccent,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Playback & Subtitles",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+
+                    // Movie & Series Subtitles / Closed Captions Toggle
+                    TvFocusableCard(
+                        onClick = {
+                            val next = !vodSubtitlesEnabled
+                            vodSubtitlesEnabled = next
+                            authRepo.setVodSubtitlesEnabled(next)
+                        },
+                        backgroundColor = CinemaSurfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(54.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Movie & Series Subtitles (Closed Captions)",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = if (vodSubtitlesEnabled) "Subtitles are enabled by default for Movies and Series" else "Subtitles are disabled by default (Default: OFF)",
+                                    fontSize = 11.sp,
+                                    color = TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Switch(
+                                checked = vodSubtitlesEnabled,
+                                onCheckedChange = {
+                                    vodSubtitlesEnabled = it
+                                    authRepo.setVodSubtitlesEnabled(it)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = CinemaAccent,
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = CinemaSurfaceLight
+                                ),
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+                    }
+
+                    // Clear Channel History
+                    TvFocusableCard(
+                        onClick = {
+                            authRepo.clearChannelHistory()
+                            Toast.makeText(context, "Channel watch history cleared", Toast.LENGTH_SHORT).show()
+                        },
+                        backgroundColor = CinemaSurfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(54.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = "History",
+                                    tint = CinemaAccent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Clear Channel History",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "Reset the last 5 watched channels in Live TV",
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = CinemaRed.copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaRed.copy(alpha = 0.3f))
+                            ) {
+                                Text(
+                                    text = "CLEAR",
+                                    color = CinemaRed,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. App Updates & Version Card
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = CinemaSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = "Updates",
                                 tint = CinemaAccent,
                                 modifier = Modifier.size(24.dp)
                             )
                             Column {
                                 Text(
-                                    text = "Admin Configuration & Credentials Table",
+                                    text = "App Updates",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = "Enter admin password to view endpoints and credential management",
+                                    text = "Current Version: v${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
                                     fontSize = 12.sp,
-                                    color = TextMuted
+                                    color = TextSecondary
                                 )
                             }
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (availableUpdate != null) CinemaYellow.copy(alpha = 0.2f) else CinemaGreen.copy(alpha = 0.2f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (availableUpdate != null) CinemaYellow.copy(alpha = 0.5f) else CinemaGreen.copy(alpha = 0.5f))
                         ) {
-                            OutlinedTextField(
-                                value = passwordInput,
-                                onValueChange = {
-                                    passwordInput = it
-                                    passwordError = null
-                                },
-                                placeholder = { Text("Admin Password", color = TextMuted, fontSize = 13.sp) },
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = CinemaSurfaceVariant,
-                                    unfocusedContainerColor = CinemaSurfaceVariant,
-                                    focusedBorderColor = CinemaAccent,
-                                    unfocusedBorderColor = CinemaSurfaceLight,
-                                    focusedTextColor = TextPrimary,
-                                    unfocusedTextColor = TextPrimary
-                                ),
-                                modifier = Modifier.weight(1f).height(50.dp)
+                            Text(
+                                text = if (availableUpdate != null) "UPDATE AVAILABLE" else "UP TO DATE",
+                                color = if (availableUpdate != null) CinemaYellow else CinemaGreen,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
+                        }
+                    }
 
-                            TvFocusableCard(
-                                onClick = {
-                                    if (passwordInput == "admintvd") {
-                                        isAdminUnlocked = true
-                                        passwordInput = ""
-                                        passwordError = null
-                                    } else {
-                                        passwordError = "Incorrect admin password."
-                                    }
-                                },
-                                backgroundColor = CinemaPrimary,
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.height(50.dp)
+                    if (updateCheckMessage != null) {
+                        Text(
+                            text = updateCheckMessage!!,
+                            fontSize = 12.sp,
+                            color = if (availableUpdate != null) CinemaYellow else CinemaAccent,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Available Update Information Box
+                    if (availableUpdate != null) {
+                        val update = availableUpdate!!
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = CinemaSurfaceVariant,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CinemaAccent.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier.fillMaxHeight().padding(horizontal = 18.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
+                                Text(
+                                    text = "New Version: v${update.versionName} (Build ${update.versionCode})",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                if (!update.title.isNullOrBlank()) {
                                     Text(
-                                        text = "Unlock",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+                                        text = update.title,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = CinemaAccent
                                     )
+                                }
+                                Text(
+                                    text = update.releaseNotes,
+                                    fontSize = 11.sp,
+                                    color = TextSecondary
+                                )
+
+                                if (isDownloadingUpdate) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 6.dp)) {
+                                        LinearProgressIndicator(
+                                            progress = { downloadProgress },
+                                            modifier = Modifier.fillMaxWidth().height(6.dp),
+                                            color = CinemaAccent,
+                                            trackColor = CinemaSurfaceLight
+                                        )
+                                        Text(
+                                            text = "Downloading APK: ${(downloadProgress * 100).toInt()}%",
+                                            fontSize = 11.sp,
+                                            color = CinemaAccent,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                         }
-
-                        if (passwordError != null) {
-                            Text(
-                                text = passwordError ?: "",
-                                color = CinemaRed,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
                     }
-                }
-            } else {
-                // Admin Unlocked Section
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "ADMIN PORTAL (UNLOCKED)",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        color = CinemaAccent
-                    )
 
-                    TvFocusableCard(
-                        onClick = { isAdminUnlocked = false },
-                        backgroundColor = CinemaSurfaceVariant,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(34.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxHeight().padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Button(
+                            onClick = {
+                                isCheckingUpdate = true
+                                updateCheckMessage = "Checking update manifest..."
+                                coroutineScope.launch {
+                                    val update = updateManager.checkForUpdates()
+                                    isCheckingUpdate = false
+                                    availableUpdate = update
+                                    if (update != null) {
+                                        updateCheckMessage = "New update v${update.versionName} found!"
+                                    } else if (updateManager.lastCheckError != null) {
+                                        updateCheckMessage = updateManager.lastCheckError!!
+                                    } else {
+                                        updateCheckMessage = "You have the latest version installed."
+                                    }
+                                }
+                            },
+                            enabled = !isCheckingUpdate && !isDownloadingUpdate,
+                            colors = ButtonDefaults.buttonColors(containerColor = CinemaSurfaceVariant),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).height(44.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Lock, contentDescription = "Lock", tint = TextSecondary, modifier = Modifier.size(14.dp))
-                            Text("Lock Admin", color = TextSecondary, fontSize = 12.sp)
+                            if (isCheckingUpdate) {
+                                CircularProgressIndicator(color = CinemaAccent, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("Check for Updates", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
                         }
-                    }
-                }
 
-                // Streaming Configuration Summary
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = CinemaSurface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Streaming Endpoints",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "Live TV Portal: ${authRepo.getLivePortalUrl()}",
-                            fontSize = 13.sp,
-                            color = TextSecondary
-                        )
-                        Text(
-                            text = "VOD Portal: ${authRepo.getVodPortalUrl()}",
-                            fontSize = 13.sp,
-                            color = TextSecondary
-                        )
-                        Text(
-                            text = "VOD Account: ${authRepo.getVodUsername()}",
-                            fontSize = 13.sp,
-                            color = TextSecondary
-                        )
-                    }
-                }
-
-                // Credential Table Management Section
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Credential Lookup Table (${credentialsList.size} registered)",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    TvFocusableCard(
-                        onClick = { showAddDialog = true },
-                        backgroundColor = CinemaPrimary,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(36.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxHeight().padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = "Add", tint = Color.White, modifier = Modifier.size(16.dp))
-                            Text("Add Account", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                // Credential Table List
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (cred in credentialsList) {
-                        val isActive = authRepo.normalizePhone(cred.phone) == authRepo.normalizePhone(activePhone)
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isActive) CinemaSurfaceLight else CinemaSurface,
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isActive) CinemaAccent else CinemaSurfaceVariant
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text(
-                                            text = cred.phone,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = TextPrimary
-                                        )
-                                        if (isActive) {
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = CinemaPrimary
-                                            ) {
-                                                Text(
-                                                    text = "CURRENT",
-                                                    color = Color.White,
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
+                        if (availableUpdate != null) {
+                            Button(
+                                onClick = {
+                                    val update = availableUpdate ?: return@Button
+                                    if (downloadedApkFile != null && downloadedApkFile!!.exists()) {
+                                        updateManager.installApk(downloadedApkFile!!)
+                                    } else {
+                                        isDownloadingUpdate = true
+                                        downloadProgress = 0f
+                                        coroutineScope.launch {
+                                            val file = updateManager.downloadApk(update.apkUrl) { progress ->
+                                                downloadProgress = progress
+                                            }
+                                            isDownloadingUpdate = false
+                                            if (file != null) {
+                                                downloadedApkFile = file
+                                                Toast.makeText(context, "Download complete. Launching installer...", Toast.LENGTH_SHORT).show()
+                                                updateManager.installApk(file)
+                                            } else {
+                                                Toast.makeText(context, "Download failed. Please try again.", Toast.LENGTH_SHORT).show()
                                             }
                                         }
                                     }
+                                },
+                                enabled = !isDownloadingUpdate,
+                                colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(44.dp)
+                            ) {
+                                if (isDownloadingUpdate) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                } else {
                                     Text(
-                                        text = "User: ${cred.user} • Pass: ${cred.pswd.map { '*' }.joinToString("")}",
-                                        fontSize = 12.sp,
-                                        color = TextMuted
+                                        text = if (downloadedApkFile != null) "Install Update" else "Download & Install",
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                }
-
-                                IconButton(
-                                    onClick = {
-                                        authRepo.deleteCredential(cred.phone)
-                                        credentialsList = authRepo.getAllCredentials()
-                                    }
-                                ) {
-                                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete", tint = TextMuted)
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        // Add Credential Dialog
-        if (showAddDialog) {
-            Dialog(onDismissRequest = { showAddDialog = false }) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = CinemaSurface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
-                    modifier = Modifier.fillMaxWidth(0.9f).wrapContentHeight()
+            // 4. Content Filtering (Adult 18+ Filter) Card — at the VERY BOTTOM
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = CinemaSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Add New Credential Entry",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-
-                        OutlinedTextField(
-                            value = newPhone,
-                            onValueChange = { newPhone = it },
-                            label = { Text("10-Digit Phone Number") },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = CinemaSurfaceVariant,
-                                unfocusedContainerColor = CinemaSurfaceVariant,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        OutlinedTextField(
-                            value = newUser,
-                            onValueChange = { newUser = it },
-                            label = { Text("Xtream Username") },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = CinemaSurfaceVariant,
-                                unfocusedContainerColor = CinemaSurfaceVariant,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        OutlinedTextField(
-                            value = newPswd,
-                            onValueChange = { newPswd = it },
-                            label = { Text("Xtream Password") },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = CinemaSurfaceVariant,
-                                unfocusedContainerColor = CinemaSurfaceVariant,
-                                focusedTextColor = TextPrimary,
-                                unfocusedTextColor = TextPrimary
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            TextButton(onClick = { showAddDialog = false }) {
-                                Text("Cancel", color = TextSecondary)
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = "Content Filter",
+                                tint = CinemaAccent,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Content Filtering",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+
+                    // Adult Content (18+) Toggle
+                    TvFocusableCard(
+                        onClick = {
+                            val next = !adultContentEnabled
+                            adultContentEnabled = next
+                            authRepo.setAdultContentEnabled(next)
+                            catalogManager?.clearAllCaches()
+                        },
+                        backgroundColor = CinemaSurfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(54.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Adult Content (18+)",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = if (adultContentEnabled) "Adult categories and channels are visible" else "18+ adult categories and channels are hidden (Default: OFF)",
+                                    fontSize = 11.sp,
+                                    color = TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    if (newPhone.isNotBlank() && newUser.isNotBlank()) {
-                                        authRepo.addOrUpdateCredential(newPhone, newUser, newPswd)
-                                        credentialsList = authRepo.getAllCredentials()
-                                        newPhone = ""
-                                        newUser = ""
-                                        newPswd = ""
-                                        showAddDialog = false
-                                    }
+
+                            Switch(
+                                checked = adultContentEnabled,
+                                onCheckedChange = {
+                                    adultContentEnabled = it
+                                    authRepo.setAdultContentEnabled(it)
+                                    catalogManager?.clearAllCaches()
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary)
-                            ) {
-                                Text("Save Credential")
-                            }
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = CinemaRed,
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = CinemaSurfaceLight
+                                ),
+                                modifier = Modifier.scale(0.85f)
+                            )
                         }
                     }
                 }

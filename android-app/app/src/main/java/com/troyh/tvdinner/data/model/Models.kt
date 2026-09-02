@@ -26,7 +26,10 @@ data class Channel(
     @SerializedName("custom_sid") val customSid: String? = null,
     @SerializedName("tv_archive") val tvArchive: Int = 0,
     @SerializedName("direct_source") val directSource: String? = null,
-    val directStreamUrl: String? = null
+    val directStreamUrl: String? = null,
+    var portalUrl: String? = null,
+    var streamUser: String? = null,
+    var streamPassword: String? = null
 )
 
 data class MovieCategory(
@@ -158,7 +161,11 @@ data class EpgProgram(
             val trimmed = raw.trim()
             if (trimmed.length >= 4 && trimmed.length % 4 == 0 && trimmed.matches(Regex("^[A-Za-z0-9+/=]+$"))) {
                 try {
-                    val bytes = android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT)
+                    val bytes = try {
+                        android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT)
+                    } catch (_: Throwable) {
+                        java.util.Base64.getDecoder().decode(trimmed)
+                    }
                     val decoded = String(bytes, Charsets.UTF_8).trim()
                     if (decoded.isNotEmpty() && decoded.none { it.isISOControl() && it != '\n' && it != '\r' && it != '\t' }) {
                         return decoded

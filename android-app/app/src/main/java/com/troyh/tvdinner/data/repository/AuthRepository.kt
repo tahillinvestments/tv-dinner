@@ -15,56 +15,35 @@ class AuthRepository(context: Context) {
         private const val KEY_ADMIN_CREDENTIALS = "admin_credentials"
         private const val KEY_IPTV_PORTAL = "iptv_portal_url"
         private const val KEY_VOD_PORTAL = "vod_portal_url"
+        private const val KEY_ACTIVE_USERNAME = "active_xtream_username"
+        private const val KEY_ACTIVE_PASSWORD = "active_xtream_password"
+        const val DEFAULT_SERVER_URL = "http://vpn.uhdp.top:80"
 
-        val DEFAULT_CREDENTIALS = listOf(
-            CredentialEntry("(317) 515-0204", "DGOLD001", "Louisville"),
-            CredentialEntry("(215) 917-3255", "SGmUC7q2U", "4WM9WVsjG"),
-            CredentialEntry("(123) 456-7891", "SGmUC7q2U", "4WM9WVsjG"),
-            CredentialEntry("317-363-1751", "MW2Y2h6e7", "5DwU7wTuA"),
-            CredentialEntry("317-900-3473", "Hn9a6bus9", "JaKXrfMP7"),
-            CredentialEntry("317-902-1240", "TONE2", "TV4LIFE"),
-            CredentialEntry("317-795-7627", "SAPPTV13", "REMOTE6202"),
-            CredentialEntry("317-261-1596", "DAMETV", "2611596317")
-        )
+        val DEFAULT_CREDENTIALS = emptyList<CredentialEntry>()
     }
 
     fun isActivated(): Boolean {
-        val phone = prefs.getString(KEY_ACTIVATED_PHONE, null)
-        if (phone != null && normalizePhone(phone) == "1234567898") {
-            signOut()
-            return false
-        }
-        return !phone.isNullOrBlank()
+        return true
+    }
+
+    fun hasValidCredentials(): Boolean {
+        return getActiveUsername().isNotBlank() && getActivePassword().isNotBlank()
     }
 
     fun getActivatedPhone(): String? {
-        val phone = prefs.getString(KEY_ACTIVATED_PHONE, null)
-        if (phone != null && normalizePhone(phone) == "1234567898") {
-            signOut()
-            return null
-        }
-        return phone
+        return prefs.getString(KEY_ACTIVATED_PHONE, null)
     }
 
     fun getAllCredentials(): List<CredentialEntry> {
         val json = prefs.getString(KEY_ADMIN_CREDENTIALS, null)
         if (json.isNullOrBlank()) {
-            return DEFAULT_CREDENTIALS
+            return emptyList()
         }
         return try {
             val type = object : TypeToken<List<CredentialEntry>>() {}.type
-            val list: List<CredentialEntry> = gson.fromJson(json, type) ?: DEFAULT_CREDENTIALS
-            // Filter out any removed credentials such as 1234567898
-            val sanitized = list.filter { normalizePhone(it.phone) != "1234567898" }
-            val existingClean = sanitized.map { normalizePhone(it.phone) }.toSet()
-            val missingDefaults = DEFAULT_CREDENTIALS.filter { !existingClean.contains(normalizePhone(it.phone)) }
-            val combined = if (missingDefaults.isNotEmpty()) sanitized + missingDefaults else sanitized
-            if (combined.size != list.size) {
-                saveCredentials(combined)
-            }
-            combined
+            gson.fromJson<List<CredentialEntry>>(json, type) ?: emptyList()
         } catch (e: Exception) {
-            DEFAULT_CREDENTIALS
+            emptyList()
         }
     }
 
@@ -89,26 +68,38 @@ class AuthRepository(context: Context) {
     fun activatePhone(rawPhone: String): Boolean {
         val clean = normalizePhone(rawPhone)
         if (clean.length < 10) return false
-
-        val list = getAllCredentials()
-        val match = list.firstOrNull { normalizePhone(it.phone) == clean }
-        return if (match != null) {
-            val formatted = formatPhone(clean)
-            prefs.edit().putString(KEY_ACTIVATED_PHONE, formatted).apply()
-            true
-        } else {
-            false
-        }
+        val formatted = formatPhone(clean)
+        prefs.edit().putString(KEY_ACTIVATED_PHONE, formatted).apply()
+        return true
     }
 
     fun signOut() {
         prefs.edit().remove(KEY_ACTIVATED_PHONE).apply()
     }
 
-    fun getActiveLiveCredentials(): CredentialEntry? {
-        val activePhone = getActivatedPhone() ?: return null
-        val clean = normalizePhone(activePhone)
-        return getAllCredentials().firstOrNull { normalizePhone(it.phone) == clean }
+    fun getActiveUsername(): String {
+        val direct = prefs.getString(KEY_ACTIVE_USERNAME, null)
+        if (!direct.isNullOrBlank()) return direct.trim()
+        val fromPhone = getActivatedPhone()?.let { phone ->
+            getAllCredentials().firstOrNull { normalizePhone(it.phone) == normalizePhone(phone) }?.user
+        }
+        return fromPhone?.trim() ?: ""
+    }
+
+    fun getActivePassword(): String {
+        val direct = prefs.getString(KEY_ACTIVE_PASSWORD, null)
+        if (!direct.isNullOrBlank()) return direct.trim()
+        val fromPhone = getActivatedPhone()?.let { phone ->
+            getAllCredentials().firstOrNull { normalizePhone(it.phone) == normalizePhone(phone) }?.pswd
+        }
+        return fromPhone?.trim() ?: ""
+    }
+
+    fun getActiveLiveCredentials(): CredentialEntry {
+        val u = getActiveUsername()
+        val p = getActivePassword()
+        val phone = getActivatedPhone() ?: "(317) 515-0204"
+        return CredentialEntry(phone, u, p)
     }
 
     fun getLivePortalUrl(): String {
@@ -116,8 +107,13 @@ class AuthRepository(context: Context) {
         return if (!saved.isNullOrBlank()) {
             saved.trim().removeSuffix("/")
         } else {
-            "http://portal5458.com:8080"
+            DEFAULT_SERVER_URL
         }
+    }
+
+    fun setLivePortalUrl(url: String) {
+        val clean = url.trim().removeSuffix("/")
+        prefs.edit().putString(KEY_IPTV_PORTAL, clean).apply()
     }
 
     fun getVodPortalUrl(): String {
@@ -125,12 +121,37 @@ class AuthRepository(context: Context) {
         return if (!saved.isNullOrBlank()) {
             saved.trim().removeSuffix("/")
         } else {
-            "http://asoseller.org:8080"
+            DEFAULT_SERVER_URL
         }
     }
 
-    fun getVodUsername(): String = "gj3526@gmail.com"
-    fun getVodPassword(): String = "ck9sd6Nc4TZA"
+    fun setVodPortalUrl(url: String) {
+        val clean = url.trim().removeSuffix("/")
+        prefs.edit().putString(KEY_VOD_PORTAL, clean).apply()
+    }
+
+    fun getVodUsername(): String = getActiveUsername()
+    fun getVodPassword(): String = getActivePassword()
+
+    fun setDirectCredentials(user: String, pswd: String) {
+        val cleanU = user.trim()
+        val cleanP = pswd.trim()
+        prefs.edit()
+            .putString(KEY_ACTIVE_USERNAME, cleanU)
+            .putString(KEY_ACTIVE_PASSWORD, cleanP)
+            .apply()
+        val phone = getActivatedPhone() ?: "(317) 515-0204"
+        if (cleanU.isNotBlank() && cleanP.isNotBlank()) {
+            addOrUpdateCredential(phone, cleanU, cleanP)
+        }
+    }
+
+    fun clearCredentials() {
+        prefs.edit()
+            .remove(KEY_ACTIVE_USERNAME)
+            .remove(KEY_ACTIVE_PASSWORD)
+            .apply()
+    }
 
     fun addOrUpdateCredential(phone: String, user: String, pswd: String) {
         val list = getAllCredentials().toMutableList()
@@ -221,5 +242,127 @@ class AuthRepository(context: Context) {
         }
         prefs.edit().putStringSet("favorite_channels", current.map { it.toString() }.toSet()).apply()
         return willFavorite
+    }
+
+    // Channel History (Last 5 watched channels)
+    fun getChannelHistoryIds(): List<Int> {
+        val raw = prefs.getString("live_channel_history", null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<Int>>() {}.type
+            gson.fromJson<List<Int>>(raw, type) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addChannelToHistory(streamId: Int) {
+        if (streamId <= 0) return
+        val current = getChannelHistoryIds().filter { it != streamId }.toMutableList()
+        current.add(0, streamId)
+        val limited = current.take(5)
+        prefs.edit().putString("live_channel_history", gson.toJson(limited)).apply()
+    }
+
+    fun clearChannelHistory() {
+        prefs.edit().remove("live_channel_history").apply()
+    }
+
+    // Live TV Focus & Selection Memory
+    fun getLastLiveCategoryId(): String {
+        return prefs.getString("last_live_category_id", null) ?: "672"
+    }
+
+    fun setLastLiveCategoryId(categoryId: String) {
+        if (categoryId.isNotBlank()) {
+            prefs.edit().putString("last_live_category_id", categoryId).apply()
+        }
+    }
+
+    fun getLastLiveStreamId(): Int {
+        return prefs.getInt("last_live_stream_id", 0)
+    }
+
+    fun setLastLiveStreamId(streamId: Int) {
+        if (streamId > 0) {
+            prefs.edit().putInt("last_live_stream_id", streamId).apply()
+        }
+    }
+
+    // Movies Focus & Selection Memory
+    fun getLastMovieCategoryId(): String? {
+        return prefs.getString("last_movie_category_id", null)
+    }
+
+    fun setLastMovieCategoryId(categoryId: String) {
+        if (categoryId.isNotBlank()) {
+            prefs.edit().putString("last_movie_category_id", categoryId).apply()
+        }
+    }
+
+    fun getLastMovieStreamId(): Int {
+        return prefs.getInt("last_movie_stream_id", 0)
+    }
+
+    fun setLastMovieStreamId(streamId: Int) {
+        if (streamId > 0) {
+            prefs.edit().putInt("last_movie_stream_id", streamId).apply()
+        }
+    }
+
+    // Series Focus & Selection Memory
+    fun getLastSeriesCategoryId(): String? {
+        return prefs.getString("last_series_category_id", null)
+    }
+
+    fun setLastSeriesCategoryId(categoryId: String) {
+        if (categoryId.isNotBlank()) {
+            prefs.edit().putString("last_series_category_id", categoryId).apply()
+        }
+    }
+
+    fun getLastSeriesId(): Int {
+        return prefs.getInt("last_series_id", 0)
+    }
+
+    fun setLastSeriesId(seriesId: Int) {
+        if (seriesId > 0) {
+            prefs.edit().putInt("last_series_id", seriesId).apply()
+        }
+    }
+
+    // Movie & Series Subtitles (Closed Captions) Preference (Default: OFF)
+    fun isVodSubtitlesEnabled(): Boolean {
+        return prefs.getBoolean("vod_subtitles_enabled", false)
+    }
+
+    fun setVodSubtitlesEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("vod_subtitles_enabled", enabled).apply()
+    }
+
+    // Adult Content (18+) Filter Toggle (Default: OFF)
+    fun isAdultContentEnabled(): Boolean {
+        return prefs.getBoolean("show_adult_content", false)
+    }
+
+    fun setAdultContentEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("show_adult_content", enabled).apply()
+    }
+
+    // US Channels & Categories Filter Toggle (Default: OFF)
+    fun isUsOnly(): Boolean {
+        return prefs.getBoolean("is_us_only", false)
+    }
+
+    fun setUsOnly(enabled: Boolean) {
+        prefs.edit().putBoolean("is_us_only", enabled).putBoolean("is_us_english_only", enabled).apply()
+    }
+
+    // Legacy US-English Filter Toggle
+    fun isUsEnglishOnly(): Boolean {
+        return isUsOnly()
+    }
+
+    fun setUsEnglishOnly(enabled: Boolean) {
+        setUsOnly(enabled)
     }
 }

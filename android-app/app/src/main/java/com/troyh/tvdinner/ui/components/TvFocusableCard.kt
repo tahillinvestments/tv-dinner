@@ -48,6 +48,21 @@ fun TvFocusableCard(
         modifier = modifier
             .scale(scale)
             .onFocusChanged { isFocused = it.isFocused }
+            .then(
+                if (isFocused) {
+                    Modifier.shadow(
+                        elevation = 12.dp,
+                        shape = shape,
+                        ambientColor = focusedBorderColor,
+                        spotColor = focusedBorderColor
+                    )
+                } else {
+                    Modifier.shadow(
+                        elevation = elevation,
+                        shape = shape
+                    )
+                }
+            )
             .focusable()
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyUp) {
@@ -63,10 +78,6 @@ fun TvFocusableCard(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
-            )
-            .shadow(
-                elevation = if (isFocused) elevation * 2 else elevation,
-                shape = shape
             ),
         shape = shape,
         color = backgroundColor,

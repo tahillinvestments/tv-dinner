@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TV Dinner — App Update Management Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cinema: {
+              bg: '#0B0F19',
+              surface: '#131927',
+              variant: '#1E293B',
+              border: '#243048',
+              primary: '#6366F1',
+              accent: '#06B6D4',
+              focus: '#38BDF8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-[#0B0F19] text-slate-100 min-h-screen font-sans antialiased p-4 md:p-8">
+  <div class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#131927] border border-[#243048] p-6 rounded-2xl shadow-xl">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+          <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
+            TV Dinner Update Center
+            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">Management Hub</span>
+          </h1>
+          <p class="text-xs text-slate-400">Stage, test, auto-increment, and publish TV Dinner Android APK releases.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btn-create-update" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-indigo-600/20">
+          <i class="fa-solid fa-plus"></i> Stage New Update
+        </button>
+        <button id="btn-export-manifest" class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-200 border border-[#243048] rounded-xl text-xs font-bold transition flex items-center gap-2">
+          <i class="fa-solid fa-download"></i> Export version.json
+        </button>
+      </div>
+    </header>
+
+    <!-- Active Production Release Card -->
+    <div id="live-version-banner" class="bg-gradient-to-r from-emerald-950/40 via-[#131927] to-cyan-950/40 border border-emerald-500/40 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+      <div class="flex items-center gap-3.5">
+        <div class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
+        <div>
+          <span class="text-[11px] font-bold tracking-wider uppercase text-emerald-400">Active Live Production Version</span>
+          <h2 id="live-version-title" class="text-lg font-black text-white">v2.0.3 (Code: 203) — Direct Server Migration</h2>
+          <p id="live-version-notes" class="text-xs text-slate-400 mt-0.5">Stable release running direct OkHttp connection to http://vpn.uhdp.top:80.</p>
+        </div>
+      </div>
+      <div class="text-right flex md:flex-col items-center md:items-end justify-between gap-2">
+        <span id="live-version-time" class="text-[11px] text-slate-400">Published: Aug 28, 2026</span>
+        <div class="flex items-center gap-2">
+          <a id="btn-download-live-apk" href="public/apks/tv-dinner-latest.apk" download="tv-dinner-live.apk" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 shadow">
+            <i class="fa-solid fa-download text-emerald-400"></i> Download Live APK
+          </a>
+          <span class="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-xs font-black">
+            LIVE ON TVS
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Releases Management Table -->
+    <div class="bg-[#131927] border border-[#243048] rounded-2xl shadow-xl overflow-hidden">
+      <div class="p-5 border-b border-[#243048] flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-bold text-white">Releases & Staged Builds</h3>
+          <p class="text-xs text-slate-400">Select any staged build below to review notes and publish to production.</p>
+        </div>
+        <span id="staged-count-badge" class="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold">
+          1 Staged Update Waiting
+        </span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-[#1E293B]/60 text-slate-400 border-b border-[#243048] font-bold uppercase tracking-wider text-[10px]">
+              <th class="py-3.5 px-4">Version</th>
+              <th class="py-3.5 px-4">Release Title</th>
+              <th class="py-3.5 px-4">Notes & Changelog</th>
+              <th class="py-3.5 px-4">Status</th>
+              <th class="py-3.5 px-4">Created / Staged</th>
+              <th class="py-3.5 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="releases-table-body" class="divide-y divide-[#243048]">
+            <!-- Dynamic rows inserted by JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Quick Manual / Guide -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="bg-[#131927] border border-[#243048] p-4 rounded-xl">
+        <div class="flex items-center gap-2.5 text-cyan-400 text-sm font-bold mb-1">
+          <i class="fa-solid fa-code-branch"></i> 1. Stage Build
+        </div>
+        <p class="text-xs text-slate-400">Compile your Android APK with Gradle and stage a release with description and notes.</p>
+      </div>
+      <div class="bg-[#131927] border border-[#243048] p-4 rounded-xl">
+        <div class="flex items-center gap-2.5 text-indigo-400 text-sm font-bold mb-1">
+          <i class="fa-solid fa-rocket"></i> 2. Auto-Increment & Publish
+        </div>
+        <p class="text-xs text-slate-400">Clicking 'Publish' auto-appends the next incremental version number and updates the live manifest.</p>
+      </div>
+      <div class="bg-[#131927] border border-[#243048] p-4 rounded-xl">
+        <div class="flex items-center gap-2.5 text-emerald-400 text-sm font-bold mb-1">
+          <i class="fa-solid fa-tv"></i> 3. Direct TV Installation
+        </div>
+        <p class="text-xs text-slate-400">TV Dinner apps detect the new build, download the APK, and trigger the native TV installer.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Stage New Update Modal -->
+  <div id="modal-stage-update" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-[#131927] border border-[#243048] w-full max-w-lg rounded-2xl p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-[#243048] pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-plus text-indigo-400"></i> Stage New App Update
+        </h3>
+        <button id="btn-close-modal" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 font-bold mb-1">Release Title</label>
+          <input type="text" id="input-title" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500" placeholder="e.g. Live TV Navigation & Subtitles Update">
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">Version Name</label>
+            <input type="text" id="input-version-name" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500" placeholder="e.g. 2.0.4">
+          </div>
+          <div>
+            <label class="block text-slate-300 font-bold mb-1">Version Code</label>
+            <input type="number" id="input-version-code" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500" placeholder="e.g. 204">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-bold mb-1">Release Notes / Changelog</label>
+          <textarea id="input-notes" rows="4" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500 custom-scrollbar font-mono text-[11px]" placeholder="• Real-time D-pad Category-to-Channel fix&#10;• Clean channel names&#10;• Subtitles in Settings"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-bold mb-1">Target APK Download URL / Path</label>
+          <input type="text" id="input-apk-url" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500 font-mono text-[11px]" value="https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.4/app-release.apk">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-[#243048]">
+        <button id="btn-cancel-modal" class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition">Cancel</button>
+        <button id="btn-save-staged" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-indigo-600/20">
+          <i class="fa-solid fa-check"></i> Stage Update
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'tvdinner_updates_manifest';
+
+    const DEFAULT_MANIFEST = {
+      "currentVersion": {
+        "versionCode": 203,
+        "versionName": "2.0.3",
+        "title": "Direct Server Migration & Fast Playback",
+        "releaseNotes": "Stable release with direct stream connectivity.",
+        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.3/app-release.apk",
+        "localApkUrl": "public/apks/tv-dinner-latest.apk",
+        "mandatory": false,
+        "publishedAt": "2026-08-28T12:00:00Z"
+      },
+      "releases": [
+        {
+          "id": "rel-205",
+          "versionCode": 205,
+          "versionName": "2.0.5",
+          "title": "Live TV Navigation, Category Reorder, History, Poster Fixes & Remote Aspect Ratio",
+          "status": "STAGED",
+          "releaseNotes": "• Live TV: Smooth D-pad Left & Back navigation directly from preview controls to channel list\n• Category Reorder: Moved News Network, Sports Network, Movie Network, Kids Network, Prime, PPV & Events, 4K Relax under Entertainment\n• Removed 'All Channels' category\n• Added 🕒 Channel History category (last 5 channels watched) with 'Clear History' in Settings\n• Enhanced Movies & Series poster loading with automatic TMDB resolution on missing/broken links (no fallback card art)\n• Added remote control aspect ratio toggle (Fit / Stretch / Zoom) with on-screen HUD pill overlay\n• Removed Next Episode button from series player\n• In-app network disconnect detection with automatic stream recovery and socket eviction\n• YouTube Music remote navigation: D-Pad Up (Previous) & Down (Next) with on-screen button\n• Ambient neon glow halo on focused cards",
+          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+          "localApkUrl": "public/apks/tv-dinner-v2.0.5.apk",
+          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.5/app-release.apk",
+          "mandatory": false,
+          "createdAt": "2026-09-02T21:52:10.414Z",
+          "publishedAt": null
+        }
+      ]
+    };
+
+    function loadManifest() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return DEFAULT_MANIFEST;
+    }
+
+    function saveManifest(manifest) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(manifest, null, 2));
+      renderDashboard();
+    }
+
+    function renderDashboard() {
+      const data = loadManifest();
+      const current = data.currentVersion || {};
+      
+      // Update Live Version Header & Download button
+      document.getElementById('live-version-title').textContent = `v${current.versionName || '2.0.3'} (Build: ${current.versionCode || 203}) — ${current.title || 'Current Production Build'}`;
+      document.getElementById('live-version-notes').textContent = current.releaseNotes || 'Stable release';
+      document.getElementById('live-version-time').textContent = current.publishedAt ? `Published: ${new Date(current.publishedAt).toLocaleDateString()}` : 'Active';
+      const liveBtn = document.getElementById('btn-download-live-apk');
+      if (liveBtn) {
+        liveBtn.href = current.localApkUrl || `public/apks/tv-dinner-v${current.versionName}.apk` || current.apkUrl || 'public/apks/tv-dinner-latest.apk';
+        liveBtn.download = `tv-dinner-v${current.versionName || 'live'}.apk`;
+      }
+
+      const stagedCount = data.releases.filter(r => r.status === 'STAGED').length;
+      document.getElementById('staged-count-badge').textContent = `${stagedCount} Staged Update${stagedCount === 1 ? '' : 's'} Waiting`;
+
+      const tbody = document.getElementById('releases-table-body');
+      tbody.innerHTML = '';
+
+      data.releases.forEach(rel => {
+        const tr = document.createElement('tr');
+        tr.className = rel.status === 'PUBLISHED' ? "bg-emerald-950/10 hover:bg-[#1E293B]/40 transition" : "hover:bg-[#1E293B]/40 transition";
+
+        const isPublished = rel.status === 'PUBLISHED';
+        const downloadHref = rel.localApkUrl || `public/apks/tv-dinner-v${rel.versionName}.apk` || rel.apkPath || rel.apkUrl;
+        const downloadFileName = `tv-dinner-v${rel.versionName}.apk`;
+        const adbCommand = `adb install -r "${rel.apkPath || 'android-app/app/build/outputs/apk/release/app-release.apk'}"`;
+
+        tr.innerHTML = `
+          <td class="py-3.5 px-4 font-mono font-bold text-white">
+            <div class="flex items-center gap-1.5">
+              <span>v${rel.versionName}</span>
+              ${!isPublished ? `<span class="px-1.5 py-0.5 text-[9px] font-black bg-indigo-500/30 text-indigo-300 rounded border border-indigo-500/40">NEW</span>` : ''}
+            </div>
+            <span class="text-[10px] text-slate-400 block font-normal">Build ${rel.versionCode}</span>
+          </td>
+          <td class="py-3.5 px-4 font-bold text-slate-200">
+            ${rel.title}
+          </td>
+          <td class="py-3.5 px-4 text-slate-300 max-w-xs" title="${rel.releaseNotes.replace(/"/g, '&quot;')}">
+            <span class="line-clamp-2 text-[11px] leading-relaxed">${rel.releaseNotes.replace(/\n/g, '<br>')}</span>
+          </td>
+          <td class="py-3.5 px-4">
+            ${isPublished 
+              ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-circle-check text-[9px]"></i> PUBLISHED</span>`
+              : `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-clock text-[9px]"></i> STAGED</span>`
+            }
+          </td>
+          <td class="py-3.5 px-4 text-slate-400">
+            ${rel.createdAt ? new Date(rel.createdAt).toLocaleDateString() : '—'}
+          </td>
+          <td class="py-3.5 px-4 text-right">
+            <div class="inline-flex items-center gap-2 justify-end">
+              <!-- Direct Download APK Button -->
+              <a href="${downloadHref}" download="${downloadFileName}" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98]" title="Download ${downloadFileName} to test before approving">
+                <i class="fa-solid fa-download"></i> Download APK
+              </a>
+
+              <!-- Quick ADB Command Copy -->
+              <button onclick="copyAdbCommand('${adbCommand}', this)" class="px-2.5 py-1.5 bg-[#1E293B] hover:bg-slate-700 text-slate-300 border border-[#243048] rounded-lg text-xs font-medium transition inline-flex items-center gap-1" title="Copy ADB install command to clipboard">
+                <i class="fa-solid fa-terminal text-[10px]"></i> ADB
+              </button>
+
+              ${!isPublished ? `
+                <button onclick="publishRelease('${rel.id}')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98]" title="Publish to all user TVs">
+                  <i class="fa-solid fa-rocket"></i> Publish
+                </button>
+              ` : `
+                <span class="text-xs text-emerald-400 font-bold px-2 py-1 inline-flex items-center gap-1"><i class="fa-solid fa-check-double"></i> Active</span>
+              `}
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    window.publishRelease = function(relId) {
+      const data = loadManifest();
+      const target = data.releases.find(r => r.id === relId);
+      if (!target) return;
+
+      const confirmMsg = `Are you ready to publish version v${target.versionName} (Build: ${target.versionCode}) to production?\n\nThis will become the active live version on all TVs.`;
+      if (!confirm(confirmMsg)) return;
+
+      // Mark all others as staged/archived
+      data.releases.forEach(r => {
+        if (r.id === relId) {
+          r.status = 'PUBLISHED';
+          r.publishedAt = new Date().toISOString();
+        } else if (r.status === 'PUBLISHED') {
+          r.status = 'ARCHIVED';
+        }
+      });
+
+      data.currentVersion = {
+        versionCode: target.versionCode,
+        versionName: target.versionName,
+        title: target.title,
+        releaseNotes: target.releaseNotes,
+        apkUrl: target.apkUrl,
+        mandatory: target.mandatory || false,
+        publishedAt: new Date().toISOString()
+      };
+
+      saveManifest(data);
+      alert(`🚀 Version v${target.versionName} has been PUBLISHED!`);
+    };
+
+    // Modal Events
+    const modal = document.getElementById('modal-stage-update');
+    document.getElementById('btn-create-update').onclick = () => {
+      const data = loadManifest();
+      const highestCode = Math.max(...data.releases.map(r => r.versionCode || 200), 203);
+      const nextCode = highestCode + 1;
+      const nextName = `2.0.${nextCode - 200}`;
+
+      document.getElementById('input-title').value = '';
+      document.getElementById('input-version-name').value = nextName;
+      document.getElementById('input-version-code').value = nextCode;
+      document.getElementById('input-notes').value = '• Performance improvements\n• Bug fixes';
+      document.getElementById('input-apk-url').value = `https://github.com/tahillinvestments/tv-dinner/releases/download/v${nextName}/app-release.apk`;
+      modal.classList.remove('hidden');
+    };
+
+    const closeModal = () => modal.classList.add('hidden');
+    document.getElementById('btn-close-modal').onclick = closeModal;
+    document.getElementById('btn-cancel-modal').onclick = closeModal;
+
+    document.getElementById('btn-save-staged').onclick = () => {
+      const title = document.getElementById('input-title').value.trim() || 'New Update Build';
+      const versionName = document.getElementById('input-version-name').value.trim() || '2.0.5';
+      const versionCode = parseInt(document.getElementById('input-version-code').value.trim(), 10) || 205;
+      const releaseNotes = document.getElementById('input-notes').value.trim() || 'Update notes';
+      const apkUrl = document.getElementById('input-apk-url').value.trim() || '';
+
+      const data = loadManifest();
+      const newRel = {
+        id: 'rel-' + Date.now(),
+        versionCode,
+        versionName,
+        title,
+        status: 'STAGED',
+        releaseNotes,
+        apkPath: 'android-app/app/build/outputs/apk/release/app-release.apk',
+        apkUrl,
+        mandatory: false,
+        createdAt: new Date().toISOString(),
+        publishedAt: null
+      };
+
+      data.releases.unshift(newRel);
+      saveManifest(data);
+      closeModal();
+    };
+
+    document.getElementById('btn-export-manifest').onclick = () => {
+      const data = loadManifest();
+      const current = data.currentVersion || {};
+      const blob = new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'version.json';
+      a.click();
+    };
+
+    window.copyAdbCommand = function(cmd, btn) {
+      navigator.clipboard.writeText(cmd).then(() => {
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> Copied!`;
+        setTimeout(() => { btn.innerHTML = originalHtml; }, 2000);
+      }).catch(() => {
+        prompt('Copy ADB Install Command:', cmd);
+      });
+    };
+
+    async function initDashboard() {
+      try {
+        const res = await fetch('./updates.json?nocache=' + Date.now());
+        if (res.ok) {
+          const diskData = await res.json();
+          if (diskData && Array.isArray(diskData.releases)) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(diskData, null, 2));
+          }
+        }
+      } catch (e) {
+        // May be running from file:/// where local fetch is restricted
+      }
+      renderDashboard();
+    }
+
+    // Initialize
+    initDashboard();
+  </script>
+</body>
+</html>

@@ -11,8 +11,8 @@ android {
         applicationId = "com.troyh.tvdinner"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 205
+        versionName = "2.0.5"
     }
 
     signingConfigs {
@@ -41,7 +41,7 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
       shaders = false
     }
 

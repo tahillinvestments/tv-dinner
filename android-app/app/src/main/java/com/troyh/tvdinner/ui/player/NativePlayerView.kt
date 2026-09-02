@@ -46,6 +46,8 @@ import kotlinx.coroutines.delay
 fun NativePlayerView(
     playerManager: ExoPlayerManager,
     onBack: (() -> Unit)? = null,
+    onNextEpisode: (() -> Unit)? = null,
+    nextEpisodeTitle: String? = null,
     modifier: Modifier = Modifier
 ) {
     val isPlaying by playerManager.isPlaying.collectAsState()
@@ -62,11 +64,25 @@ fun NativePlayerView(
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val focusRequester = remember { FocusRequester() }
 
-    // Request active focus on mount
-    LaunchedEffect(Unit) {
-        try {
-            focusRequester.requestFocus()
-        } catch (_: Exception) {}
+    var showAspectHud by remember { mutableStateOf(false) }
+    var lastObservedResizeMode by remember { mutableIntStateOf(resizeMode) }
+
+    LaunchedEffect(resizeMode) {
+        if (resizeMode != lastObservedResizeMode) {
+            lastObservedResizeMode = resizeMode
+            showAspectHud = true
+            delay(2200)
+            showAspectHud = false
+        }
+    }
+
+    // Request active focus on mount ONLY in standalone / fullscreen mode
+    LaunchedEffect(onBack) {
+        if (onBack != null) {
+            try {
+                focusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
     }
 
     // Auto-hide controls after 4 seconds of inactivity ONLY when actively playing
@@ -80,8 +96,7 @@ fun NativePlayerView(
     Box(
         modifier = modifier
             .background(Color.Black)
-            .focusRequester(focusRequester)
-            .focusable()
+            .then(if (onBack != null) Modifier.focusRequester(focusRequester).focusable() else Modifier)
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyUp) {
                     when (keyEvent.nativeKeyEvent.keyCode) {
@@ -103,6 +118,35 @@ fun NativePlayerView(
                             if (!isLive) {
                                 playerManager.seekForward10s()
                                 showControls = true
+                                lastInteractionTime = System.currentTimeMillis()
+                                return@onKeyEvent true
+                            }
+                        }
+                        KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S -> {
+                            playerManager.toggleClosedCaptions()
+                            showControls = true
+                            lastInteractionTime = System.currentTimeMillis()
+                            return@onKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK, KeyEvent.KEYCODE_A -> {
+                            playerManager.cycleAudioTrack()
+                            showControls = true
+                            lastInteractionTime = System.currentTimeMillis()
+                            return@onKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_MENU,
+                        KeyEvent.KEYCODE_INFO,
+                        KeyEvent.KEYCODE_PROG_YELLOW,
+                        KeyEvent.KEYCODE_PROG_BLUE,
+                        KeyEvent.KEYCODE_WINDOW,
+                        228 /* KEYCODE_ASPECT_RATIO */ -> {
+                            playerManager.cycleAspectRatio()
+                            lastInteractionTime = System.currentTimeMillis()
+                            return@onKeyEvent true
+                        }
+                        KeyEvent.KEYCODE_DPAD_UP -> {
+                            if (!isLive) {
+                                playerManager.cycleAspectRatio()
                                 lastInteractionTime = System.currentTimeMillis()
                                 return@onKeyEvent true
                             }
@@ -132,8 +176,18 @@ fun NativePlayerView(
                     player = playerManager.player
                     setBackgroundColor(android.graphics.Color.BLACK)
                     subtitleView?.apply {
-                        setUserDefaultStyle()
-                        setUserDefaultTextSize()
+                        setApplyEmbeddedStyles(false)
+                        setStyle(
+                            androidx.media3.ui.CaptionStyleCompat(
+                                android.graphics.Color.WHITE,
+                                android.graphics.Color.argb(180, 0, 0, 0),
+                                android.graphics.Color.TRANSPARENT,
+                                androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                                android.graphics.Color.BLACK,
+                                null
+                            )
+                        )
+                        setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 22f)
                     }
                 }
             },
@@ -450,6 +504,45 @@ fun NativePlayerView(
                             )
                         }
                     }
+                }
+            }
+        }
+
+        // Aspect Ratio HUD Pill Overlay (Animated on remote aspect toggles)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showAspectHud,
+            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
+            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 28.dp, end = 28.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.Black.copy(alpha = 0.85f),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, CinemaFocus)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AspectRatio,
+                        contentDescription = null,
+                        tint = CinemaFocus,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = when (resizeMode) {
+                            AspectRatioFrameLayout.RESIZE_MODE_FILL -> "Aspect: Stretch (16:9)"
+                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "Aspect: Zoom (Fill)"
+                            else -> "Aspect: Fit (Original)"
+                        },
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
                 }
             }
         }

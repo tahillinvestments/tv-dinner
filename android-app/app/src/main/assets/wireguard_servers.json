@@ -1,0 +1,82 @@
+[
+  {
+    "id": "us-nyc-wg-001",
+    "cityCode": "nyc",
+    "cityName": "New York, NY",
+    "endpoint": "23.165.56.3:51820",
+    "publicKey": "8kBm0P9xz3cXVn3so1czm5mLv0dEcrM6vFCOlozQ7Hk=",
+    "address": "10.65.65.147/32,fc00:bbbb:bbbb:bb01::2:4192/128",
+    "dns": "10.64.0.1",
+    "privateKey": "fUwGtyx4pbM88RcT2jXAAqCO17lQxqlVF4cA4+qGgDc="
+  },
+  {
+    "id": "us-chi-wg-201",
+    "cityCode": "chi",
+    "cityName": "Chicago, IL",
+    "endpoint": "87.249.134.1:51820",
+    "publicKey": "+Xx2mJnoJ+JS11Z6g8mp6aUZV7p6DAN9ZTAzPaHakhM=",
+    "address": "10.65.65.147/32,fc00:bbbb:bbbb:bb01::2:4192/128",
+    "dns": "10.64.0.1",
+    "privateKey": "fUwGtyx4pbM88RcT2jXAAqCO17lQxqlVF4cA4+qGgDc="
+  },
+  {
+    "id": "us-dal-wg-001",
+    "cityCode": "dal",
+    "cityName": "Dallas, TX",
+    "endpoint": "146.70.211.66:51820",
+    "publicKey": "EAzbWMQXxJGsd8j2brhYerGB3t5cPOXqdIDFspDGSng=",
+    "address": "10.65.65.147/32,fc00:bbbb:bbbb:bb01::2:4192/128",
+    "dns": "10.64.0.1",
+    "privateKey": "fUwGtyx4pbM88RcT2jXAAqCO17lQxqlVF4cA4+qGgDc="
+  },
+  {
+    "id": "us-lax-wg-001",
+    "cityCode": "lax",
+    "cityName": "Los Angeles, CA",
+    "endpoint": "23.234.72.2:51820",
+    "publicKey": "zqsfGglzJPY657WMRxf/S4omG7+ZkSDIpDq+ggbc9yo=",
+    "address": "10.65.65.147/32,fc00:bbbb:bbbb:bb01::2:4192/128",
+    "dns": "10.64.0.1",
+    "privateKey": "fUwGtyx4pbM88RcT2jXAAqCO17lQxqlVF4cA4+qGgDc="
+  },
+  {
+    "id": "us-mia-wg-001",
+    "cityCode": "mia",
+    "cityName": "Miami, FL",
+    "endpoint": "45.134.142.219:51820",
+    "publicKey": "FVEKAMJqaJU2AwWn5Mg9TK9IAfJc4XDUmSzEeC/VXGs=",
+    "address": "10.65.65.147/32,fc00:bbbb:bbbb:bb01::2:4192/128",
+    "dns": "10.64.0.1",
+    "privateKey": "fUwGtyx4pbM88RcT2jXAAqCO17lQxqlVF4cA4+qGgDc="
+  },
+  {
+    "id": "us-sea-wg-001",
+    "cityCode": "sea",
+    "cityName": "Seattle, WA",
+    "endpoint": "138.199.43.91:51820",
+    "publicKey": "bZQF7VRDRK/JUJ8L6EFzF/zRw2tsqMRk6FesGtTgsC0=",
+    "address": "10.65.65.147/32,fc00:bbbb:bbbb:bb01::2:4192/128",
+    "dns": "10.64.0.1",
+    "privateKey": "fUwGtyx4pbM88RcT2jXAAqCO17lQxqlVF4cA4+qGgDc="
+  },
+  {
+    "id": "us-sjc-wg-001",
+    "cityCode": "sjc",
+    "cityName": "San Jose, CA",
+    "endpoint": "23.144.160.67:51820",
+    "publicKey": "FGcXuLkvErFPiTPAjtJusTtbCoFkJOK8SXHwWOeNYUM=",
+    "address": "10.65.65.147/32,fc00:bbbb:bbbb:bb01::2:4192/128",
+    "dns": "10.64.0.1",
+    "privateKey": "fUwGtyx4pbM88RcT2jXAAqCO17lQxqlVF4cA4+qGgDc="
+  },
+  {
+    "id": "us-was-wg-001",
+    "cityCode": "was",
+    "cityName": "Washington, DC",
+    "endpoint": "185.213.193.3:51820",
+    "publicKey": "qD3AH8vI8MhEVc9+0+2O8zV0Gx9FfKdy7ri3Bnpzo10=",
+    "address": "10.65.65.147/32,fc00:bbbb:bbbb:bb01::2:4192/128",
+    "dns": "10.64.0.1",
+    "privateKey": "fUwGtyx4pbM88RcT2jXAAqCO17lQxqlVF4cA4+qGgDc="
+  }
+]

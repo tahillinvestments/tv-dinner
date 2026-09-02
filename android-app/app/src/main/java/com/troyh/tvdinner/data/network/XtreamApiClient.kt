@@ -13,8 +13,12 @@ import com.troyh.tvdinner.data.model.SeriesCategory
 import com.troyh.tvdinner.data.model.SeriesInfoResponse
 import com.troyh.tvdinner.data.model.ShortEpgResponse
 import kotlinx.coroutines.*
+import okhttp3.ConnectionPool
+import okhttp3.Dns
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
+import java.net.InetAddress
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -42,73 +46,66 @@ class XtreamApiClient {
         val sslContext = SSLContext.getInstance("SSL").apply {
             init(null, trustAllCerts, SecureRandom())
         }
+
+        // Resilient DNS resolver: queries system DNS first; on residential WiFi ISP timeout/NXDOMAIN falls back to InetAddress
+        val resilientDns = object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> {
+                try {
+                    val systemResult = Dns.SYSTEM.lookup(hostname)
+                    if (systemResult.isNotEmpty()) return systemResult
+                } catch (_: Exception) {}
+                return try {
+                    InetAddress.getAllByName(hostname).toList()
+                } catch (_: Exception) {
+                    Dns.SYSTEM.lookup(hostname)
+                }
+            }
+        }
+
         return OkHttpClient.Builder()
             .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
             .hostnameVerifier { _, _ -> true }
+            .dns(resilientDns)
+            .connectionPool(ConnectionPool(16, 5, TimeUnit.MINUTES))
+            .protocols(listOf(Protocol.HTTP_1_1))
             .followRedirects(true)
             .followSslRedirects(true)
-            .connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .writeTimeout(8, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .addInterceptor { chain ->
-                val req = chain.request().newBuilder()
+                val orig = chain.request()
+                val reqBuilder = orig.newBuilder()
                     .header("User-Agent", "VLC/3.0.21 LibVLC/3.0.21")
                     .header("Accept", "*/*")
-                    .build()
-                chain.proceed(req)
-            }
-            .addNetworkInterceptor { chain ->
-                val req = chain.request().newBuilder()
-                    .header("User-Agent", "VLC/3.0.21 LibVLC/3.0.21")
-                    .header("Accept", "*/*")
-                    .build()
-                chain.proceed(req)
+                chain.proceed(reqBuilder.build())
             }
             .build()
     }
 
-    private suspend fun fetchJsonFast(rawUrl: String): String? = coroutineScope {
-        val encodedRaw = try {
-            java.net.URLEncoder.encode(rawUrl, "UTF-8")
-        } catch (_: Exception) {
-            rawUrl
-        }
-        val endpoints = listOf(
-            rawUrl,
-            "https://tv-dinner-proxy.onrender.com/?url=$encodedRaw"
-        )
+    private val fastDirectClient: OkHttpClient by lazy {
+        okHttpClient.newBuilder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .build()
+    }
 
-        val channel = kotlinx.coroutines.channels.Channel<String?>(endpoints.size)
-        val jobs = endpoints.map { url ->
-            launch(Dispatchers.IO) {
-                try {
-                    val req = Request.Builder().url(url).build()
-                    val resp = okHttpClient.newCall(req).execute()
-                    if (resp.isSuccessful) {
-                        val body = resp.body?.string()
-                        if (!body.isNullOrBlank() && (body.trim().startsWith("[") || body.trim().startsWith("{"))) {
-                            channel.trySend(body)
-                            return@launch
-                        }
-                    }
-                } catch (_: Exception) {}
-                channel.trySend(null)
+    suspend fun fetchJsonFast(rawUrl: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder().url(rawUrl).build()
+            val resp = okHttpClient.newCall(req).execute()
+            if (resp.isSuccessful) {
+                val body = resp.body?.string()
+                if (!body.isNullOrBlank() && (body.trim().startsWith("[") || body.trim().startsWith("{"))) {
+                    return@withContext body
+                }
             }
+            resp.close()
+        } catch (e: Exception) {
+            Log.w(tag, "Direct API fetch error for $rawUrl: ${e.message}")
         }
-
-        var result: String? = null
-        var received = 0
-        while (received < endpoints.size) {
-            val res = channel.receive()
-            received++
-            if (res != null) {
-                result = res
-                break
-            }
-        }
-        jobs.forEach { job -> job.cancel() }
-        result
+        null
     }
 
     suspend fun getLiveCategories(portalUrl: String, user: String, pswd: String): List<LiveCategory> =
@@ -295,11 +292,13 @@ class XtreamApiClient {
         }
     }
 
-    fun buildLiveStreamUrl(portalUrl: String, user: String, pswd: String, streamId: Int, ext: String = "ts"): String {
-        val cleanExt = ext.removePrefix(".").ifBlank { "ts" }
-        val rawUrl = "$portalUrl/live/$user/$pswd/$streamId.$cleanExt"
-        val encoded = try { java.net.URLEncoder.encode(rawUrl, "UTF-8") } catch (_: Exception) { rawUrl }
-        return "https://tv-dinner-proxy.onrender.com/?url=$encoded"
+    /**
+     * Build live stream URL. Uses .m3u8 (HLS) format by default for native ExoPlayer
+     * local playback on residential WiFi.
+     */
+    fun buildLiveStreamUrl(portalUrl: String, user: String, pswd: String, streamId: Int, ext: String = "m3u8"): String {
+        val cleanExt = ext.removePrefix(".").ifBlank { "m3u8" }
+        return "$portalUrl/live/$user/$pswd/$streamId.$cleanExt"
     }
 
     fun buildRawLiveStreamUrl(portalUrl: String, user: String, pswd: String, streamId: Int, ext: String = "ts"): String {
@@ -309,15 +308,77 @@ class XtreamApiClient {
 
     fun buildMovieStreamUrl(portalUrl: String, user: String, pswd: String, streamId: Int, ext: String = "mp4"): String {
         val cleanExt = ext.removePrefix(".").ifBlank { "mp4" }
-        val rawUrl = "$portalUrl/movie/$user/$pswd/$streamId.$cleanExt"
-        val encoded = try { java.net.URLEncoder.encode(rawUrl, "UTF-8") } catch (_: Exception) { rawUrl }
-        return "https://tv-dinner-proxy.onrender.com/?url=$encoded"
+        return "$portalUrl/movie/$user/$pswd/$streamId.$cleanExt"
     }
 
     fun buildSeriesStreamUrl(portalUrl: String, user: String, pswd: String, streamId: Int, ext: String = "mp4"): String {
         val cleanExt = ext.removePrefix(".").ifBlank { "mp4" }
-        val rawUrl = "$portalUrl/series/$user/$pswd/$streamId.$cleanExt"
-        val encoded = try { java.net.URLEncoder.encode(rawUrl, "UTF-8") } catch (_: Exception) { rawUrl }
-        return "https://tv-dinner-proxy.onrender.com/?url=$encoded"
+        return "$portalUrl/series/$user/$pswd/$streamId.$cleanExt"
+    }
+
+    suspend fun testCredentials(portalUrl: String, user: String, pswd: String): AuthResult = withContext(Dispatchers.IO) {
+        if (user.isBlank() || pswd.isBlank()) {
+            return@withContext AuthResult(false, "Invalid", "Username and Password cannot be empty.")
+        }
+        try {
+            val url = "$portalUrl/player_api.php?username=$user&password=$pswd"
+            val json = fetchJsonFast(url)
+            if (json.isNullOrBlank()) {
+                return@withContext AuthResult(false, "Inactive", "Unable to connect to IPTV server. Check network connection.")
+            }
+            val jsonObj = try {
+                gson.fromJson(json, com.google.gson.JsonObject::class.java)
+            } catch (_: Exception) {
+                null
+            }
+
+            val userInfo = jsonObj?.getAsJsonObject("user_info")
+            if (userInfo != null) {
+                val auth = try { userInfo.get("auth")?.asInt ?: 1 } catch (_: Exception) { 1 }
+                val status = try { userInfo.get("status")?.asString ?: "Active" } catch (_: Exception) { "Active" }
+                val expDate = try { userInfo.get("exp_date")?.asString } catch (_: Exception) { null }
+                val maxConn = try { userInfo.get("max_connections")?.asString } catch (_: Exception) { null }
+
+                val isActive = auth == 1 && status.equals("Active", ignoreCase = true)
+                if (isActive) {
+                    return@withContext AuthResult(
+                        isValid = true,
+                        status = "Active",
+                        message = "Active & Verified • Connected to IPTV Server (Max Cons: ${maxConn ?: "1"})",
+                        expDate = expDate,
+                        maxConnections = maxConn
+                    )
+                } else {
+                    return@withContext AuthResult(
+                        isValid = false,
+                        status = status,
+                        message = "Account Status: $status (Authentication Failed)"
+                    )
+                }
+            }
+
+            // Fallback check: If categories can be retrieved, credentials are active
+            val cats = getLiveCategories(portalUrl, user, pswd)
+            if (cats.isNotEmpty()) {
+                return@withContext AuthResult(
+                    isValid = true,
+                    status = "Active",
+                    message = "Active & Verified • ${cats.size} Categories Available"
+                )
+            }
+
+            AuthResult(false, "Inactive", "Authentication failed. Inactive or invalid credentials.")
+        } catch (e: Exception) {
+            Log.e(tag, "testCredentials error: ${e.message}")
+            AuthResult(false, "Error", "Connection error: ${e.localizedMessage ?: e.message}")
+        }
     }
 }
+
+data class AuthResult(
+    val isValid: Boolean,
+    val status: String,
+    val message: String,
+    val expDate: String? = null,
+    val maxConnections: String? = null
+)

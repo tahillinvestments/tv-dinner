@@ -84,12 +84,71 @@ class ExoPlayerManager(
     private var lastSeekTime = 0L
     private var seekMagnitudeMs = 15_000L
     private var liveRecoveryAttempt = 0
+    private var vodRecoveryAttempt = 0
 
     private var progressJob: Job? = null
+    private var bufferWatchdogJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main)
 
     init {
         initializePlayer()
+    }
+
+    fun recoverLiveStream() {
+        val currentUrl = _currentStreamUrl.value
+        if (currentUrl.isBlank() || !_isLiveStream.value) return
+        liveRecoveryAttempt++
+        Log.w(tag, "Recovering live stream: attempt $liveRecoveryAttempt (current: $currentUrl)")
+
+        player?.let { p ->
+            // Attempt 1: Re-seek to live edge and re-prepare
+            if (liveRecoveryAttempt == 1) {
+                try {
+                    p.seekToDefaultPosition()
+                    p.prepare()
+                    p.play()
+                    return
+                } catch (_: Exception) {}
+            }
+
+            // Attempt 2: Toggle format (.ts <-> .m3u8) or edge relay
+            val nextUrl = if (currentUrl.endsWith(".ts")) {
+                currentUrl.replace(".ts", ".m3u8")
+            } else if (currentUrl.endsWith(".m3u8")) {
+                currentUrl.replace(".m3u8", ".ts")
+            } else {
+                currentUrl
+            }
+
+            // Full re-init
+            playStream(
+                url = nextUrl,
+                title = _currentTitle.value,
+                isLive = true,
+                recoveryAttempt = liveRecoveryAttempt
+            )
+        }
+    }
+
+    fun recoverVodStream() {
+        val currentUrl = _currentStreamUrl.value
+        if (currentUrl.isBlank() || _isLiveStream.value) return
+        vodRecoveryAttempt++
+        val resumePos = _currentPosition.value
+        Log.w(tag, "Recovering VOD stream: attempt $vodRecoveryAttempt from ${resumePos}ms (url: $currentUrl)")
+
+        // Evict any hung sockets in OkHttp connection pool from WiFi drops or deep seek stalls
+        try {
+            xtreamApiClient.okHttpClient.connectionPool.evictAll()
+        } catch (_: Exception) {}
+
+        playStream(
+            url = currentUrl,
+            title = _currentTitle.value,
+            isLive = false,
+            startPositionMs = resumePos,
+            streamKey = currentStreamKey
+        )
     }
 
     private fun initializePlayer() {
@@ -100,18 +159,32 @@ class ExoPlayerManager(
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
 
-        val renderersFactory = DefaultRenderersFactory(context).apply {
+        val renderersFactory = object : DefaultRenderersFactory(context) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): androidx.media3.exoplayer.audio.AudioSink {
+                return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                    .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                    .setEnableFloatOutput(false)
+                    .setEnableAudioTrackPlaybackParams(true)
+                    .build()
+            }
+        }.apply {
             setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             setEnableDecoderFallback(true)
             setEnableAudioTrackPlaybackParams(true)
+            setEnableAudioFloatOutput(false)
         }
 
+        // Buffer durations tuned for instant direct start and zero artificial latency
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                1500,  // minBufferMs (rapid startup)
-                20000, // maxBufferMs
-                500,   // bufferForPlaybackMs (instant playback start in 0.5s)
-                1000   // bufferForPlaybackAfterRebufferMs
+                3000,  // minBufferMs (3s buffer threshold)
+                30000, // maxBufferMs (30s max buffer)
+                500,   // bufferForPlaybackMs (instant startup in 500ms)
+                1000   // bufferForPlaybackAfterRebufferMs (1s recovery)
             )
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
@@ -136,6 +209,7 @@ class ExoPlayerManager(
                     .setPreferredAudioLanguage("en")
                     .setSelectUndeterminedTextLanguage(true)
                     .setExceedRendererCapabilitiesIfNecessary(true)
+                    .setAllowAudioNonSeamlessAdaptiveness(true)
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             )
         }
@@ -156,21 +230,46 @@ class ExoPlayerManager(
                             Player.STATE_BUFFERING -> {
                                 _isBuffering.value = true
                                 _errorMessage.value = null
+                                bufferWatchdogJob?.cancel()
+                                bufferWatchdogJob = scope.launch {
+                                    if (_isLiveStream.value) {
+                                        delay(15000) // 15s timeout for WiFi jitter instead of aggressive 4s
+                                        if (_isBuffering.value && _isLiveStream.value && player != null) {
+                                            Log.w(tag, "Live stream stalled in buffering for 15s. Auto-recovering...")
+                                            recoverLiveStream()
+                                        }
+                                    } else {
+                                        delay(10000) // 10s watchdog for VOD
+                                        if (_isBuffering.value && !_isLiveStream.value && player != null) {
+                                            Log.w(tag, "VOD playback stalled in buffering for 10s. Auto-recovering at ${_currentPosition.value}ms...")
+                                            recoverVodStream()
+                                        }
+                                    }
+                                }
                             }
                             Player.STATE_READY -> {
                                 _isBuffering.value = false
+                                bufferWatchdogJob?.cancel()
+                                liveRecoveryAttempt = 0
+                                vodRecoveryAttempt = 0
                                 _isPlaying.value = playWhenReady
                                 _duration.value = if (duration == C.TIME_UNSET) 0L else duration
                                 _errorMessage.value = null
                             }
                             Player.STATE_ENDED -> {
                                 _isBuffering.value = false
+                                bufferWatchdogJob?.cancel()
                                 _isPlaying.value = false
-                                val key = currentStreamKey ?: _currentStreamUrl.value
-                                authRepo?.clearPlaybackPosition(key)
+                                if (_isLiveStream.value) {
+                                    recoverLiveStream()
+                                } else {
+                                    val key = currentStreamKey ?: _currentStreamUrl.value
+                                    authRepo?.clearPlaybackPosition(key)
+                                }
                             }
                             Player.STATE_IDLE -> {
                                 _isBuffering.value = false
+                                bufferWatchdogJob?.cancel()
                             }
                         }
                     }
@@ -188,43 +287,20 @@ class ExoPlayerManager(
                         Log.e(tag, "ExoPlayer playback error: ${error.message} (${error.errorCodeName})", error)
                         _isBuffering.value = false
                         _isPlaying.value = false
+                        bufferWatchdogJob?.cancel()
 
-                        // Multi-tier auto-recovery for Live Streams
-                        val currentUrl = _currentStreamUrl.value
-                        if (_isLiveStream.value && currentUrl.isNotBlank() && liveRecoveryAttempt < 2) {
-                            val nextAttempt = liveRecoveryAttempt + 1
-                            val nextUrl: String? = when (liveRecoveryAttempt) {
-                                0 -> {
-                                    // Stage 0 -> Stage 1: If proxy TS failed, toggle to proxy M3U8
-                                    val rawTarget = if (currentUrl.contains("url=")) {
-                                        try { java.net.URLDecoder.decode(currentUrl.substringAfter("url=").substringBefore("&"), "UTF-8") } catch (_: Exception) { currentUrl }
-                                    } else {
-                                        currentUrl
-                                    }
-                                    val switchedTarget = if (rawTarget.contains(".ts")) {
-                                        rawTarget.replace(".ts", ".m3u8")
-                                    } else if (rawTarget.contains(".m3u8")) {
-                                        rawTarget.replace(".m3u8", ".ts")
-                                    } else {
-                                        rawTarget
-                                    }
-                                    val encoded = try { java.net.URLEncoder.encode(switchedTarget, "UTF-8") } catch (_: Exception) { switchedTarget }
-                                    "https://tv-dinner-proxy.onrender.com/?url=$encoded"
-                                }
-                                1 -> {
-                                    // Stage 1 -> Stage 2: Try direct raw stream without proxy
-                                    if (currentUrl.contains("url=")) {
-                                        try { java.net.URLDecoder.decode(currentUrl.substringAfter("url=").substringBefore("&"), "UTF-8") } catch (_: Exception) { null }
-                                    } else null
-                                }
-                                else -> null
+                        if (_isLiveStream.value && liveRecoveryAttempt < 5) {
+                            scope.launch {
+                                delay(1000)
+                                recoverLiveStream()
                             }
-
-                            if (nextUrl != null && nextUrl != currentUrl) {
-                                Log.w(tag, "Live stream auto-recovery (stage $nextAttempt). Trying: $nextUrl")
-                                playStream(nextUrl, _currentTitle.value, isLive = true, recoveryAttempt = nextAttempt)
-                                return
+                            return
+                        } else if (!_isLiveStream.value && vodRecoveryAttempt < 5) {
+                            scope.launch {
+                                delay(1500)
+                                recoverVodStream()
                             }
+                            return
                         }
 
                         _errorMessage.value = "Playback error: ${error.errorCodeName}"
@@ -326,7 +402,9 @@ class ExoPlayerManager(
         // Flush old stream position if applicable
         flushPositionNow()
 
-        _currentStreamUrl.value = url
+        val effectiveUrl = url
+
+        _currentStreamUrl.value = effectiveUrl
         _currentTitle.value = title
         _isLiveStream.value = isLive
         currentStreamKey = streamKey
@@ -340,14 +418,31 @@ class ExoPlayerManager(
             stop()
             clearMediaItems()
             val mediaItemBuilder = MediaItem.Builder()
-                .setUri(Uri.parse(url))
-            if (url.contains(".m3u8", ignoreCase = true)) {
+                .setUri(Uri.parse(effectiveUrl))
+            if (isLive) {
+                mediaItemBuilder.setLiveConfiguration(
+                    MediaItem.LiveConfiguration.Builder()
+                        .setMaxPlaybackSpeed(1.02f)
+                        .setMinPlaybackSpeed(0.98f)
+                        .build()
+                )
+            }
+            if (effectiveUrl.contains(".m3u8", ignoreCase = true)) {
                 mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
             }
             val mediaItem = mediaItemBuilder.build()
             setMediaItem(mediaItem)
             if (startPositionMs > 0 && !isLive) {
                 seekTo(startPositionMs)
+            }
+            if (!isLive && authRepo?.isVodSubtitlesEnabled() == true) {
+                _isClosedCaptionsEnabled.value = true
+                val builder = trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .setPreferredTextLanguage("en")
+                    .setPreferredTextRoleFlags(C.ROLE_FLAG_CAPTION or C.ROLE_FLAG_SUBTITLE)
+                    .setSelectUndeterminedTextLanguage(true)
+                trackSelectionParameters = builder.build()
             }
             prepare()
             playWhenReady = true
@@ -358,20 +453,41 @@ class ExoPlayerManager(
         player?.let { p ->
             if (p.isPlaying) {
                 p.pause()
+                _isPlaying.value = false
                 flushPositionNow()
             } else {
+                if (p.playbackState == Player.STATE_IDLE || p.playbackState == Player.STATE_ENDED) {
+                    if (_currentStreamUrl.value.isNotBlank()) {
+                        playStream(_currentStreamUrl.value, _currentTitle.value, isLive = _isLiveStream.value)
+                        return
+                    } else {
+                        p.prepare()
+                    }
+                }
+                p.playWhenReady = true
                 p.play()
+                _isPlaying.value = true
             }
         }
     }
 
     fun play() {
-        player?.play()
+        player?.let { p ->
+            if (p.playbackState == Player.STATE_IDLE) {
+                p.prepare()
+            }
+            p.playWhenReady = true
+            p.play()
+            _isPlaying.value = true
+        }
     }
 
     fun pause() {
-        player?.pause()
-        flushPositionNow()
+        player?.let { p ->
+            p.pause()
+            _isPlaying.value = false
+            flushPositionNow()
+        }
     }
 
     fun seekTo(posMs: Long) {

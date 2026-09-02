@@ -16,6 +16,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.*
 import com.troyh.tvdinner.MainActivity
 import com.troyh.tvdinner.data.network.XtreamApiClient
 import com.troyh.tvdinner.data.repository.AuthRepository
@@ -31,9 +34,25 @@ enum class AppTab(val label: String, val icon: ImageVector) {
     LIVE("Live TV", Icons.Default.Tv),
     MOVIES("Movies", Icons.Default.Movie),
     SERIES("Series", Icons.Default.VideoLibrary),
+    MUSIC("Music", Icons.Default.MusicNote),
     PODCASTS("Podcasts", Icons.Default.Podcasts),
     SETTINGS("Settings", Icons.Default.Settings)
 }
+
+data class FullscreenMediaState(
+    val url: String,
+    val title: String,
+    val onNextEpisode: (() -> Unit)? = null,
+    val nextEpisodeTitle: String? = null
+)
+
+data class FullscreenYouTubeState(
+    val videoId: String,
+    val title: String,
+    val onNextVideo: (() -> Unit)? = null,
+    val nextVideoTitle: String? = null,
+    val onPreviousVideo: (() -> Unit)? = null
+)
 
 @Composable
 fun MainAppScreen(
@@ -44,17 +63,23 @@ fun MainAppScreen(
     onSignOut: () -> Unit
 ) {
     var activeTab by remember { mutableStateOf(AppTab.LIVE) }
+    val liveTabFocusRequester = remember { FocusRequester() }
+    val liveContentFocusRequester = remember { FocusRequester() }
 
     // Live TV In-Place Fullscreen State
     var isLiveTvFullscreen by remember { mutableStateOf(false) }
 
     // Fullscreen Playback States for VOD and YouTube
-    var fullscreenMedia by remember { mutableStateOf<Pair<String, String>?>(null) } // (url, title)
-    var fullscreenYouTube by remember { mutableStateOf<Pair<String, String>?>(null) } // (videoId, title)
+    var fullscreenMedia by remember { mutableStateOf<FullscreenMediaState?>(null) }
+    var fullscreenYouTube by remember { mutableStateOf<FullscreenYouTubeState?>(null) }
 
-    // Sync VOD fullscreen state with MainActivity for remote key interception
-    LaunchedEffect(fullscreenMedia) {
+    // Sync VOD, YouTube and Live TV fullscreen states and next-item callbacks with MainActivity for remote key interception
+    LaunchedEffect(fullscreenMedia, isLiveTvFullscreen, fullscreenYouTube) {
         MainActivity.isVODFullscreenActive = (fullscreenMedia != null)
+        MainActivity.isLiveFullscreenActive = isLiveTvFullscreen
+        MainActivity.onNextEpisodeCallback = fullscreenMedia?.onNextEpisode
+        MainActivity.onNextYouTubeCallback = fullscreenYouTube?.onNextVideo
+        MainActivity.onPreviousYouTubeCallback = fullscreenYouTube?.onPreviousVideo
     }
 
     // Hierarchical Back Button Handler
@@ -73,7 +98,7 @@ fun MainAppScreen(
         }
     }
 
-    // Stop playback if switching away from active tab
+    // Handle tab change: stop playback if leaving Live TV without fullscreen media
     LaunchedEffect(activeTab) {
         if (activeTab != AppTab.LIVE && fullscreenMedia == null) {
             playerManager.stop()
@@ -85,7 +110,7 @@ fun MainAppScreen(
             val isWideScreen = maxWidth > 600.dp
 
             if (isWideScreen) {
-                // TV / Landscape Layout: Sidebar hides smoothly during fullscreen without recreating screens
+                // TV / Landscape Layout: Compact Icon-Only Sidebar
                 Row(modifier = Modifier.fillMaxSize()) {
                     if (!isLiveTvFullscreen) {
                         Surface(
@@ -93,20 +118,21 @@ fun MainAppScreen(
                             color = CinemaSurface,
                             border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
                             modifier = Modifier
-                                .width(200.dp)
+                                .width(76.dp)
                                 .fillMaxHeight()
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxHeight()
-                                    .padding(vertical = 20.dp, horizontal = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    .padding(vertical = 16.dp, horizontal = 10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                // App Brand with Official Logo (Enlarged, centered, no redundant text)
+                                // App Brand with Official Logo
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 10.dp),
+                                        .padding(bottom = 6.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     androidx.compose.foundation.Image(
@@ -114,14 +140,12 @@ fun MainAppScreen(
                                         contentDescription = "TV Dinner",
                                         contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                                         modifier = Modifier
-                                            .size(96.dp)
-                                            .clip(RoundedCornerShape(16.dp))
+                                            .size(46.dp)
+                                            .clip(RoundedCornerShape(12.dp))
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                // Navigation Items
+                                // Navigation Icon Items
                                 for (tab in AppTab.values()) {
                                     val isSelected = activeTab == tab
                                     TvFocusableCard(
@@ -133,30 +157,39 @@ fun MainAppScreen(
                                                 activeTab = tab
                                             }
                                         },
-                                        shape = RoundedCornerShape(10.dp),
+                                        shape = RoundedCornerShape(12.dp),
                                         backgroundColor = if (isSelected) CinemaPrimary else Color.Transparent,
                                         focusedBorderColor = CinemaFocus,
-                                        focusedScale = 1.04f,
-                                        modifier = Modifier.fillMaxWidth().height(46.dp)
+                                        focusedScale = 1.08f,
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .then(if (tab == AppTab.LIVE) Modifier.focusRequester(liveTabFocusRequester) else Modifier)
+                                            .onPreviewKeyEvent { keyEvent ->
+                                                if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionRight) {
+                                                    if (activeTab == AppTab.LIVE) {
+                                                        try {
+                                                            liveContentFocusRequester.requestFocus()
+                                                            true
+                                                        } catch (_: Exception) {
+                                                            false
+                                                        }
+                                                    } else {
+                                                        false
+                                                    }
+                                                } else {
+                                                    false
+                                                }
+                                            }
                                     ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .padding(horizontal = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = tab.icon,
                                                 contentDescription = tab.label,
                                                 tint = if (isSelected) Color.White else TextSecondary,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Text(
-                                                text = tab.label,
-                                                color = if (isSelected) Color.White else TextSecondary,
-                                                fontSize = 14.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                                modifier = Modifier.size(24.dp)
                                             )
                                         }
                                     }
@@ -174,42 +207,68 @@ fun MainAppScreen(
                                 catalogManager = catalogManager,
                                 playerManager = playerManager,
                                 isFullscreen = isLiveTvFullscreen,
-                                onToggleFullscreen = { isLiveTvFullscreen = it }
+                                onToggleFullscreen = { isLiveTvFullscreen = it },
+                                contentFocusRequester = liveContentFocusRequester,
+                                onRequestFocusSidebar = {
+                                    try {
+                                        liveTabFocusRequester.requestFocus()
+                                    } catch (_: Exception) {}
+                                }
                             )
                             AppTab.MOVIES -> MoviesScreen(
                                 authRepo = authRepo,
                                 apiClient = apiClient,
                                 catalogManager = catalogManager,
+                                isPlayingFullscreen = (fullscreenMedia != null),
                                 onPlayMovie = { url, title, startPos, streamKey ->
                                     playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
-                                    fullscreenMedia = Pair(url, title)
+                                    fullscreenMedia = FullscreenMediaState(
+                                        url = url,
+                                        title = title,
+                                        onNextEpisode = null,
+                                        nextEpisodeTitle = null
+                                    )
                                 }
                             )
                             AppTab.SERIES -> SeriesScreen(
                                 authRepo = authRepo,
                                 apiClient = apiClient,
                                 catalogManager = catalogManager,
-                                onPlayEpisode = { url, title, startPos, streamKey ->
+                                isPlayingFullscreen = (fullscreenMedia != null),
+                                onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
                                     playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
-                                    fullscreenMedia = Pair(url, title)
+                                    fullscreenMedia = FullscreenMediaState(
+                                        url = url,
+                                        title = title,
+                                        onNextEpisode = onNext,
+                                        nextEpisodeTitle = nextTitle
+                                    )
+                                }
+                            )
+                            AppTab.MUSIC -> MusicScreen(
+                                authRepo = authRepo,
+                                catalogManager = catalogManager,
+                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
                                 }
                             )
                             AppTab.PODCASTS -> PodcastsScreen(
                                 authRepo = authRepo,
                                 catalogManager = catalogManager,
-                                onPlayYouTubeVideo = { videoId, title ->
-                                    fullscreenYouTube = Pair(videoId, title)
+                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle ->
+                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle)
                                 }
                             )
                             AppTab.SETTINGS -> SettingsScreen(
                                 authRepo = authRepo,
+                                catalogManager = catalogManager,
                                 onSignOut = onSignOut
                             )
                         }
                     }
                 }
             } else {
-                // Mobile Portrait Layout: Bottom Navigation Bar
+                // Mobile Portrait Layout: Bottom Navigation Bar with Symbols Only
                 Scaffold(
                     bottomBar = {
                         if (!isLiveTvFullscreen) {
@@ -228,14 +287,12 @@ fun MainAppScreen(
                                                 activeTab = tab
                                             }
                                         },
-                                        icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
-                                        label = { Text(tab.label, fontSize = 11.sp) },
+                                        icon = { Icon(imageVector = tab.icon, contentDescription = tab.label, modifier = Modifier.size(24.dp)) },
+                                        alwaysShowLabel = false,
                                         colors = NavigationBarItemDefaults.colors(
-                                            selectedIconColor = CinemaAccent,
-                                            selectedTextColor = CinemaAccent,
-                                            indicatorColor = CinemaPrimary.copy(alpha = 0.2f),
-                                            unselectedIconColor = TextSecondary,
-                                            unselectedTextColor = TextSecondary
+                                             selectedIconColor = CinemaAccent,
+                                             indicatorColor = CinemaPrimary.copy(alpha = 0.25f),
+                                             unselectedIconColor = TextSecondary
                                         )
                                     )
                                 }
@@ -257,29 +314,49 @@ fun MainAppScreen(
                                 authRepo = authRepo,
                                 apiClient = apiClient,
                                 catalogManager = catalogManager,
+                                isPlayingFullscreen = (fullscreenMedia != null),
                                 onPlayMovie = { url, title, startPos, streamKey ->
                                     playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
-                                    fullscreenMedia = Pair(url, title)
+                                    fullscreenMedia = FullscreenMediaState(
+                                        url = url,
+                                        title = title,
+                                        onNextEpisode = null,
+                                        nextEpisodeTitle = null
+                                    )
                                 }
                             )
                             AppTab.SERIES -> SeriesScreen(
                                 authRepo = authRepo,
                                 apiClient = apiClient,
                                 catalogManager = catalogManager,
-                                onPlayEpisode = { url, title, startPos, streamKey ->
+                                isPlayingFullscreen = (fullscreenMedia != null),
+                                onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
                                     playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
-                                    fullscreenMedia = Pair(url, title)
+                                    fullscreenMedia = FullscreenMediaState(
+                                        url = url,
+                                        title = title,
+                                        onNextEpisode = onNext,
+                                        nextEpisodeTitle = nextTitle
+                                    )
+                                }
+                            )
+                            AppTab.MUSIC -> MusicScreen(
+                                authRepo = authRepo,
+                                catalogManager = catalogManager,
+                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
                                 }
                             )
                             AppTab.PODCASTS -> PodcastsScreen(
                                 authRepo = authRepo,
                                 catalogManager = catalogManager,
-                                onPlayYouTubeVideo = { videoId, title ->
-                                    fullscreenYouTube = Pair(videoId, title)
+                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle ->
+                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle)
                                 }
                             )
                             AppTab.SETTINGS -> SettingsScreen(
                                 authRepo = authRepo,
+                                catalogManager = catalogManager,
                                 onSignOut = onSignOut
                             )
                         }
@@ -290,28 +367,35 @@ fun MainAppScreen(
 
         // Fullscreen Overlays for VOD and YouTube
         if (fullscreenMedia != null) {
-            val (_, title) = fullscreenMedia!!
+            val mediaState = fullscreenMedia!!
             NativePlayerView(
                 playerManager = playerManager,
                 onBack = {
                     playerManager.stop()
                     fullscreenMedia = null
                 },
+                onNextEpisode = mediaState.onNextEpisode,
+                nextEpisodeTitle = mediaState.nextEpisodeTitle,
                 modifier = Modifier.fillMaxSize()
             )
         }
 
         if (fullscreenYouTube != null) {
-            val (videoId, title) = fullscreenYouTube!!
-            YouTubePlayerView(
-                videoId = videoId,
-                title = title,
-                onBack = {
-                    YouTubeRemoteBridge.activeWebView = null
-                    fullscreenYouTube = null
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+            val ytState = fullscreenYouTube!!
+            key(ytState.videoId) {
+                YouTubePlayerView(
+                    videoId = ytState.videoId,
+                    title = ytState.title,
+                    onBack = {
+                        YouTubeRemoteBridge.activeWebView = null
+                        fullscreenYouTube = null
+                    },
+                    onNextVideo = ytState.onNextVideo,
+                    nextVideoTitle = ytState.nextVideoTitle,
+                    onPreviousVideo = ytState.onPreviousVideo,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }

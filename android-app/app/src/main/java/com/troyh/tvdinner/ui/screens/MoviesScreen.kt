@@ -1,5 +1,8 @@
 package com.troyh.tvdinner.ui.screens
 
+import android.app.UiModeManager
+import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,21 +27,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import com.troyh.tvdinner.data.model.Movie
 import com.troyh.tvdinner.data.model.MovieCategory
 import com.troyh.tvdinner.data.network.XtreamApiClient
 import com.troyh.tvdinner.data.repository.AuthRepository
 import com.troyh.tvdinner.data.repository.CatalogManager
+import com.troyh.tvdinner.ui.components.AppSearchBar
 import com.troyh.tvdinner.ui.components.TvFocusableCard
 import com.troyh.tvdinner.ui.theme.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 
 @Composable
 fun MoviesScreen(
@@ -46,203 +58,413 @@ fun MoviesScreen(
     apiClient: XtreamApiClient,
     catalogManager: CatalogManager,
     onPlayMovie: (String, String, Long, String) -> Unit, // (url, title, startPosMs, streamKey)
+    isPlayingFullscreen: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val sortOptions = listOf("🔥 Latest & Trending", "⭐ Top Rated", "📅 New Releases", "🔤 A - Z")
-    var currentSort by rememberSaveable { mutableStateOf("🔥 Latest & Trending") }
-
     var categories by remember { mutableStateOf<List<MovieCategory>>(emptyList()) }
-    var selectedCategoryId by rememberSaveable { mutableStateOf<String?>("all") }
+    var selectedCategoryId by rememberSaveable { mutableStateOf<String?>(authRepo.getLastMovieCategoryId()) }
     var movies by remember { mutableStateOf<List<Movie>>(emptyList()) }
+    var searchResults by remember { mutableStateOf<List<Movie>>(emptyList()) }
+    var lastPlayedMovieId by rememberSaveable { mutableIntStateOf(authRepo.getLastMovieStreamId()) }
     var isLoading by remember { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var resumePromptMovie by remember { mutableStateOf<Movie?>(null) }
     var sortedAndFilteredMovies by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var isSorting by remember { mutableStateOf(false) }
 
-    val portal = remember { authRepo.getVodPortalUrl() }
-    val user = remember { authRepo.getVodUsername() }
-    val pswd = remember { authRepo.getVodPassword() }
+    val portal = authRepo.getVodPortalUrl()
+    val user = authRepo.getActiveUsername()
+    val pswd = authRepo.getActivePassword()
+
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val uiModeManager = remember { context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager }
+    val isTv = remember { uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION }
+    val isCompact = configuration.screenWidthDp < 600
+    val isMobile = !isTv && (configuration.orientation == Configuration.ORIENTATION_PORTRAIT || isCompact)
 
     val gridState = rememberLazyGridState()
+    val categoryListState = rememberLazyListState()
+    val categoryScrollPositions = remember { mutableMapOf<String, Int>() }
 
-    // Smart Fast Loading (Loads first category in ~150ms instead of 30,000 movies)
+    fun selectCategory(newCatId: String) {
+        if (selectedCategoryId != newCatId) {
+            selectedCategoryId?.let { current ->
+                categoryScrollPositions[current] = gridState.firstVisibleItemIndex
+            }
+            selectedCategoryId = newCatId
+            authRepo.setLastMovieCategoryId(newCatId)
+        }
+    }
+
+    // Smart Fast Loading (Loads first or remembered category)
     LaunchedEffect(Unit) {
         if (categories.isEmpty()) {
             isLoading = true
             val cats = catalogManager.getMovieCategories()
             categories = cats
-            val initialCatId = cats.firstOrNull { it.categoryId != "all" }?.categoryId ?: "all"
+            val savedCat = authRepo.getLastMovieCategoryId()
+            val initialCatId = if (cats.any { it.categoryId == savedCat }) {
+                savedCat ?: ""
+            } else {
+                cats.firstOrNull()?.categoryId ?: ""
+            }
             selectedCategoryId = initialCatId
-            movies = catalogManager.getMovies(initialCatId)
+            if (initialCatId.isNotBlank()) {
+                movies = catalogManager.getMovies(initialCatId)
+            }
             isLoading = false
         }
     }
 
     LaunchedEffect(selectedCategoryId) {
-        if (selectedCategoryId != null && categories.isNotEmpty()) {
+        if (!selectedCategoryId.isNullOrBlank() && categories.isNotEmpty() && searchQuery.isBlank()) {
             isLoading = true
             movies = catalogManager.getMovies(selectedCategoryId)
             isLoading = false
         }
     }
 
-    // High-Performance Background Sorting (Zero UI lag / No Fire TV Stick crash)
-    LaunchedEffect(movies, searchQuery, currentSort) {
+    // Auto-scroll category into view in sidebar
+    LaunchedEffect(selectedCategoryId, categories) {
+        val idx = categories.indexOfFirst { it.categoryId == selectedCategoryId }
+        if (idx >= 0) {
+            categoryListState.animateScrollToItem((idx - 2).coerceAtLeast(0))
+        }
+    }
+
+    // High-performance search across entire VOD movie catalog with debounce (Adult excluded unless Adult tab selected)
+    LaunchedEffect(searchQuery, selectedCategoryId) {
+        if (searchQuery.isNotBlank()) {
+            delay(300) // Debounce rapid keystrokes to prevent OOM / network spikes
+            isLoading = true
+            searchResults = catalogManager.searchMovies(searchQuery, selectedCategoryId)
+            isLoading = false
+        } else {
+            searchResults = emptyList()
+        }
+    }
+
+    // High-Performance Smart Sorting (Zero UI lag / No Fire TV Stick crash)
+    LaunchedEffect(movies, searchResults, searchQuery) {
         isSorting = true
         sortedAndFilteredMovies = withContext(Dispatchers.Default) {
-            val base = if (searchQuery.isBlank()) {
-                movies
+            val base = if (searchQuery.isNotBlank()) {
+                searchResults
             } else {
-                movies.filter { it.displayTitle.contains(searchQuery, ignoreCase = true) }
+                movies
             }
 
-            when (currentSort) {
-                "⭐ Top Rated" -> base.sortedByDescending { it.rating5Based ?: 0.0 }
-                "📅 New Releases" -> {
-                    base.sortedWith(
-                        compareByDescending<Movie> { extractMovieReleaseYear(it) }
-                            .thenByDescending { it.added?.toLongOrNull() ?: 0L }
-                            .thenByDescending { it.streamId }
-                    )
-                }
-                "🔤 A - Z" -> base.sortedBy { it.displayTitle.lowercase() }
-                else -> {
-                    // "🔥 Latest & Trending": 2026/2025/2024 releases, newest added timestamp, high rating, or stream_id descending
-                    base.sortedWith(
-                        compareByDescending<Movie> { extractMovieReleaseYear(it).coerceAtLeast(2023) }
-                            .thenByDescending { it.added?.toLongOrNull() ?: (it.streamId.toLong()) }
-                            .thenByDescending { it.rating5Based ?: 0.0 }
-                            .thenByDescending { it.streamId }
-                    )
-                }
-            }
+            // Smart Sort: Newest releases (2026/2025/2024), added timestamp, rating, and streamId descending
+            base.sortedWith(
+                compareByDescending<Movie> { extractMovieReleaseYear(it).coerceAtLeast(2023) }
+                    .thenByDescending { it.added?.toLongOrNull() ?: (it.streamId.toLong()) }
+                    .thenByDescending { it.rating5Based ?: 0.0 }
+                    .thenByDescending { it.streamId }
+            )
         }
         isSorting = false
     }
 
-    Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Header, Search & Sort
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = "MOVIES VOD",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Black,
-                    color = TextPrimary
-                )
+    // Restore scroll position when category changes or default to top
+    LaunchedEffect(selectedCategoryId, sortedAndFilteredMovies) {
+        if (selectedCategoryId != null && sortedAndFilteredMovies.isNotEmpty() && searchQuery.isBlank()) {
+            val savedPos = categoryScrollPositions[selectedCategoryId]
+            if (savedPos != null && savedPos in sortedAndFilteredMovies.indices) {
+                gridState.scrollToItem(savedPos)
+            } else {
+                gridState.scrollToItem(0)
+            }
+        }
+    }
 
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search movies catalog...", color = TextMuted, fontSize = 13.sp) },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = TextSecondary)
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(imageVector = Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary)
+    // Auto-scroll to the movie card that was just playing when returning from fullscreen
+    LaunchedEffect(isPlayingFullscreen, lastPlayedMovieId) {
+        if (!isPlayingFullscreen && lastPlayedMovieId > 0 && sortedAndFilteredMovies.isNotEmpty()) {
+            val idx = sortedAndFilteredMovies.indexOfFirst { it.streamId == lastPlayedMovieId }
+            if (idx >= 0) {
+                gridState.scrollToItem((idx - 2).coerceAtLeast(0))
+            }
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
+        if (isMobile) {
+            // Mobile Portrait / Compact View: Single Column with horizontal categories
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Header, Search & Title
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "MOVIES VOD",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextPrimary
+                    )
+
+                    AppSearchBar(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = "Search movies...",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Categories Horizontal Row
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(categories) { cat ->
+                        val isSelected = selectedCategoryId == cat.categoryId
+                        TvFocusableCard(
+                            onClick = { selectCategory(cat.categoryId) },
+                            shape = RoundedCornerShape(8.dp),
+                            backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
+                            focusedBorderColor = CinemaFocus,
+                            focusedScale = 1.05f
+                        ) {
+                            Text(
+                                text = cat.categoryName,
+                                color = if (isSelected) Color.White else TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Movie Grid
+                if (isLoading || isSorting) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = CinemaAccent)
+                    }
+                } else if (sortedAndFilteredMovies.isEmpty()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text("No movies found in this category", color = TextMuted)
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 105.dp),
+                        state = gridState,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f).fillMaxWidth()
+                    ) {
+                        items(sortedAndFilteredMovies, key = { it.streamId }) { movie ->
+                            val streamKey = "movie_${movie.streamId}"
+                            val savedPos = authRepo.getPlaybackPosition(streamKey)
+                            val savedDur = authRepo.getPlaybackDuration(streamKey)
+                            val hasHistory = savedPos >= 5_000L && (savedDur <= 0L || savedPos < savedDur - 15_000L)
+
+                            TvFocusableCard(
+                                onClick = {
+                                    val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
+                                    val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
+                                    val ext = movie.containerExtension.ifBlank { "mp4" }
+                                    val streamUrl = apiClient.buildMovieStreamUrl(portal, user, pswd, movie.streamId, ext)
+                                    lastPlayedMovieId = movie.streamId
+                                    authRepo.setLastMovieStreamId(movie.streamId)
+                                    if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
+                                        resumePromptMovie = movie
+                                    } else {
+                                        onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                backgroundColor = CinemaSurface,
+                                focusedBorderColor = CinemaFocus,
+                                focusedScale = 1.05f,
+                                modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                            ) {
+                                Column {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(2f / 3f)
+                                            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                                    ) {
+                                        MoviePosterImage(movie = movie, catalogManager = catalogManager)
+
+                                        // Rating Tag
+                                        if (movie.rating5Based != null && movie.rating5Based > 0.0) {
+                                            Surface(
+                                                shape = RoundedCornerShape(bottomStart = 8.dp),
+                                                color = Color.Black.copy(alpha = 0.75f),
+                                                modifier = Modifier.align(Alignment.TopEnd)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Star,
+                                                        contentDescription = null,
+                                                        tint = CinemaAccent,
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                    Text(
+                                                        text = String.format("%.1f", movie.rating5Based),
+                                                        color = Color.White,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Resume Progress Bar
+                                        if (hasHistory && savedDur > 0L) {
+                                            val progress = (savedPos.toFloat() / savedDur.toFloat()).coerceIn(0f, 1f)
+                                            Surface(
+                                                color = Color.Black.copy(alpha = 0.7f),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(4.dp)
+                                                    .align(Alignment.BottomCenter)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxHeight()
+                                                        .fillMaxWidth(progress)
+                                                        .background(CinemaPrimary)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = movie.displayTitle,
+                                            color = TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
                             }
                         }
-                    },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = CinemaSurface,
-                        unfocusedContainerColor = CinemaSurface,
-                        focusedBorderColor = CinemaAccent,
-                        unfocusedBorderColor = CinemaSurfaceVariant,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f).height(48.dp)
-                )
-            }
-
-            // Categories Row
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(categories) { cat ->
-                    val isSelected = selectedCategoryId == cat.categoryId
-                    TvFocusableCard(
-                        onClick = { selectedCategoryId = cat.categoryId },
-                        shape = RoundedCornerShape(8.dp),
-                        backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
-                        focusedBorderColor = CinemaFocus,
-                        focusedScale = 1.05f
-                    ) {
-                        Text(
-                            text = cat.categoryName,
-                            color = if (isSelected) Color.White else TextSecondary,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                        )
                     }
                 }
             }
-
-            // Modern Sorting Filter Pills
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Sort by:",
-                    color = TextMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                for (opt in sortOptions) {
-                    val isOptSelected = currentSort == opt
-                    TvFocusableCard(
-                        onClick = { currentSort = opt },
-                        shape = RoundedCornerShape(6.dp),
-                        backgroundColor = if (isOptSelected) CinemaAccent.copy(alpha = 0.2f) else Color.Transparent,
-                        focusedBorderColor = CinemaFocus,
-                        focusedScale = 1.03f
-                    ) {
-                        Text(
-                            text = opt,
-                            color = if (isOptSelected) CinemaAccent else TextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = if (isOptSelected) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            // Movie Grid
-            if (isLoading || isSorting) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = CinemaAccent)
-                }
-            } else if (sortedAndFilteredMovies.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No movies found in this category", color = TextMuted)
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 140.dp),
-                    state = gridState,
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.fillMaxSize()
+        } else {
+            // TV / Desktop Layout: Dedicated Left Vertical Category Sidebar + Right Content Grid
+            Row(modifier = Modifier.fillMaxSize()) {
+                // Left Column: Categories Vertical Sidebar (Spacious, Vertical Scroll)
+                Surface(
+                    shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
+                    color = CinemaSurface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                    modifier = Modifier
+                        .width(230.dp)
+                        .fillMaxHeight()
                 ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(vertical = 16.dp, horizontal = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "CATEGORIES",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            color = CinemaAccent,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+
+                        LazyColumn(
+                            state = categoryListState,
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f).fillMaxWidth()
+                        ) {
+                            items(categories, key = { it.categoryId }) { cat ->
+                                val isSelected = selectedCategoryId == cat.categoryId
+                                TvFocusableCard(
+                                    onClick = { selectCategory(cat.categoryId) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
+                                    focusedBorderColor = CinemaFocus,
+                                    focusedScale = 1.04f,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = cat.categoryName,
+                                        color = if (isSelected) Color.White else TextSecondary,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right Main Content: Search & Movie Posters Grid
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Header & Search
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "MOVIES VOD",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Black,
+                            color = TextPrimary
+                        )
+
+                        AppSearchBar(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = "Search movies catalog...",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Movie Grid
+                    if (isLoading || isSorting) {
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = CinemaAccent)
+                        }
+                    } else if (sortedAndFilteredMovies.isEmpty()) {
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text("No movies found in this category", color = TextMuted)
+                        }
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 140.dp),
+                            state = gridState,
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            modifier = Modifier.weight(1f).fillMaxWidth()
+                        ) {
                     items(sortedAndFilteredMovies, key = { it.streamId }) { movie ->
                         val streamKey = "movie_${movie.streamId}"
                         val savedPos = authRepo.getPlaybackPosition(streamKey)
@@ -255,6 +477,7 @@ fun MoviesScreen(
                                 val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
                                 val ext = movie.containerExtension.ifBlank { "mp4" }
                                 val streamUrl = apiClient.buildMovieStreamUrl(portal, user, pswd, movie.streamId, ext)
+                                lastPlayedMovieId = movie.streamId
                                 if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
                                     resumePromptMovie = movie
                                 } else {
@@ -275,29 +498,7 @@ fun MoviesScreen(
                                         .aspectRatio(2f / 3f)
                                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                 ) {
-                                    if (!movie.streamIcon.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = movie.streamIcon,
-                                            contentDescription = movie.displayTitle,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    } else {
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = CinemaSurfaceVariant,
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Movie,
-                                                    contentDescription = null,
-                                                    tint = TextMuted,
-                                                    modifier = Modifier.size(36.dp)
-                                                )
-                                            }
-                                        }
-                                    }
+                                    MoviePosterImage(movie = movie, catalogManager = catalogManager)
 
                                     // Rating Tag
                                     if (movie.rating5Based != null && movie.rating5Based > 0.0) {
@@ -362,9 +563,10 @@ fun MoviesScreen(
                 }
             }
         }
+    }
 
-        // Resume or Play from Beginning Dialog
-        if (resumePromptMovie != null) {
+    // Resume or Play from Beginning Dialog
+    if (resumePromptMovie != null) {
             val movie = resumePromptMovie!!
             val streamKey = "movie_${movie.streamId}"
             val savedPos = authRepo.getPlaybackPosition(streamKey)
@@ -403,6 +605,7 @@ fun MoviesScreen(
                             // Resume Button
                             TvFocusableCard(
                                 onClick = {
+                                    lastPlayedMovieId = movie.streamId
                                     resumePromptMovie = null
                                     onPlayMovie(streamUrl, movie.displayTitle, savedPos, streamKey)
                                 },
@@ -424,6 +627,7 @@ fun MoviesScreen(
                             // Play from Beginning Button
                             TvFocusableCard(
                                 onClick = {
+                                    lastPlayedMovieId = movie.streamId
                                     authRepo.clearPlaybackPosition(streamKey)
                                     resumePromptMovie = null
                                     onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
@@ -448,6 +652,7 @@ fun MoviesScreen(
             }
         }
     }
+}
 }
 
 private fun formatTimeMs(ms: Long): String {
@@ -481,4 +686,73 @@ private fun extractMovieReleaseYear(movie: Movie): Int {
         if (y != null && y in 1900..2030) return y
     }
     return 0
+}
+
+@Composable
+fun MoviePosterImage(
+    movie: Movie,
+    catalogManager: CatalogManager,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var posterUrl by remember(movie.streamId, movie.streamIcon) {
+        mutableStateOf(movie.streamIcon)
+    }
+
+    LaunchedEffect(movie.streamId, movie.streamIcon) {
+        if (posterUrl.isNullOrBlank()) {
+            val resolved = catalogManager.resolvePosterUrl(movie.displayTitle, isSeries = false)
+            if (!resolved.isNullOrBlank()) {
+                posterUrl = resolved
+            }
+        }
+    }
+
+    if (!posterUrl.isNullOrBlank()) {
+        val imageRequest = remember(posterUrl) {
+            coil.request.ImageRequest.Builder(context)
+                .data(posterUrl)
+                .crossfade(true)
+                .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                .build()
+        }
+        SubcomposeAsyncImage(
+            model = imageRequest,
+            contentDescription = movie.displayTitle,
+            contentScale = ContentScale.Crop,
+            modifier = modifier.fillMaxSize(),
+            loading = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(CinemaSurfaceVariant)
+                )
+            },
+            onError = {
+                coroutineScope.launch {
+                    val resolved = catalogManager.resolvePosterUrl(movie.displayTitle, isSeries = false)
+                    if (!resolved.isNullOrBlank() && resolved != posterUrl) {
+                        posterUrl = resolved
+                    }
+                }
+            }
+        )
+    } else {
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = CinemaSurfaceVariant,
+            modifier = modifier.fillMaxSize()
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.Movie,
+                    contentDescription = null,
+                    tint = TextMuted,
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+        }
+    }
 }

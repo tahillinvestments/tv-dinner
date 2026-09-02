@@ -1,5 +1,8 @@
 package com.troyh.tvdinner.ui.screens
 
+import android.app.UiModeManager
+import android.content.Context
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,6 +38,7 @@ import com.troyh.tvdinner.data.model.PodcastEpisode
 import com.troyh.tvdinner.data.podcasts.PodcastsData
 import com.troyh.tvdinner.data.repository.AuthRepository
 import com.troyh.tvdinner.data.repository.CatalogManager
+import com.troyh.tvdinner.ui.components.AppSearchBar
 import com.troyh.tvdinner.ui.components.TvFocusableCard
 import com.troyh.tvdinner.ui.theme.*
 
@@ -40,7 +46,7 @@ import com.troyh.tvdinner.ui.theme.*
 fun PodcastsScreen(
     authRepo: AuthRepository,
     catalogManager: CatalogManager,
-    onPlayYouTubeVideo: (String, String) -> Unit,
+    onPlayYouTubeVideo: (String, String, (() -> Unit)?, String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val categories = listOf(
@@ -64,9 +70,32 @@ fun PodcastsScreen(
     var currentPage by remember { mutableIntStateOf(1) }
     var isFetchingMore by remember { mutableStateOf(false) }
     var canLoadMore by remember { mutableStateOf(true) }
-
     var subscribedIds by remember { mutableStateOf(authRepo.getSubscribedPodcastIds()) }
     val gridState = rememberLazyGridState()
+
+    fun playEpisodeAtIndex(index: Int) {
+        if (index !in liveEpisodes.indices) return
+        val current = liveEpisodes[index]
+        val next = liveEpisodes.getOrNull(index + 1)
+        val onNext: (() -> Unit)? = if (index + 1 < liveEpisodes.size) {
+            { playEpisodeAtIndex(index + 1) }
+        } else {
+            null
+        }
+        onPlayYouTubeVideo(
+            current.videoId,
+            "${current.channelName} - ${current.title}",
+            onNext,
+            next?.let { "${it.channelName} - ${it.title}" }
+        )
+    }
+
+    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val uiModeManager = remember { context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager }
+    val isTv = remember { uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION }
+    val isCompact = configuration.screenWidthDp < 600
+    val isMobile = !isTv && (configuration.orientation == Configuration.ORIENTATION_PORTRAIT || isCompact)
 
     // Helper to switch to any episode's channel
     val onNavigateToEpisodeChannel: (PodcastEpisode) -> Unit = { ep ->
@@ -103,19 +132,6 @@ fun PodcastsScreen(
                 val curatedMatch = PodcastsData.CHANNELS.find { it.id == id }
                 if (curatedMatch != null) {
                     allChannels.add(curatedMatch)
-                } else {
-                    allChannels.add(
-                        PodcastChannel(
-                            id = id,
-                            channelName = id.removePrefix("chan_").replace("_", " ").replaceFirstChar { it.uppercase() },
-                            host = "Subscribed Podcast",
-                            category = "Subscribed",
-                            subscribers = "Subscribed Feed",
-                            avatar = "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=300&q=80",
-                            description = "Your saved subscription channel.",
-                            ytChannelId = if (id.startsWith("yt_chan_")) id.removePrefix("yt_chan_") else ""
-                        )
-                    )
                 }
             }
             liveChannels = allChannels
@@ -147,38 +163,49 @@ fun PodcastsScreen(
         }
     }
 
-    // Infinite Scroll detection
-    val isNearBottom by remember {
-        derivedStateOf {
+    // Continuous Endless Scrolling via snapshotFlow
+    LaunchedEffect(gridState, selectedCategory, searchQuery, selectedChannel) {
+        snapshotFlow {
             val total = gridState.layoutInfo.totalItemsCount
             val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            total > 0 && last >= total - 4
-        }
-    }
-
-    LaunchedEffect(isNearBottom) {
-        if (isNearBottom && !isLoading && !isFetchingMore && canLoadMore) {
-            isFetchingMore = true
-            val nextPage = currentPage + 1
-            val nextBatch = if (selectedChannel != null) {
-                catalogManager.getPodcastEpisodesForChannelNextPage(selectedChannel!!, page = nextPage)
-            } else {
-                val queryParam = if (searchQuery.isNotBlank()) searchQuery else selectedCategory.replace(Regex("[^a-zA-Z &]"), "").trim()
-                catalogManager.getLivePodcastEpisodesNextPage(queryParam, page = nextPage)
-            }
-            if (nextBatch.isNotEmpty()) {
-                val currentIds = liveEpisodes.map { it.id }.toSet()
-                val uniqueNew = nextBatch.filter { !currentIds.contains(it.id) }
-                if (uniqueNew.isNotEmpty()) {
-                    liveEpisodes = liveEpisodes + uniqueNew
-                    currentPage = nextPage
+            Pair(total, last)
+        }.collect { (total, last) ->
+            if (total > 0 && last >= total - 8 && !isLoading && !isFetchingMore && canLoadMore) {
+                isFetchingMore = true
+                val nextPage = currentPage + 1
+                val nextBatch = if (selectedChannel != null) {
+                    catalogManager.getPodcastEpisodesForChannelNextPage(selectedChannel!!, page = nextPage)
+                } else {
+                    val queryParam = if (searchQuery.isNotBlank()) searchQuery else selectedCategory.replace(Regex("[^a-zA-Z &]"), "").trim()
+                    catalogManager.getLivePodcastEpisodesNextPage(queryParam, page = nextPage)
+                }
+                if (nextBatch.isNotEmpty()) {
+                    val currentIds = liveEpisodes.map { it.id }.toSet()
+                    val uniqueNew = nextBatch.filter { !currentIds.contains(it.id) }
+                    if (uniqueNew.isNotEmpty()) {
+                        liveEpisodes = liveEpisodes + uniqueNew
+                        currentPage = nextPage
+                    } else {
+                        val fallbackPage = nextPage + 1
+                        val fallbackBatch = if (selectedChannel != null) {
+                            catalogManager.getPodcastEpisodesForChannelNextPage(selectedChannel!!, page = fallbackPage)
+                        } else {
+                            val queryParam = if (searchQuery.isNotBlank()) searchQuery else selectedCategory.replace(Regex("[^a-zA-Z &]"), "").trim()
+                            catalogManager.getLivePodcastEpisodesNextPage(queryParam, page = fallbackPage)
+                        }
+                        val uniqueFallback = fallbackBatch.filter { !currentIds.contains(it.id) }
+                        if (uniqueFallback.isNotEmpty()) {
+                            liveEpisodes = liveEpisodes + uniqueFallback
+                            currentPage = fallbackPage
+                        } else {
+                            canLoadMore = false
+                        }
+                    }
                 } else {
                     canLoadMore = false
                 }
-            } else {
-                canLoadMore = false
+                isFetchingMore = false
             }
-            isFetchingMore = false
         }
     }
 
@@ -186,71 +213,53 @@ fun PodcastsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(if (isMobile) 12.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isMobile) 8.dp else 12.dp)
         ) {
             // Top Bar: Title & Live Search
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 16.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Podcasts,
                         contentDescription = null,
                         tint = CinemaPrimary,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(if (isMobile) 22.dp else 28.dp)
                     )
                     Text(
                         text = "PODCASTS",
-                        fontSize = 24.sp,
+                        fontSize = if (isMobile) 18.sp else 24.sp,
                         fontWeight = FontWeight.Black,
                         color = TextPrimary
                     )
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = CinemaRed.copy(alpha = 0.2f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaRed.copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            text = "LIVE FEEDS",
-                            color = CinemaRed,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                    if (!isMobile) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = CinemaRed.copy(alpha = 0.2f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CinemaRed.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "LIVE FEEDS",
+                                color = CinemaRed,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
 
-                OutlinedTextField(
+                AppSearchBar(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search podcast channels & shows...", color = TextMuted, fontSize = 13.sp) },
-                    leadingIcon = {
-                        Icon(imageVector = Icons.Default.Search, contentDescription = "Search", tint = TextSecondary)
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(imageVector = Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary)
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = CinemaSurface,
-                        unfocusedContainerColor = CinemaSurface,
-                        focusedBorderColor = CinemaAccent,
-                        unfocusedBorderColor = CinemaSurfaceVariant,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f).height(48.dp)
+                    placeholder = if (isMobile) "Search podcasts..." else "Search podcast channels & shows...",
+                    modifier = Modifier.weight(1f)
                 )
             }
 
@@ -455,11 +464,11 @@ fun PodcastsScreen(
 
             // Episode Grid
             if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = CinemaAccent)
                 }
             } else if (liveEpisodes.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (selectedCategory == "⭐ Subscribed") "No subscribed podcasts yet. Click the bookmark icon on any channel to save it here!" else "No live podcast episodes found",
                         color = TextMuted,
@@ -468,15 +477,16 @@ fun PodcastsScreen(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 220.dp),
+                    columns = GridCells.Adaptive(minSize = if (isMobile) 160.dp else 220.dp),
                     state = gridState,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
+                    verticalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 12.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
                     items(liveEpisodes, key = { it.id }) { ep ->
+                        val idx = liveEpisodes.indexOfFirst { it.id == ep.id }
                         TvFocusableCard(
-                            onClick = { onPlayYouTubeVideo(ep.videoId, ep.title) },
+                            onClick = { playEpisodeAtIndex(if (idx >= 0) idx else 0) },
                             shape = RoundedCornerShape(12.dp),
                             backgroundColor = CinemaSurface,
                             focusedBorderColor = CinemaFocus,

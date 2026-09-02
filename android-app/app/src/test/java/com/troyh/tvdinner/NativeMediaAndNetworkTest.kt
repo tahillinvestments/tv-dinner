@@ -19,7 +19,7 @@ class NativeMediaAndNetworkTest {
         assertNotNull(client)
         assertTrue(client.followRedirects)
         assertTrue(client.followSslRedirects)
-        assertEquals(8000, client.connectTimeoutMillis)
+        assertEquals(15000, client.connectTimeoutMillis)
 
         // Permissive HostnameVerifier
         val verifier = client.hostnameVerifier

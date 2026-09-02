@@ -1,14 +1,25 @@
 package com.troyh.tvdinner
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
 import androidx.lifecycle.lifecycleScope
+import coil.Coil
+import coil.ImageLoader
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import com.troyh.tvdinner.data.network.XtreamApiClient
+import com.troyh.tvdinner.data.network.YouTubeMusicService
 import com.troyh.tvdinner.data.network.YouTubePodcastService
 import com.troyh.tvdinner.data.repository.AuthRepository
 import com.troyh.tvdinner.data.repository.CatalogManager
@@ -26,11 +37,20 @@ import okhttp3.Request
 class MainActivity : ComponentActivity() {
     companion object {
         var isVODFullscreenActive = false
+        var isLiveFullscreenActive = false
+        var onNextEpisodeCallback: (() -> Unit)? = null
+        var onNextYouTubeCallback: (() -> Unit)? = null
+        var onPreviousYouTubeCallback: (() -> Unit)? = null
+        var isNetworkAvailable by mutableStateOf(true)
     }
+
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private lateinit var authRepository: AuthRepository
     private lateinit var xtreamApiClient: XtreamApiClient
     private lateinit var podcastService: YouTubePodcastService
+    private lateinit var musicService: YouTubeMusicService
     private lateinit var catalogManager: CatalogManager
     private lateinit var playerManager: ExoPlayerManager
 
@@ -43,47 +63,80 @@ class MainActivity : ComponentActivity() {
 
         authRepository = AuthRepository(this)
         xtreamApiClient = XtreamApiClient()
+
+        // Configure high-performance Coil ImageLoader with SSL bypass, custom User-Agent, and disk/memory cache
+        val imageLoader = ImageLoader.Builder(this)
+            .okHttpClient(xtreamApiClient.okHttpClient)
+            .memoryCache {
+                MemoryCache.Builder(this)
+                    .maxSizePercent(0.25)
+                    .build()
+            }
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizeBytes(150L * 1024L * 1024L)
+                    .build()
+            }
+            .respectCacheHeaders(false)
+            .crossfade(true)
+            .build()
+        Coil.setImageLoader(imageLoader)
+
+        // Connectivity Monitoring & Auto-Refresh from inside app
+        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val networkReq = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onLost(network: Network) {
+                isNetworkAvailable = false
+                runOnUiThread {
+                    Toast.makeText(applicationContext, "Network Connection Lost", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onAvailable(network: Network) {
+                val wasDisconnected = !isNetworkAvailable
+                isNetworkAvailable = true
+                if (wasDisconnected) {
+                    runOnUiThread {
+                        Toast.makeText(applicationContext, "Connection Restored — Auto-Refreshing", Toast.LENGTH_SHORT).show()
+                        try {
+                            xtreamApiClient.okHttpClient.connectionPool.evictAll()
+                        } catch (_: Exception) {}
+                        if (isVODFullscreenActive) {
+                            playerManager.recoverVodStream()
+                        } else if (isLiveFullscreenActive) {
+                            playerManager.recoverLiveStream()
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            connectivityManager?.registerNetworkCallback(networkReq, networkCallback!!)
+        } catch (_: Exception) {}
+
         podcastService = YouTubePodcastService(xtreamApiClient.okHttpClient)
-        catalogManager = CatalogManager(authRepository, xtreamApiClient, podcastService)
+        musicService = YouTubeMusicService(xtreamApiClient.okHttpClient)
+        catalogManager = CatalogManager(authRepository, xtreamApiClient, podcastService, musicService)
         playerManager = ExoPlayerManager(this, xtreamApiClient).apply {
             authRepo = authRepository
         }
 
-        // Instant Proxy Pre-Warming & 3-Minute Keep-Alive Heartbeat
-        lifecycleScope.launch(Dispatchers.IO) {
-            while (isActive) {
-                try {
-                    val req = Request.Builder().url("https://tv-dinner-proxy.onrender.com/health").build()
-                    xtreamApiClient.okHttpClient.newCall(req).execute().close()
-                } catch (_: Exception) {}
-                delay(3 * 60 * 1000L)
-            }
-        }
-
         setContent {
             TVDinnerTheme {
-                var isActivated by remember { mutableStateOf(authRepository.isActivated()) }
-
-                if (!isActivated) {
-                    ActivationScreen(
-                        authRepo = authRepository,
-                        onActivated = {
-                            isActivated = true
-                        }
-                    )
-                } else {
-                    MainAppScreen(
-                        authRepo = authRepository,
-                        apiClient = xtreamApiClient,
-                        catalogManager = catalogManager,
-                        playerManager = playerManager,
-                        onSignOut = {
-                            playerManager.stop()
-                            catalogManager.clearAllCaches()
-                            isActivated = false
-                        }
-                    )
-                }
+                MainAppScreen(
+                    authRepo = authRepository,
+                    apiClient = xtreamApiClient,
+                    catalogManager = catalogManager,
+                    playerManager = playerManager,
+                    onSignOut = {
+                        playerManager.stop()
+                        catalogManager.clearAllCaches()
+                    }
+                )
             }
         }
     }
@@ -97,8 +150,24 @@ class MainActivity : ComponentActivity() {
                     if (isYouTubeActive) {
                         YouTubeRemoteBridge.togglePlayPause()
                         return true
-                    } else if (isVODFullscreenActive) {
+                    }
+                    if (isVODFullscreenActive || isLiveFullscreenActive) {
                         playerManager.togglePlayPause()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (isYouTubeActive) {
+                        onPreviousYouTubeCallback?.invoke()
+                        return true
+                    } else if (isVODFullscreenActive) {
+                        playerManager.cycleAspectRatio()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (isYouTubeActive) {
+                        onNextYouTubeCallback?.invoke()
                         return true
                     }
                 }
@@ -152,6 +221,18 @@ class MainActivity : ComponentActivity() {
                     }
                     return true
                 }
+                KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S -> {
+                    if (isVODFullscreenActive || isLiveFullscreenActive) {
+                        playerManager.toggleClosedCaptions()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK, KeyEvent.KEYCODE_A -> {
+                    if (isVODFullscreenActive || isLiveFullscreenActive) {
+                        playerManager.cycleAudioTrack()
+                        return true
+                    }
+                }
                 KeyEvent.KEYCODE_MEDIA_REWIND -> {
                     if (isYouTubeActive) {
                         YouTubeRemoteBridge.seekRewind()
@@ -160,6 +241,32 @@ class MainActivity : ComponentActivity() {
                     }
                     return true
                 }
+                KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_P, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                    if (isYouTubeActive) {
+                        onPreviousYouTubeCallback?.invoke()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_FORWARD -> {
+                    if (isYouTubeActive) {
+                        onNextYouTubeCallback?.invoke()
+                        return true
+                    } else if (isVODFullscreenActive) {
+                        onNextEpisodeCallback?.invoke()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_MENU,
+                KeyEvent.KEYCODE_INFO,
+                KeyEvent.KEYCODE_PROG_YELLOW,
+                KeyEvent.KEYCODE_PROG_BLUE,
+                KeyEvent.KEYCODE_WINDOW,
+                228 /* KEYCODE_ASPECT_RATIO */ -> {
+                    if (isVODFullscreenActive || isLiveFullscreenActive) {
+                        playerManager.cycleAspectRatio()
+                        return true
+                    }
+                }
             }
         }
         return super.dispatchKeyEvent(event)
@@ -167,6 +274,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        playerManager.release()
+        try {
+            networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+        } catch (_: Exception) {}
+        try {
+            playerManager.release()
+        } catch (_: Exception) {}
     }
 }

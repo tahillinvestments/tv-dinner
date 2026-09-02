@@ -1,0 +1,28 @@
+{
+  "currentVersion": {
+    "versionCode": 203,
+    "versionName": "2.0.3",
+    "title": "Direct Server Migration & Fast Playback",
+    "releaseNotes": "Stable release with direct stream connectivity.",
+    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.3/app-release.apk",
+    "localApkUrl": "public/apks/tv-dinner-latest.apk",
+    "mandatory": false,
+    "publishedAt": "2026-08-28T12:00:00Z"
+  },
+  "releases": [
+    {
+      "id": "rel-205",
+      "versionCode": 205,
+      "versionName": "2.0.5",
+      "title": "Live TV Navigation, Category Reorder, History, Poster Fixes & Remote Aspect Ratio",
+      "status": "STAGED",
+      "releaseNotes": "• Live TV: Smooth D-pad Left & Back navigation directly from preview controls to channel list\n• Category Reorder: Moved News Network, Sports Network, Movie Network, Kids Network, Prime, PPV & Events, 4K Relax under Entertainment\n• Removed 'All Channels' category\n• Added 🕒 Channel History category (last 5 channels watched) with 'Clear History' in Settings\n• Enhanced Movies & Series poster loading with automatic TMDB resolution on missing/broken links (no fallback card art)\n• Added remote control aspect ratio toggle (Fit / Stretch / Zoom) with on-screen HUD pill overlay\n• Removed Next Episode button from series player\n• In-app network disconnect detection with automatic stream recovery and socket eviction\n• YouTube Music remote navigation: D-Pad Up (Previous) & Down (Next) with on-screen button\n• Ambient neon glow halo on focused cards",
+      "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+      "localApkUrl": "public/apks/tv-dinner-v2.0.5.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.5/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-02T21:52:10.414Z",
+      "publishedAt": null
+    }
+  ]
+}

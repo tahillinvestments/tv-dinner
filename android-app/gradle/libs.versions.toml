@@ -57,6 +57,9 @@ coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 # Gson JSON parser
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 
+# WireGuard Tunnel
+wireguard-tunnel = { module = "com.wireguard.android:tunnel", version = "1.0.20230706" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

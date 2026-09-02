@@ -17,7 +17,11 @@
     "sources:run": "node ./dist-updater/index.js",
     "sources:serve": "node ./dist-updater/serve.js",
     "sources:matrix": "node ./dist-updater/matrix.js",
-    "sources:dev": "cross-env NODE_ENV=development tsup --watch"
+    "sources:dev": "cross-env NODE_ENV=development tsup --watch",
+    "update:stage": "node scripts/stage-update.js",
+    "update:build-and-stage": "powershell -Command \"cd android-app; ./gradlew.bat assembleRelease; cd ..; node scripts/stage-update.js\"",
+    "update:publish": "node scripts/publish-update.js",
+    "update:dashboard": "powershell -Command \"Start-Process update-dashboard.html\""
   },
   "dependencies": {
     "dotenv": "^16.4.5",

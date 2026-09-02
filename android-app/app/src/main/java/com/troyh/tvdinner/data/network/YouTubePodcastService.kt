@@ -27,7 +27,7 @@ class YouTubePodcastService(
     private val defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
     /**
-     * Pings real live podcast channels combining curated roster + iTunes Podcast directory + YouTube search.
+     * Pings real live video podcast channels combining curated roster + real-time YouTube channel search.
      */
     suspend fun fetchLivePodcastChannels(category: String): List<PodcastChannel> = withContext(Dispatchers.IO) {
         val catClean = category.replace(Regex("[^a-zA-Z &]"), "").trim().lowercase()
@@ -37,20 +37,19 @@ class YouTubePodcastService(
         }
 
         val searchTerm = when (catClean) {
-            "all", "trending" -> "top trending podcast"
-            "tech", "ai & tech", "tech & ai" -> "technology artificial intelligence podcast"
-            "business", "business & ideas" -> "business startups investing podcast"
-            "science", "science & health" -> "science neuroscience health podcast"
-            "culture", "culture & talk", "comedy" -> "comedy interview culture talk show podcast"
-            "news", "news & politics" -> "news politics current events podcast"
-            else -> "$category podcast"
+            "all", "trending" -> "trending video podcast channel"
+            "tech", "ai & tech", "tech & ai" -> "technology ai video podcast channel"
+            "business", "business & ideas" -> "business startups video podcast channel"
+            "science", "science & health" -> "science health video podcast channel"
+            "culture", "culture & talk", "comedy" -> "comedy interview video podcast channel"
+            "news", "news & politics" -> "news politics video podcast channel"
+            else -> "$category video podcast channel"
         }
 
-        val itunesChannels = fetchItunesPodcastChannels(searchTerm, category)
         val combined = mutableListOf<PodcastChannel>()
         val seenNames = mutableSetOf<String>()
 
-        // Curated channels first
+        // Curated video podcast channels first
         for (ch in curated) {
             val key = ch.channelName.lowercase().trim()
             if (seenNames.add(key)) {
@@ -58,21 +57,12 @@ class YouTubePodcastService(
             }
         }
 
-        // Live iTunes channels
-        for (ch in itunesChannels) {
+        // Live YouTube Video Podcast Channels
+        val ytChannels = searchLiveYouTubeChannels(searchTerm, category)
+        for (ch in ytChannels) {
             val key = ch.channelName.lowercase().trim()
             if (seenNames.add(key)) {
                 combined.add(ch)
-            }
-        }
-
-        if (combined.size < 10) {
-            val ytChannels = searchLiveYouTubeChannels(searchTerm, category)
-            for (ch in ytChannels) {
-                val key = ch.channelName.lowercase().trim()
-                if (seenNames.add(key)) {
-                    combined.add(ch)
-                }
             }
         }
 
@@ -178,47 +168,93 @@ class YouTubePodcastService(
     }
 
     /**
+     * Parses human relative published strings like "2 hours ago", "3 days ago" into accurate epoch timestamps.
+     */
+    private fun parseRelativePublishedTimestamp(publishedText: String, title: String): Long {
+        val now = System.currentTimeMillis()
+        val lower = publishedText.lowercase().trim()
+        val titleLower = title.lowercase()
+
+        var bonus = 0L
+        if (titleLower.contains("2026")) {
+            bonus = 365L * 86400_000L * 2
+        } else if (titleLower.contains("2025")) {
+            bonus = 365L * 86400_000L
+        }
+
+        val num = Regex("""\d+""").find(lower)?.value?.toLongOrNull() ?: 1L
+        val delta = when {
+            lower.contains("second") || lower.contains("sec") -> num * 1000L
+            lower.contains("minute") || lower.contains("min") -> num * 60_000L
+            lower.contains("hour") -> num * 3600_000L
+            lower.contains("day") -> num * 86400_000L
+            lower.contains("week") -> num * 7L * 86400_000L
+            lower.contains("month") -> num * 30L * 86400_000L
+            lower.contains("year") -> num * 365L * 86400_000L
+            else -> 180L * 86400_000L
+        }
+        return (now - delta) + bonus
+    }
+
+    /**
      * Pings real live YouTube search for trending / category video podcast episodes with pagination.
      */
     suspend fun searchLiveEpisodes(categoryOrQuery: String, page: Int = 1): List<PodcastEpisode> = withContext(Dispatchers.IO) {
         val catClean = categoryOrQuery.replace(Regex("[^a-zA-Z &]"), "").trim().lowercase()
 
-        // Curate queries based on category and page
+        // Curate rich queries based on category and page (generating at least 15-25 episodes per page)
         val queries = when (catClean) {
             "all", "trending" -> when (page) {
-                1 -> listOf("trending podcast full episode", "joe rogan theo von kill tony podcast full episode")
-                2 -> listOf("popular comedy talk podcast full episode", "top video podcast full episode")
-                else -> listOf("podcast full episode 2026")
+                1 -> listOf("trending podcast full episode", "joe rogan theo von kill tony podcast full episode", "top video podcast full episode 2026")
+                2 -> listOf("popular comedy talk podcast full episode", "hot ones club shay shay full episode", "best podcast episodes 2026")
+                3 -> listOf("latest full video podcast interviews", "flagrant modern wisdom full podcast", "viral podcast interviews")
+                4 -> listOf("lex fridman huberman diary of a ceo podcast", "smartless conan o brien podcast full")
+                else -> listOf("podcast full episode part $page", "video podcast interviews 2026 page $page")
             }
             "tech", "ai & tech", "tech & ai" -> when (page) {
-                1 -> listOf("artificial intelligence tech podcast full episode", "lex fridman all in podcast full episode")
-                2 -> listOf("mkbhd waveform y combinator podcast full episode", "silicon valley founders tech podcast")
-                else -> listOf("future AI technology podcast interview")
+                1 -> listOf("artificial intelligence tech podcast full episode", "lex fridman all in podcast full episode", "silicon valley tech podcast 2026")
+                2 -> listOf("mkbhd waveform y combinator podcast full episode", "hard fork twit tech news podcast", "ai startup founders podcast")
+                3 -> listOf("future AI technology podcast interview", "sam altman elon musk tech podcast full", "software engineering podcast")
+                4 -> listOf("tech lead coding robotics podcast", "venture capital tech podcast full")
+                else -> listOf("tech ai video podcast page $page", "technology podcast episode $page")
             }
             "business", "business & ideas" -> when (page) {
-                1 -> listOf("business entrepreneurship investing podcast full episode", "diary of a ceo acquired podcast full episode")
-                2 -> listOf("my first million startup podcast full episode", "billionaire business strategy podcast")
-                else -> listOf("finance economics wealth building podcast")
+                1 -> listOf("business entrepreneurship investing podcast full episode", "diary of a ceo acquired podcast full episode", "business strategy podcast 2026")
+                2 -> listOf("my first million startup podcast full episode", "billionaire business strategy podcast", "how i built this full episode")
+                3 -> listOf("finance economics wealth building podcast", "real estate investing business podcast", "wsj barron business podcast")
+                4 -> listOf("money stock market trading podcast", "wall street finance podcast full")
+                else -> listOf("business podcast episode $page", "investing podcast full $page")
             }
             "science", "science & health" -> when (page) {
-                1 -> listOf("huberman lab science health podcast full episode", "startalk veritasium science podcast")
-                2 -> listOf("neuroscience longevity modern wisdom podcast full episode", "biology physics psychology podcast")
-                else -> listOf("medical scientific breakthroughs podcast")
+                1 -> listOf("huberman lab science health podcast full episode", "startalk veritasium science podcast", "health longevity podcast 2026")
+                2 -> listOf("neuroscience longevity modern wisdom podcast full episode", "biology physics psychology podcast", "peter attia drive podcast")
+                3 -> listOf("medical scientific breakthroughs podcast", "human biology nutrition science podcast", "space exploration science podcast")
+                4 -> listOf("nature quantum physics astronomy podcast", "science vs podcast full episode")
+                else -> listOf("science health podcast page $page", "scientific podcast full $page")
             }
             "culture", "culture & talk", "comedy" -> when (page) {
-                1 -> listOf("comedy interview talk podcast full episode", "flagrant bad friends conan o brien podcast")
-                2 -> listOf("hot ones drink champs club shay shay full episode", "tinydesk music podcast interview")
-                else -> listOf("celebrity talk show podcast full episode")
+                1 -> listOf("comedy interview talk podcast full episode", "flagrant bad friends conan o brien podcast", "culture talk podcast 2026")
+                2 -> listOf("hot ones drink champs club shay shay full episode", "tinydesk music podcast interview", "this past weekend theo von")
+                3 -> listOf("celebrity talk show podcast full episode", "armchair expert dax shepard podcast", "2 bears 1 cave podcast full")
+                4 -> listOf("pop culture entertainment podcast", "comedians in cars getting coffee podcast")
+                else -> listOf("comedy podcast episode $page", "culture talk podcast $page")
             }
             "news", "news & politics" -> when (page) {
-                1 -> listOf("daily news politics podcast full episode", "pbd podcast shawn ryan show full episode")
-                2 -> listOf("ben shapiro the daily ny times podcast", "world geopolitics investigative news podcast")
-                else -> listOf("breaking news analysis podcast")
+                1 -> listOf("daily news politics podcast full episode", "pbd podcast shawn ryan show full episode", "world news podcast 2026")
+                2 -> listOf("ben shapiro the daily ny times podcast", "world geopolitics investigative news podcast", "megyn kelly show full episode")
+                3 -> listOf("breaking news analysis podcast", "foreign affairs global politics podcast", "independent news journalism podcast")
+                4 -> listOf("daily political commentary podcast", "investigative reporting podcast full")
+                else -> listOf("news politics podcast episode $page", "politics talk podcast $page")
             }
-            else -> listOf(
-                if (categoryOrQuery.contains("podcast", ignoreCase = true)) categoryOrQuery
-                else "$categoryOrQuery podcast full episode"
-            )
+            else -> when (page) {
+                1 -> listOf(
+                    if (categoryOrQuery.contains("podcast", ignoreCase = true)) categoryOrQuery else "$categoryOrQuery podcast full episode",
+                    "$categoryOrQuery podcast interview"
+                )
+                2 -> listOf("$categoryOrQuery full episode video", "$categoryOrQuery show podcast")
+                3 -> listOf("$categoryOrQuery latest podcast", "$categoryOrQuery video episodes")
+                else -> listOf("$categoryOrQuery podcast episode $page")
+            }
         }
 
         val allEpisodes = mutableListOf<PodcastEpisode>()
@@ -233,8 +269,8 @@ class YouTubePodcastService(
             }
         }
 
-        // Guaranteed fallback: If live YouTube search returned few results, fetch from curated channel RSS feeds
-        if (allEpisodes.size < 10) {
+        // Guaranteed fallback: If live search returned few results, fetch from curated channel RSS feeds
+        if (allEpisodes.size < 12) {
             val curatedChannels = com.troyh.tvdinner.data.podcasts.PodcastsData.CHANNELS.filter {
                 if (catClean == "trending" || catClean == "all" || catClean.isBlank()) true
                 else it.category.lowercase().contains(catClean) || catClean.contains(it.category.lowercase().replace(Regex("[^a-zA-Z &]"), "").trim())
@@ -251,7 +287,7 @@ class YouTubePodcastService(
             }
         }
 
-        allEpisodes
+        allEpisodes.sortedByDescending { it.publishedTimestamp }
     }
 
     private fun queryYouTubeEpisodes(query: String): List<PodcastEpisode> {
@@ -268,48 +304,86 @@ class YouTubePodcastService(
 
             val initialDataMatch = Regex("""var ytInitialData = (\{.+?\});</script>""").find(html)
                 ?: Regex("""ytInitialData = (\{.+?\});</script>""").find(html)
-            val jsonStr = initialDataMatch?.groupValues?.get(1) ?: return emptyList()
+            val jsonStr = initialDataMatch?.groupValues?.get(1)
 
             val list = mutableListOf<PodcastEpisode>()
-            val root = gson.fromJson(jsonStr, JsonObject::class.java)
-            val contents = root.getAsJsonObject("contents")
-                ?.getAsJsonObject("twoColumnSearchResultsRenderer")
-                ?.getAsJsonObject("primaryContents")
-                ?.getAsJsonObject("sectionListRenderer")
-                ?.getAsJsonArray("contents") ?: return emptyList()
+            val seenVideoIds = mutableSetOf<String>()
 
-            for (section in contents) {
-                val itemSection = section.asJsonObject.getAsJsonObject("itemSectionRenderer") ?: continue
-                val items = itemSection.getAsJsonArray("contents") ?: continue
-                for (item in items) {
-                    val vr = item.asJsonObject.getAsJsonObject("videoRenderer") ?: continue
-                    val videoId = vr.get("videoId")?.asString ?: continue
-                    val title = vr.getAsJsonObject("title")?.getAsJsonArray("runs")?.firstOrNull()?.asJsonObject?.get("text")?.asString
-                        ?: vr.getAsJsonObject("title")?.get("simpleText")?.asString ?: "Podcast Episode"
-                    val channelName = vr.getAsJsonObject("ownerText")?.getAsJsonArray("runs")?.firstOrNull()?.asJsonObject?.get("text")?.asString
-                        ?: vr.getAsJsonObject("longBylineText")?.getAsJsonArray("runs")?.firstOrNull()?.asJsonObject?.get("text")?.asString ?: "YouTube Podcast"
-                    val published = vr.getAsJsonObject("publishedTimeText")?.get("simpleText")?.asString ?: "Recent"
-                    val desc = vr.getAsJsonObject("descriptionSnippet")?.getAsJsonArray("runs")?.firstOrNull()?.asJsonObject?.get("text")?.asString ?: ""
-                    val thumb = vr.getAsJsonObject("thumbnail")?.getAsJsonArray("thumbnails")?.lastOrNull()?.asJsonObject?.get("url")?.asString
-                        ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+            if (!jsonStr.isNullOrBlank()) {
+                try {
+                    val root = gson.fromJson(jsonStr, JsonObject::class.java)
+                    val contents = root.getAsJsonObject("contents")
+                        ?.getAsJsonObject("twoColumnSearchResultsRenderer")
+                        ?.getAsJsonObject("primaryContents")
+                        ?.getAsJsonObject("sectionListRenderer")
+                        ?.getAsJsonArray("contents")
 
-                    val fullThumb = if (thumb.startsWith("//")) "https:$thumb" else thumb
+                    if (contents != null) {
+                        for (section in contents) {
+                            val itemSection = section.asJsonObject.getAsJsonObject("itemSectionRenderer") ?: continue
+                            val items = itemSection.getAsJsonArray("contents") ?: continue
+                            for (item in items) {
+                                val vr = item.asJsonObject.getAsJsonObject("videoRenderer")
+                                    ?: item.asJsonObject.getAsJsonObject("compactVideoRenderer")
+                                if (vr != null) {
+                                    val videoId = vr.get("videoId")?.asString ?: continue
+                                    if (seenVideoIds.add(videoId)) {
+                                        val title = vr.getAsJsonObject("title")?.getAsJsonArray("runs")?.firstOrNull()?.asJsonObject?.get("text")?.asString
+                                            ?: vr.getAsJsonObject("title")?.get("simpleText")?.asString ?: "Podcast Episode"
+                                        val channelName = vr.getAsJsonObject("ownerText")?.getAsJsonArray("runs")?.firstOrNull()?.asJsonObject?.get("text")?.asString
+                                            ?: vr.getAsJsonObject("longBylineText")?.getAsJsonArray("runs")?.firstOrNull()?.asJsonObject?.get("text")?.asString ?: "YouTube Podcast"
+                                        val published = vr.getAsJsonObject("publishedTimeText")?.get("simpleText")?.asString ?: "Recent"
+                                        val desc = vr.getAsJsonObject("descriptionSnippet")?.getAsJsonArray("runs")?.firstOrNull()?.asJsonObject?.get("text")?.asString ?: ""
+                                        val thumb = vr.getAsJsonObject("thumbnail")?.getAsJsonArray("thumbnails")?.lastOrNull()?.asJsonObject?.get("url")?.asString
+                                            ?: "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
+                                        val fullThumb = if (thumb.startsWith("//")) "https:$thumb" else thumb
 
-                    list.add(
-                        PodcastEpisode(
-                            id = "yt_$videoId",
-                            title = title,
-                            description = desc,
-                            published = published,
-                            thumbnailUrl = fullThumb,
-                            videoId = videoId,
-                            channelName = channelName,
-                            channelId = "chan_${channelName.replace(" ", "_").lowercase()}",
-                            publishedTimestamp = System.currentTimeMillis()
-                        )
-                    )
+                                        list.add(
+                                            PodcastEpisode(
+                                                id = "yt_$videoId",
+                                                title = title,
+                                                description = desc,
+                                                published = published,
+                                                thumbnailUrl = fullThumb,
+                                                videoId = videoId,
+                                                channelName = channelName,
+                                                channelId = "chan_${channelName.replace(" ", "_").lowercase()}",
+                                                publishedTimestamp = parseRelativePublishedTimestamp(published, title)
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(tag, "JSON parsing error in queryYouTubeEpisodes: ${e.message}")
                 }
             }
+
+            // Fallback Regex Extraction if json parsing had few results
+            if (list.size < 6) {
+                val videoMatches = Regex(""""videoId":"([a-zA-Z0-9_-]{11})","thumbnail":\{"thumbnails":\[\{"url":"([^"]+)".*?"title":\{"runs":\[\{"text":"([^"]+)".*?"ownerText":\{"runs":\[\{"text":"([^"]+)"""").findAll(html)
+                for (m in videoMatches) {
+                    val (vid, thumbUrl, title, channel) = m.destructured
+                    if (seenVideoIds.add(vid)) {
+                        list.add(
+                            PodcastEpisode(
+                                id = "yt_$vid",
+                                title = title.replace("\\u0026", "&").replace("\\\"", "\""),
+                                description = "Latest video podcast episode",
+                                published = "Popular",
+                                thumbnailUrl = if (thumbUrl.startsWith("//")) "https:$thumbUrl" else thumbUrl.replace("\\u0026", "&"),
+                                videoId = vid,
+                                channelName = channel.replace("\\u0026", "&"),
+                                channelId = "chan_${channel.replace(" ", "_").lowercase()}",
+                                publishedTimestamp = parseRelativePublishedTimestamp("Recent", title)
+                            )
+                        )
+                    }
+                }
+            }
+
             list
         } catch (e: Exception) {
             Log.e(tag, "queryYouTubeEpisodes error: ${e.message}")

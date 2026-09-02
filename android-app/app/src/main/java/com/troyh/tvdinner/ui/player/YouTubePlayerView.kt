@@ -124,14 +124,28 @@ object YouTubeRemoteBridge {
     }
 }
 
+class YouTubeBridgeInterface(private val onEndedProvider: () -> (() -> Unit)?) {
+    @android.webkit.JavascriptInterface
+    fun onVideoEnded() {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            onEndedProvider()?.invoke()
+        }
+    }
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun YouTubePlayerView(
     videoId: String,
     title: String,
     onBack: () -> Unit,
+    onNextVideo: (() -> Unit)? = null,
+    nextVideoTitle: String? = null,
+    onPreviousVideo: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val currentOnNextVideo by rememberUpdatedState(onNextVideo)
+    val currentOnPreviousVideo by rememberUpdatedState(onPreviousVideo)
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     var showControls by remember { mutableStateOf(true) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -156,10 +170,12 @@ fun YouTubePlayerView(
 
     DisposableEffect(videoId) {
         onDispose {
-            YouTubeRemoteBridge.activeWebView = null
+            if (YouTubeRemoteBridge.activeWebView == webViewInstance) {
+                YouTubeRemoteBridge.activeWebView = null
+            }
             webViewInstance?.let { wv ->
-                wv.loadUrl("about:blank")
                 wv.stopLoading()
+                wv.loadUrl("about:blank")
                 wv.destroy()
             }
             webViewInstance = null
@@ -189,6 +205,12 @@ fun YouTubePlayerView(
                         showControls = true
                         lastInteractionTime = System.currentTimeMillis()
                         return@onKeyEvent true
+                    } else if (code == KeyEvent.KEYCODE_MEDIA_PREVIOUS || code == KeyEvent.KEYCODE_PAGE_UP || code == KeyEvent.KEYCODE_P || code == KeyEvent.KEYCODE_CHANNEL_DOWN || code == KeyEvent.KEYCODE_DPAD_UP) {
+                        currentOnPreviousVideo?.invoke()
+                        return@onKeyEvent true
+                    } else if (code == KeyEvent.KEYCODE_MEDIA_NEXT || code == KeyEvent.KEYCODE_PAGE_DOWN || code == KeyEvent.KEYCODE_N || code == KeyEvent.KEYCODE_CHANNEL_UP || code == KeyEvent.KEYCODE_FORWARD || code == KeyEvent.KEYCODE_DPAD_DOWN) {
+                        currentOnNextVideo?.invoke()
+                        return@onKeyEvent true
                     }
                 }
                 false
@@ -208,12 +230,9 @@ fun YouTubePlayerView(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
-                    // Hardware Acceleration & Optimal Streaming Settings
-                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
                     settings.apply {
                         javaScriptEnabled = true
                         domStorageEnabled = true
-                        databaseEnabled = true
                         mediaPlaybackRequiresUserGesture = false
                         allowFileAccess = true
                         allowContentAccess = true
@@ -222,9 +241,18 @@ fun YouTubePlayerView(
                         cacheMode = WebSettings.LOAD_DEFAULT
                         mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     }
-                    webChromeClient = WebChromeClient()
+                    webChromeClient = object : WebChromeClient() {
+                        override fun getDefaultVideoPoster(): android.graphics.Bitmap? {
+                            return android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+                        }
+                    }
                     webViewClient = WebViewClient()
                     setBackgroundColor(android.graphics.Color.BLACK)
+
+                    addJavascriptInterface(
+                        YouTubeBridgeInterface { currentOnNextVideo },
+                        "AndroidBridge"
+                    )
 
                     val html = """
                         <!DOCTYPE html>
@@ -232,8 +260,7 @@ fun YouTubePlayerView(
                         <head>
                             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                             <style>
-                                * { margin: 0; padding: 0; box-sizing: border-box; background-color: #000; }
-                                html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+                                html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
                                 #player { width: 100%; height: 100%; position: absolute; top:0; left:0; border: none; }
                             </style>
                         </head>
@@ -253,12 +280,22 @@ fun YouTubePlayerView(
                                             'fs': 1,
                                             'playsinline': 1,
                                             'enablejsapi': 1,
+                                            'origin': 'https://www.youtube-nocookie.com',
                                             'iv_load_policy': 3
                                         },
                                         events: {
                                             'onReady': function(e) {
                                                 window.ytPlayer = e.target;
-                                                e.target.playVideo();
+                                                try {
+                                                    e.target.playVideo();
+                                                } catch(err) {}
+                                            },
+                                            'onStateChange': function(e) {
+                                                if (e.data === 0) {
+                                                    if (window.AndroidBridge && window.AndroidBridge.onVideoEnded) {
+                                                        window.AndroidBridge.onVideoEnded();
+                                                    }
+                                                }
                                             }
                                         }
                                     });
@@ -272,6 +309,9 @@ fun YouTubePlayerView(
                     webViewInstance = this
                     YouTubeRemoteBridge.activeWebView = this
                 }
+            },
+            update = { wv ->
+                YouTubeRemoteBridge.activeWebView = wv
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -318,7 +358,7 @@ fun YouTubePlayerView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.TopCenter)
-                        .background(Color.Black.copy(alpha = 0.7f))
+                        .background(Color.Black.copy(alpha = 0.75f))
                         .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -338,22 +378,31 @@ fun YouTubePlayerView(
                         }
                     }
 
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                        if (!nextVideoTitle.isNullOrBlank()) {
+                            Text(
+                                text = "Next up: $nextVideoTitle",
+                                color = CinemaAccent,
+                                fontSize = 12.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
 
-                // Center Remote Seek Controls
+                // Center Remote Seek Controls & Next Button
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 32.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TvFocusableCard(
@@ -395,6 +444,56 @@ fun YouTubePlayerView(
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Icon(imageVector = Icons.Default.FastForward, contentDescription = "Forward", tint = Color.White)
+                        }
+                    }
+
+                    if (onPreviousVideo != null) {
+                        TvFocusableCard(
+                            onClick = {
+                                onPreviousVideo()
+                            },
+                            shape = RoundedCornerShape(24.dp),
+                            backgroundColor = CinemaSurfaceVariant.copy(alpha = 0.85f),
+                            modifier = Modifier.height(48.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxHeight().padding(horizontal = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.SkipPrevious, contentDescription = "Previous Video", tint = Color.White, modifier = Modifier.size(22.dp))
+                                Text(
+                                    text = "Previous (▲)",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    if (onNextVideo != null) {
+                        TvFocusableCard(
+                            onClick = {
+                                onNextVideo()
+                            },
+                            shape = RoundedCornerShape(24.dp),
+                            backgroundColor = CinemaAccent,
+                            modifier = Modifier.height(48.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxHeight().padding(horizontal = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.SkipNext, contentDescription = "Next Video", tint = Color.Black, modifier = Modifier.size(22.dp))
+                                Text(
+                                    text = if (!nextVideoTitle.isNullOrBlank()) "Next Video" else "Skip",
+                                    color = Color.Black,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
