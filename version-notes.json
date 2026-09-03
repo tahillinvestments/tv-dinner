@@ -1,0 +1,18 @@
+{
+  "2.1.0": {
+    "title": "Reliable OTA Installer, High-Contrast Search Focus & Remote Enhancements",
+    "releaseNotes": "• OTA Update Reliability: Instant package installer launch with cached APK persistence (no re-download required) and unknown app permission handling\n• Distinct Version Details: Accurate, version-specific release notes for each release in update dialogs\n• High-Contrast Search Focus: Search bars across Live TV, Movies, Series, Music, and Podcasts glow bright cyan/blue when focused\n• Music Fast Skipping: Ultra-responsive YouTube track transitions using loadVideoById with zero playback dropouts\n• Podcasts Remote Navigation: Press D-Pad UP during podcast playback to immediately jump to the previous episode"
+  },
+  "2.0.9": {
+    "title": "VOD Watchlist, Live TV Quality Badges & Marquee Title Scrolling",
+    "releaseNotes": "• VOD Watchlist: Click and hold (remote D-Pad center or touch hold) on any movie or TV series card to save to Watchlist\n• ⭐ Watchlist Category: Added at the top of Movies and Series categories with gold indicator badges on saved titles\n• Live TV Quality Badges: Replaced bulky logo boxes with sleek quality badge pills (4K, FHD, HD, UHD, SD)\n• Marquee Title Scrolling: Automatic horizontal marquee scrolling for long titles on focused cards and preview panel"
+  },
+  "2.0.8": {
+    "title": "Cross-Category Remote Focus & Closed Caption Remote Toggle",
+    "releaseNotes": "• Live TV Navigation: Seamlessly return to channels from preview panel even when browsing a foreign category\n• Closed Captions: Press Remote D-Pad Down during VOD movie/series playback to toggle Closed Captions (Subtitles) ON/OFF\n• On-Screen CC HUD: Visual toast pill overlay displaying current subtitle status"
+  },
+  "2.0.7": {
+    "title": "Portal Settings, Failover URL & Live TV Stream Reconnect",
+    "releaseNotes": "• Settings: Added Primary & Backup Portal URL configuration fields\n• Failover URL: Built-in backup portal recovery (http://vpn.uhd4.top:80) for streaming drop recovery\n• Stream Reconnect: Added socket eviction & Reconnect Streams button to instantly refresh connections without restarting app"
+  }
+}

@@ -168,7 +168,20 @@ fun YouTubePlayerView(
         }
     }
 
-    DisposableEffect(videoId) {
+    LaunchedEffect(videoId) {
+        webViewInstance?.evaluateJavascript(
+            """
+            if (window.ytPlayer && typeof window.ytPlayer.loadVideoById === 'function') {
+                window.ytPlayer.loadVideoById('$videoId');
+            } else {
+                window.pendingVideoId = '$videoId';
+            }
+            """.trimIndent(),
+            null
+        )
+    }
+
+    DisposableEffect(Unit) {
         onDispose {
             if (YouTubeRemoteBridge.activeWebView == webViewInstance) {
                 YouTubeRemoteBridge.activeWebView = null
@@ -186,35 +199,6 @@ fun YouTubePlayerView(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
-            .focusable()
-            .onKeyEvent { keyEvent ->
-                if (keyEvent.type == KeyEventType.KeyUp) {
-                    val code = keyEvent.nativeKeyEvent.keyCode
-                    if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-                        YouTubeRemoteBridge.togglePlayPause()
-                        showControls = true
-                        lastInteractionTime = System.currentTimeMillis()
-                        return@onKeyEvent true
-                    } else if (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_MEDIA_REWIND) {
-                        YouTubeRemoteBridge.seekRewind()
-                        showControls = true
-                        lastInteractionTime = System.currentTimeMillis()
-                        return@onKeyEvent true
-                    } else if (code == KeyEvent.KEYCODE_DPAD_RIGHT || code == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) {
-                        YouTubeRemoteBridge.seekForward()
-                        showControls = true
-                        lastInteractionTime = System.currentTimeMillis()
-                        return@onKeyEvent true
-                    } else if (code == KeyEvent.KEYCODE_MEDIA_PREVIOUS || code == KeyEvent.KEYCODE_PAGE_UP || code == KeyEvent.KEYCODE_P || code == KeyEvent.KEYCODE_CHANNEL_DOWN || code == KeyEvent.KEYCODE_DPAD_UP) {
-                        currentOnPreviousVideo?.invoke()
-                        return@onKeyEvent true
-                    } else if (code == KeyEvent.KEYCODE_MEDIA_NEXT || code == KeyEvent.KEYCODE_PAGE_DOWN || code == KeyEvent.KEYCODE_N || code == KeyEvent.KEYCODE_CHANNEL_UP || code == KeyEvent.KEYCODE_FORWARD || code == KeyEvent.KEYCODE_DPAD_DOWN) {
-                        currentOnNextVideo?.invoke()
-                        return@onKeyEvent true
-                    }
-                }
-                false
-            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -270,8 +254,9 @@ fun YouTubePlayerView(
                             <script>
                                 var ytPlayer;
                                 function onYouTubeIframeAPIReady() {
+                                    var vId = window.pendingVideoId || '$videoId';
                                     ytPlayer = new YT.Player('player', {
-                                        videoId: '$videoId',
+                                        videoId: vId,
                                         playerVars: {
                                             'autoplay': 1,
                                             'controls': 1,
@@ -286,9 +271,17 @@ fun YouTubePlayerView(
                                         events: {
                                             'onReady': function(e) {
                                                 window.ytPlayer = e.target;
-                                                try {
-                                                    e.target.playVideo();
-                                                } catch(err) {}
+                                                if (window.pendingVideoId) {
+                                                    e.target.loadVideoById(window.pendingVideoId);
+                                                    window.pendingVideoId = null;
+                                                } else {
+                                                    try {
+                                                        e.target.playVideo();
+                                                    } catch(err) {}
+                                                }
+                                            },
+                                            'onError': function(e) {
+                                                console.log('YT Error:', e.data);
                                             },
                                             'onStateChange': function(e) {
                                                 if (e.data === 0) {

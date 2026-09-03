@@ -255,8 +255,8 @@ fun MainAppScreen(
                             AppTab.PODCASTS -> PodcastsScreen(
                                 authRepo = authRepo,
                                 catalogManager = catalogManager,
-                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle ->
-                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle)
+                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
                                 }
                             )
                             AppTab.SETTINGS -> SettingsScreen(
@@ -350,8 +350,8 @@ fun MainAppScreen(
                             AppTab.PODCASTS -> PodcastsScreen(
                                 authRepo = authRepo,
                                 catalogManager = catalogManager,
-                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle ->
-                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle)
+                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
                                 }
                             )
                             AppTab.SETTINGS -> SettingsScreen(
@@ -382,20 +382,18 @@ fun MainAppScreen(
 
         if (fullscreenYouTube != null) {
             val ytState = fullscreenYouTube!!
-            key(ytState.videoId) {
-                YouTubePlayerView(
-                    videoId = ytState.videoId,
-                    title = ytState.title,
-                    onBack = {
-                        YouTubeRemoteBridge.activeWebView = null
-                        fullscreenYouTube = null
-                    },
-                    onNextVideo = ytState.onNextVideo,
-                    nextVideoTitle = ytState.nextVideoTitle,
-                    onPreviousVideo = ytState.onPreviousVideo,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            YouTubePlayerView(
+                videoId = ytState.videoId,
+                title = ytState.title,
+                onBack = {
+                    YouTubeRemoteBridge.activeWebView = null
+                    fullscreenYouTube = null
+                },
+                onNextVideo = ytState.onNextVideo,
+                nextVideoTitle = ytState.nextVideoTitle,
+                onPreviousVideo = ytState.onPreviousVideo,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

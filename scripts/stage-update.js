@@ -13,14 +13,21 @@ const nameMatch = gradleContent.match(/versionName\s*=\s*"([^"]+)"/);
 const versionCode = codeMatch ? parseInt(codeMatch[1], 10) : 206;
 const versionName = nameMatch ? nameMatch[1] : '2.0.6';
 
-const releaseTitle = 'Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading';
-const releaseNotes = [
-  '• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)',
-  '• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery',
-  '• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed',
-  '• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts',
-  '• Settings: Added Primary and Backup Portal URL configuration fields'
-].join('\n');
+let releaseTitle = 'Performance improvements and bug fixes';
+let releaseNotes = '• General stability enhancements and UI optimizations';
+
+const versionNotesPath = path.join(projectRoot, 'version-notes.json');
+if (fs.existsSync(versionNotesPath)) {
+  try {
+    const allNotes = JSON.parse(fs.readFileSync(versionNotesPath, 'utf8'));
+    if (allNotes[versionName]) {
+      releaseTitle = allNotes[versionName].title || releaseTitle;
+      releaseNotes = allNotes[versionName].releaseNotes || releaseNotes;
+    }
+  } catch (e) {
+    console.warn('Could not parse version-notes.json:', e.message);
+  }
+}
 
 const releaseApkSource = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
 const debugApkSource = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');

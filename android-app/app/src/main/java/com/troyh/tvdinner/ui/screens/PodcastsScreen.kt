@@ -46,7 +46,7 @@ import com.troyh.tvdinner.ui.theme.*
 fun PodcastsScreen(
     authRepo: AuthRepository,
     catalogManager: CatalogManager,
-    onPlayYouTubeVideo: (String, String, (() -> Unit)?, String?) -> Unit,
+    onPlayYouTubeVideo: (String, String, (() -> Unit)?, String?, (() -> Unit)?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val categories = listOf(
@@ -82,11 +82,17 @@ fun PodcastsScreen(
         } else {
             null
         }
+        val onPrevious: (() -> Unit)? = if (index > 0) {
+            { playEpisodeAtIndex(index - 1) }
+        } else {
+            null
+        }
         onPlayYouTubeVideo(
             current.videoId,
             "${current.channelName} - ${current.title}",
             onNext,
-            next?.let { "${it.channelName} - ${it.title}" }
+            next?.let { "${it.channelName} - ${it.title}" },
+            onPrevious
         )
     }
 

@@ -1,9 +1,9 @@
 {
-  "versionCode": 209,
-  "versionName": "2.0.9",
-  "title": "Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading",
-  "releaseNotes": "• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)\n• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery\n• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed\n• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts\n• Settings: Added Primary and Backup Portal URL configuration fields",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.9/app-release.apk",
+  "versionCode": 210,
+  "versionName": "2.1.0",
+  "title": "Reliable OTA Installer, High-Contrast Search Focus & Remote Enhancements",
+  "releaseNotes": "• OTA Update Reliability: Instant package installer launch with cached APK persistence (no re-download required) and unknown app permission handling\n• Distinct Version Details: Accurate, version-specific release notes for each release in update dialogs\n• High-Contrast Search Focus: Search bars across Live TV, Movies, Series, Music, and Podcasts glow bright cyan/blue when focused\n• Music Fast Skipping: Ultra-responsive YouTube track transitions using loadVideoById with zero playback dropouts\n• Podcasts Remote Navigation: Press D-Pad UP during podcast playback to immediately jump to the previous episode",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.0/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-03T01:09:45.342Z"
+  "publishedAt": "2026-09-03T21:26:47.640Z"
 }

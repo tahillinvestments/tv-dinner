@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalFocusManager
@@ -51,18 +52,24 @@ fun AppSearchBar(
     var isEditing by remember { mutableStateOf(false) }
     var isCardFocused by remember { mutableStateOf(false) }
 
+    val backgroundColor = when {
+        isEditing -> Color(0xFF162D4A)
+        isCardFocused -> Color(0xFF1E3A5F)
+        else -> CinemaSurface
+    }
+
     val borderColor = when {
         isEditing -> CinemaAccent
         isCardFocused -> CinemaFocus
         else -> CinemaSurfaceLight
     }
 
-    val borderWidth = if (isCardFocused || isEditing) 2.dp else 1.dp
+    val borderWidth = if (isCardFocused || isEditing) 2.5.dp else 1.dp
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .background(CinemaSurface, RoundedCornerShape(10.dp))
+            .background(backgroundColor, RoundedCornerShape(10.dp))
             .border(borderWidth, borderColor, RoundedCornerShape(10.dp))
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .focusable(!isEditing)
@@ -117,7 +124,7 @@ fun AppSearchBar(
         Icon(
             imageVector = Icons.Default.Search,
             contentDescription = "Search",
-            tint = if (isCardFocused || isEditing) CinemaAccent else TextSecondary,
+            tint = if (isCardFocused || isEditing) CinemaFocus else TextSecondary,
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -125,8 +132,9 @@ fun AppSearchBar(
             if (value.isEmpty() && !isEditing) {
                 Text(
                     text = placeholder,
-                    color = TextMuted,
+                    color = if (isCardFocused) TextPrimary else TextMuted,
                     fontSize = 13.sp,
+                    fontWeight = if (isCardFocused) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
