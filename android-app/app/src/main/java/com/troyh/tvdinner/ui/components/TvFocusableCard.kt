@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -26,10 +27,12 @@ import androidx.compose.ui.unit.dp
 import com.troyh.tvdinner.ui.theme.CinemaFocus
 import com.troyh.tvdinner.ui.theme.CinemaSurfaceVariant
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun TvFocusableCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     shape: Shape = RoundedCornerShape(12.dp),
     backgroundColor: Color = CinemaSurfaceVariant,
     focusedBorderColor: Color = CinemaFocus,
@@ -38,6 +41,7 @@ fun TvFocusableCard(
     content: @Composable BoxScope.(Boolean) -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    var isLongPressHandled by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) focusedScale else 1.0f,
         animationSpec = tween(durationMillis = 150),
@@ -65,19 +69,30 @@ fun TvFocusableCard(
             )
             .focusable()
             .onKeyEvent { keyEvent ->
-                if (keyEvent.type == KeyEventType.KeyUp) {
-                    val code = keyEvent.nativeKeyEvent.keyCode
-                    if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-                        onClick()
+                val code = keyEvent.nativeKeyEvent.keyCode
+                val isSelectKey = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER
+
+                if (keyEvent.type == KeyEventType.KeyDown && isSelectKey) {
+                    if (onLongClick != null && (keyEvent.nativeKeyEvent.isLongPress || keyEvent.nativeKeyEvent.repeatCount == 1)) {
+                        isLongPressHandled = true
+                        onLongClick()
                         return@onKeyEvent true
                     }
+                } else if (keyEvent.type == KeyEventType.KeyUp && isSelectKey) {
+                    if (isLongPressHandled) {
+                        isLongPressHandled = false
+                        return@onKeyEvent true
+                    }
+                    onClick()
+                    return@onKeyEvent true
                 }
                 false
             }
-            .clickable(
+            .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onClick
+                onClick = onClick,
+                onLongClick = onLongClick
             ),
         shape = shape,
         color = backgroundColor,

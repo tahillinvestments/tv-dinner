@@ -276,6 +276,50 @@ class AuthRepository(context: Context) {
         return willFavorite
     }
 
+    // Movie Watchlist (VOD)
+    fun getMovieWatchlistIds(): Set<Int> {
+        val rawSet = prefs.getStringSet("movie_watchlist", emptySet()) ?: emptySet()
+        return rawSet.mapNotNull { it.toIntOrNull() }.toSet()
+    }
+
+    fun isMovieInWatchlist(streamId: Int): Boolean {
+        return getMovieWatchlistIds().contains(streamId)
+    }
+
+    fun toggleMovieWatchlist(streamId: Int): Boolean {
+        val current = getMovieWatchlistIds().toMutableSet()
+        val willAdd = !current.contains(streamId)
+        if (willAdd) {
+            current.add(streamId)
+        } else {
+            current.remove(streamId)
+        }
+        prefs.edit().putStringSet("movie_watchlist", current.map { it.toString() }.toSet()).apply()
+        return willAdd
+    }
+
+    // Series Watchlist (VOD)
+    fun getSeriesWatchlistIds(): Set<Int> {
+        val rawSet = prefs.getStringSet("series_watchlist", emptySet()) ?: emptySet()
+        return rawSet.mapNotNull { it.toIntOrNull() }.toSet()
+    }
+
+    fun isSeriesInWatchlist(seriesId: Int): Boolean {
+        return getSeriesWatchlistIds().contains(seriesId)
+    }
+
+    fun toggleSeriesWatchlist(seriesId: Int): Boolean {
+        val current = getSeriesWatchlistIds().toMutableSet()
+        val willAdd = !current.contains(seriesId)
+        if (willAdd) {
+            current.add(seriesId)
+        } else {
+            current.remove(seriesId)
+        }
+        prefs.edit().putStringSet("series_watchlist", current.map { it.toString() }.toSet()).apply()
+        return willAdd
+    }
+
     // Channel History (Last 5 watched channels)
     fun getChannelHistoryIds(): List<Int> {
         val raw = prefs.getString("live_channel_history", null) ?: return emptyList()

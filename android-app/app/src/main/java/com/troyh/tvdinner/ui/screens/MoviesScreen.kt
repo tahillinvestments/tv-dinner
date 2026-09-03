@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import android.widget.Toast
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
@@ -71,6 +73,8 @@ fun MoviesScreen(
     var resumePromptMovie by remember { mutableStateOf<Movie?>(null) }
     var sortedAndFilteredMovies by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var isSorting by remember { mutableStateOf(false) }
+    var movieWatchlistIds by remember { mutableStateOf(authRepo.getMovieWatchlistIds()) }
+    val coroutineScope = rememberCoroutineScope()
 
     val portal = authRepo.getVodPortalUrl()
     val user = authRepo.getActiveUsername()
@@ -93,7 +97,9 @@ fun MoviesScreen(
                 categoryScrollPositions[current] = gridState.firstVisibleItemIndex
             }
             selectedCategoryId = newCatId
-            authRepo.setLastMovieCategoryId(newCatId)
+            if (newCatId != "watchlist") {
+                authRepo.setLastMovieCategoryId(newCatId)
+            }
         }
     }
 
@@ -101,17 +107,24 @@ fun MoviesScreen(
     LaunchedEffect(Unit) {
         if (categories.isEmpty()) {
             isLoading = true
-            val cats = catalogManager.getMovieCategories()
+            val rawCats = catalogManager.getMovieCategories()
+            val cats = listOf(MovieCategory("watchlist", "⭐ Watchlist")) + rawCats
             categories = cats
             val savedCat = authRepo.getLastMovieCategoryId()
-            val initialCatId = if (cats.any { it.categoryId == savedCat }) {
-                savedCat ?: ""
+            val initialCatId = if (savedCat != null && cats.any { it.categoryId == savedCat }) {
+                savedCat
+            } else if (rawCats.isNotEmpty()) {
+                rawCats.first().categoryId
             } else {
-                cats.firstOrNull()?.categoryId ?: ""
+                "watchlist"
             }
             selectedCategoryId = initialCatId
-            if (initialCatId.isNotBlank()) {
-                movies = catalogManager.getMovies(initialCatId)
+            movies = if (initialCatId == "watchlist") {
+                catalogManager.getWatchlistMovies()
+            } else if (initialCatId.isNotBlank()) {
+                catalogManager.getMovies(initialCatId)
+            } else {
+                emptyList()
             }
             isLoading = false
         }
@@ -120,7 +133,14 @@ fun MoviesScreen(
     LaunchedEffect(selectedCategoryId) {
         if (!selectedCategoryId.isNullOrBlank() && categories.isNotEmpty() && searchQuery.isBlank()) {
             isLoading = true
-            movies = catalogManager.getMovies(selectedCategoryId)
+            if (selectedCategoryId != "watchlist") {
+                authRepo.setLastMovieCategoryId(selectedCategoryId ?: "")
+            }
+            movies = if (selectedCategoryId == "watchlist") {
+                catalogManager.getWatchlistMovies()
+            } else {
+                catalogManager.getMovies(selectedCategoryId)
+            }
             isLoading = false
         }
     }
@@ -257,7 +277,21 @@ fun MoviesScreen(
                     }
                 } else if (sortedAndFilteredMovies.isEmpty()) {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Text("No movies found in this category", color = TextMuted)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(24.dp)) {
+                            Text(
+                                text = if (selectedCategoryId == "watchlist") "Your Movie Watchlist is empty" else "No movies found in this category",
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                            if (selectedCategoryId == "watchlist") {
+                                Text(
+                                    text = "Click and hold (long press) on any movie to save to Watchlist!",
+                                    color = TextMuted,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
                     }
                 } else {
                     LazyVerticalGrid(
@@ -287,6 +321,20 @@ fun MoviesScreen(
                                         onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
                                     }
                                 },
+                                onLongClick = {
+                                    val added = authRepo.toggleMovieWatchlist(movie.streamId)
+                                    movieWatchlistIds = authRepo.getMovieWatchlistIds()
+                                    Toast.makeText(
+                                        context,
+                                        if (added) "Saved '${movie.displayTitle}' to Watchlist ⭐" else "Removed '${movie.displayTitle}' from Watchlist",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    if (selectedCategoryId == "watchlist") {
+                                        coroutineScope.launch {
+                                            movies = catalogManager.getWatchlistMovies()
+                                        }
+                                    }
+                                },
                                 shape = RoundedCornerShape(12.dp),
                                 backgroundColor = CinemaSurface,
                                 focusedBorderColor = CinemaFocus,
@@ -301,6 +349,22 @@ fun MoviesScreen(
                                             .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                     ) {
                                         MoviePosterImage(movie = movie, catalogManager = catalogManager)
+
+                                        // Watchlist Bookmark Tag
+                                        if (movieWatchlistIds.contains(movie.streamId)) {
+                                            Surface(
+                                                shape = RoundedCornerShape(bottomEnd = 8.dp),
+                                                color = CinemaAccent.copy(alpha = 0.95f),
+                                                modifier = Modifier.align(Alignment.TopStart)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Bookmark,
+                                                    contentDescription = "In Watchlist",
+                                                    tint = Color.Black,
+                                                    modifier = Modifier.padding(4.dp).size(12.dp)
+                                                )
+                                            }
+                                        }
 
                                         // Rating Tag
                                         if (movie.rating5Based != null && movie.rating5Based > 0.0) {
@@ -462,7 +526,21 @@ fun MoviesScreen(
                         }
                     } else if (sortedAndFilteredMovies.isEmpty()) {
                         Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Text("No movies found in this category", color = TextMuted)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(24.dp)) {
+                                Text(
+                                    text = if (selectedCategoryId == "watchlist") "Your Movie Watchlist is empty" else "No movies found in this category",
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                if (selectedCategoryId == "watchlist") {
+                                    Text(
+                                        text = "Click and hold (long press) on any movie title to save it to your Watchlist!",
+                                        color = TextMuted,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
                         }
                     } else {
                         LazyVerticalGrid(
@@ -492,6 +570,20 @@ fun MoviesScreen(
                                     onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
                                 }
                             },
+                            onLongClick = {
+                                val added = authRepo.toggleMovieWatchlist(movie.streamId)
+                                movieWatchlistIds = authRepo.getMovieWatchlistIds()
+                                Toast.makeText(
+                                    context,
+                                    if (added) "Saved '${movie.displayTitle}' to Watchlist ⭐" else "Removed '${movie.displayTitle}' from Watchlist",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                if (selectedCategoryId == "watchlist") {
+                                    coroutineScope.launch {
+                                        movies = catalogManager.getWatchlistMovies()
+                                    }
+                                }
+                            },
                             shape = RoundedCornerShape(12.dp),
                             backgroundColor = CinemaSurface,
                             focusedBorderColor = CinemaFocus,
@@ -506,6 +598,22 @@ fun MoviesScreen(
                                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                 ) {
                                     MoviePosterImage(movie = movie, catalogManager = catalogManager)
+
+                                    // Watchlist Bookmark Tag
+                                    if (movieWatchlistIds.contains(movie.streamId)) {
+                                        Surface(
+                                            shape = RoundedCornerShape(bottomEnd = 8.dp),
+                                            color = CinemaAccent.copy(alpha = 0.95f),
+                                            modifier = Modifier.align(Alignment.TopStart)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Bookmark,
+                                                contentDescription = "In Watchlist",
+                                                tint = Color.Black,
+                                                modifier = Modifier.padding(4.dp).size(13.dp)
+                                            )
+                                        }
+                                    }
 
                                     // Rating Tag
                                     if (movie.rating5Based != null && movie.rating5Based > 0.0) {

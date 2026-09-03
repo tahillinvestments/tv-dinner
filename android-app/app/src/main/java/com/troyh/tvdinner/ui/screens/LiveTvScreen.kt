@@ -7,6 +7,7 @@ import android.widget.Toast
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -748,19 +749,19 @@ fun LiveTvScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        .padding(horizontal = 10.dp, vertical = 7.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    ChannelLogoImage(
-                                        channel = channel,
-                                        size = 36.dp
+                                    ChannelQualityBadge(
+                                        channelName = channel.name
                                     )
 
                                     Column(modifier = Modifier.weight(1f)) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.fillMaxWidth()
                                         ) {
                                             if (favoriteChannelIds.contains(channel.streamId)) {
                                                 Icon(
@@ -771,7 +772,6 @@ fun LiveTvScreen(
                                                 )
                                             }
                                             val cleanChName = remember(channel.name) { CatalogManager.cleanChannelDisplayName(channel.name) }
-                                            val chQuality = remember(channel.name) { CatalogManager.extractChannelQuality(channel.name) }
                                             Text(
                                                 text = cleanChName,
                                                 color = if (isActive) CinemaAccent else TextPrimary,
@@ -781,28 +781,6 @@ fun LiveTvScreen(
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
-                                            if (chQuality != null) {
-                                                val qColor = when (chQuality) {
-                                                    "4K" -> CinemaYellow
-                                                    "FHD" -> CinemaAccent
-                                                    "HEVC" -> CinemaSecondary
-                                                    "60FPS" -> CinemaGreen
-                                                    else -> CinemaFocus
-                                                }
-                                                Surface(
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    color = qColor.copy(alpha = 0.2f),
-                                                    border = androidx.compose.foundation.BorderStroke(0.5.dp, qColor.copy(alpha = 0.6f))
-                                                ) {
-                                                    Text(
-                                                        text = chQuality,
-                                                        color = qColor,
-                                                        fontSize = 8.sp,
-                                                        fontWeight = FontWeight.Black,
-                                                        modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
-                                                    )
-                                                }
-                                            }
                                         }
                                         if (!channelEpg.isNullOrBlank()) {
                                             Text(
@@ -1193,23 +1171,23 @@ fun LiveTvScreen(
                                                 false
                                             }
                                         }
-                                ) {
+                                ) { isCardFocused ->
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            .padding(horizontal = 12.dp, vertical = 9.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        ChannelLogoImage(
-                                            channel = channel,
-                                            size = 42.dp
+                                        ChannelQualityBadge(
+                                            channelName = channel.name
                                         )
 
                                         Column(modifier = Modifier.weight(1f)) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 if (favoriteChannelIds.contains(channel.streamId)) {
                                                     Icon(
@@ -1220,38 +1198,17 @@ fun LiveTvScreen(
                                                     )
                                                 }
                                                 val cleanChName = remember(channel.name) { CatalogManager.cleanChannelDisplayName(channel.name) }
-                                                val chQuality = remember(channel.name) { CatalogManager.extractChannelQuality(channel.name) }
                                                 Text(
                                                     text = cleanChName,
                                                     color = if (isActive) CinemaAccent else TextPrimary,
                                                     fontSize = 14.sp,
                                                     fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
                                                     maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f, fill = false)
+                                                    overflow = if (isCardFocused) TextOverflow.Clip else TextOverflow.Ellipsis,
+                                                    modifier = Modifier
+                                                        .weight(1f, fill = false)
+                                                        .then(if (isCardFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier)
                                                 )
-                                                if (chQuality != null) {
-                                                    val qColor = when (chQuality) {
-                                                        "4K" -> CinemaYellow
-                                                        "FHD" -> CinemaAccent
-                                                        "HEVC" -> CinemaSecondary
-                                                        "60FPS" -> CinemaGreen
-                                                        else -> CinemaFocus
-                                                    }
-                                                    Surface(
-                                                        shape = RoundedCornerShape(4.dp),
-                                                        color = qColor.copy(alpha = 0.2f),
-                                                        border = androidx.compose.foundation.BorderStroke(0.5.dp, qColor.copy(alpha = 0.6f))
-                                                    ) {
-                                                        Text(
-                                                            text = chQuality,
-                                                            color = qColor,
-                                                            fontSize = 9.sp,
-                                                            fontWeight = FontWeight.Black,
-                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                        )
-                                                    }
-                                                }
                                             }
 
                                             if (!channelEpg.isNullOrBlank()) {
@@ -1261,11 +1218,14 @@ fun LiveTvScreen(
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.SemiBold,
                                                     maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
+                                                    overflow = if (isCardFocused) TextOverflow.Clip else TextOverflow.Ellipsis,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .then(if (isCardFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier)
                                                 )
                                             } else {
                                                 Text(
-                                                    text = if (channel.num > 0) "CH ${channel.num} • Live HD" else "Live • ${channel.categoryId ?: "Broadcast"}",
+                                                    text = if (channel.num > 0) "CH ${channel.num} • Live" else "Live • ${channel.categoryId ?: "Broadcast"}",
                                                     color = TextMuted,
                                                     fontSize = 11.sp,
                                                     maxLines = 1
@@ -1424,8 +1384,8 @@ fun LiveTvScreen(
                                             fontWeight = FontWeight.Black,
                                             color = TextPrimary,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false)
+                                            overflow = TextOverflow.Clip,
+                                            modifier = Modifier.weight(1f, fill = false).basicMarquee(iterations = Int.MAX_VALUE)
                                         )
                                         if (previewQuality != null) {
                                             val qColor = when (previewQuality) {
@@ -1826,7 +1786,8 @@ fun LiveTvScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = CinemaAccent,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Clip,
+                                            modifier = Modifier.weight(1f, fill = false).basicMarquee(iterations = Int.MAX_VALUE)
                                         )
                                     }
 
@@ -1903,7 +1864,8 @@ fun LiveTvScreen(
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                overflow = TextOverflow.Clip,
+                                                modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
                                             )
                                             val nextStartFormatted = formatEpgTimeLocal(nextProgram.startTimestamp, nextProgram.start)
                                             if (nextStartFormatted.isNotBlank()) {
@@ -1963,6 +1925,37 @@ fun formatEpgTimeLocal(rawTimestamp: String?, rawDateStr: String?): String {
     }
 
     return str
+}
+
+@Composable
+fun ChannelQualityBadge(
+    channelName: String,
+    modifier: Modifier = Modifier
+) {
+    val rawQuality = remember(channelName) { CatalogManager.extractChannelQuality(channelName) }
+    val resolvedQuality = rawQuality ?: if (channelName.contains("4K", ignoreCase = true) || channelName.contains("UHD", ignoreCase = true)) "4K" else "HD"
+    val qColor = when (resolvedQuality) {
+        "4K" -> CinemaYellow
+        "FHD" -> CinemaAccent
+        "HEVC" -> CinemaSecondary
+        "60FPS" -> CinemaGreen
+        else -> CinemaFocus
+    }
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = qColor.copy(alpha = 0.16f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, qColor.copy(alpha = 0.55f)),
+        modifier = modifier.width(42.dp).height(24.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Text(
+                text = resolvedQuality,
+                color = qColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black
+            )
+        }
+    }
 }
 
 @Composable

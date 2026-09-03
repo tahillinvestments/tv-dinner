@@ -1043,6 +1043,20 @@ class CatalogManager(
         }
     }
 
+    suspend fun getWatchlistMovies(): List<Movie> = withContext(Dispatchers.IO) {
+        val watchlistIds = authRepo.getMovieWatchlistIds()
+        if (watchlistIds.isEmpty()) return@withContext emptyList()
+        val allCached = cachedMoviesByCat.values.flatten()
+        val found = allCached.filter { watchlistIds.contains(it.streamId) }.distinctBy { it.streamId }
+        val missingIds = watchlistIds - found.map { it.streamId }.toSet()
+        if (missingIds.isNotEmpty()) {
+            val allMovies = getMovies("all")
+            val additional = allMovies.filter { missingIds.contains(it.streamId) }
+            return@withContext (found + additional).distinctBy { it.streamId }
+        }
+        found
+    }
+
     // Fast & Safe Multi-Category Movie Search (Comprehensive & Zero OOM Crashes)
     suspend fun searchMovies(query: String, selectedCategoryId: String? = null): List<Movie> = withContext(Dispatchers.IO) {
         val q = query.trim()
@@ -1163,6 +1177,20 @@ class CatalogManager(
             cachedSeriesByCat[key] = fetched
             fetched
         }
+    }
+
+    suspend fun getWatchlistSeries(): List<Series> = withContext(Dispatchers.IO) {
+        val watchlistIds = authRepo.getSeriesWatchlistIds()
+        if (watchlistIds.isEmpty()) return@withContext emptyList()
+        val allCached = cachedSeriesByCat.values.flatten()
+        val found = allCached.filter { watchlistIds.contains(it.seriesId) }.distinctBy { it.seriesId }
+        val missingIds = watchlistIds - found.map { it.seriesId }.toSet()
+        if (missingIds.isNotEmpty()) {
+            val allSeries = getSeries("all")
+            val additional = allSeries.filter { missingIds.contains(it.seriesId) }
+            return@withContext (found + additional).distinctBy { it.seriesId }
+        }
+        found
     }
 
     // Fast & Safe Multi-Category Series Search (Comprehensive & Zero OOM Crashes)

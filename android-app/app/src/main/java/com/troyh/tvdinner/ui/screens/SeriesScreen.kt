@@ -3,6 +3,7 @@ package com.troyh.tvdinner.ui.screens
 import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -82,6 +83,8 @@ fun SeriesScreen(
     var isLoadingInfo by remember { mutableStateOf(false) }
     var selectedSeason by remember { mutableStateOf("1") }
     var resumePromptEpisode by remember { mutableStateOf<EpisodeResumePrompt?>(null) }
+    var seriesWatchlistIds by remember { mutableStateOf(authRepo.getSeriesWatchlistIds()) }
+    val coroutineScope = rememberCoroutineScope()
 
     val portal = authRepo.getVodPortalUrl()
     val user = authRepo.getActiveUsername()
@@ -104,7 +107,9 @@ fun SeriesScreen(
                 categoryScrollPositions[current] = gridState.firstVisibleItemIndex
             }
             selectedCategoryId = newCatId
-            authRepo.setLastSeriesCategoryId(newCatId)
+            if (newCatId != "watchlist") {
+                authRepo.setLastSeriesCategoryId(newCatId)
+            }
         }
     }
 
@@ -112,17 +117,24 @@ fun SeriesScreen(
     LaunchedEffect(Unit) {
         if (categories.isEmpty()) {
             isLoading = true
-            val cats = catalogManager.getSeriesCategories()
+            val rawCats = catalogManager.getSeriesCategories()
+            val cats = listOf(SeriesCategory("watchlist", "⭐ Watchlist")) + rawCats
             categories = cats
             val savedCat = authRepo.getLastSeriesCategoryId()
-            val initialCatId = if (cats.any { it.categoryId == savedCat }) {
-                savedCat ?: ""
+            val initialCatId = if (savedCat != null && cats.any { it.categoryId == savedCat }) {
+                savedCat
+            } else if (rawCats.isNotEmpty()) {
+                rawCats.first().categoryId
             } else {
-                cats.firstOrNull()?.categoryId ?: ""
+                "watchlist"
             }
             selectedCategoryId = initialCatId
-            if (initialCatId.isNotBlank()) {
-                seriesList = catalogManager.getSeries(initialCatId)
+            seriesList = if (initialCatId == "watchlist") {
+                catalogManager.getWatchlistSeries()
+            } else if (initialCatId.isNotBlank()) {
+                catalogManager.getSeries(initialCatId)
+            } else {
+                emptyList()
             }
             isLoading = false
         }
@@ -131,7 +143,14 @@ fun SeriesScreen(
     LaunchedEffect(selectedCategoryId) {
         if (!selectedCategoryId.isNullOrBlank() && categories.isNotEmpty() && searchQuery.isBlank()) {
             isLoading = true
-            seriesList = catalogManager.getSeries(selectedCategoryId)
+            if (selectedCategoryId != "watchlist") {
+                authRepo.setLastSeriesCategoryId(selectedCategoryId ?: "")
+            }
+            seriesList = if (selectedCategoryId == "watchlist") {
+                catalogManager.getWatchlistSeries()
+            } else {
+                catalogManager.getSeries(selectedCategoryId)
+            }
             isLoading = false
         }
     }
@@ -282,7 +301,21 @@ fun SeriesScreen(
                     }
                 } else if (sortedAndFilteredSeries.isEmpty()) {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Text("No series found in this category", color = TextMuted)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(24.dp)) {
+                            Text(
+                                text = if (selectedCategoryId == "watchlist") "Your Series Watchlist is empty" else "No series found in this category",
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                            if (selectedCategoryId == "watchlist") {
+                                Text(
+                                    text = "Click and hold (long press) on any series to save to Watchlist!",
+                                    color = TextMuted,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
                     }
                 } else {
                     LazyVerticalGrid(
@@ -299,6 +332,20 @@ fun SeriesScreen(
                                     lastSelectedSeriesId = series.seriesId
                                     authRepo.setLastSeriesId(series.seriesId)
                                 },
+                                onLongClick = {
+                                    val added = authRepo.toggleSeriesWatchlist(series.seriesId)
+                                    seriesWatchlistIds = authRepo.getSeriesWatchlistIds()
+                                    Toast.makeText(
+                                        context,
+                                        if (added) "Saved '${series.displayTitle}' to Watchlist ⭐" else "Removed '${series.displayTitle}' from Watchlist",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    if (selectedCategoryId == "watchlist") {
+                                        coroutineScope.launch {
+                                            seriesList = catalogManager.getWatchlistSeries()
+                                        }
+                                    }
+                                },
                                 shape = RoundedCornerShape(12.dp),
                                 backgroundColor = CinemaSurface,
                                 focusedBorderColor = CinemaFocus,
@@ -313,6 +360,22 @@ fun SeriesScreen(
                                             .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                     ) {
                                         SeriesPosterImage(series = series, catalogManager = catalogManager)
+
+                                        // Watchlist Bookmark Tag
+                                        if (seriesWatchlistIds.contains(series.seriesId)) {
+                                            Surface(
+                                                shape = RoundedCornerShape(bottomEnd = 8.dp),
+                                                color = CinemaAccent.copy(alpha = 0.95f),
+                                                modifier = Modifier.align(Alignment.TopStart)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Bookmark,
+                                                    contentDescription = "In Watchlist",
+                                                    tint = Color.Black,
+                                                    modifier = Modifier.padding(4.dp).size(12.dp)
+                                                )
+                                            }
+                                        }
 
                                         if (series.rating5Based != null && series.rating5Based > 0.0) {
                                             Surface(
@@ -449,7 +512,21 @@ fun SeriesScreen(
                         }
                     } else if (sortedAndFilteredSeries.isEmpty()) {
                         Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Text("No series found in this category", color = TextMuted)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(24.dp)) {
+                                Text(
+                                    text = if (selectedCategoryId == "watchlist") "Your Series Watchlist is empty" else "No series found in this category",
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                if (selectedCategoryId == "watchlist") {
+                                    Text(
+                                        text = "Click and hold (long press) on any TV series title to save it to your Watchlist!",
+                                        color = TextMuted,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
                         }
                     } else {
                         LazyVerticalGrid(
@@ -466,6 +543,20 @@ fun SeriesScreen(
                                         lastSelectedSeriesId = series.seriesId
                                         authRepo.setLastSeriesId(series.seriesId)
                                     },
+                                    onLongClick = {
+                                        val added = authRepo.toggleSeriesWatchlist(series.seriesId)
+                                        seriesWatchlistIds = authRepo.getSeriesWatchlistIds()
+                                        Toast.makeText(
+                                            context,
+                                            if (added) "Saved '${series.displayTitle}' to Watchlist ⭐" else "Removed '${series.displayTitle}' from Watchlist",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        if (selectedCategoryId == "watchlist") {
+                                            coroutineScope.launch {
+                                                seriesList = catalogManager.getWatchlistSeries()
+                                            }
+                                        }
+                                    },
                                     shape = RoundedCornerShape(12.dp),
                                     backgroundColor = CinemaSurface,
                                     focusedBorderColor = CinemaFocus,
@@ -480,6 +571,22 @@ fun SeriesScreen(
                                                 .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                         ) {
                                             SeriesPosterImage(series = series, catalogManager = catalogManager)
+
+                                            // Watchlist Bookmark Tag
+                                            if (seriesWatchlistIds.contains(series.seriesId)) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(bottomEnd = 8.dp),
+                                                    color = CinemaAccent.copy(alpha = 0.95f),
+                                                    modifier = Modifier.align(Alignment.TopStart)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Bookmark,
+                                                        contentDescription = "In Watchlist",
+                                                        tint = Color.Black,
+                                                        modifier = Modifier.padding(4.dp).size(13.dp)
+                                                    )
+                                                }
+                                            }
 
                                             if (series.rating5Based != null && series.rating5Based > 0.0) {
                                                 Surface(
