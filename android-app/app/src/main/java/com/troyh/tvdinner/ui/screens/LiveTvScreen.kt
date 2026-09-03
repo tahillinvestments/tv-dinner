@@ -92,6 +92,7 @@ fun LiveTvScreen(
     val activeCardFocusRequester = remember { FocusRequester() }
     val visibleChannelFocusRequester = remember { FocusRequester() }
     val firstChannelFocusRequester = remember { FocusRequester() }
+    var lastFocusedChannelIndex by remember { mutableIntStateOf(0) }
     val selectedCategoryFocusRequester = remember { FocusRequester() }
     val playControlFocusRequester = remember { FocusRequester() }
     val favoriteControlFocusRequester = remember { FocusRequester() }
@@ -284,6 +285,7 @@ fun LiveTvScreen(
 
     // Reset scroll offset safely when category changes
     LaunchedEffect(selectedCategoryId, searchQuery) {
+        lastFocusedChannelIndex = 0
         if (channelListState.firstVisibleItemIndex > 0) {
             channelListState.scrollToItem(0)
         }
@@ -339,6 +341,24 @@ fun LiveTvScreen(
     val isCurrentActiveFavorited = activeChannel?.let { favoriteChannelIds.contains(it.streamId) } ?: false
 
     fun navigateBackToChannels(): Boolean {
+        if (filteredChannels.isEmpty()) {
+            try {
+                selectedCategoryFocusRequester.requestFocus()
+            } catch (_: Exception) {
+                try {
+                    focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
+                } catch (_: Exception) {}
+            }
+            return true
+        }
+
+        val activeIdx = filteredChannels.indexOfFirst { it.streamId == activeChannel?.streamId }
+        val targetIdx = if (activeIdx >= 0) {
+            activeIdx
+        } else {
+            lastFocusedChannelIndex.coerceIn(0, filteredChannels.size - 1)
+        }
+
         var focused = false
         try {
             activeCardFocusRequester.requestFocus()
@@ -361,15 +381,23 @@ fun LiveTvScreen(
                 focused = focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
             } catch (_: Exception) {}
         }
-        val idx = filteredChannels.indexOfFirst { it.streamId == activeChannel?.streamId }
-        if (idx >= 0) {
-            coroutineScope.launch {
+
+        coroutineScope.launch {
+            try {
+                channelListState.animateScrollToItem((targetIdx - 1).coerceAtLeast(0))
+                delay(50)
                 try {
-                    channelListState.animateScrollToItem((idx - 1).coerceAtLeast(0))
-                    delay(50)
                     activeCardFocusRequester.requestFocus()
-                } catch (_: Exception) {}
-            }
+                } catch (_: Exception) {
+                    try {
+                        visibleChannelFocusRequester.requestFocus()
+                    } catch (_: Exception) {
+                        try {
+                            firstChannelFocusRequester.requestFocus()
+                        } catch (_: Exception) {}
+                    }
+                }
+            } catch (_: Exception) {}
         }
         return true
     }
@@ -1057,6 +1085,10 @@ fun LiveTvScreen(
                                 val isActive = activeChannel?.streamId == channel.streamId
                                 val isFirstVisible = index == channelListState.firstVisibleItemIndex
                                 val isFirstChannel = index == 0
+                                val hasActiveInList = remember(filteredChannels, activeChannel) {
+                                    filteredChannels.any { it.streamId == activeChannel?.streamId }
+                                }
+                                val isTargetFocus = if (hasActiveInList) isActive else (index == lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0)))
 
                                 var channelEpg by remember(channel.streamId) {
                                     mutableStateOf(catalogManager.getCachedEpg(channel.streamId))
@@ -1098,7 +1130,8 @@ fun LiveTvScreen(
                                     focusedScale = 1.02f,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .then(if (isActive) Modifier.focusRequester(activeCardFocusRequester) else Modifier)
+                                        .onFocusChanged { if (it.isFocused) lastFocusedChannelIndex = index }
+                                        .then(if (isTargetFocus) Modifier.focusRequester(activeCardFocusRequester) else Modifier)
                                         .then(if (isFirstVisible) Modifier.focusRequester(visibleChannelFocusRequester) else Modifier)
                                         .then(if (isFirstChannel) Modifier.focusRequester(firstChannelFocusRequester) else Modifier)
                                         .onPreviewKeyEvent { keyEvent ->

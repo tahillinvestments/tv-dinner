@@ -77,6 +77,18 @@ fun NativePlayerView(
         }
     }
 
+    var showCcHud by remember { mutableStateOf(false) }
+    var lastObservedCcState by remember { mutableStateOf(isCcEnabled) }
+
+    LaunchedEffect(isCcEnabled) {
+        if (isCcEnabled != lastObservedCcState) {
+            lastObservedCcState = isCcEnabled
+            showCcHud = true
+            delay(2200)
+            showCcHud = false
+        }
+    }
+
     // Request active focus on mount ONLY in standalone / fullscreen mode
     LaunchedEffect(onBack) {
         if (onBack != null) {
@@ -148,6 +160,13 @@ fun NativePlayerView(
                         KeyEvent.KEYCODE_DPAD_UP -> {
                             if (!isLive) {
                                 playerManager.cycleAspectRatio()
+                                lastInteractionTime = System.currentTimeMillis()
+                                return@onKeyEvent true
+                            }
+                        }
+                        KeyEvent.KEYCODE_DPAD_DOWN -> {
+                            if (!isLive) {
+                                playerManager.toggleClosedCaptions()
                                 lastInteractionTime = System.currentTimeMillis()
                                 return@onKeyEvent true
                             }
@@ -578,6 +597,41 @@ fun NativePlayerView(
                             AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "Aspect: Zoom (Fill)"
                             else -> "Aspect: Fit (Original)"
                         },
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
+
+        // Closed Captions / Subtitles HUD Pill Overlay
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showCcHud,
+            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
+            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = if (showAspectHud) 80.dp else 28.dp, end = 28.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color.Black.copy(alpha = 0.85f),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, if (isCcEnabled) CinemaAccent else CinemaSurfaceLight)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ClosedCaption,
+                        contentDescription = null,
+                        tint = if (isCcEnabled) CinemaAccent else TextMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = if (isCcEnabled) "Subtitles: ON (English)" else "Subtitles: OFF",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp

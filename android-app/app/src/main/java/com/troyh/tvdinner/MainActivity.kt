@@ -176,6 +176,9 @@ class MainActivity : ComponentActivity() {
                     if (isYouTubeActive) {
                         onNextYouTubeCallback?.invoke()
                         return true
+                    } else if (isVODFullscreenActive) {
+                        playerManager.toggleClosedCaptions()
+                        return true
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
