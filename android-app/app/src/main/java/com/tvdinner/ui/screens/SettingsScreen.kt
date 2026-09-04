@@ -576,14 +576,7 @@ fun SettingsScreen(
                                     isCheckingUpdate = false
                                     availableUpdate = update
                                     if (update != null) {
-                                        val cached = updateManager.getCachedApk(update.versionCode)
-                                        if (cached != null && cached.exists()) {
-                                            downloadedApkFile = cached
-                                            updateCheckMessage = "Update v${update.versionName} is downloaded and ready to install!"
-                                        } else {
-                                            downloadedApkFile = null
-                                            updateCheckMessage = "New update v${update.versionName} found!"
-                                        }
+                                        updateCheckMessage = "New update v${update.versionName} found!"
                                     } else if (updateManager.lastCheckError != null) {
                                         updateCheckMessage = updateManager.lastCheckError!!
                                     } else {
@@ -607,30 +600,22 @@ fun SettingsScreen(
                             Button(
                                 onClick = {
                                     val update = availableUpdate ?: return@Button
-                                    val existingApk = downloadedApkFile ?: updateManager.getCachedApk(update.versionCode)
-                                    if (existingApk != null && existingApk.exists()) {
-                                        downloadedApkFile = existingApk
-                                        val launched = updateManager.installApk(existingApk)
-                                        if (!launched) {
-                                            Toast.makeText(context, "Please allow permission to install updates", Toast.LENGTH_LONG).show()
-                                        }
+                                    if (downloadedApkFile != null && downloadedApkFile!!.exists()) {
+                                        updateManager.installApk(downloadedApkFile!!)
                                     } else {
                                         isDownloadingUpdate = true
                                         downloadProgress = 0f
                                         coroutineScope.launch {
-                                            val file = updateManager.downloadApk(update.apkUrl, update.versionCode) { progress ->
+                                            val file = updateManager.downloadApk(update.apkUrl) { progress ->
                                                 downloadProgress = progress
                                             }
                                             isDownloadingUpdate = false
                                             if (file != null) {
                                                 downloadedApkFile = file
                                                 Toast.makeText(context, "Download complete. Launching installer...", Toast.LENGTH_SHORT).show()
-                                                val launched = updateManager.installApk(file)
-                                                if (!launched) {
-                                                    Toast.makeText(context, "Please allow permission to install updates", Toast.LENGTH_LONG).show()
-                                                }
+                                                updateManager.installApk(file)
                                             } else {
-                                                Toast.makeText(context, "Download failed. Please check network.", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "Download failed. Please try again.", Toast.LENGTH_SHORT).show()
                                             }
                                         }
                                     }

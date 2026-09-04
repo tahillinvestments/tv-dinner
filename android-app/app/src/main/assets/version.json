@@ -1,9 +1,9 @@
 {
-  "versionCode": 211,
-  "versionName": "2.1.1",
-  "title": "Clean Package Migration, Live TV Rewind, English CC & Safe Search",
-  "releaseNotes": "• Clean Package Migration: Migrated package identifier to com.tvdinner, removing all legacy developer tags\n• Live TV Rewind: Use remote Left button to step back up to 2 minutes in live stream buffer\n• Return to Live: Use remote Right button to advance toward live feed (right button becomes no-op once at live)\n• English Closed Captions: Automatic prioritization of English subtitle/CC tracks whenever captions are enabled\n• Adult Search Isolation: Adult items are strictly excluded from search results unless an adult category tab is selected",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.1/app-release.apk",
+  "versionCode": 212,
+  "versionName": "2.1.2",
+  "title": "Native Installer Restoration & Smooth Update Workflow",
+  "releaseNotes": "• Native Installer Restoration: Completely removed custom permission interception that caused install hangs on Fire TV and Android TV\n• Direct Package Launch: Direct handoff to Android's native package installer with standard URI permissions\n• Clean Package com.tvdinner: Fully migrated clean package namespace with all v2.1.1 improvements",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.2/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-04T16:04:46.382Z"
+  "publishedAt": "2026-09-04T16:27:36.387Z"
 }

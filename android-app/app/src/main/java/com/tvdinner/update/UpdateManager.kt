@@ -81,28 +81,11 @@ class UpdateManager(private val context: Context) {
         return@withContext null
     }
 
-    fun getCachedApk(versionCode: Int): File? {
-        val targetName = "tv-dinner-v$versionCode.apk"
-        val cacheFile = File(File(context.cacheDir, "updates"), targetName)
-        if (cacheFile.exists() && cacheFile.length() > 5_000_000L) {
-            return cacheFile
-        }
-        val extDir = context.getExternalFilesDir("updates")
-        if (extDir != null) {
-            val extFile = File(extDir, targetName)
-            if (extFile.exists() && extFile.length() > 5_000_000L) {
-                return extFile
-            }
-        }
-        return null
-    }
-
     suspend fun downloadApk(
         apkUrl: String,
-        versionCode: Int = 0,
+        targetFileName: String = "tv-dinner-update.apk",
         onProgress: (Float) -> Unit
     ): File? = withContext(Dispatchers.IO) {
-        val targetFileName = if (versionCode > 0) "tv-dinner-v$versionCode.apk" else "tv-dinner-update.apk"
         try {
             val request = Request.Builder().url(apkUrl).build()
             client.newCall(request).execute().use { response ->
@@ -114,10 +97,10 @@ class UpdateManager(private val context: Context) {
                 val body = response.body ?: return@withContext null
                 val totalBytes = body.contentLength()
 
-                val updatesDir = context.getExternalFilesDir("updates") ?: File(context.cacheDir, "updates")
-                if (!updatesDir.exists()) updatesDir.mkdirs()
+                val cacheDir = File(context.cacheDir, "updates")
+                if (!cacheDir.exists()) cacheDir.mkdirs()
 
-                val destinationFile = File(updatesDir, targetFileName)
+                val destinationFile = File(cacheDir, targetFileName)
                 if (destinationFile.exists()) destinationFile.delete()
 
                 var bytesRead = 0L
@@ -158,19 +141,6 @@ class UpdateManager(private val context: Context) {
                 return false
             }
 
-            // Android 8.0+ Unknown App Sources Permission Check
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (!context.packageManager.canRequestPackageInstalls()) {
-                    Log.w(TAG, "REQUEST_INSTALL_PACKAGES permission not granted. Launching settings...")
-                    val permissionIntent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = Uri.parse("package:${context.packageName}")
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(permissionIntent)
-                    return false
-                }
-            }
-
             val apkUri: Uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -179,9 +149,7 @@ class UpdateManager(private val context: Context) {
 
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
 
             context.startActivity(intent)
