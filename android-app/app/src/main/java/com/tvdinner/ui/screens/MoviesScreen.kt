@@ -201,7 +201,7 @@ fun MoviesScreen(
     // Proactively preload posters for the first visible page in viewing priority
     LaunchedEffect(sortedAndFilteredMovies) {
         if (sortedAndFilteredMovies.isNotEmpty()) {
-            catalogManager.preloadMoviePosters(sortedAndFilteredMovies, limit = 24)
+            catalogManager.preloadMoviePosters(sortedAndFilteredMovies, limit = 30)
         }
     }
 
@@ -811,6 +811,7 @@ fun MoviePosterImage(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    var retryKey by remember(movie.streamId) { mutableIntStateOf(0) }
     var posterUrl by remember(movie.streamId, movie.streamIcon) {
         val initial = if (!movie.streamIcon.isNullOrBlank() && movie.streamIcon.startsWith("http") &&
             !movie.streamIcon.endsWith(".ts") && !movie.streamIcon.endsWith(".m3u8")) {
@@ -821,7 +822,7 @@ fun MoviePosterImage(
         mutableStateOf(initial)
     }
 
-    LaunchedEffect(movie.streamId, movie.displayTitle, movie.streamIcon) {
+    LaunchedEffect(movie.streamId, movie.displayTitle, movie.streamIcon, retryKey) {
         if (posterUrl.isNullOrBlank() || posterUrl?.startsWith("http") != true) {
             val resolved = catalogManager.resolvePosterUrl(movie.displayTitle, isSeries = false)
             if (!resolved.isNullOrBlank()) {
@@ -831,10 +832,10 @@ fun MoviePosterImage(
     }
 
     if (!posterUrl.isNullOrBlank()) {
-        val imageRequest = remember(posterUrl) {
+        val imageRequest = remember(posterUrl, retryKey) {
             coil.request.ImageRequest.Builder(context)
                 .data(posterUrl)
-                .crossfade(true)
+                .crossfade(200)
                 .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                 .diskCachePolicy(coil.request.CachePolicy.ENABLED)
                 .build()
@@ -848,14 +849,25 @@ fun MoviePosterImage(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(CinemaSurfaceVariant)
-                )
+                        .background(CinemaSurfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Movie,
+                        contentDescription = null,
+                        tint = TextMuted.copy(alpha = 0.35f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             },
             onError = {
                 coroutineScope.launch {
                     val resolved = catalogManager.resolvePosterUrl(movie.displayTitle, isSeries = false)
                     if (!resolved.isNullOrBlank() && resolved != posterUrl) {
                         posterUrl = resolved
+                    } else if (retryKey < 2) {
+                        delay(600)
+                        retryKey++
                     }
                 }
             }
@@ -867,12 +879,26 @@ fun MoviePosterImage(
             modifier = modifier.fillMaxSize()
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.Movie,
-                    contentDescription = null,
-                    tint = TextMuted,
-                    modifier = Modifier.size(36.dp)
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Movie,
+                        contentDescription = null,
+                        tint = TextMuted,
+                        modifier = Modifier.size(30.dp)
+                    )
+                    Text(
+                        text = movie.displayTitle,
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
             }
         }
     }

@@ -77,8 +77,13 @@ class XtreamApiClient {
             .addInterceptor { chain ->
                 val orig = chain.request()
                 val reqBuilder = orig.newBuilder()
-                    .header("User-Agent", "VLC/3.0.21 LibVLC/3.0.21")
-                    .header("Accept", "*/*")
+                val isTmdb = orig.url.host.contains("themoviedb.org")
+                if (isTmdb) {
+                    reqBuilder.header("User-Agent", "TVDinner/2.1.3 (Android TV; Media Player)")
+                } else {
+                    reqBuilder.header("User-Agent", "VLC/3.0.21 LibVLC/3.0.21")
+                }
+                reqBuilder.header("Accept", "*/*")
                 chain.proceed(reqBuilder.build())
             }
             .build()

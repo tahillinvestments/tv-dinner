@@ -285,11 +285,17 @@ fun LiveTvScreen(
         }
     }
 
-    // Reset scroll offset safely when category changes
+    // Reset or restore scroll offset safely when category changes
     LaunchedEffect(selectedCategoryId, searchQuery) {
-        lastFocusedChannelIndex = 0
-        if (channelListState.firstVisibleItemIndex > 0) {
-            channelListState.scrollToItem(0)
+        val activeIdx = if (activeChannel != null) filteredChannels.indexOfFirst { it.streamId == activeChannel?.streamId } else -1
+        if (activeIdx >= 0) {
+            lastFocusedChannelIndex = activeIdx
+            channelListState.scrollToItem((activeIdx - 1).coerceAtLeast(0))
+        } else {
+            lastFocusedChannelIndex = 0
+            if (channelListState.firstVisibleItemIndex > 0) {
+                channelListState.scrollToItem(0)
+            }
         }
     }
 
@@ -895,13 +901,36 @@ fun LiveTvScreen(
                                                     Key.DirectionRight -> {
                                                         selectedCategoryId = cat.categoryId
                                                         authRepo.setLastLiveCategoryId(cat.categoryId)
+                                                        val activeIdx = if (activeChannel != null) filteredChannels.indexOfFirst { it.streamId == activeChannel?.streamId } else -1
                                                         var moved = false
-                                                        try {
-                                                            if (activeChannel != null && filteredChannels.any { it.streamId == activeChannel?.streamId }) {
+
+                                                        if (activeIdx >= 0) {
+                                                            lastFocusedChannelIndex = activeIdx
+                                                            try {
                                                                 activeCardFocusRequester.requestFocus()
                                                                 moved = true
+                                                            } catch (_: Exception) {}
+
+                                                            // Ensure item is scrolled and focused via coroutine if immediate focus was off-screen
+                                                            coroutineScope.launch {
+                                                                try {
+                                                                    channelListState.scrollToItem((activeIdx - 1).coerceAtLeast(0))
+                                                                    delay(40)
+                                                                    try {
+                                                                        activeCardFocusRequester.requestFocus()
+                                                                    } catch (_: Exception) {
+                                                                        try {
+                                                                            visibleChannelFocusRequester.requestFocus()
+                                                                        } catch (_: Exception) {
+                                                                            try {
+                                                                                firstChannelFocusRequester.requestFocus()
+                                                                            } catch (_: Exception) {}
+                                                                        }
+                                                                    }
+                                                                } catch (_: Exception) {}
                                                             }
-                                                        } catch (_: Exception) {}
+                                                        }
+
                                                         if (!moved) {
                                                             try {
                                                                 visibleChannelFocusRequester.requestFocus()

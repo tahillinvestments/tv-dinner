@@ -1,4 +1,8 @@
 {
+  "2.1.3": {
+    "title": "Live TV Category Navigation Fix & Priority VOD Poster Loading",
+    "releaseNotes": "• Live TV D-Pad Navigation: Fixed controller lock when navigating Right from active playing category back into channels\n• Instant Channel Focus: Restores channel list position and focuses active playing channel when returning to its category\n• VOD Poster Loading: Resolved random timeouts and unloaded cards with dedicated 64-request OkHttp dispatcher and expanded connection pooling\n• TMDB Optimization: Scaled poster resolution to w342 for 5x faster card rendering and enhanced media tag sanitization for higher match rates\n• Poster Fallbacks: Automatic retry with exponential backoff and structured title/year fallback cards for missing posters"
+  },
   "2.1.2": {
     "title": "Native Installer Restoration & Smooth Update Workflow",
     "releaseNotes": "• Native Installer Restoration: Completely removed custom permission interception that caused install hangs on Fire TV and Android TV\n• Direct Package Launch: Direct handoff to Android's native package installer with standard URI permissions\n• Clean Package com.tvdinner: Fully migrated clean package namespace with all v2.1.1 improvements"

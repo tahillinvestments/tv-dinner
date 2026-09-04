@@ -21,7 +21,7 @@
     "update:stage": "node scripts/stage-update.js",
     "update:build-and-stage": "powershell -Command \"cd android-app; ./gradlew.bat assembleRelease; cd ..; node scripts/stage-update.js\"",
     "update:publish": "node scripts/publish-update.js",
-    "update:dashboard": "powershell -Command \"Start-Process update-dashboard.html\""
+    "update:dashboard": "node scripts/dashboard-server.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

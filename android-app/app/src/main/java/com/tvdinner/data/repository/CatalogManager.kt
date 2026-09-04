@@ -946,13 +946,17 @@ class CatalogManager(
     // In-memory cache for TMDB poster lookups to ensure viewable cards display loaded title images
     private val resolvedPosterCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
-    suspend fun resolvePosterUrl(title: String, isSeries: Boolean = false): String? = withContext(Dispatchers.IO) {
-        val clean = title
-            .replace(Regex("""^\s*\|?\s*EN\s*\|\s*""", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("""^\s*\[.*?\]\s*"""), "")
+    private fun sanitizeTitleForTmdb(title: String): String {
+        return title
+            .replace(Regex("""^\s*(\|?\s*EN\s*\||\bEN\b\s*[-|:]|\[.*?\])""", RegexOption.IGNORE_CASE), "")
             .replace(Regex("""\s*\(\d{4}\).*$"""), "")
-            .replace(Regex("""\b(4K|UHD|FHD|1080P|720P|HD|HEVC|H\.265)\b""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\b(4K|UHD|FHD|1080P|720P|HD|HEVC|H\.265|H\.264|BLURAY|WEBRIP|HDR|CAM|TS|TELESYNC)\b""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""[._]"""), " ")
             .trim()
+    }
+
+    suspend fun resolvePosterUrl(title: String, isSeries: Boolean = false): String? = withContext(Dispatchers.IO) {
+        val clean = sanitizeTitleForTmdb(title)
         if (clean.isBlank()) return@withContext null
         val cacheKey = "${if (isSeries) "tv" else "movie"}_$clean"
         resolvedPosterCache[cacheKey]?.let { return@withContext it }
@@ -971,7 +975,7 @@ class CatalogManager(
                         first.get("poster_path").asString
                     } else null
                     if (!posterPath.isNullOrBlank()) {
-                        val fullPoster = "https://image.tmdb.org/t/p/w500$posterPath"
+                        val fullPoster = "https://image.tmdb.org/t/p/w342$posterPath"
                         resolvedPosterCache[cacheKey] = fullPoster
                         return@withContext fullPoster
                     }
@@ -982,33 +986,42 @@ class CatalogManager(
     }
 
     fun getCachedPosterUrl(title: String, isSeries: Boolean = false): String? {
-        val clean = title
-            .replace(Regex("""^\s*\|?\s*EN\s*\|\s*""", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("""^\s*\[.*?\]\s*"""), "")
-            .replace(Regex("""\s*\(\d{4}\).*$"""), "")
-            .replace(Regex("""\b(4K|UHD|FHD|1080P|720P|HD|HEVC|H\.265)\b""", RegexOption.IGNORE_CASE), "")
-            .trim()
+        val clean = sanitizeTitleForTmdb(title)
         val cacheKey = "${if (isSeries) "tv" else "movie"}_$clean"
         return resolvedPosterCache[cacheKey]
     }
 
-    suspend fun preloadMoviePosters(movies: List<Movie>, limit: Int = 24) = withContext(Dispatchers.IO) {
+    suspend fun preloadMoviePosters(movies: List<Movie>, limit: Int = 30) = withContext(Dispatchers.IO) {
         val target = movies.take(limit)
-        for (m in target) {
-            val icon = m.streamIcon
-            if (icon.isNullOrBlank() || !icon.startsWith("http") || icon.endsWith(".ts") || icon.endsWith(".m3u8")) {
-                resolvePosterUrl(m.displayTitle, isSeries = false)
-            }
+        target.chunked(6).forEach { chunk ->
+            chunk.map { m ->
+                async {
+                    val icon = m.streamIcon
+                    val needsResolve = icon.isNullOrBlank() || !icon.startsWith("http") ||
+                        icon.endsWith(".ts") || icon.endsWith(".m3u8") ||
+                        icon.contains("dead") || icon.contains("placeholder")
+                    if (needsResolve) {
+                        resolvePosterUrl(m.displayTitle, isSeries = false)
+                    }
+                }
+            }.forEach { it.await() }
         }
     }
 
-    suspend fun preloadSeriesPosters(seriesList: List<Series>, limit: Int = 24) = withContext(Dispatchers.IO) {
+    suspend fun preloadSeriesPosters(seriesList: List<Series>, limit: Int = 30) = withContext(Dispatchers.IO) {
         val target = seriesList.take(limit)
-        for (s in target) {
-            val cover = s.cover
-            if (cover.isNullOrBlank() || !cover.startsWith("http") || cover.endsWith(".ts") || cover.endsWith(".m3u8")) {
-                resolvePosterUrl(s.displayTitle, isSeries = true)
-            }
+        target.chunked(6).forEach { chunk ->
+            chunk.map { s ->
+                async {
+                    val cover = s.cover
+                    val needsResolve = cover.isNullOrBlank() || !cover.startsWith("http") ||
+                        cover.endsWith(".ts") || cover.endsWith(".m3u8") ||
+                        cover.contains("dead") || cover.contains("placeholder")
+                    if (needsResolve) {
+                        resolvePosterUrl(s.displayTitle, isSeries = true)
+                    }
+                }
+            }.forEach { it.await() }
         }
     }
 

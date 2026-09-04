@@ -187,27 +187,41 @@
 
     const DEFAULT_MANIFEST = {
       "currentVersion": {
-        "versionCode": 212,
-        "versionName": "2.1.2",
-        "title": "Native Installer Restoration & Smooth Update Workflow",
-        "releaseNotes": "• Native Installer Restoration: Completely removed custom permission interception that caused install hangs on Fire TV and Android TV\n• Direct Package Launch: Direct handoff to Android's native package installer with standard URI permissions\n• Clean Package com.tvdinner: Fully migrated clean package namespace with all v2.1.1 improvements",
-        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.2/app-release.apk",
+        "versionCode": 213,
+        "versionName": "2.1.3",
+        "title": "Live TV Category Navigation Fix & Priority VOD Poster Loading",
+        "releaseNotes": "• Live TV D-Pad Navigation: Fixed controller lock when navigating Right from active playing category back into channels\n• Instant Channel Focus: Restores channel list position and focuses active playing channel when returning to its category\n• VOD Poster Loading: Resolved random timeouts and unloaded cards with dedicated 64-request OkHttp dispatcher and expanded connection pooling\n• TMDB Optimization: Scaled poster resolution to w342 for 5x faster card rendering and enhanced media tag sanitization for higher match rates\n• Poster Fallbacks: Automatic retry with exponential backoff and structured title/year fallback cards for missing posters",
+        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.3/app-release.apk",
         "mandatory": false,
-        "publishedAt": "2026-09-04T16:27:36.387Z"
+        "publishedAt": "2026-09-04T17:49:01.837Z"
       },
       "releases": [
+        {
+          "id": "rel-213",
+          "versionCode": 213,
+          "versionName": "2.1.3",
+          "title": "Live TV Category Navigation Fix & Priority VOD Poster Loading",
+          "status": "PUBLISHED",
+          "releaseNotes": "• Live TV D-Pad Navigation: Fixed controller lock when navigating Right from active playing category back into channels\n• Instant Channel Focus: Restores channel list position and focuses active playing channel when returning to its category\n• VOD Poster Loading: Resolved random timeouts and unloaded cards with dedicated 64-request OkHttp dispatcher and expanded connection pooling\n• TMDB Optimization: Scaled poster resolution to w342 for 5x faster card rendering and enhanced media tag sanitization for higher match rates\n• Poster Fallbacks: Automatic retry with exponential backoff and structured title/year fallback cards for missing posters",
+          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+          "localApkUrl": "public/apks/tv-dinner-v2.1.3.apk",
+          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.3/app-release.apk",
+          "mandatory": false,
+          "createdAt": "2026-09-04T17:46:20.624Z",
+          "publishedAt": "2026-09-04T17:49:01.834Z"
+        },
         {
           "id": "rel-212",
           "versionCode": 212,
           "versionName": "2.1.2",
           "title": "Native Installer Restoration & Smooth Update Workflow",
-          "status": "PUBLISHED",
+          "status": "ARCHIVED",
           "releaseNotes": "• Native Installer Restoration: Completely removed custom permission interception that caused install hangs on Fire TV and Android TV\n• Direct Package Launch: Direct handoff to Android's native package installer with standard URI permissions\n• Clean Package com.tvdinner: Fully migrated clean package namespace with all v2.1.1 improvements",
           "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
           "localApkUrl": "public/apks/tv-dinner-v2.1.2.apk",
           "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.2/app-release.apk",
           "mandatory": false,
-          "createdAt": "2026-09-04T16:27:32.908Z",
+          "createdAt": "2026-09-04T16:27:36.387Z",
           "publishedAt": "2026-09-04T16:27:36.387Z"
         },
         {
@@ -299,14 +313,14 @@
           "versionCode": 205,
           "versionName": "2.0.5",
           "title": "Live TV Navigation, Category Reorder, History, Poster Fixes & Remote Aspect Ratio",
-          "status": "STAGED",
+          "status": "ARCHIVED",
           "releaseNotes": "• Live TV: Smooth D-pad Left & Back navigation directly from preview controls to channel list\n• Category Reorder: Moved News Network, Sports Network, Movie Network, Kids Network, Prime, PPV & Events, 4K Relax under Entertainment\n• Removed 'All Channels' category\n• Added 🕒 Channel History category (last 5 channels watched) with 'Clear History' in Settings\n• Enhanced Movies & Series poster loading with automatic TMDB resolution on missing/broken links (no fallback card art)\n• Added remote control aspect ratio toggle (Fit / Stretch / Zoom) with on-screen HUD pill overlay\n• Removed Next Episode button from series player\n• In-app network disconnect detection with automatic stream recovery and socket eviction\n• YouTube Music remote navigation: D-Pad Up (Previous) & Down (Next) with on-screen button\n• Ambient neon glow halo on focused cards",
           "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
           "localApkUrl": "public/apks/tv-dinner-v2.0.5.apk",
           "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.5/app-release.apk",
           "mandatory": false,
           "createdAt": "2026-09-02T22:41:03.203Z",
-          "publishedAt": null
+          "publishedAt": "2026-09-02T22:45:00.000Z"
         }
       ]
     };
@@ -402,12 +416,12 @@
       });
     }
 
-    window.publishRelease = function(relId) {
+    window.publishRelease = async function(relId) {
       const data = loadManifest();
       const target = data.releases.find(r => r.id === relId);
       if (!target) return;
 
-      const confirmMsg = `Are you ready to publish version v${target.versionName} (Build: ${target.versionCode}) to production?\n\nThis will become the active live version on all TVs.`;
+      const confirmMsg = `Are you ready to publish version v${target.versionName} (Build: ${target.versionCode}) to production?\n\nThis will push changes to GitHub, create the GitHub Release with the APK, and deploy the live update to all TVs.`;
       if (!confirm(confirmMsg)) return;
 
       // Mark all others as staged/archived
@@ -431,7 +445,32 @@
       };
 
       saveManifest(data);
-      alert(`🚀 Version v${target.versionName} has been PUBLISHED!`);
+
+      // Attempt to sync to disk & publish to GitHub via local dashboard server
+      let syncedToDisk = false;
+      const endpoints = ['/api/publish', 'http://127.0.0.1:3888/api/publish', 'http://localhost:3888/api/publish'];
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ relId, release: target, currentVersion: data.currentVersion, manifest: data })
+          });
+          if (res.ok) {
+            syncedToDisk = true;
+            break;
+          }
+        } catch (e) {}
+      }
+
+      if (syncedToDisk) {
+        alert(`🚀 Version v${target.versionName} (Build ${target.versionCode}) has been PUBLISHED LIVE!\n\n• Manifests updated on disk\n• Pushed to GitHub main\n• GitHub Release created with APK\n• Live update active for all user TVs`);
+        window.location.reload();
+      } else {
+        const cmd = 'npm run update:publish';
+        try { navigator.clipboard.writeText(cmd); } catch (_) {}
+        alert(`⚠️ Local dashboard server is not connected.\n\nTo complete the live publication to GitHub & user TVs, run this command in your terminal:\n\n${cmd}\n\n(Command copied to your clipboard!)`);
+      }
     };
 
     // Modal Events
@@ -503,15 +542,62 @@
     };
 
     async function initDashboard() {
-      renderDashboard(); // First render from local storage / defaults
+      // 1. Collect all STAGED releases from DEFAULT_MANIFEST
+      let stagedReleases = (DEFAULT_MANIFEST.releases || []).filter(r => r.status === 'STAGED');
+      let currentLive = DEFAULT_MANIFEST.currentVersion || null;
 
-      // 1. Fetch live releases dynamically directly from GitHub Releases API
+      // 2. Fetch updates.json to check for any fresh staged builds on disk or GitHub
+      try {
+        const updatesUrl = (window.location.protocol === 'file:')
+          ? './updates.json?nocache=' + Date.now()
+          : './updates.json?nocache=' + Date.now();
+        const res = await fetch(updatesUrl);
+        if (res.ok) {
+          const diskData = await res.json();
+          if (diskData && Array.isArray(diskData.releases)) {
+            diskData.releases.filter(r => r.status === 'STAGED').forEach(ds => {
+              if (!stagedReleases.some(e => e.versionCode === ds.versionCode)) {
+                stagedReleases.push(ds);
+              }
+            });
+            if (diskData.currentVersion) {
+              currentLive = diskData.currentVersion;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Could not fetch ./updates.json directly', e);
+      }
+
+      // Fallback: If hosted on github.io, try raw updates.json if relative fetch was empty
+      if (stagedReleases.length === 0 && window.location.hostname.includes('github.io')) {
+        try {
+          const rawRes = await fetch('https://raw.githubusercontent.com/tahillinvestments/tv-dinner/main/updates.json?nocache=' + Date.now());
+          if (rawRes.ok) {
+            const rawData = await rawRes.json();
+            if (rawData && Array.isArray(rawData.releases)) {
+              stagedReleases = rawData.releases.filter(r => r.status === 'STAGED');
+              if (rawData.currentVersion) currentLive = rawData.currentVersion;
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Clean up: Never allow builds that are ARCHIVED or PUBLISHED in DEFAULT_MANIFEST to remain STAGED
+      stagedReleases = stagedReleases.filter(sr => {
+        const match = (DEFAULT_MANIFEST.releases || []).find(dm => dm.versionCode === sr.versionCode);
+        if (match && match.status !== 'STAGED') return false;
+        return true;
+      });
+
+      // 3. Fetch published releases directly from GitHub Releases API
+      let publishedReleases = [];
       try {
         const ghRes = await fetch('https://api.github.com/repos/tahillinvestments/tv-dinner/releases');
         if (ghRes.ok) {
           const ghReleases = await ghRes.json();
           if (Array.isArray(ghReleases) && ghReleases.length > 0) {
-            const mappedReleases = ghReleases.map(gr => {
+            publishedReleases = ghReleases.map(gr => {
               const tag = gr.tag_name || '';
               const cleanVer = tag.replace(/^v/, '');
               const codeMatch = (gr.body || gr.name || '').match(/Build\s*(\d+)/i) || (gr.tag_name || '').match(/(\d+)\.(\d+)\.(\d+)/);
@@ -520,7 +606,6 @@
                 vCode = parseInt(codeMatch[1], 10);
               }
 
-              // Prefer app-release.apk or any .apk asset
               const apkAsset = (gr.assets || []).find(a => a.name === 'app-release.apk') 
                 || (gr.assets || []).find(a => a.name.endsWith('.apk')) 
                 || {};
@@ -542,33 +627,31 @@
                 publishedAt: gr.published_at
               };
             });
-
-            const current = mappedReleases[0] || {};
-            const liveData = {
-              currentVersion: current,
-              releases: mappedReleases
-            };
-
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(liveData, null, 2));
-            renderDashboard();
-            return;
           }
         }
       } catch (e) {
-        console.warn('Live GitHub API fetch failed, falling back to updates.json', e);
+        console.warn('Live GitHub API fetch failed', e);
       }
 
-      // 2. Fallback to local updates.json
-      try {
-        const res = await fetch('./updates.json?nocache=' + Date.now());
-        if (res.ok) {
-          const diskData = await res.json();
-          if (diskData && Array.isArray(diskData.releases)) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(diskData, null, 2));
-            renderDashboard();
-          }
-        }
-      } catch (e) {}
+      // If GitHub Releases API failed or returned empty, fallback to DEFAULT_MANIFEST published releases
+      if (publishedReleases.length === 0) {
+        publishedReleases = (DEFAULT_MANIFEST.releases || []).filter(r => r.status !== 'STAGED');
+      }
+
+      // Merge: Staged builds on top, followed by published builds
+      const mergedReleases = [
+        ...stagedReleases,
+        ...publishedReleases.filter(pr => !stagedReleases.some(sr => sr.versionCode === pr.versionCode))
+      ];
+
+      const current = currentLive || publishedReleases[0] || DEFAULT_MANIFEST.currentVersion || {};
+      const finalManifest = {
+        currentVersion: current,
+        releases: mergedReleases
+      };
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(finalManifest, null, 2));
+      renderDashboard();
     }
 
     // Initialize

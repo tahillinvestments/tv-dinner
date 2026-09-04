@@ -64,12 +64,18 @@ class MainActivity : ComponentActivity() {
         authRepository = AuthRepository(this)
         xtreamApiClient = XtreamApiClient()
 
-        // Configure high-performance Coil ImageLoader with fast 4s timeout, SSL bypass, custom User-Agent, and disk/memory cache
+        // Configure high-performance Coil ImageLoader with robust timeouts, parallel host dispatcher, SSL bypass, and disk/memory cache
+        val imageDispatcher = okhttp3.Dispatcher().apply {
+            maxRequests = 64
+            maxRequestsPerHost = 24
+        }
         val imageOkHttpClient = xtreamApiClient.okHttpClient.newBuilder()
-            .connectTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-            .writeTimeout(4, java.util.concurrent.TimeUnit.SECONDS)
-            .connectionPool(okhttp3.ConnectionPool(32, 2, java.util.concurrent.TimeUnit.MINUTES))
+            .dispatcher(imageDispatcher)
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .connectionPool(okhttp3.ConnectionPool(64, 5, java.util.concurrent.TimeUnit.MINUTES))
             .build()
 
         val imageLoader = ImageLoader.Builder(this)

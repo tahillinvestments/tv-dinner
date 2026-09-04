@@ -235,7 +235,7 @@ fun SeriesScreen(
     // Proactively preload posters for the first visible page in viewing priority
     LaunchedEffect(sortedAndFilteredSeries) {
         if (sortedAndFilteredSeries.isNotEmpty()) {
-            catalogManager.preloadSeriesPosters(sortedAndFilteredSeries, limit = 24)
+            catalogManager.preloadSeriesPosters(sortedAndFilteredSeries, limit = 30)
         }
     }
 
@@ -952,6 +952,7 @@ fun SeriesPosterImage(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    var retryKey by remember(series.seriesId) { mutableIntStateOf(0) }
     var coverUrl by remember(series.seriesId, series.cover) {
         val initial = if (!series.cover.isNullOrBlank() && series.cover.startsWith("http") &&
             !series.cover.endsWith(".ts") && !series.cover.endsWith(".m3u8")) {
@@ -962,7 +963,7 @@ fun SeriesPosterImage(
         mutableStateOf(initial)
     }
 
-    LaunchedEffect(series.seriesId, series.displayTitle, series.cover) {
+    LaunchedEffect(series.seriesId, series.displayTitle, series.cover, retryKey) {
         if (coverUrl.isNullOrBlank() || coverUrl?.startsWith("http") != true) {
             val resolved = catalogManager.resolvePosterUrl(series.displayTitle, isSeries = true)
             if (!resolved.isNullOrBlank()) {
@@ -972,10 +973,10 @@ fun SeriesPosterImage(
     }
 
     if (!coverUrl.isNullOrBlank()) {
-        val imageRequest = remember(coverUrl) {
+        val imageRequest = remember(coverUrl, retryKey) {
             coil.request.ImageRequest.Builder(context)
                 .data(coverUrl)
-                .crossfade(true)
+                .crossfade(200)
                 .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                 .diskCachePolicy(coil.request.CachePolicy.ENABLED)
                 .build()
@@ -989,14 +990,25 @@ fun SeriesPosterImage(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(CinemaSurfaceVariant)
-                )
+                        .background(CinemaSurfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideoLibrary,
+                        contentDescription = null,
+                        tint = TextMuted.copy(alpha = 0.35f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             },
             onError = {
                 coroutineScope.launch {
                     val resolved = catalogManager.resolvePosterUrl(series.displayTitle, isSeries = true)
                     if (!resolved.isNullOrBlank() && resolved != coverUrl) {
                         coverUrl = resolved
+                    } else if (retryKey < 2) {
+                        delay(600)
+                        retryKey++
                     }
                 }
             }
@@ -1008,12 +1020,26 @@ fun SeriesPosterImage(
             modifier = modifier.fillMaxSize()
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.VideoLibrary,
-                    contentDescription = null,
-                    tint = TextMuted,
-                    modifier = Modifier.size(36.dp)
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VideoLibrary,
+                        contentDescription = null,
+                        tint = TextMuted,
+                        modifier = Modifier.size(30.dp)
+                    )
+                    Text(
+                        text = series.displayTitle,
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
             }
         }
     }
