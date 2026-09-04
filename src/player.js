@@ -20,13 +20,12 @@ function getPlayerProxyUrl(targetUrl) {
      window.location.protocol === 'file:' || 
      (navigator.userAgent && (navigator.userAgent.includes('TVDinnerMobileApp') || navigator.userAgent.includes('JoyfulIPTVMobileApp'))));
   
-  // If the user has set a custom external proxy in Settings, use it; otherwise default to Render proxy
   let savedProxy = '';
   try {
     savedProxy = (localStorage.getItem('external_proxy_url') || '').trim();
   } catch (e) {}
   
-  const proxyBase = savedProxy || 'https://tv-dinner-proxy.onrender.com/';
+  const proxyBase = savedProxy || ((typeof window !== 'undefined' && window.location.origin && !isAndroid) ? '/api/proxy' : 'https://tv-dinner-proxy.tahillinvestments.workers.dev/');
   if (proxyBase.startsWith('http://') || proxyBase.startsWith('https://')) {
     const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
     return `${p}?url=${encodeURIComponent(cleanTarget)}`;
@@ -533,7 +532,7 @@ export class IPTVPlayer {
       this.setControlMode('live');
     }
 
-    // Safety timeout to prevent Buffering Stream... from getting stuck indefinitely
+    // Safety timeout to prevent Buffering Stream... from getting stuck indefinitely (extended to 25s for residential WiFi)
     if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
     const initialTime = this.video ? this.video.currentTime : 0;
     this.bufferTimeout = setTimeout(() => {
@@ -541,20 +540,28 @@ export class IPTVPlayer {
         const hasAdvanced = this.video && !this.video.paused && this.video.currentTime > initialTime;
         if (!hasAdvanced) {
           console.warn('[Player] Stream loading timed out.');
-          this.showLoading(false);
-          this.showError(true, 'Stream load timed out. Stream may be offline or slow to respond.');
+          if (this.controlMode === 'vod') {
+            // For VOD, attempt auto-reconnect from current position
+            console.log('[Player] Attempting automatic VOD reconnect...');
+            this.showToast('Reconnecting video stream...');
+            const lastPos = (this.video && this.video.currentTime > 0) ? this.video.currentTime : resumePos;
+            this.playChannel(channel, lastPos);
+          } else {
+            this.showLoading(false);
+            this.showError(true, 'Stream load timed out. Stream may be offline or slow to respond.');
+          }
         } else {
           this.showLoading(false);
         }
       }
-    }, 15000);
+    }, 25000);
 
     let hlsRetryAttempts = 0;
     let networkRetryIndex = 0;
     const originalUrl = rawTargetUrl;
 
     const proxyFallbacks = [
-      (url) => `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(url)}`,
+      (url) => `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(url)}`,
       (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
       (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
     ];
@@ -613,6 +620,24 @@ export class IPTVPlayer {
       this.video.addEventListener('error', (e) => {
         console.warn("[Player] Direct video playback error:", e);
         if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
+        
+        // VOD Auto-Resume on connectivity / stream drop
+        if (this.controlMode === 'vod' || (this.video && this.video.currentTime > 0)) {
+          this.vodErrorRetryCount = (this.vodErrorRetryCount || 0) + 1;
+          if (this.vodErrorRetryCount <= 5) {
+            const resumeAt = (this.video && this.video.currentTime > 0) ? this.video.currentTime : (resumePos || 0);
+            console.log(`[Player] VOD auto-recovering from network error (attempt ${this.vodErrorRetryCount}/5 at ${resumeAt}s)...`);
+            this.showToast(`Stream interrupted. Auto-resuming in 2s (attempt ${this.vodErrorRetryCount}/5)...`);
+            this.showLoading(true);
+            setTimeout(() => {
+              if (this.currentUrl) {
+                this.playChannel(channel, resumeAt);
+              }
+            }, 2000);
+            return;
+          }
+        }
+
         this.showLoading(false);
         if (typeof this.onStreamError === 'function') {
           const handled = this.onStreamError(e, this.currentUrl);
@@ -626,17 +651,17 @@ export class IPTVPlayer {
         enableWorker: true,
         lowLatencyMode: false,
         startPosition: (this.controlMode === 'vod' && resumePos > 0) ? resumePos : -1,
-        maxBufferLength: 15,
-        maxMaxBufferLength: 30,
-        maxBufferSize: 20 * 1000 * 1000, // 20MB max to prevent bandwidth waste
-        manifestLoadingTimeOut: 20000,
-        manifestLoadingMaxRetry: 6,
-        levelLoadingTimeOut: 20000,
-        levelLoadingMaxRetry: 6,
-        fragLoadingTimeOut: 25000,
-        fragLoadingMaxRetry: 8,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 10,
+        maxBufferLength: 60, // Tolerates residential WiFi jitter (was 15s)
+        maxMaxBufferLength: 120, // (was 30s)
+        maxBufferSize: 60 * 1000 * 1000, // 60MB max buffer (was 20MB)
+        manifestLoadingTimeOut: 25000,
+        manifestLoadingMaxRetry: 8,
+        levelLoadingTimeOut: 25000,
+        levelLoadingMaxRetry: 8,
+        fragLoadingTimeOut: 30000,
+        fragLoadingMaxRetry: 10,
+        liveSyncDurationCount: 4,
+        liveMaxLatencyDurationCount: 15,
         capLevelToPlayerSize: true,
       });
       
@@ -647,7 +672,7 @@ export class IPTVPlayer {
         if (this.loading && !this.loading.classList.contains('hidden') && !this.video.paused) {
           this.showLoading(false);
         }
-        if (this.video && this.video.paused) {
+        if (this.video && this.video.paused && !this.isUserPaused) {
           this.video.play().then(() => this.updatePlayPauseUI(false)).catch(() => {});
         }
       });
@@ -700,6 +725,19 @@ export class IPTVPlayer {
 
       this.hls.on(Hls.Events.ERROR, (event, data) => {
         console.warn('[HLS Event Error]', data.type, data.details, 'fatal:', data.fatal);
+        
+        // Gentle non-fatal buffer stall recovery
+        if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR || data.details === Hls.ErrorDetails.BUFFER_NUDGE_ON_STALL) {
+          console.warn('[Player] HLS buffer stalled on residential WiFi. Nudging playback...');
+          if (this.video && !this.video.paused && this.video.currentTime > 0) {
+            try { this.video.currentTime += 0.1; } catch (_) {}
+          }
+          if (this.hls && typeof this.hls.startLoad === 'function') {
+            this.hls.startLoad();
+          }
+          return;
+        }
+
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
@@ -1157,6 +1195,24 @@ export class IPTVPlayer {
   handleNativeError(event) {
     if (this.video && this.video.error && this.currentUrl) {
       console.error("Native HTML5 video error:", this.video.error);
+      
+      // Auto-resume VOD streams on intermittent connection error
+      if (this.controlMode === 'vod' || (this.video && this.video.currentTime > 0)) {
+        this.vodErrorRetryCount = (this.vodErrorRetryCount || 0) + 1;
+        if (this.vodErrorRetryCount <= 5) {
+          const resumeAt = this.video.currentTime || 0;
+          console.log(`[Player] handleNativeError: VOD auto-recovering in 2s (attempt ${this.vodErrorRetryCount}/5 at ${resumeAt}s)...`);
+          this.showToast(`Stream interrupted. Auto-resuming in 2s (attempt ${this.vodErrorRetryCount}/5)...`);
+          this.showLoading(true);
+          setTimeout(() => {
+            if (this.currentUrl) {
+              this.playChannel({ url: this.currentUrl, name: this.channelTitle.textContent, mediaKey: this.currentMediaKey }, resumeAt);
+            }
+          }, 2000);
+          return;
+        }
+      }
+
       if (typeof this.onStreamError === 'function') {
         const handled = this.onStreamError(this.video.error, this.currentUrl);
         if (handled) return;

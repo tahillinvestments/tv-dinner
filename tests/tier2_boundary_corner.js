@@ -79,9 +79,9 @@ export class XtreamVODClient {
   get username() {
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
       const saved = localStorage.getItem('xtream_vod_username');
-      if (saved && saved.trim() && saved.includes('@')) return saved.trim();
+      if (saved && saved.trim()) return saved.trim();
     }
-    return 'gj3526@gmail.com';
+    return 'f2e1d20954';
   }
 
   get password() {
@@ -89,7 +89,7 @@ export class XtreamVODClient {
       const saved = localStorage.getItem('xtream_vod_password');
       if (saved && saved.trim()) return saved.trim();
     }
-    return 'ck9sd6Nc4TZA';
+    return 'a7a8bf92d242';
   }
 
   getMovieStreamUrl(streamId, ext = 'mp4') {

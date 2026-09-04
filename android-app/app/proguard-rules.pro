@@ -14,8 +14,8 @@
 # Gson & Data Models
 -keepattributes Signature
 -keepattributes *Annotation*
--keep class com.troyh.tvdinner.data.model.** { *; }
--keepclassmembers class com.troyh.tvdinner.data.model.** { *; }
+-keep class com.tvdinner.data.model.** { *; }
+-keepclassmembers class com.tvdinner.data.model.** { *; }
 -keep class com.google.gson.** { *; }
 
 # Coil Image Loader

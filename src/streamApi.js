@@ -57,7 +57,7 @@ export function getStreamSources(
               proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
             } catch (e) {}
             if (!proxyBase) {
-              proxyBase = 'https://tv-dinner-proxy.onrender.com/';
+              proxyBase = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
             }
             const p = proxyBase.startsWith('http://') || proxyBase.startsWith('https://')
               ? (proxyBase.endsWith('/') ? proxyBase : proxyBase + '/')

@@ -9,7 +9,7 @@ import { URL } from 'url';
 const STRIP_REQ_HEADERS = new Set(['host', 'referer', 'origin', 'x-forwarded-for', 'x-real-ip', 'accept-encoding']);
 
 // Known IPTV portal hosts that need the VLC user-agent spoof
-const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us', 'asoseller.org', '91.239.79.63']);
+const IPTV_HOSTS = new Set(['vpn.uhdp.top', 'portal5458.com', 'kstv.us', 'asoseller.org', '91.239.79.63']);
 
 /**
  * Rewrite an HLS playlist so all segment and sub-playlist URLs are
@@ -17,7 +17,7 @@ const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us', 'asoseller.org', '91.23
  */
 function rewriteM3U8(m3uText, baseUrl, proxySegments = false) {
   const base = new URL(baseUrl);
-  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('portal5458') || base.hostname.includes('asoseller') || base.protocol === 'http:' || base.pathname.includes('/live/') || base.pathname.includes('/movie/') || base.pathname.includes('/series/');
+  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('trxdnscloud') || base.hostname.includes('portal5458') || base.hostname.includes('asoseller') || base.protocol === 'http:' || base.pathname.includes('/live/') || base.pathname.includes('/movie/') || base.pathname.includes('/series/');
 
   return m3uText.split('\n').map(line => {
     const trimmed = line.trim();
@@ -47,7 +47,7 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
     return;
   }
 
-  const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('portal5458') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/');
+  const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('trxdnscloud') || targetUrl.hostname.includes('portal5458') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/') || targetUrl.pathname.includes('/movie/') || targetUrl.pathname.includes('/series/');
   const transport = targetUrl.protocol === 'https:' ? https : http;
 
   const outHeaders = {};
@@ -63,7 +63,12 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
       if (key.toLowerCase() === 'user-agent') delete outHeaders[key];
     }
     outHeaders['user-agent'] = 'VLC/3.0.21 LibVLC/3.0.21';
+    outHeaders['accept'] = '*/*';
     outHeaders['connection'] = 'close';
+  }
+
+  if (req.headers.range) {
+    outHeaders['range'] = req.headers.range;
   }
 
   function doRequest(url, redirectsLeft, originalUrl) {
@@ -81,14 +86,12 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
     };
 
     const proxyReq = t.request(options, (proxyRes) => {
-      console.log(`[Proxy] ${req.method} ${url} -> ${proxyRes.statusCode}`);
       if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode) && proxyRes.headers.location && redirectsLeft > 0) {
         proxyRes.resume();
         let redirectUrl = proxyRes.headers.location;
         if (!redirectUrl.startsWith('http')) {
           redirectUrl = `${parsed.protocol}//${parsed.host}${redirectUrl}`;
         }
-        console.log(`[Proxy] Redirect -> ${redirectUrl.slice(0, 80)}`);
         doRequest(redirectUrl, redirectsLeft - 1, originalUrl);
         return;
       }
@@ -176,16 +179,16 @@ export default defineConfig({
             return;
           }
 
-          // 1. Forward Xtream player_api.php queries to active Xtream server (asoseller.org:8080)
+          // 1. Forward Xtream player_api.php queries to active Xtream server
           if (pathname === '/player_api.php') {
-            const targetUrl = `http://asoseller.org:8080${req.url}`;
+            const targetUrl = `http://vpn.uhdp.top:80${req.url}`;
             proxyRequest(req, res, targetUrl, false);
             return;
           }
 
           // 2. Forward movie and series streaming requests to active Xtream server
-          if (pathname.startsWith('/movie/') || pathname.startsWith('/series/')) {
-            const targetUrl = `http://asoseller.org:8080${req.url}`;
+          if (pathname.startsWith('/movie/') || pathname.startsWith('/series/') || pathname.startsWith('/live/')) {
+            const targetUrl = `http://vpn.uhdp.top:80${req.url}`;
             proxyRequest(req, res, targetUrl, true);
             return;
           }

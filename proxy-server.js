@@ -86,11 +86,16 @@ async function forwardStream(req, res, targetUrlStr) {
     });
 
     const finalUrl = response.url || targetUrl.href;
+    let finalUrlObj = targetUrl;
+    try { finalUrlObj = new URL(finalUrl); } catch (_) {}
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
     const isM3U8 =
       contentType.includes('mpegurl') ||
+      contentType.includes('m3u') ||
       targetUrl.pathname.endsWith('.m3u8') ||
-      targetUrl.pathname.endsWith('.m3u');
+      targetUrl.pathname.endsWith('.m3u') ||
+      finalUrlObj.pathname.endsWith('.m3u8') ||
+      finalUrlObj.pathname.endsWith('.m3u');
 
     const outHeaders = {};
     for (const [k, v] of response.headers.entries()) {

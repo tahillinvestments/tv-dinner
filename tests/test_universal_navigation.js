@@ -245,4 +245,79 @@ describe('Universal Navigation & Spatial Engine Suite', () => {
     const phone = localStorage.getItem('activated_phone');
     assert(!phone, 'Fresh install should not have activated_phone pre-seeded');
   });
+
+  it('NAV-09: Live TV spatial navigation smoothly transitions from Category button to Channels Grid without focusing star button', () => {
+    const sidebar = document.createElement('div');
+    sidebar.id = 'categories-container';
+    sidebar.className = 'live-sidebar';
+
+    const cat1 = document.createElement('button');
+    cat1.className = 'category-btn active';
+    cat1.getBoundingClientRect = () => ({ left: 0, top: 100, right: 150, bottom: 140, width: 150, height: 40 });
+
+    sidebar.appendChild(cat1);
+
+    const grid = document.createElement('div');
+    grid.id = 'channels-grid';
+    grid.className = 'live-channels-grid';
+
+    const ch1 = document.createElement('div');
+    ch1.className = 'channel-card';
+    ch1.setAttribute('tabindex', '0');
+    ch1.getBoundingClientRect = () => ({ left: 200, top: 100, right: 400, bottom: 160, width: 200, height: 60 });
+
+    const favStar = document.createElement('button');
+    favStar.className = 'channel-fav-btn';
+    favStar.setAttribute('tabindex', '-1');
+    favStar.getBoundingClientRect = () => ({ left: 360, top: 110, right: 390, bottom: 140, width: 30, height: 30 });
+    ch1.appendChild(favStar);
+
+    grid.appendChild(ch1);
+
+    document.body.appendChild(sidebar);
+    document.body.appendChild(grid);
+
+    // Filter focusable elements
+    const candidates = spatialNav.getFocusableElements(document.body);
+    assert(candidates.includes(cat1), 'Candidates should include category button');
+    assert(candidates.includes(ch1), 'Candidates should include channel card');
+    assert(!candidates.includes(favStar), 'Candidates must NOT include channel-fav-btn inside channel-card');
+
+    spatialNav.focusElement(cat1);
+    assert(document.activeElement === cat1, 'cat1 should be focused');
+
+    // Move RIGHT -> should jump directly to ch1 channel card
+    const moved = spatialNav.moveFocus('right');
+    assert(moved === true, 'moveFocus right should succeed');
+    assert(document.activeElement === ch1, 'moveFocus right from category-btn should focus channel-card');
+  });
+
+  it('NAV-10: Live TV spatial navigation transitions from Channel card back to active Category button', () => {
+    const catContainer = document.createElement('div');
+    catContainer.id = 'categories-container';
+
+    const catBtn = document.createElement('button');
+    catBtn.className = 'category-btn active';
+    catBtn.getBoundingClientRect = () => ({ left: 0, top: 100, right: 150, bottom: 140, width: 150, height: 40 });
+    catContainer.appendChild(catBtn);
+
+    const gridWrap = document.createElement('div');
+    gridWrap.className = 'live-channels-grid-wrap';
+
+    const chCard = document.createElement('div');
+    chCard.className = 'channel-card active';
+    chCard.setAttribute('tabindex', '0');
+    chCard.getBoundingClientRect = () => ({ left: 200, top: 100, right: 400, bottom: 160, width: 200, height: 60 });
+    gridWrap.appendChild(chCard);
+
+    document.body.appendChild(catContainer);
+    document.body.appendChild(gridWrap);
+
+    spatialNav.focusElement(chCard);
+    assert(document.activeElement === chCard, 'Channel card should be focused');
+
+    const moved = spatialNav.moveFocus('left');
+    assert(moved === true, 'moveFocus left should succeed');
+    assert(document.activeElement === catBtn, 'moveFocus left from channel card should focus active category button');
+  });
 });

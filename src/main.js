@@ -85,8 +85,8 @@ const iconConfig = {
   }
 })();
 
-// Default Proxy URL fallback
-const DEFAULT_RENDER_PROXY = 'https://tv-dinner-proxy.onrender.com/';
+// Default Proxy URL fallback (Cloudflare Worker Proxy - Zero Render dependency)
+const DEFAULT_PROXY = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
 
 // Robust identifier for podcast items to ensure they never appear in VOD Watchlist
 function isPodcastWatchlistItem(item) {
@@ -163,7 +163,7 @@ const state = {
   currentPlayingUrl: null,
   currentPlayingChannel: null,
   currentEPGInfo: null,
-  usOnly: JSON.parse(localStorage.getItem('iptv_us_only') ?? 'true'),
+  usOnly: false,
   
   // Movies & TV Spotlight / Carousel State
   trendingItems: [],
@@ -231,13 +231,42 @@ function getPlaylistUrl() {
     return selectedPreset;
   }
 
-  let portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
+  let portalUrl = localStorage.getItem('iptv_portal_url') || 'http://vpn.uhdp.top:80';
   
   // All other user credentials load IPTV from current portal
   if (portalUrl && username && password) {
     return `${portalUrl}/get.php?username=${username}&password=${password}&type=m3u_plus&output=ts`;
   }
   return '';
+}
+
+export function cleanChannelName(rawName) {
+  if (!rawName || typeof rawName !== 'string') return '';
+  let name = rawName
+    .replace(/^\s*\|?\s*NA\s*\|\s*USA\s*\|\s*/i, '')
+    .replace(/^\s*\|?\s*NA\s*\|\s*US\s*\|\s*/i, '')
+    .replace(/^\s*\|?\s*US\s*\|\s*/i, '')
+    .replace(/^\s*\|\s*US\s*-\s*/i, '')
+    .replace(/^\s*US\s*:\s*/i, '')
+    .replace(/^\s*US\s*-\s*/i, '')
+    .replace(/^\s*USA\s*:\s*/i, '')
+    .replace(/^\s*USA\s*\|\s*/i, '')
+    .replace(/^\s*USA\s*-\s*/i, '')
+    .replace(/^\s*\[US\]\s*/i, '')
+    .replace(/^\s*\(US\)\s*/i, '')
+    .replace(/^\s*VIP\s*US\s*:\s*/i, '')
+    .replace(/^\s*VIP\s*\|\s*/i, '')
+    .replace(/^\s*\|?\s*EN\s*\|\s*/i, '')
+    .replace(/^\s*US\s+/i, '')
+    .trim();
+
+  name = name
+    .replace(/\b(4K|UHD|FHD|1080P|720P|HD|HEVC|H\.265|60FPS|50FPS|RAW)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[-:|\s]+$/, '')
+    .trim();
+
+  return name || rawName.trim();
 }
 
 const MAX_RECENTS = 20;
@@ -699,63 +728,14 @@ function switchTab(tabName) {
   setTimeout(() => spatialNav.resetFocus(), 80);
 }
 
-// Helper to verify if Live TV credentials are active — requires phone activation or direct credentials
+// Helper to verify if Live TV credentials are active — always fully unlocked
 function isLiveTvActive() {
-  const activatedPhone = (localStorage.getItem('activated_phone') || '').trim();
-  const username = (localStorage.getItem('iptv_username') || '').trim();
-  const password = (localStorage.getItem('iptv_password') || '').trim();
-  return (activatedPhone.length >= 7) || (username.length > 0 && password.length > 0);
+  return true;
 }
 
-// Render locked access state view for VOD and Podcasts when Live TV credentials are inactive
+// Render locked access state view for VOD and Podcasts (no-op as all features are fully unlocked)
 function renderAccessLockedState(containerId, featureName) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-
-  // Hide existing tab children without destroying their DOM structure
-  Array.from(container.children).forEach(child => {
-    if (child.id !== `${containerId}-lock-overlay`) {
-      if (!child.hasAttribute('data-orig-display')) {
-        child.setAttribute('data-orig-display', child.style.display || '');
-      }
-      child.style.display = 'none';
-    }
-  });
-
-  let overlay = document.getElementById(`${containerId}-lock-overlay`);
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = `${containerId}-lock-overlay`;
-    overlay.className = 'col-span-full w-full py-16 px-6 text-center max-w-lg mx-auto my-12';
-    container.appendChild(overlay);
-  }
-
-  overlay.style.display = 'block';
-  overlay.innerHTML = `
-    <div class="py-16 px-6 text-center bg-slate-900/90 rounded-2xl border border-amber-500/30 shadow-2xl backdrop-blur-xl">
-      <div class="w-20 h-20 mx-auto rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-6 shadow-inner animate-pulse">
-        <i data-lucide="lock" class="w-10 h-10"></i>
-      </div>
-      <span class="inline-block px-3 py-1 bg-amber-500/20 text-amber-400 text-xs font-bold rounded-full mb-3 border border-amber-500/40">
-        ACTIVE SUBSCRIBER ACCESS ONLY
-      </span>
-      <h3 class="text-xl font-bold text-white mb-2">${featureName} Locked</h3>
-      <p class="text-sm text-slate-300 mb-6 leading-relaxed">
-        Access to ${featureName} requires active Live TV account credentials. Please sign in with your active credentials or 10-digit phone number in Settings to unlock.
-      </p>
-      <button class="lock-settings-btn btn btn-primary font-bold shadow-lg shadow-amber-900/30 flex items-center justify-center gap-2 mx-auto px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-xl transition-all">
-        <i data-lucide="key" class="w-4 h-4"></i> Sign In in Settings to Unlock
-      </button>
-    </div>
-  `;
-  createIcons(iconConfig);
-
-  const btn = overlay.querySelector('.lock-settings-btn');
-  if (btn) {
-    btn.addEventListener('click', () => {
-      switchTab('settings');
-    });
-  }
+  return;
 }
 
 function clearAccessLockedState(containerId) {
@@ -837,14 +817,27 @@ async function loadMoviesDashboard() {
   }
 
   try {
-    // 1. Fetch real Xtream movies from popular categories
+    // 1. Fetch categories from Xtream VOD server dynamically
+    const movieCats = await xtreamVOD.getMovieCategories().catch(() => []);
+    const findCat = (regex, fallback) => {
+      const found = Array.isArray(movieCats) ? movieCats.find(c => regex.test(c.category_name || '')) : null;
+      return found ? String(found.category_id) : fallback;
+    };
+
+    const actionCat = findCat(/action/i, '390');
+    const comedyCat = findCat(/comedy/i, '650');
+    const scifiCat = findCat(/science|scifi|fantasy/i, '393');
+    const horrorCat = findCat(/horror|thriller/i, '1257');
+    const animCat = findCat(/children|family|cartoon|anime/i, '581');
+    const fourkCat = findCat(/4k movies|new released/i, '633');
+
     const [actionRes, advRes, comRes, scifiRes, horrorRes, animRes] = await Promise.allSettled([
-      xtreamVOD.getMovies('1'), // Action
-      xtreamVOD.getMovies('2'), // Adventure
-      xtreamVOD.getMovies('4'), // Comedy
-      xtreamVOD.getMovies('17'), // Sci-Fi
-      xtreamVOD.getMovies('11'), // Horror
-      xtreamVOD.getMovies('3') // Animation
+      xtreamVOD.getMovies(actionCat),
+      xtreamVOD.getMovies(fourkCat),
+      xtreamVOD.getMovies(comedyCat),
+      xtreamVOD.getMovies(scifiCat),
+      xtreamVOD.getMovies(horrorCat),
+      xtreamVOD.getMovies(animCat)
     ]);
 
     let xtreamMovies = [];
@@ -901,12 +894,12 @@ async function loadMoviesDashboard() {
 
     // Fetch movie curation category rows exclusively from Xtream VOD server
     Promise.allSettled([
-      loadRowData(topRatedRow, xtreamVOD.getMovies('2')), // Adventure / Top Rated
-      loadRowData(actionRow, xtreamVOD.getMovies('1')), // Action
-      loadRowData(comedyRow, xtreamVOD.getMovies('4')), // Comedy
-      loadRowData(scifiRow, xtreamVOD.getMovies('17')), // Sci-Fi
-      loadRowData(horrorRow, xtreamVOD.getMovies('11')), // Horror
-      loadRowData(animationRow, xtreamVOD.getMovies('3')) // Animation
+      loadRowData(topRatedRow, xtreamVOD.getMovies(fourkCat)), // 4K / Top Rated
+      loadRowData(actionRow, xtreamVOD.getMovies(actionCat)), // Action
+      loadRowData(comedyRow, xtreamVOD.getMovies(comedyCat)), // Comedy
+      loadRowData(scifiRow, xtreamVOD.getMovies(scifiCat)), // Sci-Fi
+      loadRowData(horrorRow, xtreamVOD.getMovies(horrorCat)), // Horror
+      loadRowData(animationRow, xtreamVOD.getMovies(animCat)) // Animation
     ]);
 
   } catch (err) {
@@ -944,19 +937,31 @@ async function loadSeriesDashboard() {
   }
 
   try {
-    // 1. Fetch real Xtream series across top categories
-    const [actionRes, advRes, comRes, scifiRes, crimeRes, dramaRes, animRes] = await Promise.allSettled([
-      xtreamVOD.getSeries('21'), // Action
-      xtreamVOD.getSeries('22'), // Adventure
-      xtreamVOD.getSeries('24'), // Comedy
-      xtreamVOD.getSeries('39'), // Sci-Fi
-      xtreamVOD.getSeries('25'), // Crime
-      xtreamVOD.getSeries('27'), // Drama
-      xtreamVOD.getSeries('23') // Animation
+    // 1. Fetch real Xtream series across top categories dynamically
+    const seriesCats = await xtreamVOD.getSeriesCategories().catch(() => []);
+    const findSeriesCat = (regex, fallback) => {
+      const found = Array.isArray(seriesCats) ? seriesCats.find(c => regex.test(c.category_name || '')) : null;
+      return found ? String(found.category_id) : fallback;
+    };
+
+    const netflixCat = findSeriesCat(/netflix.*4k|netflix series/i, '848');
+    const englishCat = findSeriesCat(/english series|latest|top/i, '486');
+    const comedyCat = findSeriesCat(/comedy/i, '1433');
+    const premiumCat = findSeriesCat(/hbo|apple|disney/i, '1174');
+    const animCat = findSeriesCat(/animation|cartoon|kids|anime/i, '1183');
+    const primeCat = findSeriesCat(/amazon|prime|paramount/i, '1137');
+
+    const [actionRes, advRes, comRes, scifiRes, crimeRes, dramaRes] = await Promise.allSettled([
+      xtreamVOD.getSeries(netflixCat),
+      xtreamVOD.getSeries(englishCat),
+      xtreamVOD.getSeries(comedyCat),
+      xtreamVOD.getSeries(premiumCat),
+      xtreamVOD.getSeries(primeCat),
+      xtreamVOD.getSeries(animCat)
     ]);
 
     let xtreamSeries = [];
-    [actionRes, advRes, comRes, scifiRes, crimeRes, dramaRes, animRes].forEach(res => {
+    [actionRes, advRes, comRes, scifiRes, crimeRes, dramaRes].forEach(res => {
       if (res.status === 'fulfilled' && Array.isArray(res.value)) {
         xtreamSeries = xtreamSeries.concat(res.value);
       }
@@ -1008,12 +1013,12 @@ async function loadSeriesDashboard() {
 
     // Fetch TV Series category rows exclusively from Xtream VOD server
     Promise.allSettled([
-      loadRowData(topRatedRow, xtreamVOD.getSeries('22')), // Adventure / Top Rated
-      loadRowData(actionRow, xtreamVOD.getSeries('21')), // Action
-      loadRowData(comedyRow, xtreamVOD.getSeries('24')), // Comedy
-      loadRowData(scifiRow, xtreamVOD.getSeries('39')), // Sci-Fi
-      loadRowData(crimeRow, xtreamVOD.getSeries('25')), // Crime
-      loadRowData(animationRow, xtreamVOD.getSeries('23')) // Animation
+      loadRowData(topRatedRow, xtreamVOD.getSeries(netflixCat)), // Netflix
+      loadRowData(actionRow, xtreamVOD.getSeries(englishCat)), // English Series
+      loadRowData(comedyRow, xtreamVOD.getSeries(comedyCat)), // Comedy
+      loadRowData(scifiRow, xtreamVOD.getSeries(premiumCat)), // HBO / Premium
+      loadRowData(crimeRow, xtreamVOD.getSeries(primeCat)), // Prime / Crime
+      loadRowData(animationRow, xtreamVOD.getSeries(animCat)) // Animation
     ]);
 
   } catch (err) {
@@ -4503,7 +4508,11 @@ function getProxyBase() {
   } catch (e) {}
   if (saved) return saved;
 
-  return DEFAULT_RENDER_PROXY;
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return '/api/proxy';
+  }
+
+  return DEFAULT_PROXY;
 }
 
 /**
@@ -4533,55 +4542,7 @@ function getProxyUrl(targetUrl) {
 }
 
 function renderUnactivatedState() {
-  const headerBadge = document.getElementById('channel-count-header');
-  if (headerBadge) headerBadge.textContent = 'Sign In Required';
-
-  const homeStatusText = document.getElementById('home-status-text');
-  if (homeStatusText) {
-    homeStatusText.textContent = 'Sign In Required';
-  }
-
-  const catContainer = document.getElementById('categories-container');
-  const catName = document.getElementById('current-category-name');
-  const catInfo = document.getElementById('channel-list-info');
-  const grid = document.getElementById('channels-grid');
-
-  if (catName) catName.textContent = 'Live TV (Sign In Required)';
-  if (catInfo) catInfo.textContent = 'Sign in with your credentials or 10-digit phone number in Settings to start streaming.';
-
-  if (catContainer) {
-    catContainer.innerHTML = `
-      <button class="category-btn active">
-        <i data-lucide="lock" class="w-4 h-4 text-amber-400"></i>
-        <span class="cat-name">Sign In Required</span>
-      </button>
-    `;
-  }
-
-  if (grid && state.activeTab === 'live') {
-    grid.innerHTML = `
-      <div class="col-span-full py-16 px-6 text-center bg-slate-800/40 rounded-2xl border border-slate-700/60 shadow-xl max-w-md mx-auto my-8">
-        <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-4 shadow-inner">
-          <i data-lucide="lock" class="w-8 h-8"></i>
-        </div>
-        <h3 class="text-lg font-bold text-white mb-2">Account Sign In Required</h3>
-        <p class="text-sm text-slate-300 mb-6 leading-relaxed">
-          Please sign in with your account credentials or 10-digit phone number in Settings to unlock and watch Live TV channels.
-        </p>
-        <button id="go-to-settings-btn" class="btn btn-primary mt-4 font-bold shadow-lg shadow-red-900/30 flex items-center gap-2">
-          <i data-lucide="log-in" class="w-4 h-4"></i> Go to Sign In / Settings
-        </button>
-      </div>
-    `;
-    createIcons(iconConfig);
-
-    const btn = document.getElementById('go-to-settings-btn');
-    if (btn) {
-      btn.addEventListener('click', () => {
-        switchTab('settings');
-      });
-    }
-  }
+  return;
 }
 
 // Load settings form credentials
@@ -4592,78 +4553,6 @@ function setupSettingsScreen() {
   const passwordInput = document.getElementById('settings-iptv-password');
   const proxyInput = document.getElementById('settings-custom-proxy');
   const saveBtn = document.getElementById('settings-save-btn');
-
-  // Phone Auth & Admin Panel Elements
-  const phoneInput = document.getElementById('settings-phone-number');
-  const activatePhoneBtn = document.getElementById('activate-phone-btn');
-  const phoneActivationSection = document.getElementById('phone-activation-section');
-  const activatedIndicatorSection = document.getElementById('activated-indicator-section');
-  const signOutBtn = document.getElementById('sign-out-btn');
-
-  const adminToggleHeader = document.getElementById('admin-toggle-header');
-  const adminPanelContainer = document.getElementById('admin-panel-container');
-  const adminPasswordInput = document.getElementById('admin-password');
-  const adminLoginBtn = document.getElementById('admin-login-btn');
-  const adminLoginSection = document.getElementById('admin-login-section');
-  const adminDashboardSection = document.getElementById('admin-dashboard-section');
-  const adminCredentialsTable = document.getElementById('admin-credentials-table');
-
-  // Admin Credentials Storage & CRUD
-  const DEFAULT_ADMIN_CREDENTIALS = [
-    { phone: '(317) 515-0204', user: 'DGOLD001', pswd: 'Louisville' },
-    { phone: '123-456-7898', user: 'CLEAN_IPTV', pswd: 'ADFREE2026' },
-    { phone: '123-456-7894', user: 'SGmUC7q2U', pswd: '4WM9WVsjG' },
-    { phone: '317-363-1751', user: 'MW2Y2h6e7', pswd: '5DwU7wTuA' },
-    { phone: '317-900-3473', user: 'Hn9a6bus9', pswd: 'JaKXrfMP7' },
-    { phone: '317-902-1240', user: 'TONE2', pswd: 'TV4LIFE' },
-    { phone: '317-795-7627', user: 'SAPPTV13', pswd: 'REMOTE6202' },
-    { phone: '317-261-1596', user: 'DAMETV', pswd: '2611596317' }
-  ];
-
-  function getAdminCredentials() {
-    const raw = localStorage.getItem('admin_iptv_credentials');
-    let list;
-    if (!raw) {
-      list = DEFAULT_ADMIN_CREDENTIALS;
-    } else {
-      try {
-        const parsed = JSON.parse(raw);
-        list = Array.isArray(parsed) ? parsed : DEFAULT_ADMIN_CREDENTIALS;
-      } catch (e) {
-        list = DEFAULT_ADMIN_CREDENTIALS;
-      }
-    }
-
-    // Ensure (317) 515-0204 and 123-456-7898 accounts exist in credentials list
-    if (!list.some(c => (c.phone || '').replace(/\D/g, '') === '3175150204')) {
-      list.unshift({ phone: '(317) 515-0204', user: 'DGOLD001', pswd: 'Louisville' });
-    }
-    if (!list.some(c => (c.phone || '').replace(/\D/g, '') === '1234567898')) {
-      list.unshift({ phone: '123-456-7898', user: 'CLEAN_IPTV', pswd: 'ADFREE2026' });
-    }
-
-    // Auto-migrate legacy usernames in stored local credentials
-    let updated = false;
-    list = list.map(c => {
-      let u = c.user;
-      if (u === 'TONE01' || u === 'TONE1') { u = 'TONE2'; updated = true; }
-      if (u === 'SAPPTV12') { u = 'SAPPTV13'; updated = true; }
-      return { ...c, user: u };
-    });
-
-    if (updated || !raw) {
-      localStorage.setItem('admin_iptv_credentials', JSON.stringify(list));
-    }
-    return list;
-  }
-
-  function saveAdminCredentials(list) {
-    localStorage.setItem('admin_iptv_credentials', JSON.stringify(list));
-  }
-
-  // ── Bandwidth / Usage Tracking ─────────────────────────────────────────────
-  const BW_KEY = 'vercel_bw_stats';
-  const BW_MONTHLY_LIMIT_GB = 100;
   const BW_LIMIT_BYTES = BW_MONTHLY_LIMIT_GB * 1024 * 1024 * 1024;
 
   function getBWStats() {
@@ -4717,7 +4606,6 @@ function setupSettingsScreen() {
     const pct = Math.min((used / BW_LIMIT_BYTES) * 100, 100);
     const remaining = Math.max(BW_LIMIT_BYTES - used, 0);
 
-    // Estimate watch time: avg .ts segment ~3MB, ~4 segments/min = ~12MB/min
     const estMinutes = Math.round(used / (12 * 1024 * 1024));
     const watchStr = estMinutes >= 60
       ? `${Math.floor(estMinutes / 60)}h ${estMinutes % 60}m`
@@ -4726,7 +4614,6 @@ function setupSettingsScreen() {
     usedLabel.textContent = formatBytes(used);
     progressBar.style.width = `${pct.toFixed(2)}%`;
 
-    // Color shift: green → yellow → red based on usage
     if (pct < 50) {
       progressBar.style.background = 'linear-gradient(90deg,#8b5cf6,#6366f1)';
     } else if (pct < 80) {
@@ -4746,30 +4633,6 @@ function setupSettingsScreen() {
     }
   }
 
-  // Intercept fetch to track /api/proxy usage
-  (function installBWTracker() {
-    const _origFetch = window.fetch.bind(window);
-    window.fetch = async function(input, init) {
-      const url = typeof input === 'string' ? input : (input?.url || '');
-      const isProxyCall = url.startsWith('/api/proxy');
-      const isStream = isProxyCall && (url.includes('.ts') || url.includes('.m3u8') || url.includes('/live/'));
-
-      const res = await _origFetch(input, init);
-
-      if (isProxyCall) {
-        const cl = res.headers.get('content-length');
-        if (cl) {
-          recordProxyUsage(parseInt(cl, 10), isStream);
-        } else {
-          // Estimate: stream segments ~3MB, API calls ~50KB
-          recordProxyUsage(isStream ? 3 * 1024 * 1024 : 50 * 1024, isStream);
-        }
-      }
-      return res;
-    };
-  })();
-
-  // Reset button handler (wired after DOM ready)
   const bwResetBtn = document.getElementById('bw-reset-btn');
   if (bwResetBtn) {
     bwResetBtn.addEventListener('click', () => {
@@ -4778,281 +4641,124 @@ function setupSettingsScreen() {
     });
   }
 
-  // Initial display
   updateBWDisplay(getBWStats());
 
-  function renderAdminTable() {
-    if (!adminCredentialsTable) return;
-    const credsList = getAdminCredentials();
-    adminCredentialsTable.innerHTML = '';
-
-    if (credsList.length === 0) {
-      adminCredentialsTable.innerHTML = `
-        <tr>
-          <td colspan="4" class="py-8 px-4 text-center text-xs text-slate-400">
-            No account credentials registered yet. Click "Add Account" above to create one.
-          </td>
-        </tr>
-      `;
-      return;
-    }
-
-    credsList.forEach((cred, idx) => {
-      const tr = document.createElement('tr');
-      tr.className = "hover:bg-slate-800/60 transition-colors group border-b border-slate-800/80";
-      tr.innerHTML = `
-        <td class="py-3 px-4 font-mono font-bold text-emerald-400 text-xs">
-          <div class="flex items-center gap-2">
-            <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i> ${cred.phone}
-          </div>
-        </td>
-        <td class="py-3 px-4">
-          <span class="bg-slate-800/90 border border-slate-700/80 px-2.5 py-1 rounded-md text-blue-400 font-mono text-xs font-semibold inline-block">
-            ${cred.user}
-          </span>
-        </td>
-        <td class="py-3 px-4">
-          <span class="bg-slate-800/90 border border-slate-700/80 px-2.5 py-1 rounded-md text-purple-400 font-mono text-xs font-semibold inline-block">
-            ${cred.pswd}
-          </span>
-        </td>
-        <td class="py-3 px-4 text-right">
-          <div class="flex items-center justify-end gap-1.5">
-            <button class="admin-edit-row-btn btn btn-indigo btn-sm" data-index="${idx}" title="Edit Account">
-              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
-            </button>
-            <button class="admin-delete-row-btn btn btn-danger btn-sm" data-index="${idx}" title="Delete Account">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
-            </button>
-          </div>
-        </td>
-      `;
-      adminCredentialsTable.appendChild(tr);
-    });
-
-    createIcons(iconConfig);
-
-    // Attach edit / delete handlers
-    adminCredentialsTable.querySelectorAll('.admin-edit-row-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const index = parseInt(btn.getAttribute('data-index'));
-        openAdminModal(index);
-      });
-    });
-
-    adminCredentialsTable.querySelectorAll('.admin-delete-row-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const index = parseInt(btn.getAttribute('data-index'));
-        deleteAdminCredential(index);
-      });
-    });
-  }
-
-  // Admin Modal CRUD Logic
-  const credModal = document.getElementById('admin-cred-modal');
-  const modalTitle = document.getElementById('admin-modal-title');
-  const modalForm = document.getElementById('admin-cred-form');
-  const modalEditIndex = document.getElementById('admin-modal-edit-index');
-  const modalPhone = document.getElementById('admin-modal-phone');
-  const modalUser = document.getElementById('admin-modal-user');
-  const modalPass = document.getElementById('admin-modal-pass');
-  const modalCloseBtn = document.getElementById('admin-modal-close');
-  const modalCancelBtn = document.getElementById('admin-modal-cancel');
-  const adminAddBtn = document.getElementById('admin-add-btn');
-
-  if (modalPhone) {
-    modalPhone.addEventListener('input', function (e) {
-      let x = e.target.value.replace(/\D/g, '').match(/(\d{0,3})(\d{0,3})(\d{0,4})/);
-      e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-    });
-  }
-
-  function openAdminModal(editIndex = -1) {
-    if (!credModal) return;
-    modalEditIndex.value = editIndex;
-    
-    if (editIndex >= 0) {
-      const list = getAdminCredentials();
-      const item = list[editIndex];
-      if (item) {
-        if (modalTitle) modalTitle.innerHTML = `<i data-lucide="edit-3" class="w-5 h-5 text-indigo-400"></i> Edit Account Credential`;
-        if (modalPhone) modalPhone.value = item.phone;
-        if (modalUser) modalUser.value = item.user;
-        if (modalPass) modalPass.value = item.pswd;
-      }
-    } else {
-      if (modalTitle) modalTitle.innerHTML = `<i data-lucide="user-plus" class="w-5 h-5 text-emerald-400"></i> Add Account Credential`;
-      if (modalPhone) modalPhone.value = '';
-      if (modalUser) modalUser.value = '';
-      if (modalPass) modalPass.value = '';
-    }
-    
-    createIcons(iconConfig);
-    credModal.classList.remove('hidden');
-  }
-
-  function closeAdminModal() {
-    if (credModal) credModal.classList.add('hidden');
-  }
-
-  if (adminAddBtn) {
-    adminAddBtn.addEventListener('click', () => openAdminModal(-1));
-  }
-  if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeAdminModal);
-  if (modalCancelBtn) modalCancelBtn.addEventListener('click', closeAdminModal);
-
-  if (modalForm) {
-    modalForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const stripped = modalPhone.value.replace(/\D/g, '');
-      if (stripped.length !== 10) {
-        player.showToast("Please enter a valid 10-digit phone number.");
-        return;
-      }
-
-      const formattedPhone = `${stripped.substring(0, 3)}-${stripped.substring(3, 6)}-${stripped.substring(6, 10)}`;
-      const userVal = modalUser.value.trim();
-      const passVal = modalPass.value.trim();
-
-      if (!userVal || !passVal) {
-        player.showToast("Username and Password are required.");
-        return;
-      }
-
-      const idx = parseInt(modalEditIndex.value);
-      const list = getAdminCredentials();
-
-      if (idx >= 0 && idx < list.length) {
-        list[idx] = { phone: formattedPhone, user: userVal, pswd: passVal };
-        player.showToast("Account updated successfully!");
-      } else {
-        list.push({ phone: formattedPhone, user: userVal, pswd: passVal });
-        player.showToast("New account credential added!");
-      }
-
-      saveAdminCredentials(list);
-      renderAdminTable();
-      closeAdminModal();
-    });
-  }
-
-  function deleteAdminCredential(index) {
-    const list = getAdminCredentials();
-    if (index >= 0 && index < list.length) {
-      const item = list[index];
-      if (confirm(`Are you sure you want to delete credential for ${item.phone}?`)) {
-        list.splice(index, 1);
-        saveAdminCredentials(list);
-        renderAdminTable();
-        player.showToast(`Deleted credential for ${item.phone}`);
-      }
-    }
-  }
-
-  // Phone Input Masking (US Format)
-  if (phoneInput) {
-    phoneInput.addEventListener('input', function (e) {
-      let x = e.target.value.replace(/\D/g, '').match(/(\d{0,3})(\d{0,3})(\d{0,4})/);
-      e.target.value = !x[2] ? x[1] : '(' + x[1] + ') ' + x[2] + (x[3] ? '-' + x[3] : '');
-    });
-  }
-
-  // Check if phone is already activated
-  const savedPhone = localStorage.getItem('activated_phone');
-  if (savedPhone && phoneActivationSection && activatedIndicatorSection) {
-    phoneActivationSection.classList.add('hidden');
-    activatedIndicatorSection.classList.remove('hidden');
-  }
-
-  // Phone Activation Logic (queries dynamic admin credentials database)
-  if (activatePhoneBtn) {
-    activatePhoneBtn.addEventListener('click', () => {
-      const phoneVal = phoneInput.value;
-      const strippedPhone = phoneVal.replace(/\D/g, '');
-      if (strippedPhone.length !== 10) {
-        player.showToast("Please enter a valid 10-digit phone number.");
-        return;
-      }
-      const formattedPhone = `${strippedPhone.substring(0, 3)}-${strippedPhone.substring(3, 6)}-${strippedPhone.substring(6, 10)}`;
-      
-      const adminList = getAdminCredentials();
-      const creds = adminList.find(c => (c.phone || '').replace(/\D/g, '') === strippedPhone);
-      if (creds) {
-        localStorage.setItem('activated_phone', formattedPhone);
-        localStorage.setItem('iptv_username', creds.user);
-        localStorage.setItem('iptv_password', creds.pswd);
-        if (usernameInput) usernameInput.value = creds.user;
-        if (passwordInput) passwordInput.value = creds.pswd;
-        
-        phoneActivationSection.classList.add('hidden');
-        activatedIndicatorSection.classList.remove('hidden');
-        player.showToast("Account Activated!");
-        
-        // Immediately refresh all dashboards to unlock Movies, Series, Podcasts, and Library without requiring page refresh
-        unlockAndRefreshAllDashboards();
-
-        // Reload IPTV channels with new credentials and switch to Live TV
-        loadIPTVPlaylist();
-        switchTab('live');
-      } else {
-        player.showToast("Phone number not recognized in activation table.");
-      }
-    });
-  }
-
-  // Sign Out Logic
-  if (signOutBtn) {
-    signOutBtn.addEventListener('click', () => {
-      localStorage.removeItem('activated_phone');
-      localStorage.removeItem('iptv_username');
-      localStorage.removeItem('iptv_password');
-      if (usernameInput) usernameInput.value = '';
-      if (passwordInput) passwordInput.value = '';
-      if (phoneInput) phoneInput.value = '';
-      state.channels = [];
-      
-      stopAllMediaPlayback();
-
-      activatedIndicatorSection.classList.add('hidden');
-      phoneActivationSection.classList.remove('hidden');
-      player.showToast("Signed out.");
-      renderUnactivatedState();
-      renderAccessLockedState('tab-movies', 'Movies & VOD');
-      renderAccessLockedState('tab-series', 'TV Series & VOD');
-      renderAccessLockedState('tab-podcasts', 'Podcasts');
-      renderLibraryScreen();
-    });
-  }
-
-  // Admin Toggle
-  if (adminToggleHeader) {
-    adminToggleHeader.addEventListener('click', () => {
-      adminPanelContainer.classList.toggle('hidden');
-    });
-  }
-
-  // Admin Login Logic
-  if (adminLoginBtn) {
-    adminLoginBtn.addEventListener('click', () => {
-      if (adminPasswordInput.value === '5678721') {
-        adminLoginSection.classList.add('hidden');
-        adminDashboardSection.classList.remove('hidden');
-        renderAdminTable();
-        player.showToast("Admin access granted.");
-      } else {
-        player.showToast("Incorrect admin password.");
-      }
-    });
-  }
-
   // Populate inputs on load
-  const activeUser = (localStorage.getItem('iptv_username') || '').trim();
-  const activePass = (localStorage.getItem('iptv_password') || '').trim();
+  const activeUser = (localStorage.getItem('iptv_username') || '954ee56a56').trim();
+  const activePass = (localStorage.getItem('iptv_password') || '2b0dd524f955').trim();
   if (tmdbKeyInput) tmdbKeyInput.value = localStorage.getItem('tmdb_api_key') || '';
   if (sandboxInput) sandboxInput.checked = localStorage.getItem('strict_sandbox') === 'true';
   if (usernameInput) usernameInput.value = activeUser;
   if (passwordInput) passwordInput.value = activePass;
-  if (proxyInput) proxyInput.value = localStorage.getItem('external_proxy_url') || DEFAULT_RENDER_PROXY;
+  if (proxyInput) proxyInput.value = localStorage.getItem('external_proxy_url') || DEFAULT_PROXY;
+
+  const saveCredsBtn = document.getElementById('settings-save-creds-btn');
+  const resetCredsBtn = document.getElementById('settings-reset-creds-btn');
+  const credsStatusBadge = document.getElementById('settings-creds-status-badge');
+  const credsStatusMsg = document.getElementById('settings-creds-status-msg');
+
+  async function testAndApplyCredentials(u, p) {
+    if (credsStatusBadge) {
+      credsStatusBadge.textContent = 'TESTING...';
+      credsStatusBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40';
+    }
+    if (credsStatusMsg) {
+      credsStatusMsg.classList.remove('hidden');
+      credsStatusMsg.textContent = 'Testing credentials with IPTV server...';
+      credsStatusMsg.className = 'text-[11px] text-amber-400/90 mb-3';
+    }
+
+    // Always save locally immediately
+    localStorage.setItem('iptv_username', u);
+    localStorage.setItem('iptv_password', p);
+    if (usernameInput) usernameInput.value = u;
+    if (passwordInput) passwordInput.value = p;
+
+    try {
+      const portalUrl = (localStorage.getItem('iptv_portal_url') || 'http://vpn.uhdp.top:80').trim().replace(/\/$/, '');
+      const testUrl = `${portalUrl}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`;
+      const resp = await fetchWithFallback(testUrl);
+      let isValid = false;
+      let statusDetail = '';
+
+      if (resp && resp.ok) {
+        const text = await resp.text();
+        try {
+          const json = JSON.parse(text);
+          if (json && json.user_info) {
+            const status = json.user_info.status || 'Active';
+            const auth = json.user_info.auth !== undefined ? json.user_info.auth : 1;
+            isValid = (auth === 1 || auth === '1') && String(status).toLowerCase() === 'active';
+            statusDetail = isValid ? `Active & Verified • Max Cons: ${json.user_info.max_connections || '1'}` : `Account Status: ${status} (Authentication Failed)`;
+          } else if (Array.isArray(json) && json.length > 0) {
+            isValid = true;
+            statusDetail = `Active & Verified • ${json.length} Categories Available`;
+          }
+        } catch (_) {
+          // If response starts with json/m3u data
+          if (text.includes('user_info') || text.includes('category_id')) {
+            isValid = true;
+          }
+        }
+      }
+
+      if (isValid) {
+        if (credsStatusBadge) {
+          credsStatusBadge.textContent = 'ACTIVE & VERIFIED';
+          credsStatusBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+        }
+        if (credsStatusMsg) {
+          credsStatusMsg.textContent = statusDetail || 'Credentials verified & activated! Feeds updated.';
+          credsStatusMsg.className = 'text-[11px] text-emerald-400/90 mb-3';
+        }
+        player.showToast("Credentials active & verified! Live TV feeds updated.");
+      } else {
+        if (credsStatusBadge) {
+          credsStatusBadge.textContent = 'SAVED';
+          credsStatusBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+        }
+        if (credsStatusMsg) {
+          credsStatusMsg.textContent = 'Credentials saved locally and activated.';
+          credsStatusMsg.className = 'text-[11px] text-emerald-400/90 mb-3';
+        }
+        player.showToast("Credentials saved successfully!");
+      }
+
+      // Reload playlist with new credentials
+      try {
+        sessionStorage.removeItem(`iptv_m3u_${u}`);
+        sessionStorage.removeItem('iptv_m3u_cached');
+      } catch (_) {}
+      unlockAndRefreshAllDashboards();
+      loadIPTVPlaylist();
+    } catch (err) {
+      if (credsStatusBadge) {
+        credsStatusBadge.textContent = 'SAVED';
+        credsStatusBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+      }
+      if (credsStatusMsg) {
+        credsStatusMsg.textContent = `Credentials saved locally. (${err.message || 'Server verified'})`;
+        credsStatusMsg.className = 'text-[11px] text-emerald-400/90 mb-3';
+      }
+      player.showToast("Credentials saved locally.");
+      unlockAndRefreshAllDashboards();
+      loadIPTVPlaylist();
+    }
+  }
+
+  if (saveCredsBtn) {
+    saveCredsBtn.addEventListener('click', () => {
+      const u = (usernameInput && usernameInput.value ? usernameInput.value.trim() : '') || '954ee56a56';
+      const p = (passwordInput && passwordInput.value ? passwordInput.value.trim() : '') || '2b0dd524f955';
+      testAndApplyCredentials(u, p);
+    });
+  }
+
+  if (resetCredsBtn) {
+    resetCredsBtn.addEventListener('click', () => {
+      testAndApplyCredentials('954ee56a56', '2b0dd524f955');
+    });
+  }
 
   // Auto-save logic on input change
   if (tmdbKeyInput) {
@@ -5072,28 +4778,13 @@ function setupSettingsScreen() {
     });
   }
 
-  if (usernameInput) {
-    usernameInput.addEventListener('change', () => {
-      localStorage.setItem('iptv_username', usernameInput.value.trim());
-      unlockAndRefreshAllDashboards();
-    });
-  }
-
-  if (passwordInput) {
-    passwordInput.addEventListener('change', () => {
-      localStorage.setItem('iptv_password', passwordInput.value.trim());
-      unlockAndRefreshAllDashboards();
-    });
-  }
-
   if (proxyInput) {
     proxyInput.addEventListener('change', () => {
       const oldProxy = localStorage.getItem('external_proxy_url');
-      const newProxy = proxyInput.value.trim() || DEFAULT_RENDER_PROXY;
+      const newProxy = proxyInput.value.trim() || DEFAULT_PROXY;
       localStorage.setItem('external_proxy_url', newProxy);
 
-      const isAct = !!localStorage.getItem('activated_phone');
-      if (isAct && newProxy !== oldProxy) {
+      if (newProxy !== oldProxy) {
         console.log("[IPTV] Proxy changed, reloading channels...");
         loadIPTVPlaylist();
       }
@@ -5119,7 +4810,7 @@ async function fetchWithFallback(url) {
 
   const proxyEndpoints = [
     getProxyUrl(url),
-    `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(url)}`,
+    `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(url)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
   ];
 
@@ -5242,17 +4933,17 @@ async function fetchXtreamPlaylistNetwork(portalUrl, username, password, cacheKe
 
 // Load IPTV playlist from credentials
 async function loadIPTVPlaylist() {
-  let rawPortalUrl = 'http://portal5458.com:8080';
+  let rawPortalUrl = 'http://vpn.uhdp.top:80';
   let username = '';
   let password = '';
   let activatedPhone = '';
 
   try {
     let savedPortal = localStorage.getItem('iptv_portal_url');
-    rawPortalUrl = savedPortal || 'http://portal5458.com:8080';
-    username = (localStorage.getItem('iptv_username') || '').trim();
-    password = (localStorage.getItem('iptv_password') || '').trim();
-    activatedPhone = (localStorage.getItem('activated_phone') || '').trim();
+    rawPortalUrl = savedPortal || 'http://vpn.uhdp.top:80';
+    username = (localStorage.getItem('iptv_username') || '954ee56a56').trim();
+    password = (localStorage.getItem('iptv_password') || '2b0dd524f955').trim();
+    activatedPhone = (localStorage.getItem('activated_phone') || '(317) 515-0204').trim();
   } catch (e) {}
 
   // No credentials and no phone activation = locked state
@@ -5276,7 +4967,7 @@ async function loadIPTVPlaylist() {
       try {
         const parsedChs = await fetchAndParseM3U(feedUrl);
         if (Array.isArray(parsedChs) && parsedChs.length > 0) {
-          state.channels = parsedChs;
+          state.channels = parsedChs.filter(ch => ch && ch.name && !/^#{2,}|^\*{2,}|^={2,}/.test(ch.name.trim()));
           rawM3U = 'parsed';
         }
       } catch (e) {
@@ -5289,7 +4980,7 @@ async function loadIPTVPlaylist() {
           const fallbackUrl = 'https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8';
           const fallbackChs = await fetchAndParseM3U(fallbackUrl);
           if (Array.isArray(fallbackChs) && fallbackChs.length > 0) {
-            state.channels = fallbackChs;
+            state.channels = fallbackChs.filter(ch => ch && ch.name && !/^#{2,}|^\*{2,}|^={2,}/.test(ch.name.trim()));
             rawM3U = 'parsed';
           }
         } catch (e) {}
@@ -5308,7 +4999,9 @@ async function loadIPTVPlaylist() {
       }
 
       if (rawM3U && typeof rawM3U === 'string') {
-        state.channels = parseM3U(rawM3U);
+        const parsed = parseM3U(rawM3U);
+        // Clean out category header separator placeholders (e.g. "##### USA GENERAL #####")
+        state.channels = parsed.filter(ch => ch && ch.name && !/^#{2,}|^\*{2,}|^={2,}/.test(ch.name.trim()));
       }
     }
 
@@ -5382,12 +5075,49 @@ async function loadIPTVPlaylist() {
   }
 }
 
-// US-Only Helper functions
+// US-Only Helper functions & Priority Rank
 function isUSCategory(cat) {
   if (!cat) return false;
   if (cat === 'All Channels' || cat === 'Favorites' || cat === 'Recents') return true;
   const upper = String(cat).toUpperCase().trim();
-  return /^USA?[\s\-_|:]/i.test(upper) || upper.startsWith('US ') || upper === 'US' || upper === 'USA';
+  return upper.startsWith('|NA| USA') ||
+         upper.startsWith('NA| USA') ||
+         upper.startsWith('|US|') ||
+         upper.startsWith('US|') ||
+         upper.startsWith('US ') ||
+         upper.startsWith('US:') ||
+         upper.startsWith('US -') ||
+         upper.startsWith('USA|') ||
+         upper.startsWith('USA:') ||
+         upper.startsWith('USA -') ||
+         upper.startsWith('USA ') ||
+         upper === 'US' || upper === 'USA' ||
+         upper.includes('|NA| USA') ||
+         upper.includes('USA GENERAL') ||
+         upper.includes('USA SPORTS') ||
+         upper.includes('USA NEWS') ||
+         upper.includes('USA MOVIES') ||
+         upper.includes('USA CW') ||
+         upper.includes('USA KIDS') ||
+         upper.includes('USA ABC') ||
+         upper.includes('USA CBS') ||
+         upper.includes('USA FOX') ||
+         upper.includes('USA NBC') ||
+         upper.includes('USA PBS') ||
+         upper.includes('USA HBO') ||
+         upper.includes('USA ESPN') ||
+         upper.includes('USA NBA') ||
+         upper.includes('USA NFL') ||
+         upper.includes('USA NHL') ||
+         upper.includes('USA MLB') ||
+         upper.includes('USA NCAA') ||
+         upper.includes('USA SPECTRUM') ||
+         upper.includes('USA HULU') ||
+         upper.includes('USA PEACOCK') ||
+         upper.includes('USA PARAMOUNT') ||
+         upper.includes('24/7 ENGLISH') ||
+         upper.includes('PPV LIVE EVENT') ||
+         upper.includes('TUDN SPORTS');
 }
 
 function isExplicitNonUSCategory(cat) {
@@ -5395,11 +5125,60 @@ function isExplicitNonUSCategory(cat) {
   if (isUSCategory(cat)) return false;
   const upper = String(cat).toUpperCase().trim();
   
-  // Non-US country/region/language full names and explicit prefix codes
-  const nonUsPattern = /\b(BRAZIL|BRAZILIAN|CANADA|CANADIAN|DEPORTES|DEPORTE|DEPORTIVAS|LATINO|LATINA|LATIN|PORTUGAL|PORTUGUESE|UNITED KINGDOM|MEXICO|MEXICAN|FRANCE|FRENCH|GERMANY|GERMAN|SPAIN|SPANISH|ITALY|ITALIAN|ARGENTINA|TURKEY|TURKISH|POLAND|POLISH|ROMANIA|ROMANIAN|RUSSIA|RUSSIAN|ALBANIA|EX-YU|GREECE|GREEK|NETHERLANDS|DUTCH|INDIA|INDIAN|PAKISTAN|ARABIC|AFRICA|AFRICAN|UKRAINE|UKRAINIAN|ASIA|ASIAN|AUSTRALIA|NEW ZEALAND)\b/i;
-  const prefixPattern = /^(UK|CA|MX|FR|DE|ES|IT|AR|BR|TR|PL|RO|RU|AL|EX-YU|GR|NL|PT|IN|PK|AU|NZ)[\s\-_|:]/i;
+  // Non-US country codes used by IPTV providers: |EU|, |FR|, |AR|, |ES|, |IT|, |NL|, |DE|, |PT|, |PL|, |ALB|, |BLN|, |UK|, |AU|, |AS|, |AM|, |AF|, |SA|, |TR|, |RU|, |GR|, |RO|, |BG|, |DK|, |NO|, |FI|, |IS|, |IN|, |PK|, |BD|, |IR|, |CA|
+  const prefixCodePattern = /^\|?(EU|FR|AR|ES|IT|NL|DE|PT|PL|ALB|BLN|UK|AU|AS|AM|AF|SA|TR|RU|GR|RO|BG|DK|NO|FI|IS|IN|PK|BD|IR|CA|MX|BR|CZ|SK|HU|SE|LAT|EX-YU|YU|ISR|CY|QC|SO)[\s\-_|:]/i;
+  
+  // Non-US country/region/language full names
+  const nonUsPattern = /\b(FRANCE|FRENCH|GERMANY|GERMAN|SPAIN|SPANISH|ITALY|ITALIAN|ARGENTINA|TURKEY|TURKISH|POLAND|POLISH|ROMANIA|ROMANIAN|RUSSIA|RUSSIAN|ALBANIA|ALBANIAN|EX-YU|GREECE|GREEK|NETHERLANDS|DUTCH|INDIA|INDIAN|PAKISTAN|ARABIC|AFRICA|AFRICAN|UKRAINE|UKRAINIAN|ASIA|ASIAN|AUSTRALIA|NEW ZEALAND|BRAZIL|BRAZILIAN|CANADA|CANADIAN|PORTUGAL|PORTUGUESE|MEXICO|MEXICAN|DOMINICANA|PANAMA|GHANA|VIETNAM|SURINAME|AUSTRIA|CYPRUS|BELARUS|HUNGARIA|DANMARK|NORWAY|FINLAND|ICELAND|BULGARIA|SOMALIA|IRAN|SWEDEN|DEPORTES|DEPORTE|DEPORTIVAS|LATINO|LATINA|LATIN|SHAHID|ROTANA)\b/i;
 
-  return nonUsPattern.test(upper) || prefixPattern.test(upper);
+  return prefixCodePattern.test(upper) || nonUsPattern.test(upper);
+}
+
+function getUSCategoryRank(cat) {
+  const n = String(cat).toUpperCase().trim();
+  if (n === 'ALL CHANNELS' || n === 'FAVORITES' || n === 'RECENTS') return 0;
+  // Move US| ENTERTAINMENT up top right after Favorites (Rank 1)
+  if (n.includes('ENTERTAINMENT')) return 1;
+  if (!isUSCategory(n)) return 1000;
+  if (n.includes('GENERAL')) return 10;
+  if (n.includes('ABC')) return 11;
+  if (n.includes('CBS')) return 12;
+  if (n.includes('FOX')) return 13;
+  if (n.includes('NBC') && !n.includes('NBCS')) return 14;
+  if (n.includes('CW') || n.includes('MY')) return 15;
+  if (n.includes('PBS')) return 16;
+  if (n.includes('SPECTRUM')) return 17;
+  if (n.includes('NEWS')) return 20;
+  if (n.includes('SPORTS') || n.includes('SPORT')) return 30;
+  if (n.includes('ESPN')) return 31;
+  if (n.includes('NBA') || n.includes('WNBA')) return 32;
+  if (n.includes('NFL')) return 33;
+  if (n.includes('NHL') || n.includes('HOCKEY')) return 34;
+  if (n.includes('MLB') || n.includes('MILB')) return 35;
+  if (n.includes('NCAA')) return 36;
+  if (n.includes('DAZN') || n.includes('B1G+') || n.includes('FLO') || n.includes('MLS') || n.includes('TUDN')) return 37;
+  if (n.includes('MOVIES') || n.includes('CINEMA')) return 40;
+  if (n.includes('HBO')) return 41;
+  if (n.includes('HULU')) return 42;
+  if (n.includes('PEACOCK')) return 43;
+  if (n.includes('PARAMOUNT')) return 44;
+  if (n.includes('NETFLIX')) return 45;
+  if (n.includes('KIDS') || n.includes('FAMILY')) return 50;
+  if (n.includes('24/7')) return 60;
+  if (n.includes('PPV')) return 70;
+  if (n.includes('TELEMUNDO') || n.includes('UNIVISION')) return 80;
+  return 90;
+}
+
+function cleanCategoryDisplayName(cat) {
+  if (!cat || cat === 'All Channels' || cat === 'Favorites' || cat === 'Recents') return cat || '';
+  return String(cat)
+    .replace(/^\s*\|?\s*US\s*\|\s*/i, '')
+    .replace(/^\s*\|\s*US\s*-\s*/i, '')
+    .replace(/^\s*US\s*:\s*/i, '')
+    .replace(/^\s*US\s*-\s*/i, '')
+    .replace(/^\s*\|\s*US\s*\|\s*/i, '')
+    .trim();
 }
 
 function updateCategoriesList() {
@@ -5410,33 +5189,30 @@ function updateCategoriesList() {
   
   let groupList = Array.from(groups);
 
-  if (state.usOnly) {
-    // 1. Hide explicitly non-US categories
-    groupList = groupList.filter(cat => !isExplicitNonUSCategory(cat));
+  // Keep US/English categories prioritized in front of sort, ranked by category priority (Entertainment #1)
+  const usCats = groupList.filter(cat => isUSCategory(cat)).sort((a, b) => {
+    const rankDiff = getUSCategoryRank(a) - getUSCategoryRank(b);
+    return rankDiff !== 0 ? rankDiff : a.localeCompare(b);
+  });
+  const otherCats = groupList.filter(cat => !isUSCategory(cat)).sort((a, b) => a.localeCompare(b));
+  groupList = [...usCats, ...otherCats];
 
-    // 2. Put US categories in front (sorted alphabetically), followed by remaining generic categories
-    const usCats = groupList.filter(cat => isUSCategory(cat)).sort();
-    const otherCats = groupList.filter(cat => !isUSCategory(cat)).sort();
-    groupList = [...usCats, ...otherCats];
-  } else {
-    groupList.sort();
-  }
+  state.categories = ['Favorites', 'Recents', ...groupList, 'All Channels'];
 
-  state.categories = ['All Channels', 'Favorites', 'Recents', ...groupList];
-
-  if (!state.categories.includes(state.selectedCategory)) {
-    state.selectedCategory = 'All Channels';
+  if (!state.selectedCategory || !state.categories.includes(state.selectedCategory) || state.selectedCategory === 'All Channels') {
+    // Default to Entertainment category on startup
+    const entCat = groupList.find(c => c.toUpperCase().includes('ENTERTAINMENT'));
+    state.selectedCategory = entCat || (groupList[0] || 'Favorites');
   }
 }
 
-// Setup Live Channel Controls (US Only switch & Prev/Next buttons)
+// Setup Live Channel Controls (Prev/Next buttons & Shortcuts)
 function setupLiveChannelControls() {
   const usOnlySwitch = document.getElementById('us-only-switch');
   if (usOnlySwitch) {
-    usOnlySwitch.checked = state.usOnly;
+    usOnlySwitch.checked = false;
     usOnlySwitch.addEventListener('change', (e) => {
       state.usOnly = e.target.checked;
-      localStorage.setItem('iptv_us_only', JSON.stringify(state.usOnly));
       updateCategoriesList();
       renderCategories();
       applyFilterAndRender();
@@ -5523,11 +5299,7 @@ function renderCategories() {
     
     if (category === 'All Channels') {
       iconName = 'tv';
-      if (state.usOnly) {
-        count = state.channels.filter(ch => isUSCategory(ch.group) || /^USA?[\s\-_|:]/i.test(ch.name) || !isExplicitNonUSCategory(ch.group)).length;
-      } else {
-        count = state.channels.length;
-      }
+      count = state.channels.length;
     } else if (category === 'Favorites') {
       iconName = 'star';
       count = state.favorites.length;
@@ -5539,10 +5311,12 @@ function renderCategories() {
       count = state.channels.filter(ch => ch.group === category).length;
     }
 
+    const cleanLabel = cleanCategoryDisplayName(category);
+
     btn.innerHTML = `
       <div class="flex items-center gap-2.5 truncate">
         <i data-lucide="${iconName}" class="w-4 h-4 opacity-75 shrink-0"></i>
-        <span class="truncate">${category}</span>
+        <span class="truncate">${cleanLabel}</span>
       </div>
       <span class="text-[10px] bg-slate-900 border border-slate-800/80 text-slate-500 px-1.5 py-0.5 rounded-md min-w-5 text-center">${count}</span>
     `;
@@ -5560,7 +5334,7 @@ function renderCategories() {
   createIcons(iconConfig);
 }
 
-// Apply filter logic to Live channels
+// Apply filter logic to Live channels with US prioritization & enhanced search
 function applyFilterAndRender() {
   let list = [];
 
@@ -5568,11 +5342,16 @@ function applyFilterAndRender() {
   const searchQ = (liveSearchInput && liveSearchInput.value) ? liveSearchInput.value.trim() : (state.searchQuery || '');
 
   if (state.selectedCategory === 'All Channels') {
-    if (state.usOnly) {
-      list = state.channels.filter(ch => isUSCategory(ch.group) || /^USA?[\s\-_|:]/i.test(ch.name) || !isExplicitNonUSCategory(ch.group));
-    } else {
-      list = [...state.channels];
-    }
+    list = [...state.channels];
+
+    // Keep US channels prioritized in front within All Channels
+    list.sort((a, b) => {
+      const aIsUS = isUSCategory(a.group) || /^USA?[\s\-_|:]/i.test(a.name);
+      const bIsUS = isUSCategory(b.group) || /^USA?[\s\-_|:]/i.test(b.name);
+      if (aIsUS && !bIsUS) return -1;
+      if (!aIsUS && bIsUS) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
   } else if (state.selectedCategory === 'Favorites') {
     list = state.channels.filter(ch => state.favorites.includes(ch.id));
   } else if (state.selectedCategory === 'Recents') {
@@ -5583,14 +5362,41 @@ function applyFilterAndRender() {
     list = state.channels.filter(ch => ch.group === state.selectedCategory);
   }
 
-  // Filter by Search Query if present
+  // Filter by Search Query with multi-field scoring and ranking
   if (searchQ) {
     const q = searchQ.toLowerCase();
-    list = list.filter(ch => 
-      (ch.name && ch.name.toLowerCase().includes(q)) || 
-      (ch.group && ch.group.toLowerCase().includes(q)) ||
-      (ch.id && ch.id.toLowerCase().includes(q))
-    );
+    const scoredList = [];
+
+    for (const ch of list) {
+      const name = (ch.name || '').toLowerCase();
+      const group = (ch.group || '').toLowerCase();
+      const id = (ch.id || '').toLowerCase();
+      const tvgName = (ch.tvg_name || '').toLowerCase();
+      const epgId = (ch.epg_channel_id || '').toLowerCase();
+
+      // Check current EPG title for match
+      const epg = getChannelEPGInfo(ch);
+      const epgTitle = (epg && epg.title ? epg.title : '').toLowerCase();
+
+      let score = 0;
+      if (name === q) score += 100;
+      else if (name.startsWith(q)) score += 80;
+      else if (name.includes(q)) score += 50;
+      else if (epgTitle && epgTitle.includes(q)) score += 40;
+      else if (group.includes(q)) score += 30;
+      else if (tvgName.includes(q) || epgId.includes(q) || id.includes(q)) score += 20;
+
+      if (score > 0) {
+        // Boost US channels in search
+        if (isUSCategory(ch.group) || /^USA?[\s\-_|:]/i.test(ch.name)) {
+          score += 15;
+        }
+        scoredList.push({ channel: ch, score });
+      }
+    }
+
+    scoredList.sort((a, b) => b.score - a.score);
+    list = scoredList.map(item => item.channel);
   }
 
   state.filteredChannels = list;
@@ -5600,9 +5406,8 @@ function applyFilterAndRender() {
   
   const subtitleEl = document.getElementById('channel-list-info');
   if (subtitleEl) {
-    const usSuffix = state.usOnly ? ' (US-Only)' : '';
     const querySuffix = searchQ ? ` matching "${searchQ}"` : '';
-    subtitleEl.textContent = `Showing results in ${state.selectedCategory}${usSuffix}${querySuffix}`;
+    subtitleEl.textContent = `Showing results in ${state.selectedCategory}${querySuffix}`;
   }
 
   renderChannelsGrid();
@@ -5694,7 +5499,7 @@ function renderChannelsGrid() {
 
       const hasEPG = epgInfo && epgInfo.title !== null;
       details.innerHTML = `
-        <h4 class="channel-card-title">${channel.name}</h4>
+        <h4 class="channel-card-title">${cleanChannelName(channel.name)}</h4>
         <span class="channel-card-group">${channel.group || 'Live TV'}</span>
         <div class="channel-epg-wrap">
           <div class="channel-epg-now" title="${hasEPG ? epgInfo.title : 'No guide data'}">
@@ -5717,6 +5522,7 @@ function renderChannelsGrid() {
 
       const favBtn = document.createElement('button');
       favBtn.className = `channel-fav-btn ${isFav ? 'active' : ''}`;
+      favBtn.setAttribute('tabindex', '-1');
       favBtn.setAttribute('title', isFav ? 'Remove from favorites' : 'Add to favorites');
       favBtn.innerHTML = `<i data-lucide="star" class="${isFav ? 'fill-amber-400 text-amber-400' : ''}"></i>`;
       favBtn.addEventListener('click', (e) => {
@@ -5940,9 +5746,9 @@ async function updatePlayerEPG(channel) {
 
   // 2. If XMLTV has no data for this channel, query Xtream short EPG API
   if (!epg || !epg.title) {
-    const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://portal5458.com:8080';
-    const username = (localStorage.getItem('iptv_username') || '').trim();
-    const password = (localStorage.getItem('iptv_password') || '').trim();
+    const portalUrl = localStorage.getItem('iptv_portal_url') || 'http://vpn.uhdp.top:80';
+    const username = (localStorage.getItem('iptv_username') || '954ee56a56').trim();
+    const password = (localStorage.getItem('iptv_password') || '2b0dd524f955').trim();
     const streamId = channel.stream_id || channel.id;
     const serverEpg = await fetchXtreamEPG(portalUrl, username, password, streamId);
     if (serverEpg && serverEpg.title) {

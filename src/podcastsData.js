@@ -1122,7 +1122,7 @@ export async function fetchPodcastRssFeed(feedUrl, channel = {}) {
 
 function getPodcastsProxyUrl(targetUrl) {
   if (!targetUrl) return '';
-  let baseProxy = 'https://tv-dinner-proxy.onrender.com/';
+  let baseProxy = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
   try {
     const saved = (localStorage.getItem('external_proxy_url') || '').trim();
     if (saved) baseProxy = saved;
@@ -1139,7 +1139,7 @@ function getPodcastsProxyUrl(targetUrl) {
     return `${origin}${p}?url=${encodeURIComponent(targetUrl)}`;
   }
 
-  return `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(targetUrl)}`;
+  return `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(targetUrl)}`;
 }
 
 // Dynamically fetch past episodes for a channel (via standard RSS 2.0 audio feed, YouTube XML RSS feed & live APIs)

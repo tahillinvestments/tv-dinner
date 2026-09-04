@@ -2,10 +2,12 @@ node_modules
 dist
 .DS_Store
 .gemini
+.agents/
 
 .vercel
 
 *.apk
+*.zip
 scratch/
 .codegraph/
 

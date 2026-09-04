@@ -1695,11 +1695,11 @@ describe('ADV-VOD-01: Xtream VOD Stream Resolution, Metadata & Search Adversaria
 
     // Movie with leading dot and query params
     const mUrl = client.getMovieStreamUrl('5001', '.mkv?token=secret#hdr');
-    expect(mUrl).toContain(encodeURIComponent('http://vod.server.com:8080/movie/gj3526@gmail.com/ck9sd6Nc4TZA/5001.mkv'));
+    expect(mUrl).toContain(encodeURIComponent(`http://vod.server.com:8080/movie/${client.username}/${client.password}/5001.mkv`));
 
     // Series with uppercase extension
     const sUrl = client.getSeriesStreamUrl('9002', 'MP4');
-    expect(sUrl).toContain(encodeURIComponent('http://vod.server.com:8080/series/gj3526@gmail.com/ck9sd6Nc4TZA/9002.mp4'));
+    expect(sUrl).toContain(encodeURIComponent(`http://vod.server.com:8080/series/${client.username}/${client.password}/9002.mp4`));
 
     // Null extension defaults to mp4
     const defaultUrl = client.getMovieStreamUrl('1001', null);

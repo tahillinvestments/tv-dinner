@@ -188,6 +188,11 @@ class SpatialNavigationEngine {
       if (el.disabled) return false;
       if (el.getAttribute && el.getAttribute('tabindex') === '-1') return false;
 
+      // Ignore child sub-buttons inside cards (e.g. channel favorite star button) to prevent D-Pad traps
+      if (el.classList.contains('channel-fav-btn') || (typeof el.closest === 'function' && el.closest('.channel-card') && el !== el.closest('.channel-card'))) {
+        return false;
+      }
+
       const rect = (typeof el.getBoundingClientRect === 'function') ? el.getBoundingClientRect() : { width: 100, height: 100, bottom: 100, right: 100, left: 0, top: 0 };
       if (rect.width <= 0 || rect.height <= 0) return false;
       if (rect.bottom < 0 || rect.right < 0) return false;
@@ -253,6 +258,84 @@ class SpatialNavigationEngine {
       // Focus first available candidate
       this.focusElement(candidates[0]);
       return true;
+    }
+
+    // Zone 1 -> Zone 2: Main Sidebar Nav -> Live TV Categories Sidebar
+    if (direction === 'right' && current.closest('#sidebar, #tab-nav, .nav-tabs-sidebar')) {
+      const activeTab = document.querySelector('.tab-screen:not(.hidden)');
+      if (activeTab && activeTab.id === 'tab-live') {
+        const catContainer = document.getElementById('categories-container');
+        if (catContainer) {
+          const activeCat = catContainer.querySelector('.category-btn.active') || catContainer.querySelector('.category-btn');
+          if (activeCat) {
+            this.focusElement(activeCat);
+            return true;
+          }
+        }
+      }
+    }
+
+    // Zone 2 -> Zone 1: Live Categories Sidebar -> Main Sidebar Nav
+    if (direction === 'left' && (current.classList.contains('category-btn') || current.closest('.live-sidebar'))) {
+      const mainSidebarLiveBtn = document.querySelector('#tab-btn-live, [data-tab="live"], #sidebar button');
+      if (mainSidebarLiveBtn) {
+        this.focusElement(mainSidebarLiveBtn);
+        return true;
+      }
+    }
+
+    // Zone 2 -> Zone 3: Live TV Category -> Live Channels Grid
+    if (direction === 'right' && (current.classList.contains('category-btn') || current.closest('.live-sidebar'))) {
+      const liveGrid = document.getElementById('channels-grid');
+      if (liveGrid) {
+        // Look for active channel card first, or first visible channel card
+        const activeCard = liveGrid.querySelector('.channel-card.active');
+        const firstCard = liveGrid.querySelector('.channel-card');
+        const searchInput = document.getElementById('live-search-input');
+        const target = activeCard || firstCard || searchInput;
+        if (target) {
+          this.focusElement(target);
+          return true;
+        }
+      }
+    }
+
+    // Zone 3 -> Zone 2: Live TV Channels Grid -> Categories Sidebar
+    if (direction === 'left' && (current.classList.contains('channel-card') || current.closest('.live-channels-grid-wrap') || current.id === 'live-search-input')) {
+      const catContainer = document.getElementById('categories-container');
+      if (catContainer) {
+        const activeCat = catContainer.querySelector('.category-btn.active');
+        const firstCat = catContainer.querySelector('.category-btn');
+        const target = activeCat || firstCat;
+        if (target) {
+          this.focusElement(target);
+          return true;
+        }
+      }
+    }
+
+    // Zone 3 -> Zone 4: Live TV Channels Grid -> Player Action Controls
+    if (direction === 'right' && (current.classList.contains('channel-card') || current.id === 'live-search-input')) {
+      const playerControls = document.querySelector('#player-controls, .player-action-controls, #live-player-container');
+      if (playerControls) {
+        const firstControl = playerControls.querySelector('button, [tabindex="0"]');
+        if (firstControl) {
+          this.focusElement(firstControl);
+          return true;
+        }
+      }
+    }
+
+    // Zone 4 -> Zone 3: Player Controls -> Active Channel Card
+    if (direction === 'left' && current.closest('#live-player-container, #player-section, .player-wrapper')) {
+      const liveGrid = document.getElementById('channels-grid');
+      if (liveGrid) {
+        const activeCard = liveGrid.querySelector('.channel-card.active') || liveGrid.querySelector('.channel-card');
+        if (activeCard) {
+          this.focusElement(activeCard);
+          return true;
+        }
+      }
     }
 
     const currentRect = current.getBoundingClientRect();
@@ -555,6 +638,18 @@ class SpatialNavigationEngine {
       case 'Select':
       case 'Ok':
         if (!isInput) {
+          const isFullscreen = !!(
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.querySelector('.video-container.is-pseudo-fullscreen') ||
+            document.querySelector('#player-section.is-pseudo-fullscreen') ||
+            document.body.classList.contains('is-fullscreen')
+          );
+          if (isFullscreen) {
+            e.preventDefault();
+            this.triggerMediaAction('onPlayPause');
+            return;
+          }
           e.preventDefault();
           const current = this.getCurrentFocus();
           if (current) {

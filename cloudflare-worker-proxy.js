@@ -75,9 +75,6 @@ export default {
       'user-agent': 'VLC/3.0.21 LibVLC/3.0.21',
       'accept': '*/*',
     };
-    if (targetUrl.hostname.includes('portal5458') || targetUrl.hostname.includes('kstv')) {
-      outgoingHeaders['host'] = targetUrl.hostname;
-    }
     const rangeHeader = request.headers.get('range');
     if (rangeHeader) outgoingHeaders['range'] = rangeHeader;
 
@@ -89,11 +86,16 @@ export default {
       });
 
       const finalUrl = response.url || targetUrl.href;
+      let finalUrlObj = targetUrl;
+      try { finalUrlObj = new URL(finalUrl); } catch (_) {}
       const contentType = (response.headers.get('content-type') || '').toLowerCase();
       const isM3U8 =
         contentType.includes('mpegurl') ||
+        contentType.includes('m3u') ||
         targetUrl.pathname.endsWith('.m3u8') ||
-        targetUrl.pathname.endsWith('.m3u');
+        targetUrl.pathname.endsWith('.m3u') ||
+        finalUrlObj.pathname.endsWith('.m3u8') ||
+        finalUrlObj.pathname.endsWith('.m3u');
 
       // Build clean response headers
       const resHeaders = new Headers();

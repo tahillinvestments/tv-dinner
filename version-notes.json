@@ -1,4 +1,8 @@
 {
+  "2.1.1": {
+    "title": "Clean Package Migration, Live TV Rewind, English CC & Safe Search",
+    "releaseNotes": "• Clean Package Migration: Migrated package identifier to com.tvdinner, removing all legacy developer tags\n• Live TV Rewind: Use remote Left button to step back up to 2 minutes in live stream buffer\n• Return to Live: Use remote Right button to advance toward live feed (right button becomes no-op once at live)\n• English Closed Captions: Automatic prioritization of English subtitle/CC tracks whenever captions are enabled\n• Adult Search Isolation: Adult items are strictly excluded from search results unless an adult category tab is selected"
+  },
   "2.1.0": {
     "title": "Reliable OTA Installer, High-Contrast Search Focus & Remote Enhancements",
     "releaseNotes": "• OTA Update Reliability: Instant package installer launch with cached APK persistence (no re-download required) and unknown app permission handling\n• Distinct Version Details: Accurate, version-specific release notes for each release in update dialogs\n• High-Contrast Search Focus: Search bars across Live TV, Movies, Series, Music, and Podcasts glow bright cyan/blue when focused\n• Music Fast Skipping: Ultra-responsive YouTube track transitions using loadVideoById with zero playback dropouts\n• Podcasts Remote Navigation: Press D-Pad UP during podcast playback to immediately jump to the previous episode"

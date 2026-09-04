@@ -79,7 +79,7 @@ async function _loadXmltvFeed(portalUrl, username, password) {
   
   const proxyEndpoints = [
     _buildProxyUrl(xmlUrl),
-    `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(xmlUrl)}`,
+    `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(xmlUrl)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(xmlUrl)}`
   ];
 
@@ -134,7 +134,7 @@ function _buildProxyUrl(url) {
   const external = (() => {
     try { return localStorage.getItem('external_proxy_url'); } catch (_) { return null; }
   })();
-  const base = external || 'https://tv-dinner-proxy.onrender.com/';
+  const base = external || 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
   if (base.startsWith('http://') || base.startsWith('https://')) {
     const p = base.endsWith('/') ? base : base + '/';
     return `${p}?url=${encodeURIComponent(url)}`;
@@ -245,15 +245,20 @@ function _parseXmltvText(xml) {
   }
 }
 
-/** Parse XMLTV datetime: "20260813220000 +0000" or "-0400" */
+/** Parse XMLTV datetime: "20260813220000 +0000" or "-0400" or local format */
 function _xmltvDateToMs(str) {
   if (!str) return null;
   const m = str.trim().match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\s*([+-]\d{4})?/);
   if (!m) return null;
   const [, yr, mo, dy, hr, mn, sc, tz] = m;
-  const tzStr = tz ? `${tz.slice(0, 3)}:${tz.slice(3)}` : '+00:00';
-  const ms = Date.parse(`${yr}-${mo}-${dy}T${hr}:${mn}:${sc}${tzStr}`);
-  return isNaN(ms) ? null : ms;
+  if (tz) {
+    const tzStr = `${tz.slice(0, 3)}:${tz.slice(3)}`;
+    const ms = Date.parse(`${yr}-${mo}-${dy}T${hr}:${mn}:${sc}${tzStr}`);
+    return isNaN(ms) ? null : ms;
+  }
+  // When timezone is omitted, construct local Date for device local time
+  const localDate = new Date(Number(yr), Number(mo) - 1, Number(dy), Number(hr), Number(mn), Number(sc));
+  return isNaN(localDate.getTime()) ? null : localDate.getTime();
 }
 
 // ─── Placeholder ──────────────────────────────────────────────────────────────
@@ -271,11 +276,24 @@ function _placeholder() {
 
 // ─── Public: Get channel program info ─────────────────────────────────────────
 /**
- * Returns real EPG object from XMLTV table, or a placeholder with null fields.
+ * Returns real EPG object from XMLTV table or short EPG cache, or a placeholder with null fields.
  * Callers must check `epg.title !== null` before displaying.
  */
 export function getChannelEPGInfo(channel) {
   if (!channel) return _placeholder();
+
+  // 0. Check short EPG cache first for freshly fetched stream guide
+  const streamId = channel.stream_id || channel.id;
+  if (streamId) {
+    for (const [key, cached] of shortEpgCache) {
+      if (key.endsWith(`_${streamId}`) && cached && cached.data && cached.data.title) {
+        const now = Date.now();
+        if (!cached.data.endTime || (cached.data.endTime > now && (!cached.data.startTime || cached.data.startTime <= now))) {
+          return cached.data;
+        }
+      }
+    }
+  }
 
   // 1. Check direct keys in priority order: epg_channel_id, tvg_id, stream_id, id, tvg_name
   const candidateKeys = [
@@ -366,7 +384,7 @@ export async function fetchXtreamEPG(portalUrl, username, password, streamId) {
     
     const endpoints = [
       _buildProxyUrl(epgUrl),
-      `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(epgUrl)}`,
+      `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(epgUrl)}`,
       `https://api.allorigins.win/raw?url=${encodeURIComponent(epgUrl)}`
     ];
 
@@ -387,23 +405,65 @@ export async function fetchXtreamEPG(portalUrl, username, password, streamId) {
       const listings = json.epg_listings;
       const now = Date.now();
 
-      let idx = listings.findIndex(item => {
-        const s = item.start_timestamp ? item.start_timestamp * 1000 : Date.parse(item.start);
-        const e = item.stop_timestamp  ? item.stop_timestamp  * 1000 : Date.parse(item.end);
-        return now >= s && now <= e;
-      });
+      const parseTime = (tsVal, dateStr) => {
+        if (tsVal) {
+          const num = Number(tsVal);
+          if (!isNaN(num) && num > 1000000000) {
+            return num < 10000000000 ? num * 1000 : num;
+          }
+        }
+        if (dateStr) {
+          const s = String(dateStr).trim();
+          if (s.includes('T') || s.includes('+') || s.endsWith('Z')) {
+            const parsed = Date.parse(s);
+            if (!isNaN(parsed)) return parsed;
+          }
+          const m = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+          if (m) {
+            const [, y, mo, d, h, mi, sec] = m;
+            return new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(sec)).getTime();
+          }
+          const p = Date.parse(s);
+          if (!isNaN(p)) return p;
+        }
+        return 0;
+      };
+
+      // 1. Direct now_playing flag check from Xtream API
+      let idx = listings.findIndex(item => item.now_playing === 1 || item.now_playing === '1' || item.has_now_playing === 1);
+
+      // 2. Match current time window
+      if (idx === -1) {
+        idx = listings.findIndex(item => {
+          const s = parseTime(item.start_timestamp, item.start);
+          const e = parseTime(item.stop_timestamp, item.end || item.stop);
+          return s > 0 && e > s && now >= s && now < e;
+        });
+      }
+
+      // 3. Fallback: find nearest future or ongoing program
+      if (idx === -1) {
+        idx = listings.findIndex(item => {
+          const e = parseTime(item.stop_timestamp, item.end || item.stop);
+          return e > now;
+        });
+      }
+
       if (idx === -1) idx = 0;
 
       const cur  = listings[idx];
       const next = listings[idx + 1] || null;
+      const curStart = parseTime(cur.start_timestamp, cur.start);
+      const curEnd = parseTime(cur.stop_timestamp, cur.end || cur.stop);
+      const nextStart = next ? parseTime(next.start_timestamp, next.start) : null;
 
       const data = {
         title:         _decodeB64(cur.title || '') || null,
         description:   _decodeB64(cur.description || '') || '',
-        startTime:     cur.start_timestamp ? cur.start_timestamp * 1000 : Date.parse(cur.start),
-        endTime:       cur.stop_timestamp  ? cur.stop_timestamp  * 1000 : Date.parse(cur.end),
+        startTime:     curStart,
+        endTime:       curEnd,
         nextTitle:     next ? (_decodeB64(next.title || '') || null) : null,
-        nextStartTime: next ? (next.start_timestamp ? next.start_timestamp * 1000 : Date.parse(next.start)) : null,
+        nextStartTime: nextStart,
         isServerEPG:   true
       };
 
@@ -421,11 +481,33 @@ function _decodeB64(str) {
   const trimmed = str.trim();
   if (/^[A-Za-z0-9+/=]+$/.test(trimmed) && trimmed.length % 4 === 0 && trimmed.length >= 4) {
     try {
-      const decoded = decodeURIComponent(escape(atob(trimmed)));
-      if (decoded && !/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(decoded)) {
-        return decoded;
+      if (typeof TextDecoder !== 'undefined' && typeof atob !== 'undefined') {
+        const bin = atob(trimmed);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const decoded = new TextDecoder('utf-8').decode(bytes);
+        if (decoded && !/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(decoded)) {
+          return decoded;
+        }
+      } else if (typeof Buffer !== 'undefined') {
+        const decoded = Buffer.from(trimmed, 'base64').toString('utf8');
+        if (decoded && !/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(decoded)) {
+          return decoded;
+        }
+      } else {
+        const decoded = decodeURIComponent(escape(atob(trimmed)));
+        if (decoded && !/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(decoded)) {
+          return decoded;
+        }
       }
-    } catch (_) {}
+    } catch (_) {
+      try {
+        const decoded = decodeURIComponent(escape(atob(trimmed)));
+        if (decoded && !/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/.test(decoded)) {
+          return decoded;
+        }
+      } catch (__) {}
+    }
   }
   return str;
 }

@@ -3,7 +3,7 @@ const pass = '4WM9WVsjG';
 const targetApi = `http://portal5458.com:8080/player_api.php?username=${user}&password=${pass}&action=get_live_streams`;
 
 const proxies = [
-  `https://tv-dinner-proxy.onrender.com/?url=${encodeURIComponent(targetApi)}`,
+  `https://tv-dinner-proxy.tahillinvestments.workers.dev/?url=${encodeURIComponent(targetApi)}`,
   `https://corsproxy.io/?${encodeURIComponent(targetApi)}`
 ];
 

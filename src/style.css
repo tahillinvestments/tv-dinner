@@ -2630,6 +2630,48 @@ body {
     max-width: 100% !important;
     margin: 0 !important;
   }
+
+  /* Mobile Phone Settings Page Optimization */
+  .settings-header-sheet {
+    padding: 1.25rem 1rem 0.85rem !important;
+  }
+
+  .settings-header-sheet h2 {
+    font-size: 1.25rem !important;
+    font-weight: 700 !important;
+  }
+
+  .settings-header-sheet p {
+    font-size: 0.75rem !important;
+  }
+
+  .settings-form-container {
+    padding: 0.85rem 0.75rem 5rem !important;
+    gap: 1rem !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .settings-form-section {
+    padding: 1rem !important;
+    border-radius: 14px !important;
+    gap: 0.75rem !important;
+  }
+
+  .settings-form-section h3 {
+    font-size: 0.95rem !important;
+  }
+
+  .settings-input-row {
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  .settings-input-control {
+    padding: 0.65rem 0.85rem !important;
+    font-size: 0.85rem !important;
+    border-radius: 8px !important;
+  }
 }
 
 /* Mobile Drawer Overlay Sheet */

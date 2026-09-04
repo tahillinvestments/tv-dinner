@@ -1,26 +1,40 @@
 {
   "currentVersion": {
-    "versionCode": 210,
-    "versionName": "2.1.0",
-    "title": "Reliable OTA Installer, High-Contrast Search Focus & Remote Enhancements",
-    "releaseNotes": "• OTA Update Reliability: Instant package installer launch with cached APK persistence (no re-download required) and unknown app permission handling\n• Distinct Version Details: Accurate, version-specific release notes for each release in update dialogs\n• High-Contrast Search Focus: Search bars across Live TV, Movies, Series, Music, and Podcasts glow bright cyan/blue when focused\n• Music Fast Skipping: Ultra-responsive YouTube track transitions using loadVideoById with zero playback dropouts\n• Podcasts Remote Navigation: Press D-Pad UP during podcast playback to immediately jump to the previous episode",
-    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.0/app-release.apk",
+    "versionCode": 211,
+    "versionName": "2.1.1",
+    "title": "Clean Package Migration, Live TV Rewind, English CC & Safe Search",
+    "releaseNotes": "• Clean Package Migration: Migrated package identifier to com.tvdinner, removing all legacy developer tags\n• Live TV Rewind: Use remote Left button to step back up to 2 minutes in live stream buffer\n• Return to Live: Use remote Right button to advance toward live feed (right button becomes no-op once at live)\n• English Closed Captions: Automatic prioritization of English subtitle/CC tracks whenever captions are enabled\n• Adult Search Isolation: Adult items are strictly excluded from search results unless an adult category tab is selected",
+    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.1/app-release.apk",
     "mandatory": false,
-    "publishedAt": "2026-09-03T21:26:47.640Z"
+    "publishedAt": "2026-09-04T16:04:46.382Z"
   },
   "releases": [
+    {
+      "id": "rel-211",
+      "versionCode": 211,
+      "versionName": "2.1.1",
+      "title": "Clean Package Migration, Live TV Rewind, English CC & Safe Search",
+      "status": "PUBLISHED",
+      "releaseNotes": "• Clean Package Migration: Migrated package identifier to com.tvdinner, removing all legacy developer tags\n• Live TV Rewind: Use remote Left button to step back up to 2 minutes in live stream buffer\n• Return to Live: Use remote Right button to advance toward live feed (right button becomes no-op once at live)\n• English Closed Captions: Automatic prioritization of English subtitle/CC tracks whenever captions are enabled\n• Adult Search Isolation: Adult items are strictly excluded from search results unless an adult category tab is selected",
+      "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+      "localApkUrl": "public/apks/tv-dinner-v2.1.1.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.1/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-04T15:57:36.068Z",
+      "publishedAt": "2026-09-04T16:04:46.382Z"
+    },
     {
       "id": "rel-210",
       "versionCode": 210,
       "versionName": "2.1.0",
       "title": "Reliable OTA Installer, High-Contrast Search Focus & Remote Enhancements",
-      "status": "PUBLISHED",
+      "status": "ARCHIVED",
       "releaseNotes": "• OTA Update Reliability: Instant package installer launch with cached APK persistence (no re-download required) and unknown app permission handling\n• Distinct Version Details: Accurate, version-specific release notes for each release in update dialogs\n• High-Contrast Search Focus: Search bars across Live TV, Movies, Series, Music, and Podcasts glow bright cyan/blue when focused\n• Music Fast Skipping: Ultra-responsive YouTube track transitions using loadVideoById with zero playback dropouts\n• Podcasts Remote Navigation: Press D-Pad UP during podcast playback to immediately jump to the previous episode",
       "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
       "localApkUrl": "public/apks/tv-dinner-v2.1.0.apk",
       "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.0/app-release.apk",
       "mandatory": false,
-      "createdAt": "2026-09-03T21:26:42.952Z",
+      "createdAt": "2026-09-03T21:26:47.640Z",
       "publishedAt": "2026-09-03T21:26:47.640Z"
     },
     {

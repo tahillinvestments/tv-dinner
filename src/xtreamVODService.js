@@ -50,36 +50,46 @@ export function sortVODByPopularity(items) {
 }
 
 export class XtreamVODClient {
-  constructor(baseUrl = '') {
-    this._baseUrl = baseUrl;
+  constructor(options = '') {
+    if (typeof options === 'object' && options !== null) {
+      this._baseUrl = options.baseUrl || '';
+      this._username = options.username || '';
+      this._password = options.password || '';
+    } else {
+      this._baseUrl = typeof options === 'string' ? options : '';
+      this._username = '';
+      this._password = '';
+    }
     this._vodCache = new Map();
   }
 
   get baseUrl() {
-    if (this._baseUrl) return this._baseUrl.trim().replace(/\/+$/, '');
+    if (this._baseUrl && typeof this._baseUrl === 'string') return this._baseUrl.trim().replace(/\/+$/, '');
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('xtream_vod_portal');
+      const saved = localStorage.getItem('xtream_vod_portal') || localStorage.getItem('iptv_portal_url');
       if (saved && saved.trim()) return saved.trim().replace(/\/+$/, '');
     }
-    return 'http://asoseller.org:8080';
+    return 'http://vpn.uhdp.top:80';
   }
 
   get username() {
+    if (this._username && typeof this._username === 'string') return this._username.trim();
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('xtream_vod_username');
-      if (saved && saved.trim() && saved.includes('@')) return saved.trim();
+      const saved = localStorage.getItem('xtream_vod_username') || localStorage.getItem('iptv_username');
+      if (saved && saved.trim()) return saved.trim();
     }
-    return 'gj3526@gmail.com';
+    return '954ee56a56';
   }
 
   get password() {
+    if (this._password && typeof this._password === 'string') return this._password.trim();
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('xtream_vod_password');
-      if (saved && saved.trim() && saved !== 'Louisville' && saved !== 'ADFREE2026' && saved !== 'TV4LIFE' && saved !== 'REMOTE6202' && saved !== '2611596317' && saved !== '4WM9WVsjG' && saved !== '5DwU7wTuA' && saved !== 'JaKXrfMP7') {
+      const saved = localStorage.getItem('xtream_vod_password') || localStorage.getItem('iptv_password');
+      if (saved && saved.trim()) {
         return saved.trim();
       }
     }
-    return 'ck9sd6Nc4TZA';
+    return '2b0dd524f955';
   }
 
   async fetchApi(action, params = {}) {
@@ -102,22 +112,41 @@ export class XtreamVODClient {
       proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
     } catch (e) {}
     if (!proxyBase) {
-      proxyBase = 'https://tv-dinner-proxy.onrender.com/';
+      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        proxyBase = '/api/proxy';
+      } else {
+        proxyBase = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+      }
     }
 
-    let url;
-    if (proxyBase.startsWith('http://') || proxyBase.startsWith('https://')) {
-      const p = proxyBase.endsWith('/') ? proxyBase : proxyBase + '/';
-      url = `${p}?url=${encodeURIComponent(targetUrl)}`;
-    } else {
-      url = `${proxyBase}?url=${encodeURIComponent(targetUrl)}`;
+    const buildUrl = (base) => {
+      if (base.startsWith('http://') || base.startsWith('https://')) {
+        const p = base.endsWith('/') ? base : base + '/';
+        return `${p}?url=${encodeURIComponent(targetUrl)}`;
+      }
+      return `${base}?url=${encodeURIComponent(targetUrl)}`;
+    };
+
+    let lastStatus = null;
+    try {
+      const res = await fetch(buildUrl(proxyBase));
+      if (res.ok) return await res.json();
+      lastStatus = res.status;
+    } catch (e) {
+      console.warn(`[Xtream] Primary proxy fetch failed for ${action}:`, e.message);
     }
 
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`Xtream API error (${action}): ${res.status}`);
+    // Fallback to secondary proxy endpoint
+    const fallbackBase = proxyBase.includes('workers.dev') ? '/api/proxy' : 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+    try {
+      const res = await fetch(buildUrl(fallbackBase));
+      if (res.ok) return await res.json();
+      lastStatus = res.status;
+    } catch (e) {
+      console.warn(`[Xtream] Fallback proxy fetch failed for ${action}:`, e.message);
     }
-    return res.json();
+
+    throw new Error(`Xtream API error (${action}): ${lastStatus || 'unable to fetch data'}`);
   }
 
   async getMovieCategories() {
@@ -167,14 +196,34 @@ export class XtreamVODClient {
   }
 
   async preloadCommon() {
-    const commonMovieCats = ['1', '2', '3', '4', '5', '7', '8', '11', '16', '17', '18'];
-    const commonSeriesCats = ['21', '22', '23', '24', '25', '27', '28', '30', '39'];
     try {
-      await Promise.allSettled([
+      const [movieCats, seriesCats] = await Promise.allSettled([
         this.getMovieCategories(),
-        this.getSeriesCategories(),
-        ...commonMovieCats.map(cat => this.getMovies(cat)),
-        ...commonSeriesCats.map(cat => this.getSeries(cat))
+        this.getSeriesCategories()
+      ]);
+
+      const mCats = movieCats.status === 'fulfilled' && Array.isArray(movieCats.value) ? movieCats.value : [];
+      const sCats = seriesCats.status === 'fulfilled' && Array.isArray(seriesCats.value) ? seriesCats.value : [];
+
+      const prioritizedMovieCatIds = mCats
+        .filter(c => /\[EN\]|ENGLISH|IMDB|MULTISUB|4K|NEW|ACTION|COMEDY|DOCUMENTARY/i.test(c.category_name || ''))
+        .map(c => String(c.category_id))
+        .slice(0, 10);
+      
+      const prioritizedSeriesCatIds = sCats
+        .filter(c => /\[EN\]|ENGLISH|MULTISUB|NETFLIX|DISNEY|APPLE|HULU|NEW/i.test(c.category_name || ''))
+        .map(c => String(c.category_id))
+        .slice(0, 10);
+
+      const fallbackMovieCats = ['633', '1160', '1239', '1243', '759', '1241', '1242', '927', '390', '650', '1257', '393', '1001', '561'];
+      const fallbackSeriesCats = ['848', '558', '486', '1154', '1219', '1136', '1146', '1174', '1176', '1137', '1138', '1398', '1433', '1145', '713'];
+
+      const targetMovieCats = Array.from(new Set([...prioritizedMovieCatIds, ...fallbackMovieCats])).slice(0, 12);
+      const targetSeriesCats = Array.from(new Set([...prioritizedSeriesCatIds, ...fallbackSeriesCats])).slice(0, 12);
+
+      await Promise.allSettled([
+        ...targetMovieCats.map(cat => this.getMovies(cat)),
+        ...targetSeriesCats.map(cat => this.getSeries(cat))
       ]);
     } catch (e) {}
   }
@@ -196,7 +245,7 @@ export class XtreamVODClient {
     }
 
     // 2. Query common categories in parallel
-    const commonCats = ['1', '2', '4', '17', '11', '3', '5', '8', '7', '10', '18'];
+    const commonCats = ['633', '1160', '1239', '1243', '759', '1241', '1242', '927', '390', '650', '1257', '393', '1001', '561'];
     const results = await Promise.allSettled(
       commonCats.map(cat => this.getMovies(cat))
     );
@@ -228,7 +277,7 @@ export class XtreamVODClient {
       }
     }
 
-    const seriesCats = ['21', '22', '24', '30', '25', '23', '27', '28'];
+    const seriesCats = ['848', '558', '486', '1154', '1219', '1136', '1146', '1174', '1176', '1137', '1138', '1398', '1433', '1145', '713'];
     const results = await Promise.allSettled(
       seriesCats.map(cat => this.getSeries(cat))
     );
@@ -254,9 +303,19 @@ export class XtreamVODClient {
     const cleanTokens = trimmed.split(/\s+/).filter(Boolean);
 
     // Ensure common movie categories are populated
-    const commonCats = ['1', '2', '4', '17', '11', '3', '5', '8', '7', '10', '18'];
+    const commonCats = ['633', '1160', '1239', '1243', '759', '1241', '1242', '927', '390', '650', '1257', '393', '581', '649', '1369', '1180', '1054', '1001'];
     if (this._vodCache.size < 2) {
-      await Promise.allSettled(commonCats.map(cat => this.getMovies(cat)));
+      try {
+        const cats = await this.getMovieCategories();
+        const enCatIds = (Array.isArray(cats) ? cats : [])
+          .filter(c => /\[EN\]|ENGLISH|IMDB|MULTISUB|4K|NEW|ACTION|COMEDY|HORROR/i.test(c.category_name || ''))
+          .map(c => String(c.category_id))
+          .slice(0, 10);
+        const targetCats = Array.from(new Set([...enCatIds, ...commonCats])).slice(0, 12);
+        await Promise.allSettled(targetCats.map(cat => this.getMovies(cat)));
+      } catch (_) {
+        await Promise.allSettled(commonCats.map(cat => this.getMovies(cat)));
+      }
     }
 
     let allMovies = [];
@@ -268,8 +327,8 @@ export class XtreamVODClient {
 
     if (allMovies.length === 0) {
       try {
-        const cat1 = await this.getMovies('1');
-        if (Array.isArray(cat1)) allMovies = allMovies.concat(cat1);
+        const cat633 = await this.getMovies('633');
+        if (Array.isArray(cat633)) allMovies = allMovies.concat(cat633);
       } catch (e) {}
     }
 
@@ -338,10 +397,19 @@ export class XtreamVODClient {
     if (!query || !query.trim()) return [];
     const trimmed = query.trim().toLowerCase();
     const cleanTokens = trimmed.split(/\s+/).filter(Boolean);
-
-    const seriesCats = ['21', '22', '24', '30', '25', '23', '27', '28'];
+    const seriesCats = ['848', '558', '486', '1154', '1219', '1136', '1146', '1174', '1176', '1137', '1138', '1398', '1433', '1145', '713'];
     if (this._vodCache.size < 2) {
-      await Promise.allSettled(seriesCats.map(cat => this.getSeries(cat)));
+      try {
+        const cats = await this.getSeriesCategories();
+        const enCatIds = (Array.isArray(cats) ? cats : [])
+          .filter(c => /\[EN\]|ENGLISH|MULTISUB|NETFLIX|DISNEY|APPLE|HULU|NEW|COMEDY/i.test(c.category_name || ''))
+          .map(c => String(c.category_id))
+          .slice(0, 10);
+        const targetCats = Array.from(new Set([...enCatIds, ...seriesCats])).slice(0, 12);
+        await Promise.allSettled(targetCats.map(cat => this.getSeries(cat)));
+      } catch (_) {
+        await Promise.allSettled(seriesCats.map(cat => this.getSeries(cat)));
+      }
     }
 
     let allSeries = [];
@@ -353,8 +421,8 @@ export class XtreamVODClient {
 
     if (allSeries.length === 0) {
       try {
-        const cat21 = await this.getSeries('21');
-        if (Array.isArray(cat21)) allSeries = allSeries.concat(cat21);
+        const cat848 = await this.getSeries('848');
+        if (Array.isArray(cat848)) allSeries = allSeries.concat(cat848);
       } catch (e) {}
     }
 
@@ -439,16 +507,16 @@ export class XtreamVODClient {
   getMovieStreamUrl(streamId, ext = 'mp4') {
     const cleanExt = (ext || 'mp4').toString().trim().split('?')[0].split('#')[0].replace(/^\.+/, '').trim().toLowerCase() || 'mp4';
     const raw = `${this.baseUrl}/movie/${this.username}/${this.password}/${streamId}.${cleanExt}`;
-    const isAndroid = typeof window !== 'undefined' && 
-      (window.location.host === 'appassets.androidplatform.net' || 
-       window.location.protocol === 'file:' || 
-       (navigator.userAgent && (navigator.userAgent.includes('TVDinnerMobileApp') || navigator.userAgent.includes('JoyfulIPTVMobileApp'))));
     let proxyBase = '';
     try {
       proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
     } catch (e) {}
     if (!proxyBase) {
-      proxyBase = 'https://tv-dinner-proxy.onrender.com/';
+      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        proxyBase = '/api/proxy';
+      } else {
+        proxyBase = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+      }
     }
     const p = proxyBase.startsWith('http://') || proxyBase.startsWith('https://')
       ? (proxyBase.endsWith('/') ? proxyBase : proxyBase + '/')
@@ -464,7 +532,11 @@ export class XtreamVODClient {
       proxyBase = (localStorage.getItem('external_proxy_url') || '').trim();
     } catch (e) {}
     if (!proxyBase) {
-      proxyBase = 'https://tv-dinner-proxy.onrender.com/';
+      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        proxyBase = '/api/proxy';
+      } else {
+        proxyBase = 'https://tv-dinner-proxy.tahillinvestments.workers.dev/';
+      }
     }
     const p = proxyBase.startsWith('http://') || proxyBase.startsWith('https://')
       ? (proxyBase.endsWith('/') ? proxyBase : proxyBase + '/')
