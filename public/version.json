@@ -1,9 +1,9 @@
 {
-  "versionCode": 214,
-  "versionName": "2.1.4",
-  "title": "Favorites Ceiling Focus, Fast Updates, Seamless Navigation & Credential Gating",
-  "releaseNotes": "• Favorites Ceiling Focus: Favorites is now the hard ceiling focus in categories; pressing Up stays in categories and never escapes to Search\n• Channels-to-Search Navigation: Pressing D-Pad Up from top channel navigates directly to Search in TV/desktop mode\n• Unblocked Channel Navigation: Guaranteed instant Right navigation from categories to channels under all conditions without unmounting list\n• 10x Faster Downloads: Overhauled OTA update downloads with 128KB buffered I/O and throttled progress updates to download at full wire speed\n• Media Transition Hardening: Isolated streaming sockets and added stream generation tokens to eliminate disruptions and stale recovery timers\n• Verified Credential Gating: Music and Podcasts are strictly gated behind verified active credentials",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.4/app-release.apk",
+  "versionCode": 215,
+  "versionName": "2.1.5",
+  "title": "VOD Playback Stabilization, Seamless Transitions, Start-at-Beginning & Podcasts Navigation",
+  "releaseNotes": "• VOD Playback Stabilization: Fixed stream errors and socket drops across the app with dedicated OkHttp dispatcher and extended 25s buffering headroom\n• Seamless Media Transitions: Switch between any media (Live TV, Movies, Series, Podcasts, Music) with clean state reset and zero need to restart app\n• VOD Start-at-Beginning: Movies and Series strictly start from 0:00 unless 'Resume' is explicitly chosen in the dialog\n• Podcasts Remote Back Navigation: Pressing Back on remote when viewing a channel's episode list returns directly to previous search or category view\n• Dashboard Re-Publishing: Re-publish former or archived releases directly from the update dashboard with one click",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.5/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-07T17:18:05.095Z"
+  "publishedAt": "2026-09-07T18:02:03.011Z"
 }

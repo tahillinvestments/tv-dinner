@@ -14,10 +14,21 @@ if (!fs.existsSync(updatesJsonPath)) {
 }
 
 const updatesData = JSON.parse(fs.readFileSync(updatesJsonPath, 'utf8'));
-const targetRelease = updatesData.releases.find(r => r.status === 'STAGED') || updatesData.releases[0];
+
+const targetArg = process.argv[2];
+let targetRelease;
+if (targetArg) {
+  targetRelease = updatesData.releases.find(r => String(r.versionCode) === targetArg || r.id === targetArg);
+  if (!targetRelease) {
+    console.warn(`⚠️ Target release '${targetArg}' not found in updates.json, falling back to staged release.`);
+  }
+}
+if (!targetRelease) {
+  targetRelease = updatesData.releases.find(r => r.status === 'STAGED') || updatesData.releases[0];
+}
 
 if (!targetRelease) {
-  console.error('❌ No staged release found to publish.');
+  console.error('❌ No staged or matching release found to publish.');
   process.exit(1);
 }
 
@@ -90,8 +101,14 @@ try {
 
 // 6. GitHub Release Creation via gh CLI
 const releaseApkPath = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
-if (fs.existsSync(releaseApkPath)) {
-  const releaseTag = `v${targetRelease.versionName}`;
+const releaseTag = `v${targetRelease.versionName}`;
+let releaseExists = false;
+try {
+  execSync(`gh release view "${releaseTag}"`, { cwd: projectRoot, stdio: 'pipe' });
+  releaseExists = true;
+} catch (_) {}
+
+if (!releaseExists && fs.existsSync(releaseApkPath)) {
   console.log(`\n📡 Uploading APK and creating GitHub Release ${releaseTag}...`);
   const notesFile = path.join(projectRoot, 'scratch', 'temp_release_notes.txt');
   fs.mkdirSync(path.dirname(notesFile), { recursive: true });
@@ -101,15 +118,11 @@ if (fs.existsSync(releaseApkPath)) {
     execSync(`gh release create "${releaseTag}" "${releaseApkPath}#app-release.apk" --title "TV Dinner ${releaseTag}" --notes-file "${notesFile}"`, { cwd: projectRoot, stdio: 'inherit' });
     console.log(`🎉 GitHub Release ${releaseTag} created with app-release.apk attached!`);
   } catch (err) {
-    console.log(`Release ${releaseTag} already exists, uploading/overwriting asset...`);
-    try {
-      execSync(`gh release upload "${releaseTag}" "${releaseApkPath}#app-release.apk" --clobber`, { cwd: projectRoot, stdio: 'inherit' });
-      console.log(`🎉 APK uploaded to GitHub Release ${releaseTag}!`);
-    } catch (uploadErr) {
-      console.warn('Could not upload to GitHub release:', uploadErr.message);
-    }
+    console.warn('Could not create GitHub release:', err.message);
   }
   try { fs.unlinkSync(notesFile); } catch (_) {}
+} else if (releaseExists) {
+  console.log(`ℹ️ GitHub Release ${releaseTag} already exists live with assets attached.`);
 } else {
   console.warn(`⚠️ Compiled release APK not found at: ${releaseApkPath}`);
 }

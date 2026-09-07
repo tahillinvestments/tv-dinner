@@ -3,6 +3,7 @@ package com.tvdinner.ui.screens
 import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -67,9 +68,15 @@ fun PodcastsScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
 
     var liveChannels by remember { mutableStateOf<List<PodcastChannel>>(emptyList()) }
+    var mainFeedEpisodes by remember { mutableStateOf<List<PodcastEpisode>>(emptyList()) }
     var liveEpisodes by remember { mutableStateOf<List<PodcastEpisode>>(emptyList()) }
     var selectedChannel by remember { mutableStateOf<PodcastChannel?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+
+    // Remote Back-button handler: return to previous view (whether search results or category feeds)
+    BackHandler(enabled = isAccessAllowed && selectedChannel != null) {
+        selectedChannel = null
+    }
 
     // Pagination / Infinite Scroll States
     var currentPage by remember { mutableIntStateOf(1) }
@@ -129,6 +136,7 @@ fun PodcastsScreen(
     LaunchedEffect(selectedCategory, searchQuery, isAccessAllowed) {
         if (!isAccessAllowed) {
             liveChannels = emptyList()
+            mainFeedEpisodes = emptyList()
             liveEpisodes = emptyList()
             isLoading = false
             return@LaunchedEffect
@@ -142,6 +150,7 @@ fun PodcastsScreen(
             val channels = catalogManager.getLivePodcastChannels(searchQuery)
             liveChannels = channels
             val eps = catalogManager.getLivePodcastEpisodes(searchQuery)
+            mainFeedEpisodes = eps
             liveEpisodes = eps
         } else if (selectedCategory == "⭐ Subscribed") {
             val allChannels = mutableListOf<PodcastChannel>()
@@ -154,8 +163,11 @@ fun PodcastsScreen(
             liveChannels = allChannels
             if (allChannels.isNotEmpty()) {
                 selectedChannel = allChannels.first()
-                liveEpisodes = catalogManager.getPodcastEpisodesForChannel(allChannels.first())
+                val eps = catalogManager.getPodcastEpisodesForChannel(allChannels.first())
+                mainFeedEpisodes = eps
+                liveEpisodes = eps
             } else {
+                mainFeedEpisodes = emptyList()
                 liveEpisodes = emptyList()
             }
         } else {
@@ -163,21 +175,29 @@ fun PodcastsScreen(
             val channels = catalogManager.getLivePodcastChannels(catClean)
             liveChannels = channels
             val eps = catalogManager.getLivePodcastEpisodes(catClean)
+            mainFeedEpisodes = eps
             liveEpisodes = eps
         }
         isLoading = false
     }
 
-    // When a channel is explicitly selected
+    // When a channel is explicitly selected or unselected (via back button)
     LaunchedEffect(selectedChannel, isAccessAllowed) {
         if (!isAccessAllowed) return@LaunchedEffect
-        selectedChannel?.let { ch ->
+        if (selectedChannel != null) {
             isLoading = true
-            val eps = catalogManager.getPodcastEpisodesForChannel(ch)
+            currentPage = 1
+            canLoadMore = true
+            val eps = catalogManager.getPodcastEpisodesForChannel(selectedChannel!!)
             if (eps.isNotEmpty()) {
                 liveEpisodes = eps
             }
             isLoading = false
+        } else {
+            // Restoring previous view (search results or category episodes)
+            liveEpisodes = mainFeedEpisodes
+            currentPage = 1
+            canLoadMore = true
         }
     }
 

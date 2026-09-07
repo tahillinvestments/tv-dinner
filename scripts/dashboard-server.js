@@ -28,8 +28,16 @@ function handlePublish(req, res) {
   let body = '';
   req.on('data', chunk => { body += chunk; });
   req.on('end', () => {
-    console.log('\n[Dashboard Server] Received Publish request from Dashboard UI...');
-    exec('node scripts/publish-update.js', { cwd: projectRoot }, (err, stdout, stderr) => {
+    let parsed = {};
+    try {
+      if (body.trim()) parsed = JSON.parse(body);
+    } catch (_) {}
+
+    const target = parsed.versionCode || parsed.relId;
+    console.log(`\n[Dashboard Server] Received Publish request from Dashboard UI${target ? ` for target: ${target}` : ''}...`);
+
+    const cmd = target ? `node scripts/publish-update.js "${target}"` : 'node scripts/publish-update.js';
+    exec(cmd, { cwd: projectRoot }, (err, stdout, stderr) => {
       if (err) {
         console.error('[Dashboard Server] Publish error:', stderr || err.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -37,7 +45,7 @@ function handlePublish(req, res) {
       } else {
         console.log(stdout);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, message: 'Release published live to GitHub!' }));
+        res.end(JSON.stringify({ success: true, message: `Release ${target ? `(Build ${target}) ` : ''}published live to GitHub!` }));
       }
     });
   });

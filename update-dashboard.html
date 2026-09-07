@@ -187,21 +187,35 @@
 
     const DEFAULT_MANIFEST = {
       "currentVersion": {
-        "versionCode": 214,
-        "versionName": "2.1.4",
-        "title": "Favorites Ceiling Focus, Fast Updates, Seamless Navigation & Credential Gating",
-        "releaseNotes": "• Favorites Ceiling Focus: Favorites is now the hard ceiling focus in categories; pressing Up stays in categories and never escapes to Search\n• Channels-to-Search Navigation: Pressing D-Pad Up from top channel navigates directly to Search in TV/desktop mode\n• Unblocked Channel Navigation: Guaranteed instant Right navigation from categories to channels under all conditions without unmounting list\n• 10x Faster Downloads: Overhauled OTA update downloads with 128KB buffered I/O and throttled progress updates to download at full wire speed\n• Media Transition Hardening: Isolated streaming sockets and added stream generation tokens to eliminate disruptions and stale recovery timers\n• Verified Credential Gating: Music and Podcasts are strictly gated behind verified active credentials",
-        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.4/app-release.apk",
+        "versionCode": 215,
+        "versionName": "2.1.5",
+        "title": "VOD Playback Stabilization, Seamless Transitions, Start-at-Beginning & Podcasts Navigation",
+        "releaseNotes": "• VOD Playback Stabilization: Fixed stream errors and socket drops across the app with dedicated OkHttp dispatcher and extended 25s buffering headroom\n• Seamless Media Transitions: Switch between any media (Live TV, Movies, Series, Podcasts, Music) with clean state reset and zero need to restart app\n• VOD Start-at-Beginning: Movies and Series strictly start from 0:00 unless 'Resume' is explicitly chosen in the dialog\n• Podcasts Remote Back Navigation: Pressing Back on remote when viewing a channel's episode list returns directly to previous search or category view\n• Dashboard Re-Publishing: Re-publish former or archived releases directly from the update dashboard with one click",
+        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.5/app-release.apk",
         "mandatory": false,
-        "publishedAt": "2026-09-07T17:18:05.095Z"
+        "publishedAt": "2026-09-07T18:02:03.011Z"
       },
       "releases": [
+        {
+          "id": "rel-215",
+          "versionCode": 215,
+          "versionName": "2.1.5",
+          "title": "VOD Playback Stabilization, Seamless Transitions, Start-at-Beginning & Podcasts Navigation",
+          "status": "PUBLISHED",
+          "releaseNotes": "• VOD Playback Stabilization: Fixed stream errors and socket drops across the app with dedicated OkHttp dispatcher and extended 25s buffering headroom\n• Seamless Media Transitions: Switch between any media (Live TV, Movies, Series, Podcasts, Music) with clean state reset and zero need to restart app\n• VOD Start-at-Beginning: Movies and Series strictly start from 0:00 unless 'Resume' is explicitly chosen in the dialog\n• Podcasts Remote Back Navigation: Pressing Back on remote when viewing a channel's episode list returns directly to previous search or category view\n• Dashboard Re-Publishing: Re-publish former or archived releases directly from the update dashboard with one click",
+          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+          "localApkUrl": "public/apks/tv-dinner-v2.1.5.apk",
+          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.5/app-release.apk",
+          "mandatory": false,
+          "createdAt": "2026-09-07T18:01:59.332Z",
+          "publishedAt": "2026-09-07T18:02:03.010Z"
+        },
         {
           "id": "rel-214",
           "versionCode": 214,
           "versionName": "2.1.4",
           "title": "Favorites Ceiling Focus, Fast Updates, Seamless Navigation & Credential Gating",
-          "status": "PUBLISHED",
+          "status": "ARCHIVED",
           "releaseNotes": "• Favorites Ceiling Focus: Favorites is now the hard ceiling focus in categories; pressing Up stays in categories and never escapes to Search\n• Channels-to-Search Navigation: Pressing D-Pad Up from top channel navigates directly to Search in TV/desktop mode\n• Unblocked Channel Navigation: Guaranteed instant Right navigation from categories to channels under all conditions without unmounting list\n• 10x Faster Downloads: Overhauled OTA update downloads with 128KB buffered I/O and throttled progress updates to download at full wire speed\n• Media Transition Hardening: Isolated streaming sockets and added stream generation tokens to eliminate disruptions and stale recovery timers\n• Verified Credential Gating: Music and Podcasts are strictly gated behind verified active credentials",
           "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
           "localApkUrl": "public/apks/tv-dinner-v2.1.4.apk",
@@ -374,9 +388,12 @@
 
       data.releases.forEach(rel => {
         const tr = document.createElement('tr');
-        tr.className = rel.status === 'PUBLISHED' ? "bg-emerald-950/10 hover:bg-[#1E293B]/40 transition" : "hover:bg-[#1E293B]/40 transition";
+        const isCurrentLive = current.versionCode && (rel.versionCode === current.versionCode);
+        const isStaged = rel.status === 'STAGED';
+        const isArchived = !isCurrentLive && !isStaged;
 
-        const isPublished = rel.status === 'PUBLISHED';
+        tr.className = isCurrentLive ? "bg-emerald-950/20 border-l-2 border-emerald-500 hover:bg-[#1E293B]/40 transition" : "hover:bg-[#1E293B]/40 transition";
+
         const downloadHref = rel.apkUrl || (rel.versionName ? `https://github.com/tahillinvestments/tv-dinner/releases/download/v${rel.versionName}/app-release.apk` : 'https://github.com/tahillinvestments/tv-dinner/releases/latest');
         const downloadFileName = `tv-dinner-v${rel.versionName}.apk`;
         const adbCommand = `adb install -r "${rel.apkPath || 'android-app/app/build/outputs/apk/release/app-release.apk'}"`;
@@ -385,24 +402,27 @@
           <td class="py-3.5 px-4 font-mono font-bold text-white">
             <div class="flex items-center gap-1.5">
               <span>v${rel.versionName}</span>
-              ${!isPublished ? `<span class="px-1.5 py-0.5 text-[9px] font-black bg-indigo-500/30 text-indigo-300 rounded border border-indigo-500/40">NEW</span>` : ''}
+              ${isStaged ? `<span class="px-1.5 py-0.5 text-[9px] font-black bg-indigo-500/30 text-indigo-300 rounded border border-indigo-500/40">NEW</span>` : ''}
+              ${isCurrentLive ? `<span class="px-1.5 py-0.5 text-[9px] font-black bg-emerald-500/30 text-emerald-300 rounded border border-emerald-500/40">LIVE</span>` : ''}
             </div>
             <span class="text-[10px] text-slate-400 block font-normal">Build ${rel.versionCode}</span>
           </td>
           <td class="py-3.5 px-4 font-bold text-slate-200">
             ${rel.title}
           </td>
-          <td class="py-3.5 px-4 text-slate-300 max-w-xs" title="${rel.releaseNotes.replace(/"/g, '&quot;')}">
-            <span class="line-clamp-2 text-[11px] leading-relaxed">${rel.releaseNotes.replace(/\n/g, '<br>')}</span>
+          <td class="py-3.5 px-4 text-slate-300 max-w-xs" title="${(rel.releaseNotes || '').replace(/"/g, '&quot;')}">
+            <span class="line-clamp-2 text-[11px] leading-relaxed">${(rel.releaseNotes || '').replace(/\n/g, '<br>')}</span>
           </td>
           <td class="py-3.5 px-4">
-            ${isPublished 
-              ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-circle-check text-[9px]"></i> PUBLISHED</span>`
-              : `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-clock text-[9px]"></i> STAGED</span>`
+            ${isCurrentLive 
+              ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-circle-check text-[9px]"></i> CURRENT LIVE</span>`
+              : (isStaged
+                ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-clock text-[9px]"></i> STAGED</span>`
+                : `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/20 text-slate-400 border border-slate-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-box-archive text-[9px]"></i> ARCHIVED</span>`)
             }
           </td>
           <td class="py-3.5 px-4 text-slate-400">
-            ${rel.createdAt ? new Date(rel.createdAt).toLocaleDateString() : '—'}
+            ${rel.publishedAt ? new Date(rel.publishedAt).toLocaleDateString() : (rel.createdAt ? new Date(rel.createdAt).toLocaleDateString() : '—')}
           </td>
           <td class="py-3.5 px-4 text-right">
             <div class="inline-flex items-center gap-2 justify-end">
@@ -416,13 +436,17 @@
                 <i class="fa-solid fa-terminal text-[10px]"></i> ADB
               </button>
 
-              ${!isPublished ? `
-                <button onclick="publishRelease('${rel.id}')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98]" title="Publish to all user TVs">
+              ${isCurrentLive ? `
+                <span class="text-xs text-emerald-400 font-bold px-2 py-1 inline-flex items-center gap-1"><i class="fa-solid fa-check-double"></i> Active</span>
+              ` : (isStaged ? `
+                <button onclick="publishRelease('${rel.id}', ${rel.versionCode}, false)" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98]" title="Publish to all user TVs">
                   <i class="fa-solid fa-rocket"></i> Publish
                 </button>
               ` : `
-                <span class="text-xs text-emerald-400 font-bold px-2 py-1 inline-flex items-center gap-1"><i class="fa-solid fa-check-double"></i> Active</span>
-              `}
+                <button onclick="publishRelease('${rel.id}', ${rel.versionCode}, true)" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-amber-600/20 hover:scale-[1.02] active:scale-[0.98]" title="Re-Publish Build ${rel.versionCode} to all user TVs">
+                  <i class="fa-solid fa-rotate"></i> Re-Publish
+                </button>
+              `)}
             </div>
           </td>
         `;
@@ -430,17 +454,20 @@
       });
     }
 
-    window.publishRelease = async function(relId) {
+    window.publishRelease = async function(relId, versionCode, isRepublish = false) {
       const data = loadManifest();
-      const target = data.releases.find(r => r.id === relId);
+      const target = data.releases.find(r => r.id === relId || r.versionCode === versionCode);
       if (!target) return;
 
-      const confirmMsg = `Are you ready to publish version v${target.versionName} (Build: ${target.versionCode}) to production?\n\nThis will push changes to GitHub, create the GitHub Release with the APK, and deploy the live update to all TVs.`;
+      const confirmMsg = isRepublish
+        ? `Are you sure you want to RE-PUBLISH former release v${target.versionName} (Build ${target.versionCode}) to production?\n\nThis will make Build ${target.versionCode} the active version deployed to all user TVs.`
+        : `Are you ready to publish version v${target.versionName} (Build ${target.versionCode}) to production?\n\nThis will push changes to GitHub, create the GitHub Release with the APK, and deploy the live update to all TVs.`;
+
       if (!confirm(confirmMsg)) return;
 
-      // Mark all others as staged/archived
+      // Mark target as published and all other releases as archived
       data.releases.forEach(r => {
-        if (r.id === relId) {
+        if (r.id === target.id || r.versionCode === target.versionCode) {
           r.status = 'PUBLISHED';
           r.publishedAt = new Date().toISOString();
         } else if (r.status === 'PUBLISHED') {
@@ -468,7 +495,7 @@
           const res = await fetch(ep, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ relId, release: target, currentVersion: data.currentVersion, manifest: data })
+            body: JSON.stringify({ relId: target.id, versionCode: target.versionCode, release: target, currentVersion: data.currentVersion, manifest: data })
           });
           if (res.ok) {
             syncedToDisk = true;
@@ -478,10 +505,10 @@
       }
 
       if (syncedToDisk) {
-        alert(`🚀 Version v${target.versionName} (Build ${target.versionCode}) has been PUBLISHED LIVE!\n\n• Manifests updated on disk\n• Pushed to GitHub main\n• GitHub Release created with APK\n• Live update active for all user TVs`);
+        alert(`🚀 Version v${target.versionName} (Build ${target.versionCode}) has been ${isRepublish ? 'RE-PUBLISHED' : 'PUBLISHED'} LIVE!\n\n• Manifests updated on disk\n• Pushed to GitHub main\n• Live update active for all user TVs`);
         window.location.reload();
       } else {
-        const cmd = 'npm run update:publish';
+        const cmd = `node scripts/publish-update.js ${target.versionCode}`;
         try { navigator.clipboard.writeText(cmd); } catch (_) {}
         alert(`⚠️ Local dashboard server is not connected.\n\nTo complete the live publication to GitHub & user TVs, run this command in your terminal:\n\n${cmd}\n\n(Command copied to your clipboard!)`);
       }
@@ -631,7 +658,7 @@
                 versionCode: vCode,
                 versionName: cleanVer,
                 title: gr.name || `TV Dinner v${cleanVer}`,
-                status: 'PUBLISHED',
+                status: (currentLive && currentLive.versionCode === vCode) ? 'PUBLISHED' : 'ARCHIVED',
                 releaseNotes: gr.body || 'Production release',
                 apkPath: downloadUrl,
                 localApkUrl: downloadUrl,

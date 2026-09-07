@@ -101,8 +101,12 @@ class ExoPlayerManager(
     private var liveRecoveryAttempt = 0
     private var vodRecoveryAttempt = 0
 
-    // Isolated OkHttpClient dedicated solely to media streaming to avoid collateral cancellation of REST/catalog calls
+    // Isolated OkHttpClient dedicated solely to media streaming with its own dispatcher to avoid collateral cancellation of REST/catalog calls
     private val mediaOkHttpClient: okhttp3.OkHttpClient = xtreamApiClient.okHttpClient.newBuilder()
+        .dispatcher(okhttp3.Dispatcher().apply {
+            maxRequests = 64
+            maxRequestsPerHost = 16
+        })
         .connectionPool(okhttp3.ConnectionPool(8, 2, java.util.concurrent.TimeUnit.MINUTES))
         .build()
 
@@ -123,7 +127,7 @@ class ExoPlayerManager(
         liveRecoveryAttempt++
         Log.w(tag, "Recovering live stream: attempt $liveRecoveryAttempt (current: $currentUrl, forceFailover: $forceFailover)")
 
-        // 1. Immediately terminate hung media streaming connections without touching shared catalog client
+        // 1. Terminate hung media streaming connections
         try {
             mediaOkHttpClient.dispatcher.cancelAll()
             mediaOkHttpClient.connectionPool.evictAll()
@@ -158,37 +162,23 @@ class ExoPlayerManager(
         val currentUrl = _currentStreamUrl.value
         if (currentUrl.isBlank() || _isLiveStream.value) return
         vodRecoveryAttempt++
-        val resumePos = _currentPosition.value
-        Log.w(tag, "Recovering VOD stream: attempt $vodRecoveryAttempt from ${resumePos}ms (url: $currentUrl, forceFailover: $forceFailover)")
+        val resumePos = _currentPosition.value.coerceAtLeast(0L)
+        Log.w(tag, "Recovering VOD stream: attempt $vodRecoveryAttempt from ${resumePos}ms (url: $currentUrl)")
 
-        // 1. Evict hung media stream sockets without touching shared catalog client
-        try {
-            mediaOkHttpClient.dispatcher.cancelAll()
-            mediaOkHttpClient.connectionPool.evictAll()
-        } catch (_: Exception) {}
-
-        // 2. Stop player
+        // Stop player cleanly without evicting the entire connection pool
         try {
             player?.stop()
             player?.clearMediaItems()
         } catch (_: Exception) {}
 
-        // 3. Failover to backup portal if bad HTTP status or second attempt
-        var nextUrl = currentUrl
-        if (forceFailover || vodRecoveryAttempt >= 2) {
-            val failover = authRepo?.getFailoverUrl(currentUrl)
-            if (!failover.isNullOrBlank() && failover != currentUrl) {
-                Log.i(tag, "Failing over VOD stream to backup portal: $failover")
-                nextUrl = failover
-            }
-        }
-
+        // VOD files are hosted strictly on the primary VOD portal; do not fail over to Live TV backup proxies
         playStream(
-            url = nextUrl,
+            url = currentUrl,
             title = _currentTitle.value,
             isLive = false,
             startPositionMs = resumePos,
-            streamKey = currentStreamKey
+            streamKey = currentStreamKey,
+            recoveryAttempt = vodRecoveryAttempt
         )
     }
 
@@ -199,10 +189,14 @@ class ExoPlayerManager(
         liveRecoveryAttempt = 0
         vodRecoveryAttempt = 0
         _errorMessage.value = null
+        try {
+            mediaOkHttpClient.dispatcher.cancelAll()
+            mediaOkHttpClient.connectionPool.evictAll()
+        } catch (_: Exception) {}
         if (_isLiveStream.value) {
             recoverLiveStream(forceFailover = true)
         } else {
-            recoverVodStream(forceFailover = true)
+            recoverVodStream(forceFailover = false)
         }
     }
 
@@ -246,6 +240,7 @@ class ExoPlayerManager(
             .build()
 
         val extractorsFactory = DefaultExtractorsFactory().apply {
+            setConstantBitrateSeekingEnabled(true)
             setTsExtractorFlags(
                 DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
                 DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
@@ -301,16 +296,16 @@ class ExoPlayerManager(
                                             recoverLiveStream(forceFailover = liveRecoveryAttempt >= 1)
                                         }
                                     } else {
-                                        delay(4000)
+                                        delay(15000)
                                         if (currentGen != streamGeneration) return@launch
                                         if (_isBuffering.value && !_isLiveStream.value) {
                                             _isStreamStalled.value = true
                                         }
-                                        delay(4000)
+                                        delay(10000)
                                         if (currentGen != streamGeneration) return@launch
                                         if (_isBuffering.value && !_isLiveStream.value && player != null) {
-                                            Log.w(tag, "VOD playback stalled in buffering for 8s. Auto-recovering at ${_currentPosition.value}ms...")
-                                            recoverVodStream(forceFailover = vodRecoveryAttempt >= 1)
+                                            Log.w(tag, "VOD playback stalled in buffering for 25s. Auto-recovering at ${_currentPosition.value}ms...")
+                                            recoverVodStream(forceFailover = false)
                                         }
                                     }
                                 }
@@ -385,11 +380,11 @@ class ExoPlayerManager(
                                 }
                             }
                             return
-                        } else if (!_isLiveStream.value && vodRecoveryAttempt < 6) {
+                        } else if (!_isLiveStream.value && vodRecoveryAttempt < 4) {
                             errorRecoveryJob = scope.launch {
-                                delay(1200)
+                                delay(1500)
                                 if (currentGen == streamGeneration) {
-                                    recoverVodStream(forceFailover = isBadHttpStatus || vodRecoveryAttempt >= 1)
+                                    recoverVodStream(forceFailover = false)
                                 }
                             }
                             return
@@ -529,9 +524,12 @@ class ExoPlayerManager(
         _isLiveStream.value = isLive
         _isLiveRewound.value = false
         _liveRewindOffsetSeconds.value = 0
+        _currentPosition.value = if (!isLive) startPositionMs else 0L
+        _duration.value = 0L
         currentStreamKey = streamKey
         _errorMessage.value = null
         _isBuffering.value = true
+        _isStreamStalled.value = false
 
         initializePlayer()
 
@@ -1023,8 +1021,11 @@ class ExoPlayerManager(
         flushPositionNow()
         player?.stop()
         player?.clearMediaItems()
+        _currentPosition.value = 0L
+        _duration.value = 0L
         _isPlaying.value = false
         _isBuffering.value = false
+        currentStreamKey = null
     }
 
     fun release() {
