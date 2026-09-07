@@ -16284,6 +16284,9 @@
 	<programme channel="咪咕足球" start="20260908013500 +0800" stop="20260908014500 +0800">
 		<title lang="zh">频道宣传</title>
 	</programme>
+	<programme channel="咪咕足球" start="20260908014500 +0800" stop="20260908042500 +0800">
+		<title lang="zh">2026FIBA女篮世界杯 D组第3轮 意大利-中国 直播</title>
+	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
 	</channel>
@@ -49119,6 +49122,9 @@
 	<programme channel="newtv超级综艺" start="20260908005800 +0800" stop="20260908014300 +0800">
 		<title lang="zh">19_种墨园</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260908014300 +0800" stop="20260908022800 +0800">
+		<title lang="zh">20_种墨园</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -49130,6 +49136,9 @@
 	</channel>
 	<programme channel="newtv超级电影" start="20260908005000 +0800" stop="20260908015200 +0800">
 		<title lang="zh">势不可挡</title>
+	</programme>
+	<programme channel="newtv超级电影" start="20260908015200 +0800" stop="20260908032200 +0800">
+		<title lang="zh">高考那年遇见你</title>
 	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
@@ -49700,6 +49709,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260908013500 +0800" stop="20260908020500 +0800">
 		<title lang="zh">杏花村好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260908020500 +0800" stop="20260908025100 +0800">
+		<title lang="zh">08_孤战</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
