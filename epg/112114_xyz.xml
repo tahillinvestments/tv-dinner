@@ -16269,6 +16269,9 @@
 	<programme channel="咪咕综合体育" start="20260908000000 +0800" stop="20260908013500 +0800">
 		<title lang="zh">网球世界-2026美国网球公开赛 女单第4轮 斯瓦泰克-郑钦文 直播</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20260908014000 +0800" stop="20260908023000 +0800">
+		<title lang="zh">拜仁慕尼黑：传奇背后 第六集</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>
@@ -16277,6 +16280,9 @@
 	</programme>
 	<programme channel="咪咕足球" start="20260908000500 +0800" stop="20260908013500 +0800">
 		<title lang="zh">2026国青男篮热身赛 第三场 中国U17男篮-美国犹他预科篮球队</title>
+	</programme>
+	<programme channel="咪咕足球" start="20260908013500 +0800" stop="20260908014500 +0800">
+		<title lang="zh">频道宣传</title>
 	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
@@ -49134,6 +49140,9 @@
 	<programme channel="newtv超级电视剧" start="20260908004600 +0800" stop="20260908013200 +0800">
 		<title lang="zh">13_问心2</title>
 	</programme>
+	<programme channel="newtv超级电视剧" start="20260908013200 +0800" stop="20260908021800 +0800">
+		<title lang="zh">14_问心2</title>
+	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
 	</channel>
@@ -49688,6 +49697,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260908005000 +0800" stop="20260908013500 +0800">
 		<title lang="zh">07_孤战</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260908013500 +0800" stop="20260908020500 +0800">
+		<title lang="zh">杏花村好物推荐</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
