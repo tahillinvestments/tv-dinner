@@ -94,6 +94,7 @@ fun LiveTvScreen(
     val visibleChannelFocusRequester = remember { FocusRequester() }
     val firstChannelFocusRequester = remember { FocusRequester() }
     var lastFocusedChannelIndex by remember { mutableIntStateOf(0) }
+    var pendingFocusChannels by remember { mutableStateOf(false) }
     val selectedCategoryFocusRequester = remember { FocusRequester() }
     val playControlFocusRequester = remember { FocusRequester() }
     val favoriteControlFocusRequester = remember { FocusRequester() }
@@ -285,16 +286,56 @@ fun LiveTvScreen(
         }
     }
 
-    // Reset or restore scroll offset safely when category changes
-    LaunchedEffect(selectedCategoryId, searchQuery) {
+    // Reset or restore scroll offset safely when category changes or channels load
+    LaunchedEffect(selectedCategoryId, searchQuery, filteredChannels.size) {
         val activeIdx = if (activeChannel != null) filteredChannels.indexOfFirst { it.streamId == activeChannel?.streamId } else -1
         if (activeIdx >= 0) {
             lastFocusedChannelIndex = activeIdx
-            channelListState.scrollToItem((activeIdx - 1).coerceAtLeast(0))
-        } else {
+            try {
+                channelListState.scrollToItem((activeIdx - 1).coerceAtLeast(0))
+            } catch (_: Exception) {}
+        } else if (lastFocusedChannelIndex >= filteredChannels.size) {
             lastFocusedChannelIndex = 0
             if (channelListState.firstVisibleItemIndex > 0) {
-                channelListState.scrollToItem(0)
+                try {
+                    channelListState.scrollToItem(0)
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    // Auto-focus channels row when pending navigation is requested (e.g. while loading)
+    LaunchedEffect(pendingFocusChannels, isLoading, filteredChannels) {
+        if (pendingFocusChannels && !isLoading && filteredChannels.isNotEmpty()) {
+            val activeIdx = if (activeChannel != null) filteredChannels.indexOfFirst { it.streamId == activeChannel?.streamId } else -1
+            val targetIdx = if (activeIdx >= 0) activeIdx else lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0))
+            if (targetIdx > 0) {
+                try {
+                    channelListState.scrollToItem((targetIdx - 1).coerceAtLeast(0))
+                } catch (_: Exception) {}
+            }
+            delay(35)
+            var moved = false
+            if (activeIdx >= 0) {
+                try {
+                    activeCardFocusRequester.requestFocus()
+                    moved = true
+                } catch (_: Exception) {}
+            }
+            if (!moved) {
+                try {
+                    visibleChannelFocusRequester.requestFocus()
+                    moved = true
+                } catch (_: Exception) {}
+            }
+            if (!moved) {
+                try {
+                    firstChannelFocusRequester.requestFocus()
+                    moved = true
+                } catch (_: Exception) {}
+            }
+            if (moved) {
+                pendingFocusChannels = false
             }
         }
     }
@@ -859,9 +900,9 @@ fun LiveTvScreen(
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.weight(1f).fillMaxWidth()
                         ) {
-                            items(categories, key = { it.categoryId }) { cat ->
+                            itemsIndexed(categories, key = { _, cat -> cat.categoryId }) { catIndex, cat ->
                                 val isSelected = selectedCategoryId == cat.categoryId
-                                val isFirstCat = cat == categories.firstOrNull()
+                                val isFirstCat = catIndex == 0 || cat.categoryId == "favorites"
                                 TvFocusableCard(
                                     onClick = {
                                         selectedCategoryId = cat.categoryId
@@ -888,6 +929,14 @@ fun LiveTvScreen(
                                         .onPreviewKeyEvent { keyEvent ->
                                             if (keyEvent.type == KeyEventType.KeyDown) {
                                                 when (keyEvent.key) {
+                                                    Key.DirectionUp -> {
+                                                        if (isFirstCat || catIndex == 0 || cat.categoryId == "favorites") {
+                                                            // Hard ceiling focus: favorites / top category blocks upward navigation to search
+                                                            true
+                                                        } else {
+                                                            false
+                                                        }
+                                                    }
                                                     Key.DirectionLeft -> {
                                                         if (onRequestFocusSidebar != null) {
                                                             onRequestFocusSidebar()
@@ -902,66 +951,63 @@ fun LiveTvScreen(
                                                         selectedCategoryId = cat.categoryId
                                                         authRepo.setLastLiveCategoryId(cat.categoryId)
                                                         val activeIdx = if (activeChannel != null) filteredChannels.indexOfFirst { it.streamId == activeChannel?.streamId } else -1
+                                                        val targetIdx = if (activeIdx >= 0) activeIdx else lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0))
                                                         var moved = false
 
-                                                        if (activeIdx >= 0) {
-                                                            lastFocusedChannelIndex = activeIdx
-                                                            try {
-                                                                activeCardFocusRequester.requestFocus()
-                                                                moved = true
-                                                            } catch (_: Exception) {}
-
-                                                            // Ensure item is scrolled and focused via coroutine if immediate focus was off-screen
-                                                            coroutineScope.launch {
-                                                                try {
-                                                                    channelListState.scrollToItem((activeIdx - 1).coerceAtLeast(0))
-                                                                    delay(40)
+                                                        if (filteredChannels.isNotEmpty()) {
+                                                            if (targetIdx > 0) {
+                                                                coroutineScope.launch {
                                                                     try {
-                                                                        activeCardFocusRequester.requestFocus()
-                                                                    } catch (_: Exception) {
-                                                                        try {
-                                                                            visibleChannelFocusRequester.requestFocus()
-                                                                        } catch (_: Exception) {
-                                                                            try {
-                                                                                firstChannelFocusRequester.requestFocus()
-                                                                            } catch (_: Exception) {}
-                                                                        }
-                                                                    }
+                                                                        channelListState.scrollToItem((targetIdx - 1).coerceAtLeast(0))
+                                                                    } catch (_: Exception) {}
+                                                                }
+                                                            }
+                                                            if (activeIdx >= 0) {
+                                                                try {
+                                                                    activeCardFocusRequester.requestFocus()
+                                                                    moved = true
+                                                                } catch (_: Exception) {}
+                                                            }
+                                                            if (!moved) {
+                                                                try {
+                                                                    visibleChannelFocusRequester.requestFocus()
+                                                                    moved = true
+                                                                } catch (_: Exception) {}
+                                                            }
+                                                            if (!moved) {
+                                                                try {
+                                                                    firstChannelFocusRequester.requestFocus()
+                                                                    moved = true
                                                                 } catch (_: Exception) {}
                                                             }
                                                         }
 
                                                         if (!moved) {
-                                                            try {
-                                                                visibleChannelFocusRequester.requestFocus()
-                                                                moved = true
-                                                            } catch (_: Exception) {}
-                                                        }
-                                                        if (!moved) {
-                                                            try {
-                                                                firstChannelFocusRequester.requestFocus()
-                                                                moved = true
-                                                            } catch (_: Exception) {}
-                                                        }
-                                                        if (!moved) {
-                                                            try {
-                                                                searchBarFocusRequester.requestFocus()
-                                                                moved = true
-                                                            } catch (_: Exception) {}
-                                                        }
-                                                        if (!moved) {
-                                                            try {
-                                                                moved = focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
-                                                            } catch (_: Exception) {}
-                                                        }
-                                                        if (!moved) {
+                                                            pendingFocusChannels = true
                                                             coroutineScope.launch {
-                                                                delay(60)
-                                                                try {
-                                                                    visibleChannelFocusRequester.requestFocus()
-                                                                } catch (_: Exception) {
+                                                                for (attempt in 1..8) {
+                                                                    delay(40L * attempt)
+                                                                    try {
+                                                                        if (activeIdx >= 0) {
+                                                                            activeCardFocusRequester.requestFocus()
+                                                                            moved = true
+                                                                            break
+                                                                        }
+                                                                    } catch (_: Exception) {}
+                                                                    try {
+                                                                        visibleChannelFocusRequester.requestFocus()
+                                                                        moved = true
+                                                                        break
+                                                                    } catch (_: Exception) {}
                                                                     try {
                                                                         firstChannelFocusRequester.requestFocus()
+                                                                        moved = true
+                                                                        break
+                                                                    } catch (_: Exception) {}
+                                                                }
+                                                                if (!moved) {
+                                                                    try {
+                                                                        focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
                                                                     } catch (_: Exception) {}
                                                                 }
                                                             }
@@ -1027,8 +1073,12 @@ fun LiveTvScreen(
                                     }
                                 } catch (_: Exception) {
                                     try {
-                                        focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
-                                    } catch (_: Exception) {}
+                                        visibleChannelFocusRequester.requestFocus()
+                                    } catch (_: Exception) {
+                                        try {
+                                            focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
+                                        } catch (_: Exception) {}
+                                    }
                                 }
                             },
                             onMoveLeft = {
@@ -1053,111 +1103,96 @@ fun LiveTvScreen(
                     }
 
                     // Channels List with Real-Time EPG Information
-                    if (isLoading) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = CinemaAccent)
-                        }
-                    } else if (filteredChannels.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        if (filteredChannels.isNotEmpty()) {
+                            LazyColumn(
+                                state = channelListState,
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.padding(20.dp)
+                                modifier = Modifier.fillMaxSize()
                             ) {
-                                Icon(
-                                    imageVector = if (selectedCategoryId == "favorites") Icons.Default.StarBorder else Icons.Default.Tv,
-                                    contentDescription = null,
-                                    tint = CinemaAccent,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Text(
-                                    text = if (selectedCategoryId == "favorites") "No favorite channels yet" else "No channels found in this category",
-                                    color = TextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = if (selectedCategoryId == "favorites") "Click ⭐ Favorite under the player to add channels to Favorites!" else "Try selecting another category or clear search",
-                                    color = TextMuted,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    } else {
-                        LazyColumn(
-                            state = channelListState,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            itemsIndexed(filteredChannels, key = { _, channel -> channel.streamId }) { index, channel ->
-                                val isActive = activeChannel?.streamId == channel.streamId
-                                val isFirstVisible = index == channelListState.firstVisibleItemIndex
-                                val isFirstChannel = index == 0
-                                val hasActiveInList = remember(filteredChannels, activeChannel) {
-                                    filteredChannels.any { it.streamId == activeChannel?.streamId }
-                                }
-                                val isTargetFocus = if (hasActiveInList) isActive else (index == lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0)))
-
-                                var channelEpg by remember(channel.streamId) {
-                                    mutableStateOf(catalogManager.getCachedEpg(channel.streamId))
-                                }
-
-                                LaunchedEffect(channel.streamId) {
-                                    if (channelEpg == null && channel.streamId > 0) {
-                                        channelEpg = catalogManager.getEpgTitleForChannel(channel.streamId)
+                                itemsIndexed(filteredChannels, key = { _, channel -> channel.streamId }) { index, channel ->
+                                    val isActive = activeChannel?.streamId == channel.streamId
+                                    val isFirstVisible = index == channelListState.firstVisibleItemIndex
+                                    val isFirstChannel = index == 0
+                                    val hasActiveInList = remember(filteredChannels, activeChannel) {
+                                        filteredChannels.any { it.streamId == activeChannel?.streamId }
                                     }
-                                }
+                                    val isTargetFocus = if (hasActiveInList) isActive else (index == lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0)))
 
-                                TvFocusableCard(
-                                    onClick = {
-                                        try {
-                                            val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
-                                            val user = channel.streamUser ?: authRepo.getActiveUsername()
-                                            val pswd = channel.streamPassword ?: authRepo.getActivePassword()
-                                            val streamUrl = if (!channel.directStreamUrl.isNullOrBlank()) {
-                                                channel.directStreamUrl
-                                            } else {
-                                                apiClient.buildLiveStreamUrl(portal, user, pswd, channel.streamId)
-                                            }
+                                    var channelEpg by remember(channel.streamId) {
+                                        mutableStateOf(catalogManager.getCachedEpg(channel.streamId))
+                                    }
 
-                                            if (isActive) {
-                                                onToggleFullscreen(true)
-                                            } else {
-                                                activeChannel = channel
-                                                authRepo.setLastLiveStreamId(channel.streamId)
-                                                authRepo.addChannelToHistory(channel.streamId)
-                                                playerManager.playStream(streamUrl, channel.name, isLive = true)
-                                            }
-                                        } catch (e: Exception) {
-                                            android.util.Log.e("LiveTvScreen", "Error launching channel: ${e.message}", e)
+                                    LaunchedEffect(channel.streamId) {
+                                        if (channelEpg == null && channel.streamId > 0) {
+                                            channelEpg = catalogManager.getEpgTitleForChannel(channel.streamId)
                                         }
-                                    },
-                                    shape = RoundedCornerShape(10.dp),
-                                    backgroundColor = if (isActive) CinemaSurfaceLight else CinemaSurface,
-                                    focusedBorderColor = CinemaFocus,
-                                    focusedScale = 1.02f,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .onFocusChanged { if (it.isFocused) lastFocusedChannelIndex = index }
-                                        .then(if (isTargetFocus) Modifier.focusRequester(activeCardFocusRequester) else Modifier)
-                                        .then(if (isFirstVisible) Modifier.focusRequester(visibleChannelFocusRequester) else Modifier)
-                                        .then(if (isFirstChannel) Modifier.focusRequester(firstChannelFocusRequester) else Modifier)
-                                        .onPreviewKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown) {
-                                                when (keyEvent.key) {
-                                                    Key.DirectionLeft -> {
-                                                        var moved = false
-                                                        try {
-                                                            selectedCategoryFocusRequester.requestFocus()
-                                                            moved = true
-                                                        } catch (_: Exception) {}
-                                                        if (!moved) {
-                                                            try {
-                                                                moved = focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
-                                                            } catch (_: Exception) {}
+                                    }
+
+                                    TvFocusableCard(
+                                        onClick = {
+                                            try {
+                                                val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
+                                                val user = channel.streamUser ?: authRepo.getActiveUsername()
+                                                val pswd = channel.streamPassword ?: authRepo.getActivePassword()
+                                                val streamUrl = if (!channel.directStreamUrl.isNullOrBlank()) {
+                                                    channel.directStreamUrl
+                                                } else {
+                                                    apiClient.buildLiveStreamUrl(portal, user, pswd, channel.streamId)
+                                                }
+
+                                                if (isActive) {
+                                                    onToggleFullscreen(true)
+                                                } else {
+                                                    activeChannel = channel
+                                                    authRepo.setLastLiveStreamId(channel.streamId)
+                                                    authRepo.addChannelToHistory(channel.streamId)
+                                                    playerManager.playStream(streamUrl, channel.name, isLive = true)
+                                                }
+                                            } catch (e: Exception) {
+                                                android.util.Log.e("LiveTvScreen", "Error launching channel: ${e.message}", e)
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        backgroundColor = if (isActive) CinemaSurfaceLight else CinemaSurface,
+                                        focusedBorderColor = CinemaFocus,
+                                        focusedScale = 1.02f,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .onFocusChanged { if (it.isFocused) lastFocusedChannelIndex = index }
+                                            .then(if (isTargetFocus) Modifier.focusRequester(activeCardFocusRequester) else Modifier)
+                                            .then(if (isFirstVisible) Modifier.focusRequester(visibleChannelFocusRequester) else Modifier)
+                                            .then(if (isFirstChannel) Modifier.focusRequester(firstChannelFocusRequester) else Modifier)
+                                            .onPreviewKeyEvent { keyEvent ->
+                                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    when (keyEvent.key) {
+                                                        Key.DirectionUp -> {
+                                                            if (index == 0) {
+                                                                try {
+                                                                    searchBarFocusRequester.requestFocus()
+                                                                } catch (_: Exception) {
+                                                                    try {
+                                                                        focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Up)
+                                                                    } catch (_: Exception) {}
+                                                                }
+                                                                true
+                                                            } else {
+                                                                false
+                                                            }
                                                         }
-                                                        moved
-                                                    }
+                                                        Key.DirectionLeft -> {
+                                                            var moved = false
+                                                            try {
+                                                                selectedCategoryFocusRequester.requestFocus()
+                                                                moved = true
+                                                            } catch (_: Exception) {}
+                                                            if (!moved) {
+                                                                try {
+                                                                    moved = focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
+                                                                } catch (_: Exception) {}
+                                                            }
+                                                            moved
+                                                        }
                                                     Key.DirectionRight -> {
                                                         var moved = false
                                                         try {
@@ -1279,6 +1314,43 @@ fun LiveTvScreen(
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                        if (isLoading && filteredChannels.isEmpty()) {
+                            CircularProgressIndicator(
+                                color = CinemaAccent,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        } else if (isLoading && filteredChannels.isNotEmpty()) {
+                            LinearProgressIndicator(
+                                color = CinemaAccent,
+                                modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter)
+                            )
+                        } else if (filteredChannels.isEmpty()) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(20.dp).align(Alignment.Center)
+                            ) {
+                                Icon(
+                                    imageVector = if (selectedCategoryId == "favorites") Icons.Default.StarBorder else Icons.Default.Tv,
+                                    contentDescription = null,
+                                    tint = CinemaAccent,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Text(
+                                    text = if (selectedCategoryId == "favorites") "No favorite channels yet" else "No channels found in this category",
+                                    color = TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (selectedCategoryId == "favorites") "Click ⭐ Favorite under the player to add channels to Favorites!" else "Try selecting another category or clear search",
+                                    color = TextMuted,
+                                    fontSize = 12.sp
+                                )
                             }
                         }
                     }

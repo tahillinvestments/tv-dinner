@@ -47,8 +47,13 @@ fun PodcastsScreen(
     authRepo: AuthRepository,
     catalogManager: CatalogManager,
     onPlayYouTubeVideo: (String, String, (() -> Unit)?, String?, (() -> Unit)?) -> Unit,
+    onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val isAccessAllowed = remember(authRepo.getActiveUsername(), authRepo.getActivePassword()) {
+        authRepo.hasVerifiedActiveCredentials()
+    }
+
     val categories = listOf(
         "🔥 Trending",
         "⭐ Subscribed",
@@ -74,7 +79,7 @@ fun PodcastsScreen(
     val gridState = rememberLazyGridState()
 
     fun playEpisodeAtIndex(index: Int) {
-        if (index !in liveEpisodes.indices) return
+        if (!isAccessAllowed || index !in liveEpisodes.indices) return
         val current = liveEpisodes[index]
         val next = liveEpisodes.getOrNull(index + 1)
         val onNext: (() -> Unit)? = if (index + 1 < liveEpisodes.size) {
@@ -121,7 +126,13 @@ fun PodcastsScreen(
     }
 
     // Fetch live data for selected category or search query
-    LaunchedEffect(selectedCategory, searchQuery) {
+    LaunchedEffect(selectedCategory, searchQuery, isAccessAllowed) {
+        if (!isAccessAllowed) {
+            liveChannels = emptyList()
+            liveEpisodes = emptyList()
+            isLoading = false
+            return@LaunchedEffect
+        }
         isLoading = true
         selectedChannel = null
         currentPage = 1
@@ -158,7 +169,8 @@ fun PodcastsScreen(
     }
 
     // When a channel is explicitly selected
-    LaunchedEffect(selectedChannel) {
+    LaunchedEffect(selectedChannel, isAccessAllowed) {
+        if (!isAccessAllowed) return@LaunchedEffect
         selectedChannel?.let { ch ->
             isLoading = true
             val eps = catalogManager.getPodcastEpisodesForChannel(ch)
@@ -170,7 +182,8 @@ fun PodcastsScreen(
     }
 
     // Continuous Endless Scrolling via snapshotFlow
-    LaunchedEffect(gridState, selectedCategory, searchQuery, selectedChannel) {
+    LaunchedEffect(gridState, selectedCategory, searchQuery, selectedChannel, isAccessAllowed) {
+        if (!isAccessAllowed) return@LaunchedEffect
         snapshotFlow {
             val total = gridState.layoutInfo.totalItemsCount
             val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -216,9 +229,70 @@ fun PodcastsScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
+        if (!isAccessAllowed) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.widthIn(max = 480.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = CinemaPrimary.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaPrimary.copy(alpha = 0.5f)),
+                        modifier = Modifier.size(72.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Access Restricted",
+                                tint = CinemaAccent,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "ACCESS RESTRICTED",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextPrimary,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = "Music and Podcasts require verified active credentials. Please enter and verify your active subscription credentials in Settings to unlock access.",
+                        fontSize = 14.sp,
+                        color = TextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+                    if (onOpenSettings != null) {
+                        TvFocusableCard(
+                            onClick = onOpenSettings,
+                            shape = RoundedCornerShape(10.dp),
+                            backgroundColor = CinemaPrimary,
+                            focusedBorderColor = CinemaFocus,
+                            focusedScale = 1.05f,
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(18.dp))
+                                Text("Open Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
                 .padding(if (isMobile) 12.dp else 16.dp),
             verticalArrangement = Arrangement.spacedBy(if (isMobile) 8.dp else 12.dp)
         ) {
@@ -618,4 +692,5 @@ fun PodcastsScreen(
             }
         }
     }
+}
 }

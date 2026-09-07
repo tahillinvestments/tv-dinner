@@ -1,4 +1,8 @@
 {
+  "2.1.4": {
+    "title": "Favorites Ceiling Focus, Fast Updates, Seamless Navigation & Credential Gating",
+    "releaseNotes": "• Favorites Ceiling Focus: Favorites is now the hard ceiling focus in categories; pressing Up stays in categories and never escapes to Search\n• Channels-to-Search Navigation: Pressing D-Pad Up from top channel navigates directly to Search in TV/desktop mode\n• Unblocked Channel Navigation: Guaranteed instant Right navigation from categories to channels under all conditions without unmounting list\n• 10x Faster Downloads: Overhauled OTA update downloads with 128KB buffered I/O and throttled progress updates to download at full wire speed\n• Media Transition Hardening: Isolated streaming sockets and added stream generation tokens to eliminate disruptions and stale recovery timers\n• Verified Credential Gating: Music and Podcasts are strictly gated behind verified active credentials"
+  },
   "2.1.3": {
     "title": "Live TV Category Navigation Fix & Priority VOD Poster Loading",
     "releaseNotes": "• Live TV D-Pad Navigation: Fixed controller lock when navigating Right from active playing category back into channels\n• Instant Channel Focus: Restores channel list position and focuses active playing channel when returning to its category\n• VOD Poster Loading: Resolved random timeouts and unloaded cards with dedicated 64-request OkHttp dispatcher and expanded connection pooling\n• TMDB Optimization: Scaled poster resolution to w342 for 5x faster card rendering and enhanced media tag sanitization for higher match rates\n• Poster Fallbacks: Automatic retry with exponential backoff and structured title/year fallback cards for missing posters"

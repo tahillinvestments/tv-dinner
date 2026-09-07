@@ -45,8 +45,13 @@ fun MusicScreen(
     authRepo: AuthRepository,
     catalogManager: CatalogManager,
     onPlayYouTubeVideo: (String, String, (() -> Unit)?, String?, (() -> Unit)?) -> Unit,
+    onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val isAccessAllowed = remember(authRepo.getActiveUsername(), authRepo.getActivePassword()) {
+        authRepo.hasVerifiedActiveCredentials()
+    }
+
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var debouncedQuery by remember { mutableStateOf("") }
     var selectedGenreId by rememberSaveable { mutableStateOf("trending") }
@@ -61,7 +66,7 @@ fun MusicScreen(
     val coroutineScope = rememberCoroutineScope()
 
     suspend fun fetchMoreVideosInternal() {
-        if (isLoading || isLoadingMore || !hasMore) return
+        if (!isAccessAllowed || isLoading || isLoadingMore || !hasMore) return
         isLoadingMore = true
         val nextPage = currentPage + 1
         val nextResults = if (debouncedQuery.isNotBlank()) {
@@ -95,7 +100,7 @@ fun MusicScreen(
     }
 
     fun playVideoAtIndex(index: Int) {
-        if (index !in videos.indices) return
+        if (!isAccessAllowed || index !in videos.indices) return
         if (index >= videos.size - 4 && hasMore && !isLoadingMore) {
             coroutineScope.launch {
                 fetchMoreVideosInternal()
@@ -143,7 +148,12 @@ fun MusicScreen(
     }
 
     // Initial Load & Category / Search Change Handler
-    LaunchedEffect(debouncedQuery, selectedGenreId) {
+    LaunchedEffect(debouncedQuery, selectedGenreId, isAccessAllowed) {
+        if (!isAccessAllowed) {
+            videos = emptyList()
+            isLoading = false
+            return@LaunchedEffect
+        }
         isLoading = true
         currentPage = 1
         hasMore = true
@@ -162,7 +172,8 @@ fun MusicScreen(
     }
 
     // Continuous Endless Scrolling via snapshotFlow
-    LaunchedEffect(gridState, debouncedQuery, selectedGenreId) {
+    LaunchedEffect(gridState, debouncedQuery, selectedGenreId, isAccessAllowed) {
+        if (!isAccessAllowed) return@LaunchedEffect
         snapshotFlow {
             val total = gridState.layoutInfo.totalItemsCount
             val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -175,9 +186,70 @@ fun MusicScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
+        if (!isAccessAllowed) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.widthIn(max = 480.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = CinemaPrimary.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaPrimary.copy(alpha = 0.5f)),
+                        modifier = Modifier.size(72.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Access Restricted",
+                                tint = CinemaAccent,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "ACCESS RESTRICTED",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black,
+                        color = TextPrimary,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        text = "Music and Podcasts require verified active credentials. Please enter and verify your active subscription credentials in Settings to unlock access.",
+                        fontSize = 14.sp,
+                        color = TextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+                    if (onOpenSettings != null) {
+                        TvFocusableCard(
+                            onClick = onOpenSettings,
+                            shape = RoundedCornerShape(10.dp),
+                            backgroundColor = CinemaPrimary,
+                            focusedBorderColor = CinemaFocus,
+                            focusedScale = 1.05f,
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(18.dp))
+                                Text("Open Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
                 .padding(if (isMobile) 12.dp else 16.dp),
             verticalArrangement = Arrangement.spacedBy(if (isMobile) 8.dp else 12.dp)
         ) {
@@ -402,4 +474,5 @@ fun MusicScreen(
             }
         }
     }
+}
 }

@@ -18,6 +18,7 @@ class AuthRepository(context: Context) {
         private const val KEY_VOD_PORTAL = "vod_portal_url"
         private const val KEY_ACTIVE_USERNAME = "active_xtream_username"
         private const val KEY_ACTIVE_PASSWORD = "active_xtream_password"
+        private const val KEY_CREDENTIALS_VERIFIED = "credentials_verified"
         const val DEFAULT_SERVER_URL = "http://vpn.uhdp.top:80"
         const val BACKUP_SERVER_URL = "http://vpn.uhd4.top:80"
 
@@ -28,8 +29,20 @@ class AuthRepository(context: Context) {
         return true
     }
 
+    fun isCredentialsVerified(): Boolean {
+        return prefs.getBoolean(KEY_CREDENTIALS_VERIFIED, false)
+    }
+
+    fun setCredentialsVerified(verified: Boolean) {
+        prefs.edit().putBoolean(KEY_CREDENTIALS_VERIFIED, verified).apply()
+    }
+
     fun hasValidCredentials(): Boolean {
         return getActiveUsername().isNotBlank() && getActivePassword().isNotBlank()
+    }
+
+    fun hasVerifiedActiveCredentials(): Boolean {
+        return hasValidCredentials() && isCredentialsVerified()
     }
 
     fun getActivatedPhone(): String? {
@@ -76,7 +89,10 @@ class AuthRepository(context: Context) {
     }
 
     fun signOut() {
-        prefs.edit().remove(KEY_ACTIVATED_PHONE).apply()
+        prefs.edit()
+            .remove(KEY_ACTIVATED_PHONE)
+            .remove(KEY_CREDENTIALS_VERIFIED)
+            .apply()
     }
 
     fun getActiveUsername(): String {
@@ -168,10 +184,14 @@ class AuthRepository(context: Context) {
     fun setDirectCredentials(user: String, pswd: String) {
         val cleanU = user.trim()
         val cleanP = pswd.trim()
-        prefs.edit()
+        val changed = cleanU != getActiveUsername() || cleanP != getActivePassword()
+        val editor = prefs.edit()
             .putString(KEY_ACTIVE_USERNAME, cleanU)
             .putString(KEY_ACTIVE_PASSWORD, cleanP)
-            .apply()
+        if (changed) {
+            editor.remove(KEY_CREDENTIALS_VERIFIED)
+        }
+        editor.apply()
         val phone = getActivatedPhone() ?: "(317) 515-0204"
         if (cleanU.isNotBlank() && cleanP.isNotBlank()) {
             addOrUpdateCredential(phone, cleanU, cleanP)
@@ -182,6 +202,7 @@ class AuthRepository(context: Context) {
         prefs.edit()
             .remove(KEY_ACTIVE_USERNAME)
             .remove(KEY_ACTIVE_PASSWORD)
+            .remove(KEY_CREDENTIALS_VERIFIED)
             .apply()
     }
 

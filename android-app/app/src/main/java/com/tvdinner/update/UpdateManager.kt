@@ -32,6 +32,8 @@ class UpdateManager(private val context: Context) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
+        .connectionPool(okhttp3.ConnectionPool(5, 5, TimeUnit.MINUTES))
+        .protocols(listOf(okhttp3.Protocol.HTTP_2, okhttp3.Protocol.HTTP_1_1))
         .build()
     private val gson = Gson()
 
@@ -104,18 +106,29 @@ class UpdateManager(private val context: Context) {
                 if (destinationFile.exists()) destinationFile.delete()
 
                 var bytesRead = 0L
-                val buffer = ByteArray(8192)
+                val bufferSize = 128 * 1024 // 128 KB high-throughput buffer
+                val buffer = ByteArray(bufferSize)
 
-                body.byteStream().use { input: InputStream ->
-                    FileOutputStream(destinationFile).use { output ->
+                var lastProgressTime = 0L
+                var lastProgressPercent = 0
+
+                java.io.BufferedInputStream(body.byteStream(), bufferSize).use { input ->
+                    java.io.BufferedOutputStream(FileOutputStream(destinationFile), bufferSize).use { output ->
                         var read: Int
                         while (input.read(buffer).also { read = it } != -1) {
                             output.write(buffer, 0, read)
                             bytesRead += read
                             if (totalBytes > 0) {
                                 val progress = (bytesRead.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
-                                withContext(Dispatchers.Main) {
-                                    onProgress(progress)
+                                val currentPercent = (progress * 100).toInt()
+                                val now = System.currentTimeMillis()
+                                // Throttle main-thread dispatches to at most once every 100ms or on each 1% step
+                                if (currentPercent > lastProgressPercent || (now - lastProgressTime) >= 100L) {
+                                    lastProgressPercent = currentPercent
+                                    lastProgressTime = now
+                                    withContext(Dispatchers.Main) {
+                                        onProgress(progress)
+                                    }
                                 }
                             }
                         }

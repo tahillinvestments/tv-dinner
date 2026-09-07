@@ -277,15 +277,17 @@ fun SettingsScreen(
                                     val result = apiClient.testCredentials(testPortal, u, p)
                                     isTestingCreds = false
                                     if (result.isValid) {
+                                        authRepo.setCredentialsVerified(true)
                                         isAccountActive = true
                                         accountStatus = "ACTIVE & VERIFIED"
                                         accountStatusDetail = result.message
                                         credsSavedMessage = "Credentials verified & activated! Feeds updated."
                                     } else {
-                                        isAccountActive = true
-                                        accountStatus = "ACTIVE & SAVED"
+                                        authRepo.setCredentialsVerified(false)
+                                        isAccountActive = false
+                                        accountStatus = "INVALID CREDENTIALS"
                                         accountStatusDetail = result.message
-                                        credsSavedMessage = "Credentials saved locally & active."
+                                        credsSavedMessage = "Credentials failed server verification."
                                     }
                                 }
                             },

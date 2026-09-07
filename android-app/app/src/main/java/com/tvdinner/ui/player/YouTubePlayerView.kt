@@ -187,9 +187,13 @@ fun YouTubePlayerView(
                 YouTubeRemoteBridge.activeWebView = null
             }
             webViewInstance?.let { wv ->
-                wv.stopLoading()
-                wv.loadUrl("about:blank")
-                wv.destroy()
+                try {
+                    wv.onPause()
+                    wv.stopLoading()
+                    wv.loadUrl("about:blank")
+                    wv.pauseTimers()
+                    wv.destroy()
+                } catch (_: Exception) {}
             }
             webViewInstance = null
         }

@@ -832,6 +832,9 @@ class CatalogManager(
             val user = credentials?.user ?: "f2e1d20954"
             val pswd = credentials?.pswd ?: "a7a8bf92d242"
             val fetched = apiClient.getLiveCategories(portal, user, pswd)
+            if (fetched.isNotEmpty() && authRepo.hasValidCredentials()) {
+                authRepo.setCredentialsVerified(true)
+            }
             val sorted = fetched.sortedBy { getLiveCategoryPriority(it.categoryName) }
 
             // All Channels category removed per specification
@@ -894,6 +897,10 @@ class CatalogManager(
             // Filter out placeholder separator banners (e.g. "##### USA GENERAL #####")
             val bannerPattern = Regex("^[#*=_~\\s]{2,}")
             fetched = fetched.filter { !bannerPattern.containsMatchIn(it.name.trim()) }
+
+            if (fetched.isNotEmpty() && authRepo.hasValidCredentials()) {
+                authRepo.setCredentialsVerified(true)
+            }
 
             for (ch in fetched) {
                 ch.portalUrl = portal
