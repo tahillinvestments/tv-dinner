@@ -469,7 +469,6 @@ Movies,#genre#
 [BD]channel_8,https://stream1.freetv.fun/2e398e1d5821e86c4b477d522fecb17e2756ed66c2d727bd94d5c2ecb9e72b55.m3u8
 [BD]cinemax_2,https://stream1.freetv.fun/d94e1174e1511d51b6fef18b2e38160d2c93b27edecf29f9c94dd12ff55796e1.m3u8
 [BD]court_tv,https://stream1.freetv.fun/2104ae6466368098e9428e0e581681041a00b0f7d44a95ff3adec0cb14bc63b8.m3u8
-[BD]7_gold,https://stream1.freetv.fun/18cf61314fdd986aa3da7ab286effa61b80f7349332cd2acc41775039754d49f.m3u8
 [BD].sci-fi,https://stream1.freetv.fun/d1660c97a8defa33daf9d762e624af813cc4bcf99b29d64b2e95956171fa5277.m3u8
 [BD]enterr_10_rangeela,https://stream1.freetv.fun/48f6b12ab706103e528644401dff9e0aaecc11794ce28176776d5acd6b2ad8ab.m3u8
 [HD]fox,https://stream1.freetv.fun/862ba8034b4b9a1bb18f3f6d90e4c627fb15222b54b77f576c30d4f0c22141cd.m3u8
