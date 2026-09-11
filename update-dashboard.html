@@ -187,21 +187,35 @@
 
     const DEFAULT_MANIFEST = {
       "currentVersion": {
-        "versionCode": 218,
-        "versionName": "2.1.8",
-        "title": "Restored Music & Podcasts Video Playback, Native YouTube Player & Stability Fixes",
-        "releaseNotes": "• Restored Music & Podcasts Playback: Reverted to the rock-solid v2.1.5 player architecture with native WebView integration and privacy-enhanced youtube-nocookie embedding\n• Fixed Video Playback Lockup: Removed artificial desktop Windows UA and hardware layer override that caused black screens and bot verification blocks on YouTube\n• Reliable Media Transitions: Full media engine reinitialization during System Reboot with clean socket pool tear-down\n• Animated Search Focus: Distinct 3dp border glow and SEARCH label pill on remote D-pad focus",
-        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.8/app-release.apk",
+        "versionCode": 219,
+        "versionName": "2.1.9",
+        "title": "4K VOD Crash Fix, YouTube Feeds & Playback Resilience, and Search Bar Pre-Selection Focus",
+        "releaseNotes": "• 4K VOD Stability: Eliminated 4K movie crashes and sudden app closure by disabling excessive backBuffer retention, removing prioritizeTimeOverSizeThresholds, dynamically querying HDMI audio capabilities, and enabling largeHeap\n• YouTube Feeds & Playback Resilience: Resolved subsequent playback freezes by eliminating global WebView pauseTimers, adding genre memory caching, and introducing guaranteed instant official RSS feed fallbacks\n• Search Bar Pre-Selection Focus: Unmistakable visual cues when moving over the search bar via D-pad before selection: animated scale expansion (1.03x), glowing amber shadow, and high-contrast 'PRESS OK TO SEARCH' badge",
+        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.9/app-release.apk",
         "mandatory": false,
-        "publishedAt": "2026-09-11T01:13:51.378Z"
+        "publishedAt": "2026-09-11T01:39:48.166Z"
       },
       "releases": [
+        {
+          "id": "rel-219",
+          "versionCode": 219,
+          "versionName": "2.1.9",
+          "title": "4K VOD Crash Fix, YouTube Feeds & Playback Resilience, and Search Bar Pre-Selection Focus",
+          "status": "PUBLISHED",
+          "releaseNotes": "• 4K VOD Stability: Eliminated 4K movie crashes and sudden app closure by disabling excessive backBuffer retention, removing prioritizeTimeOverSizeThresholds, dynamically querying HDMI audio capabilities, and enabling largeHeap\n• YouTube Feeds & Playback Resilience: Resolved subsequent playback freezes by eliminating global WebView pauseTimers, adding genre memory caching, and introducing guaranteed instant official RSS feed fallbacks\n• Search Bar Pre-Selection Focus: Unmistakable visual cues when moving over the search bar via D-pad before selection: animated scale expansion (1.03x), glowing amber shadow, and high-contrast 'PRESS OK TO SEARCH' badge",
+          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+          "localApkUrl": "public/apks/tv-dinner-v2.1.9.apk",
+          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.9/app-release.apk",
+          "mandatory": false,
+          "createdAt": "2026-09-11T01:36:00.000Z",
+          "publishedAt": "2026-09-11T01:39:48.165Z"
+        },
         {
           "id": "rel-218",
           "versionCode": 218,
           "versionName": "2.1.8",
           "title": "Restored Music & Podcasts Video Playback, Native YouTube Player & Stability Fixes",
-          "status": "PUBLISHED",
+          "status": "ARCHIVED",
           "releaseNotes": "• Restored Music & Podcasts Playback: Reverted to the rock-solid v2.1.5 player architecture with native WebView integration and privacy-enhanced youtube-nocookie embedding\n• Fixed Video Playback Lockup: Removed artificial desktop Windows UA and hardware layer override that caused black screens and bot verification blocks on YouTube\n• Reliable Media Transitions: Full media engine reinitialization during System Reboot with clean socket pool tear-down\n• Animated Search Focus: Distinct 3dp border glow and SEARCH label pill on remote D-pad focus",
           "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
           "localApkUrl": "public/apks/tv-dinner-v2.1.8.apk",

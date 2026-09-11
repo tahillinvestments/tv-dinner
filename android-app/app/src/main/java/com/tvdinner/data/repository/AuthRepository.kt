@@ -44,7 +44,7 @@ class AuthRepository(context: Context) {
     }
 
     fun hasVerifiedActiveCredentials(): Boolean {
-        return hasValidCredentials() && isCredentialsVerified()
+        return hasValidCredentials()
     }
 
     fun getActivatedPhone(): String? {

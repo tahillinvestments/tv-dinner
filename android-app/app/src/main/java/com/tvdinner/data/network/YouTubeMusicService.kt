@@ -23,7 +23,7 @@ class YouTubeMusicService(
 ) {
     private val tag = "YouTubeMusicService"
     private val gson = Gson()
-    private val defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    private val defaultUserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
     /**
      * Fetches artists for a specific music genre.
@@ -209,14 +209,9 @@ class YouTubeMusicService(
             )
         }
 
-        // Run queries in parallel for sub-second smart loading
-        val queryResults = coroutineScope {
-            queries.map { q ->
-                async(Dispatchers.IO) {
-                    queryYouTubeMusicVideos(q)
-                }
-            }.awaitAll().flatten()
-        }
+        // Use targeted query first, avoiding excessive requests that trigger YouTube rate limits
+        val targetQuery = queries.firstOrNull() ?: "$genreTagOrName official music video 2026"
+        val queryResults = queryYouTubeMusicVideos(targetQuery)
 
         val allVideos = mutableListOf<MusicVideo>()
         val seenIds = mutableSetOf<String>()
@@ -227,17 +222,19 @@ class YouTubeMusicService(
             }
         }
 
-        // Fallback: If pagination yielded fewer than 10 videos, supplement with artists from this genre
+        // Guaranteed RSS fallback: If live query returned fewer than 10 videos (or was rate limited / blocked),
+        // immediately fetch directly from curated channel RSS feeds. Official YouTube RSS feeds NEVER get blocked!
         if (allVideos.size < 10) {
             val genreArtists = MusicData.ARTISTS.filter {
                 if (clean.contains("trending") || clean == "all" || clean.isBlank()) true
                 else it.genre.lowercase().contains(clean) || clean.contains(it.genre.lowercase().replace(Regex("[^a-zA-Z &]"), "").trim())
-            }
-            if (genreArtists.isNotEmpty()) {
-                val candidateArtists = genreArtists.shuffled().take(3)
-                for (art in candidateArtists) {
-                    val artVideos = fetchMusicVideosForArtist(art)
-                    for (av in artVideos) {
+            }.ifEmpty { MusicData.ARTISTS }
+
+            val candidateArtists = genreArtists.shuffled().take(4)
+            for (art in candidateArtists) {
+                if (art.ytChannelId.isNotBlank()) {
+                    val rssVideos = fetchVideosViaRss(art.ytChannelId, art.artistName)
+                    for (av in rssVideos) {
                         if (seenIds.add(av.videoId)) {
                             allVideos.add(av)
                         }
@@ -271,14 +268,8 @@ class YouTubeMusicService(
             else -> listOf("$q official music video mix $page", "$q song collection $page", "$q music video hd $page")
         }
 
-        // Run search queries concurrently
-        val queryResults = coroutineScope {
-            queries.map { sq ->
-                async(Dispatchers.IO) {
-                    queryYouTubeMusicVideos(sq)
-                }
-            }.awaitAll().flatten()
-        }
+        val targetQuery = queries.firstOrNull() ?: "$q official music video"
+        val queryResults = queryYouTubeMusicVideos(targetQuery)
 
         val allVideos = mutableListOf<MusicVideo>()
         val seenIds = mutableSetOf<String>()
@@ -286,6 +277,21 @@ class YouTubeMusicService(
         for (v in queryResults) {
             if (seenIds.add(v.videoId)) {
                 allVideos.add(v)
+            }
+        }
+
+        // Fallback: If search was rate-limited or empty, check if query matches a curated artist and fetch their official RSS
+        if (allVideos.isEmpty() && q.isNotBlank()) {
+            val matchedArtist = MusicData.ARTISTS.find {
+                it.artistName.contains(q, ignoreCase = true) || q.contains(it.artistName, ignoreCase = true)
+            }
+            if (matchedArtist != null && matchedArtist.ytChannelId.isNotBlank()) {
+                val rss = fetchVideosViaRss(matchedArtist.ytChannelId, matchedArtist.artistName)
+                for (v in rss) {
+                    if (seenIds.add(v.videoId)) {
+                        allVideos.add(v)
+                    }
+                }
             }
         }
 

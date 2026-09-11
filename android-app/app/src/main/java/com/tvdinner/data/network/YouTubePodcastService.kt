@@ -24,7 +24,7 @@ class YouTubePodcastService(
     private val tag = "YouTubePodcastService"
     private val gson = Gson()
 
-    private val defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    private val defaultUserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
     /**
      * Pings real live video podcast channels combining curated roster + real-time YouTube channel search.
@@ -57,9 +57,10 @@ class YouTubePodcastService(
             }
         }
 
-        // Live YouTube Video Podcast Channels
+        // Live YouTube Video Podcast Channels with iTunes fallback
         val ytChannels = searchLiveYouTubeChannels(searchTerm, category)
-        for (ch in ytChannels) {
+        val candidateChannels = if (ytChannels.isNotEmpty()) ytChannels else fetchItunesPodcastChannels(searchTerm, category)
+        for (ch in candidateChannels) {
             val key = ch.channelName.lowercase().trim()
             if (seenNames.add(key)) {
                 combined.add(ch)
@@ -267,6 +268,7 @@ class YouTubePodcastService(
                     allEpisodes.add(ep)
                 }
             }
+            if (allEpisodes.size >= 15) break
         }
 
         // Guaranteed fallback: If live search returned few results, fetch from curated channel RSS feeds

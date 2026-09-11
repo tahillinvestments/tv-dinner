@@ -199,6 +199,7 @@ fun YouTubePlayerView(
             """
             if (window.ytPlayer && typeof window.ytPlayer.loadVideoById === 'function') {
                 window.ytPlayer.loadVideoById('$videoId');
+                try { window.ytPlayer.playVideo(); } catch(_) {}
             } else {
                 window.pendingVideoId = '$videoId';
             }
@@ -217,7 +218,6 @@ fun YouTubePlayerView(
                     wv.onPause()
                     wv.stopLoading()
                     wv.loadUrl("about:blank")
-                    wv.pauseTimers()
                     wv.destroy()
                 } catch (_: Exception) {}
             }
@@ -240,6 +240,7 @@ fun YouTubePlayerView(
         AndroidView(
             factory = { context ->
                 WebView(context).apply {
+                    resumeTimers()
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
@@ -338,6 +339,7 @@ fun YouTubePlayerView(
                 }
             },
             update = { wv ->
+                wv.resumeTimers()
                 YouTubeRemoteBridge.activeWebView = wv
             },
             modifier = Modifier.fillMaxSize()

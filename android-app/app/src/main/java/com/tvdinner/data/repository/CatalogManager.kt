@@ -23,6 +23,7 @@ class CatalogManager(
     // In-Memory Music Cache
     private val cachedMusicArtistsByGenre = mutableMapOf<String, List<MusicArtist>>()
     private val cachedMusicVideosByArtist = mutableMapOf<String, List<MusicVideo>>()
+    private val cachedMusicVideosByGenre = java.util.concurrent.ConcurrentHashMap<String, List<MusicVideo>>()
 
     // In-Memory Live TV Cache
     var cachedLiveCategories: List<LiveCategory>? = null
@@ -1409,8 +1410,17 @@ class CatalogManager(
     }
 
     // Music API Integration
-    suspend fun getMusicForGenre(genreTagOrName: String, page: Int = 1): List<MusicVideo> = withContext(Dispatchers.IO) {
-        musicService.fetchMusicForGenre(genreTagOrName, page)
+    suspend fun getMusicForGenre(genreTagOrName: String, page: Int = 1, forceRefresh: Boolean = false): List<MusicVideo> = withContext(Dispatchers.IO) {
+        val key = genreTagOrName.lowercase().trim()
+        if (page == 1 && !forceRefresh) {
+            val cached = cachedMusicVideosByGenre[key]
+            if (!cached.isNullOrEmpty()) return@withContext cached
+        }
+        val videos = musicService.fetchMusicForGenre(genreTagOrName, page)
+        if (page == 1 && videos.isNotEmpty()) {
+            cachedMusicVideosByGenre[key] = videos
+        }
+        videos
     }
 
     suspend fun getOrganicTrendingMusic(page: Int = 1): List<MusicVideo> = withContext(Dispatchers.IO) {
