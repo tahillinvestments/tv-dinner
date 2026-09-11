@@ -272,30 +272,29 @@ class ExoPlayerManager(
                 enableFloatOutput: Boolean,
                 enableAudioTrackPlaybackParams: Boolean
             ): androidx.media3.exoplayer.audio.AudioSink {
-                val capabilities = androidx.media3.exoplayer.audio.AudioCapabilities.getCapabilities(context)
                 return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
-                    .setAudioCapabilities(capabilities)
+                    .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
                     .setEnableFloatOutput(false)
                     .setEnableAudioTrackPlaybackParams(true)
                     .build()
             }
         }.apply {
-            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             setEnableDecoderFallback(true)
             setEnableAudioTrackPlaybackParams(true)
             setEnableAudioFloatOutput(false)
         }
 
-        // Buffer durations tuned for instant direct start, smooth 4K playback, and zero heap/LMKD memory crashes
+        // Buffer durations tuned for instant direct start and zero artificial latency with safe backBuffer retention
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                2500,  // minBufferMs (2.5s buffer threshold)
-                15000, // maxBufferMs (15s max buffer - prevents massive 4K buffer memory exhaustion)
+                3000,  // minBufferMs (3s buffer threshold)
+                30000, // maxBufferMs (30s max buffer)
                 500,   // bufferForPlaybackMs (instant startup in 500ms)
-                1500   // bufferForPlaybackAfterRebufferMs (1.5s recovery)
+                1000   // bufferForPlaybackAfterRebufferMs (1s recovery)
             )
-            .setBackBuffer(30_000, false) // 30s safe backBuffer without retaining distant keyframe GOPs
-            .setPrioritizeTimeOverSizeThresholds(false) // Strictly respect memory thresholds to prevent OOM
+            .setBackBuffer(120_000, true) // Retain up to 2 minutes of played media for limited safe live rewind
+            .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
         val extractorsFactory = DefaultExtractorsFactory().apply {

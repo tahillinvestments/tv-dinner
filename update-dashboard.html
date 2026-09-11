@@ -187,21 +187,35 @@
 
     const DEFAULT_MANIFEST = {
       "currentVersion": {
-        "versionCode": 219,
-        "versionName": "2.1.9",
-        "title": "4K VOD Crash Fix, YouTube Feeds & Playback Resilience, and Search Bar Pre-Selection Focus",
-        "releaseNotes": "• 4K VOD Stability: Eliminated 4K movie crashes and sudden app closure by disabling excessive backBuffer retention, removing prioritizeTimeOverSizeThresholds, dynamically querying HDMI audio capabilities, and enabling largeHeap\n• YouTube Feeds & Playback Resilience: Resolved subsequent playback freezes by eliminating global WebView pauseTimers, adding genre memory caching, and introducing guaranteed instant official RSS feed fallbacks\n• Search Bar Pre-Selection Focus: Unmistakable visual cues when moving over the search bar via D-pad before selection: animated scale expansion (1.03x), glowing amber shadow, and high-contrast 'PRESS OK TO SEARCH' badge",
-        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.9/app-release.apk",
+        "versionCode": 220,
+        "versionName": "2.2.0",
+        "title": "Restored Functional VOD Player Configuration & YouTube / Search Focus Enhancements",
+        "releaseNotes": "• Restored VOD Configuration: Fully reverted VOD media engine to the proven functional configuration (prioritize time over size, extension renderers prefer, standard 30s buffer) to guarantee reliable movie & series streaming\n• YouTube Feeds & Playback Resilience: Preserved fix eliminating global pauseTimers freeze and added instant channel RSS fallbacks so feeds never stall\n• Search Bar Pre-Selection Focus: Preserved distinct TV remote focus highlight with 1.03x scale expansion, amber halo glow, and 'PRESS OK TO SEARCH' cue",
+        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.0/app-release.apk",
         "mandatory": false,
-        "publishedAt": "2026-09-11T01:39:48.166Z"
+        "publishedAt": "2026-09-11T02:13:31.755Z"
       },
       "releases": [
+        {
+          "id": "rel-220",
+          "versionCode": 220,
+          "versionName": "2.2.0",
+          "title": "Restored Functional VOD Player Configuration & YouTube / Search Focus Enhancements",
+          "status": "PUBLISHED",
+          "releaseNotes": "• Restored VOD Configuration: Fully reverted VOD media engine to the proven functional configuration (prioritize time over size, extension renderers prefer, standard 30s buffer) to guarantee reliable movie & series streaming\n• YouTube Feeds & Playback Resilience: Preserved fix eliminating global pauseTimers freeze and added instant channel RSS fallbacks so feeds never stall\n• Search Bar Pre-Selection Focus: Preserved distinct TV remote focus highlight with 1.03x scale expansion, amber halo glow, and 'PRESS OK TO SEARCH' cue",
+          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+          "localApkUrl": "public/apks/tv-dinner-v2.2.0.apk",
+          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.0/app-release.apk",
+          "mandatory": false,
+          "createdAt": "2026-09-11T02:12:00.000Z",
+          "publishedAt": "2026-09-11T02:13:31.754Z"
+        },
         {
           "id": "rel-219",
           "versionCode": 219,
           "versionName": "2.1.9",
           "title": "4K VOD Crash Fix, YouTube Feeds & Playback Resilience, and Search Bar Pre-Selection Focus",
-          "status": "PUBLISHED",
+          "status": "ARCHIVED",
           "releaseNotes": "• 4K VOD Stability: Eliminated 4K movie crashes and sudden app closure by disabling excessive backBuffer retention, removing prioritizeTimeOverSizeThresholds, dynamically querying HDMI audio capabilities, and enabling largeHeap\n• YouTube Feeds & Playback Resilience: Resolved subsequent playback freezes by eliminating global WebView pauseTimers, adding genre memory caching, and introducing guaranteed instant official RSS feed fallbacks\n• Search Bar Pre-Selection Focus: Unmistakable visual cues when moving over the search bar via D-pad before selection: animated scale expansion (1.03x), glowing amber shadow, and high-contrast 'PRESS OK TO SEARCH' badge",
           "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
           "localApkUrl": "public/apks/tv-dinner-v2.1.9.apk",
