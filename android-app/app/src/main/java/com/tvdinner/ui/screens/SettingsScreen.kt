@@ -1108,48 +1108,57 @@ fun SettingsScreen(
 
                                 Button(
                                     onClick = {
-                                        isRebooting = true
-                                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    isRebooting = true
+                                        coroutineScope.launch {
+                                            // Step 1: Full media engine restart on Main thread
+                                            // reinitialize() rebuilds mediaOkHttpClient + ExoPlayer from scratch,
+                                            // fixing "all modules lose connectivity" after reboot.
                                             try {
-                                                playerManager?.stop()
+                                                playerManager?.reinitialize()
                                             } catch (_: Exception) {}
 
+                                            // Step 2: Stop YouTube WebView playback (also on Main)
                                             try {
                                                 YouTubeRemoteBridge.activeWebView?.let { wv ->
-                                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                        try {
-                                                            wv.onPause()
-                                                            wv.stopLoading()
-                                                            wv.loadUrl("about:blank")
-                                                        } catch (_: Exception) {}
-                                                    }
+                                                    try {
+                                                        wv.onPause()
+                                                        wv.stopLoading()
+                                                        wv.loadUrl("about:blank")
+                                                    } catch (_: Exception) {}
                                                 }
                                                 YouTubeRemoteBridge.activeWebView = null
                                             } catch (_: Exception) {}
 
-                                            try {
-                                                apiClient.okHttpClient.connectionPool.evictAll()
-                                                apiClient.okHttpClient.dispatcher.cancelAll()
-                                            } catch (_: Exception) {}
+                                            // Step 3: Flush catalog/image OkHttp connection pool on IO.
+                                            // IMPORTANT: evictAll() only — NOT cancelAll().
+                                            // cancelAll() kills in-flight coroutines for YouTube/Music/Podcast
+                                            // feed fetches, breaking connectivity to those modules after reboot.
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                try {
+                                                    apiClient.okHttpClient.connectionPool.evictAll()
+                                                } catch (_: Exception) {}
+                                            }
 
-                                            try {
-                                                Coil.imageLoader(context).memoryCache?.clear()
-                                                Coil.imageLoader(context).diskCache?.clear()
-                                            } catch (_: Exception) {}
+                                            // Step 4: Clear image memory/disk caches
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                try {
+                                                    Coil.imageLoader(context).memoryCache?.clear()
+                                                    Coil.imageLoader(context).diskCache?.clear()
+                                                } catch (_: Exception) {}
 
-                                            try {
-                                                context.cacheDir.deleteRecursively()
-                                            } catch (_: Exception) {}
+                                                try {
+                                                    context.cacheDir.deleteRecursively()
+                                                } catch (_: Exception) {}
+                                            }
 
+                                            // Step 5: Clear catalog in-memory caches (triggers fresh API fetch on next screen visit)
                                             try {
                                                 catalogManager?.clearAllCaches()
                                             } catch (_: Exception) {}
 
-                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                isRebooting = false
-                                                showSystemRebootDialog = false
-                                                Toast.makeText(context, "TV Dinner System Reboot Complete: Streaming engines & caches refreshed.", Toast.LENGTH_LONG).show()
-                                            }
+                                            isRebooting = false
+                                            showSystemRebootDialog = false
+                                            Toast.makeText(context, "TV Dinner System Reboot Complete: Media engine & caches fully rebuilt.", Toast.LENGTH_LONG).show()
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = CinemaYellow),

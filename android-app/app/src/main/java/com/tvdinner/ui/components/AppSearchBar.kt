@@ -1,5 +1,8 @@
 package com.tvdinner.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,25 +55,44 @@ fun AppSearchBar(
     var isEditing by remember { mutableStateOf(false) }
     var isCardFocused by remember { mutableStateOf(false) }
 
-    val backgroundColor = when {
-        isEditing -> Color(0xFF162D4A)
-        isCardFocused -> Color(0xFF1E3A5F)
-        else -> CinemaSurface
-    }
+    // --- Animated focus indicators: smooth color and border width transitions ---
+    // The animated background makes focus unmistakably visible on TV even at a distance.
+    val animatedBackground by animateColorAsState(
+        targetValue = when {
+            isEditing     -> Color(0xFF162D4A)
+            isCardFocused -> Color(0xFF1A3560)
+            else          -> CinemaSurface
+        },
+        animationSpec = tween(durationMillis = 150),
+        label = "searchBg"
+    )
 
-    val borderColor = when {
-        isEditing -> CinemaAccent
-        isCardFocused -> CinemaFocus
-        else -> CinemaSurfaceLight
-    }
+    val animatedBorderColor by animateColorAsState(
+        targetValue = when {
+            isEditing     -> CinemaAccent
+            isCardFocused -> CinemaFocus
+            else          -> CinemaSurfaceLight
+        },
+        animationSpec = tween(durationMillis = 150),
+        label = "searchBorder"
+    )
 
-    val borderWidth = if (isCardFocused || isEditing) 2.5.dp else 1.dp
+    // Focused border is 3dp — slightly thicker than editing so D-pad focus is unmissable pre-click
+    val animatedBorderWidth by animateDpAsState(
+        targetValue = when {
+            isEditing     -> 2.5.dp
+            isCardFocused -> 3.dp
+            else          -> 1.dp
+        },
+        animationSpec = tween(durationMillis = 120),
+        label = "searchBorderWidth"
+    )
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .background(backgroundColor, RoundedCornerShape(10.dp))
-            .border(borderWidth, borderColor, RoundedCornerShape(10.dp))
+            .background(animatedBackground, RoundedCornerShape(10.dp))
+            .border(animatedBorderWidth, animatedBorderColor, RoundedCornerShape(10.dp))
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .focusable(!isEditing)
             .onFocusChanged { state ->
@@ -128,6 +150,17 @@ fun AppSearchBar(
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
+        // Focused "SEARCH" hint label — visible only when D-pad focuses the bar before clicking in
+        if (isCardFocused && !isEditing) {
+            Text(
+                text = "SEARCH",
+                color = CinemaFocus,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(end = 4.dp)
+            )
+        }
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (value.isEmpty() && !isEditing) {
                 Text(

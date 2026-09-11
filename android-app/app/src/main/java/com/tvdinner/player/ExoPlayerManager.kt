@@ -102,13 +102,17 @@ class ExoPlayerManager(
     private var vodRecoveryAttempt = 0
 
     // Isolated OkHttpClient dedicated solely to media streaming with its own dispatcher to avoid collateral cancellation of REST/catalog calls
-    private val mediaOkHttpClient: okhttp3.OkHttpClient = xtreamApiClient.okHttpClient.newBuilder()
-        .dispatcher(okhttp3.Dispatcher().apply {
-            maxRequests = 64
-            maxRequestsPerHost = 16
-        })
-        .connectionPool(okhttp3.ConnectionPool(8, 2, java.util.concurrent.TimeUnit.MINUTES))
-        .build()
+    // This is var so reinitialize() can rebuild it entirely from scratch when the media connection pool becomes corrupted
+    private var mediaOkHttpClient: okhttp3.OkHttpClient = buildMediaOkHttpClient()
+
+    private fun buildMediaOkHttpClient(): okhttp3.OkHttpClient =
+        xtreamApiClient.okHttpClient.newBuilder()
+            .dispatcher(okhttp3.Dispatcher().apply {
+                maxRequests = 64
+                maxRequestsPerHost = 16
+            })
+            .connectionPool(okhttp3.ConnectionPool(8, 2, java.util.concurrent.TimeUnit.MINUTES))
+            .build()
 
     // Stream generation token to invalidate stale watchdog / recovery coroutines from old streams
     private var streamGeneration: Long = 0L
@@ -119,6 +123,60 @@ class ExoPlayerManager(
 
     init {
         initializePlayer()
+    }
+
+    /**
+     * Full in-process restart of the media engine — equivalent to what an app close+reopen does.
+     *
+     * This is the correct fix for "all modules lose connectivity after reboot". The root cause is
+     * that [mediaOkHttpClient] has its own Dispatcher and ConnectionPool isolated from the catalog
+     * client, so the Reboot must explicitly flush and rebuild BOTH the media OkHttpClient AND the
+     * ExoPlayer instance. Simply calling stop() leaves stale socket state in mediaOkHttpClient.
+     *
+     * Must be called on the Main thread.
+     */
+    fun reinitialize() {
+        Log.i(tag, "reinitialize(): Full media engine restart")
+        // 1. Bump generation to invalidate all in-flight watchdog / recovery coroutines
+        streamGeneration++
+        bufferWatchdogJob?.cancel()
+        errorRecoveryJob?.cancel()
+
+        // 2. Reset all visible state flags cleanly
+        liveRecoveryAttempt = 0
+        vodRecoveryAttempt = 0
+        _isStreamStalled.value = false
+        _errorMessage.value = null
+        _isPlaying.value = false
+        _isBuffering.value = false
+        _currentPosition.value = 0L
+        _duration.value = 0L
+        _isLiveRewound.value = false
+        _liveRewindOffsetSeconds.value = 0
+        _audioTracks.value = emptyList()
+        _selectedAudioTrack.value = null
+        currentStreamKey = null
+        _currentStreamUrl.value = ""
+        _currentTitle.value = ""
+
+        // 3. Flush the dedicated media OkHttp dispatcher and connection pool
+        try { mediaOkHttpClient.dispatcher.cancelAll() } catch (_: Exception) {}
+        try { mediaOkHttpClient.connectionPool.evictAll() } catch (_: Exception) {}
+
+        // 4. Release the ExoPlayer instance entirely so its internal buffer/chunk queues are freed
+        try {
+            player?.stop()
+            player?.clearMediaItems()
+            player?.release()
+        } catch (_: Exception) {}
+        player = null
+
+        // 5. Rebuild mediaOkHttpClient from scratch — brand new Dispatcher, brand new ConnectionPool
+        mediaOkHttpClient = buildMediaOkHttpClient()
+
+        // 6. Re-create ExoPlayer using the fresh mediaOkHttpClient
+        initializePlayer()
+        Log.i(tag, "reinitialize(): Complete — ExoPlayer and media socket pool rebuilt")
     }
 
     fun recoverLiveStream(forceFailover: Boolean = false) {
