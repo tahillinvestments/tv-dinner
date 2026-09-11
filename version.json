@@ -1,9 +1,9 @@
 {
-  "versionCode": 215,
-  "versionName": "2.1.5",
-  "title": "VOD Playback Stabilization, Seamless Transitions, Start-at-Beginning & Podcasts Navigation",
-  "releaseNotes": "• VOD Playback Stabilization: Fixed stream errors and socket drops across the app with dedicated OkHttp dispatcher and extended 25s buffering headroom\n• Seamless Media Transitions: Switch between any media (Live TV, Movies, Series, Podcasts, Music) with clean state reset and zero need to restart app\n• VOD Start-at-Beginning: Movies and Series strictly start from 0:00 unless 'Resume' is explicitly chosen in the dialog\n• Podcasts Remote Back Navigation: Pressing Back on remote when viewing a channel's episode list returns directly to previous search or category view\n• Dashboard Re-Publishing: Re-publish former or archived releases directly from the update dashboard with one click",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.5/app-release.apk",
+  "versionCode": 216,
+  "versionName": "2.1.6",
+  "title": "Music Video Playback Fix, TV Dinner System Reboot, Module-Wide History & Rated-R Filtering",
+  "releaseNotes": "• Music & Podcasts Playback: Eliminated black screens and hesitation on music videos with modern desktop Chrome UA and instant playback watchdog\n• TV Dinner System Reboot: Added streaming system reset button in Settings to flush playback engines, socket pools, and caches without touching credentials\n• Module-Wide History: Added 🕒 History to Movies, Series, Music, and Podcasts with selective multi-section clear dialog in Settings\n• Rated R Adult Filter: Automatically hides 'Rated R' movie categories and titles when the Adult Content Filter is active\n• Closed Captions: Updated Settings Closed Captions toggle and remote CC shortcuts to apply directly to Music and Podcasts",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.6/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-07T18:02:03.011Z"
+  "publishedAt": "2026-09-11T00:17:20.950Z"
 }
