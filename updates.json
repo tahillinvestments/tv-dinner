@@ -1,20 +1,34 @@
 {
   "currentVersion": {
-    "versionCode": 220,
-    "versionName": "2.2.0",
-    "title": "Restored Functional VOD Player Configuration & YouTube / Search Focus Enhancements",
-    "releaseNotes": "• Restored VOD Configuration: Fully reverted VOD media engine to the proven functional configuration (prioritize time over size, extension renderers prefer, standard 30s buffer) to guarantee reliable movie & series streaming\n• YouTube Feeds & Playback Resilience: Preserved fix eliminating global pauseTimers freeze and added instant channel RSS fallbacks so feeds never stall\n• Search Bar Pre-Selection Focus: Preserved distinct TV remote focus highlight with 1.03x scale expansion, amber halo glow, and 'PRESS OK TO SEARCH' cue",
-    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.0/app-release.apk",
+    "versionCode": 221,
+    "versionName": "2.2.1",
+    "title": "Search Bar Pre-Selection Focus, Live TV Malformed Container Fix & VOD Decoder Auto-Recovery",
+    "releaseNotes": "• Instant Search Bar Focus: Search bar immediately highlights the moment TV remote D-pad moves over it before pressing Select, featuring 1.04x scale expansion, 3dp amber border, glowing halo shadow, and 'PRESS OK TO SEARCH' gold badge\n• Live TV Container Fix: Resolved 'ERROR_CODE_PARSING_CONTAINER_MALFORMED' by removing strict AUD detection from MPEG-TS extractors, adding SCTE-35 splice stream tolerance, and rejecting deceptive HTML error pages in the media stream\n• VOD Decoder Auto-Recovery & 4K Crash Protection: Fixed decoding failed reconnect stalls by auto-advancing past corrupt keyframes and refreshing hardware codec surfaces; reduced backBuffer to 20s to eliminate 4K out-of-memory crashes",
+    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.1/app-release.apk",
     "mandatory": false,
-    "publishedAt": "2026-09-11T02:13:31.755Z"
+    "publishedAt": "2026-09-11T02:58:37.006Z"
   },
   "releases": [
+    {
+      "id": "rel-221",
+      "versionCode": 221,
+      "versionName": "2.2.1",
+      "title": "Search Bar Pre-Selection Focus, Live TV Malformed Container Fix & VOD Decoder Auto-Recovery",
+      "status": "PUBLISHED",
+      "releaseNotes": "• Instant Search Bar Focus: Search bar immediately highlights the moment TV remote D-pad moves over it before pressing Select, featuring 1.04x scale expansion, 3dp amber border, glowing halo shadow, and 'PRESS OK TO SEARCH' gold badge\n• Live TV Container Fix: Resolved 'ERROR_CODE_PARSING_CONTAINER_MALFORMED' by removing strict AUD detection from MPEG-TS extractors, adding SCTE-35 splice stream tolerance, and rejecting deceptive HTML error pages in the media stream\n• VOD Decoder Auto-Recovery & 4K Crash Protection: Fixed decoding failed reconnect stalls by auto-advancing past corrupt keyframes and refreshing hardware codec surfaces; reduced backBuffer to 20s to eliminate 4K out-of-memory crashes",
+      "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+      "localApkUrl": "public/apks/tv-dinner-v2.2.1.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.1/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-11T02:58:33.762Z",
+      "publishedAt": "2026-09-11T02:58:37.005Z"
+    },
     {
       "id": "rel-220",
       "versionCode": 220,
       "versionName": "2.2.0",
       "title": "Restored Functional VOD Player Configuration & YouTube / Search Focus Enhancements",
-      "status": "PUBLISHED",
+      "status": "ARCHIVED",
       "releaseNotes": "• Restored VOD Configuration: Fully reverted VOD media engine to the proven functional configuration (prioritize time over size, extension renderers prefer, standard 30s buffer) to guarantee reliable movie & series streaming\n• YouTube Feeds & Playback Resilience: Preserved fix eliminating global pauseTimers freeze and added instant channel RSS fallbacks so feeds never stall\n• Search Bar Pre-Selection Focus: Preserved distinct TV remote focus highlight with 1.03x scale expansion, amber halo glow, and 'PRESS OK TO SEARCH' cue",
       "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
       "localApkUrl": "public/apks/tv-dinner-v2.2.0.apk",

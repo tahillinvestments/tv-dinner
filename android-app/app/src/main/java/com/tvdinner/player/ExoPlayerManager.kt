@@ -112,6 +112,18 @@ class ExoPlayerManager(
                 maxRequestsPerHost = 16
             })
             .connectionPool(okhttp3.ConnectionPool(8, 2, java.util.concurrent.TimeUnit.MINUTES))
+            .addInterceptor { chain ->
+                val response = chain.proceed(chain.request())
+                // Prevent HTML error pages (e.g. HTTP 200 with HTML body returned by IPTV middleboxes / Cloudflare / expired tokens)
+                // from being parsed by TS / MP4 extractors, which would otherwise crash with ERROR_CODE_PARSING_CONTAINER_MALFORMED
+                if (response.isSuccessful) {
+                    val contentType = response.body?.contentType()
+                    if (contentType != null && contentType.type.equals("text", ignoreCase = true) && contentType.subtype.equals("html", ignoreCase = true)) {
+                        throw java.io.IOException("IPTV server returned HTML error page instead of media stream (HTTP ${response.code})")
+                    }
+                }
+                response
+            }
             .build()
 
     // Stream generation token to invalidate stale watchdog / recovery coroutines from old streams
@@ -216,18 +228,36 @@ class ExoPlayerManager(
         )
     }
 
-    fun recoverVodStream(forceFailover: Boolean = false) {
+    fun recoverVodStream(forceFailover: Boolean = false, isDecoderOrContainerError: Boolean = false) {
         val currentUrl = _currentStreamUrl.value
         if (currentUrl.isBlank() || _isLiveStream.value) return
         vodRecoveryAttempt++
-        val resumePos = _currentPosition.value.coerceAtLeast(0L)
-        Log.w(tag, "Recovering VOD stream: attempt $vodRecoveryAttempt from ${resumePos}ms (url: $currentUrl)")
+        var resumePos = _currentPosition.value.coerceAtLeast(0L)
+
+        if (isDecoderOrContainerError) {
+            // Nudge forward past corrupted frame/GOP to prevent repeating the exact same decoder/container crash
+            val nudgeMs = (vodRecoveryAttempt * 2_500L)
+            val maxPos = if (_duration.value > 0) _duration.value else Long.MAX_VALUE
+            resumePos = (resumePos + nudgeMs).coerceAtMost(maxPos)
+            Log.w(tag, "Decoder/container error on VOD: nudging past corrupt frame to ${resumePos}ms (attempt $vodRecoveryAttempt)")
+        } else {
+            Log.w(tag, "Recovering VOD stream: attempt $vodRecoveryAttempt from ${resumePos}ms (url: $currentUrl)")
+        }
 
         // Stop player cleanly without evicting the entire connection pool
         try {
             player?.stop()
             player?.clearMediaItems()
         } catch (_: Exception) {}
+
+        // If repeated decoder failures occurred, reinitialize player instance to reset hardware codec surfaces
+        if (isDecoderOrContainerError && vodRecoveryAttempt >= 2) {
+            try {
+                player?.release()
+                player = null
+                initializePlayer()
+            } catch (_: Exception) {}
+        }
 
         // VOD files are hosted strictly on the primary VOD portal; do not fail over to Live TV backup proxies
         playStream(
@@ -293,16 +323,15 @@ class ExoPlayerManager(
                 500,   // bufferForPlaybackMs (instant startup in 500ms)
                 1000   // bufferForPlaybackAfterRebufferMs (1s recovery)
             )
-            .setBackBuffer(120_000, true) // Retain up to 2 minutes of played media for limited safe live rewind
+            .setBackBuffer(20_000, false) // 20s backBuffer prevents 4K VOD OutOfMemory crashes while keeping safe rewind
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
         val extractorsFactory = DefaultExtractorsFactory().apply {
-            setConstantBitrateSeekingEnabled(true)
             setTsExtractorFlags(
                 DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
-                DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS or
-                DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS
+                DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS or
+                DefaultTsPayloadReaderFactory.FLAG_IGNORE_SPLICE_INFO_STREAM
             )
         }
 
@@ -317,7 +346,6 @@ class ExoPlayerManager(
                 buildUponParameters()
                     .setPreferredAudioLanguage("en")
                     .setSelectUndeterminedTextLanguage(true)
-                    .setExceedRendererCapabilitiesIfNecessary(true)
                     .setAllowAudioNonSeamlessAdaptiveness(true)
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             )
@@ -422,9 +450,16 @@ class ExoPlayerManager(
 
                         val isBadHttpStatus = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
                                               error.cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+                        val isDecoderError = error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
+                                             error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                                             error.errorCode == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED
+                        val isContainerError = error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                                               error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED
 
                         _errorMessage.value = if (isBadHttpStatus) {
                             "Connection interrupted (HTTP error). Reconnecting..."
+                        } else if (isDecoderError) {
+                            "Decoding issue. Resuming playback..."
                         } else {
                             "Playback issue (${error.errorCodeName}). Reconnecting..."
                         }
@@ -434,15 +469,18 @@ class ExoPlayerManager(
                             errorRecoveryJob = scope.launch {
                                 delay(1000)
                                 if (currentGen == streamGeneration) {
-                                    recoverLiveStream(forceFailover = isBadHttpStatus || liveRecoveryAttempt >= 1)
+                                    recoverLiveStream(forceFailover = isBadHttpStatus || isContainerError || liveRecoveryAttempt >= 1)
                                 }
                             }
                             return
-                        } else if (!_isLiveStream.value && vodRecoveryAttempt < 4) {
+                        } else if (!_isLiveStream.value && vodRecoveryAttempt < 5) {
                             errorRecoveryJob = scope.launch {
-                                delay(1500)
+                                delay(1200)
                                 if (currentGen == streamGeneration) {
-                                    recoverVodStream(forceFailover = false)
+                                    recoverVodStream(
+                                        forceFailover = false,
+                                        isDecoderOrContainerError = isDecoderError || isContainerError
+                                    )
                                 }
                             }
                             return

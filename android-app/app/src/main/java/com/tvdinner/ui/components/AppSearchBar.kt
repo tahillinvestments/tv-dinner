@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -40,6 +42,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tvdinner.ui.theme.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppSearchBar(
@@ -54,24 +58,27 @@ fun AppSearchBar(
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
-    val focusRequester = remember { FocusRequester() }
+    val textFieldFocusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
 
     var isEditing by remember { mutableStateOf(false) }
     var isCardFocused by remember { mutableStateOf(false) }
 
+    val isPreSelectFocused = isCardFocused && !isEditing
+
     // --- Animated focus indicators: smooth color, scale, shadow, and border width transitions ---
     // The animated scale, glowing shadow, and vibrant background make focus unmistakably visible on TV before clicking in.
     val scale by animateFloatAsState(
-        targetValue = if (isCardFocused && !isEditing) 1.03f else 1.0f,
+        targetValue = if (isPreSelectFocused) 1.04f else 1.0f,
         animationSpec = tween(durationMillis = 150),
         label = "searchScale"
     )
 
     val animatedBackground by animateColorAsState(
         targetValue = when {
-            isEditing     -> Color(0xFF162D4A)
-            isCardFocused -> Color(0xFF1E3C72)
-            else          -> CinemaSurface
+            isEditing          -> Color(0xFF162D4A)
+            isPreSelectFocused -> Color(0xFF1E3C72)
+            else               -> CinemaSurface
         },
         animationSpec = tween(durationMillis = 150),
         label = "searchBg"
@@ -79,9 +86,9 @@ fun AppSearchBar(
 
     val animatedBorderColor by animateColorAsState(
         targetValue = when {
-            isEditing     -> CinemaAccent
-            isCardFocused -> CinemaFocus
-            else          -> CinemaSurfaceLight
+            isEditing          -> CinemaAccent
+            isPreSelectFocused -> CinemaFocus
+            else               -> CinemaSurfaceLight
         },
         animationSpec = tween(durationMillis = 150),
         label = "searchBorder"
@@ -90,9 +97,9 @@ fun AppSearchBar(
     // Focused border is 3dp — thick and sharp so D-pad focus is unmissable pre-click
     val animatedBorderWidth by animateDpAsState(
         targetValue = when {
-            isEditing     -> 2.5.dp
-            isCardFocused -> 3.dp
-            else          -> 1.dp
+            isEditing          -> 2.5.dp
+            isPreSelectFocused -> 3.dp
+            else               -> 1.dp
         },
         animationSpec = tween(durationMillis = 120),
         label = "searchBorderWidth"
@@ -100,10 +107,14 @@ fun AppSearchBar(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
+        modifier = Modifier
+            .onFocusChanged { state ->
+                isCardFocused = state.isFocused || state.hasFocus
+            }
+            .then(modifier)
             .scale(scale)
             .shadow(
-                elevation = if (isCardFocused && !isEditing) 14.dp else 0.dp,
+                elevation = if (isPreSelectFocused) 14.dp else 0.dp,
                 shape = RoundedCornerShape(10.dp),
                 ambientColor = CinemaFocus,
                 spotColor = CinemaFocus
@@ -111,9 +122,6 @@ fun AppSearchBar(
             .background(animatedBackground, RoundedCornerShape(10.dp))
             .border(animatedBorderWidth, animatedBorderColor, RoundedCornerShape(10.dp))
             .focusable(!isEditing)
-            .onFocusChanged { state ->
-                isCardFocused = state.isFocused
-            }
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .onPreviewKeyEvent { keyEvent ->
                 if (!isEditing && keyEvent.type == KeyEventType.KeyDown) {
@@ -141,34 +149,48 @@ fun AppSearchBar(
                 false
             }
             .onKeyEvent { keyEvent ->
-                if (!isEditing && keyEvent.type == KeyEventType.KeyUp) {
-                    val code = keyEvent.nativeKeyEvent.keyCode
-                    if (code == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
-                        code == android.view.KeyEvent.KEYCODE_ENTER ||
-                        code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                val code = keyEvent.nativeKeyEvent.keyCode
+                val isSelectKey = code == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                                  code == android.view.KeyEvent.KEYCODE_ENTER ||
+                                  code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+                if (!isEditing && isSelectKey) {
+                    if (keyEvent.type == KeyEventType.KeyUp) {
                         isEditing = true
-                        focusRequester.requestFocus()
-                        keyboardController?.show()
-                        return@onKeyEvent true
+                        coroutineScope.launch {
+                            delay(50)
+                            try {
+                                textFieldFocusRequester.requestFocus()
+                                keyboardController?.show()
+                            } catch (_: Exception) {}
+                        }
                     }
+                    return@onKeyEvent true
                 }
                 false
             }
-            .clickable {
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
                 isEditing = true
-                focusRequester.requestFocus()
-                keyboardController?.show()
+                coroutineScope.launch {
+                    delay(50)
+                    try {
+                        textFieldFocusRequester.requestFocus()
+                        keyboardController?.show()
+                    } catch (_: Exception) {}
+                }
             }
     ) {
         Icon(
             imageVector = Icons.Default.Search,
             contentDescription = "Search",
-            tint = if (isCardFocused || isEditing) CinemaFocus else TextSecondary,
-            modifier = Modifier.size(18.dp)
+            tint = if (isPreSelectFocused || isEditing) CinemaFocus else TextSecondary,
+            modifier = Modifier.size(if (isPreSelectFocused) 20.dp else 18.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         // High-contrast TV Focus Badge: unmistakable cue when D-pad focuses the bar before clicking
-        if (isCardFocused && !isEditing) {
+        if (isPreSelectFocused) {
             Surface(
                 shape = RoundedCornerShape(6.dp),
                 color = CinemaFocus,
@@ -188,9 +210,9 @@ fun AppSearchBar(
             if (value.isEmpty() && !isEditing) {
                 Text(
                     text = placeholder,
-                    color = if (isCardFocused) Color.White else TextMuted,
+                    color = if (isPreSelectFocused) Color.White else TextMuted,
                     fontSize = 13.sp,
-                    fontWeight = if (isCardFocused) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = if (isPreSelectFocused) FontWeight.Bold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -199,6 +221,7 @@ fun AppSearchBar(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
+                readOnly = !isEditing,
                 textStyle = TextStyle(
                     color = TextPrimary,
                     fontSize = 13.sp,
@@ -216,7 +239,10 @@ fun AppSearchBar(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .focusRequester(focusRequester)
+                    .focusRequester(textFieldFocusRequester)
+                    .focusProperties {
+                        canFocus = isEditing
+                    }
                     .onFocusChanged { state ->
                         if (!state.isFocused && isEditing) {
                             isEditing = false
