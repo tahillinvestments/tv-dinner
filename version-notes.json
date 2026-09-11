@@ -1,4 +1,8 @@
 {
+  "2.1.7": {
+    "title": "Media Engine Reinitialization, YouTube Feeds Fix & Animated Search Focus",
+    "releaseNotes": "• Media Engine Reinitialization: System Reboot completely resets media OkHttp dispatcher and socket pool with full ExoPlayer rebuild\n• YouTube, Music & Podcasts Recovery: Prevented premature cancellation of in-flight catalog and feed requests during reboot\n• High-Contrast Search Focus: Smooth animated color and 3dp border expansion on D-pad focus with visible SEARCH label pill"
+  },
   "2.1.6": {
     "title": "Music Video Playback Fix, TV Dinner System Reboot, Module-Wide History & Rated-R Filtering",
     "releaseNotes": "• Music & Podcasts Playback: Eliminated black screens and hesitation on music videos with modern desktop Chrome UA and instant playback watchdog\n• TV Dinner System Reboot: Added streaming system reset button in Settings to flush playback engines, socket pools, and caches without touching credentials\n• Module-Wide History: Added 🕒 History to Movies, Series, Music, and Podcasts with selective multi-section clear dialog in Settings\n• Rated R Adult Filter: Automatically hides 'Rated R' movie categories and titles when the Adult Content Filter is active\n• Closed Captions: Updated Settings Closed Captions toggle and remote CC shortcuts to apply directly to Music and Podcasts"
