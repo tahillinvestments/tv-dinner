@@ -187,21 +187,35 @@
 
     const DEFAULT_MANIFEST = {
       "currentVersion": {
-        "versionCode": 217,
-        "versionName": "2.1.7",
-        "title": "Media Engine Reinitialization, YouTube Feeds Fix & Animated Search Focus",
-        "releaseNotes": "• Media Engine Reinitialization: System Reboot completely resets media OkHttp dispatcher and socket pool with full ExoPlayer rebuild\n• YouTube, Music & Podcasts Recovery: Prevented premature cancellation of in-flight catalog and feed requests during reboot\n• High-Contrast Search Focus: Smooth animated color and 3dp border expansion on D-pad focus with visible SEARCH label pill",
-        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.7/app-release.apk",
+        "versionCode": 218,
+        "versionName": "2.1.8",
+        "title": "Restored Music & Podcasts Video Playback, Native YouTube Player & Stability Fixes",
+        "releaseNotes": "• Restored Music & Podcasts Playback: Reverted to the rock-solid v2.1.5 player architecture with native WebView integration and privacy-enhanced youtube-nocookie embedding\n• Fixed Video Playback Lockup: Removed artificial desktop Windows UA and hardware layer override that caused black screens and bot verification blocks on YouTube\n• Reliable Media Transitions: Full media engine reinitialization during System Reboot with clean socket pool tear-down\n• Animated Search Focus: Distinct 3dp border glow and SEARCH label pill on remote D-pad focus",
+        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.8/app-release.apk",
         "mandatory": false,
-        "publishedAt": "2026-09-11T01:00:19.801Z"
+        "publishedAt": "2026-09-11T01:13:51.378Z"
       },
       "releases": [
+        {
+          "id": "rel-218",
+          "versionCode": 218,
+          "versionName": "2.1.8",
+          "title": "Restored Music & Podcasts Video Playback, Native YouTube Player & Stability Fixes",
+          "status": "PUBLISHED",
+          "releaseNotes": "• Restored Music & Podcasts Playback: Reverted to the rock-solid v2.1.5 player architecture with native WebView integration and privacy-enhanced youtube-nocookie embedding\n• Fixed Video Playback Lockup: Removed artificial desktop Windows UA and hardware layer override that caused black screens and bot verification blocks on YouTube\n• Reliable Media Transitions: Full media engine reinitialization during System Reboot with clean socket pool tear-down\n• Animated Search Focus: Distinct 3dp border glow and SEARCH label pill on remote D-pad focus",
+          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+          "localApkUrl": "public/apks/tv-dinner-v2.1.8.apk",
+          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.8/app-release.apk",
+          "mandatory": false,
+          "createdAt": "2026-09-11T01:13:46.088Z",
+          "publishedAt": "2026-09-11T01:13:51.378Z"
+        },
         {
           "id": "rel-217",
           "versionCode": 217,
           "versionName": "2.1.7",
           "title": "Media Engine Reinitialization, YouTube Feeds Fix & Animated Search Focus",
-          "status": "PUBLISHED",
+          "status": "ARCHIVED",
           "releaseNotes": "• Media Engine Reinitialization: System Reboot completely resets media OkHttp dispatcher and socket pool with full ExoPlayer rebuild\n• YouTube, Music & Podcasts Recovery: Prevented premature cancellation of in-flight catalog and feed requests during reboot\n• High-Contrast Search Focus: Smooth animated color and 3dp border expansion on D-pad focus with visible SEARCH label pill",
           "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
           "localApkUrl": "public/apks/tv-dinner-v2.1.7.apk",

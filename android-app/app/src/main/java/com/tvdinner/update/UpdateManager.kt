@@ -47,11 +47,13 @@ class UpdateManager(private val context: Context) {
         private set
 
     suspend fun checkForUpdates(manifestUrl: String = DEFAULT_MANIFEST_URL): UpdateManifest? = withContext(Dispatchers.IO) {
-        lastCheckError = null
         try {
+            lastCheckError = null
+            val freshUrl = if (manifestUrl.contains("?")) "$manifestUrl&t=${System.currentTimeMillis()}" else "$manifestUrl?t=${System.currentTimeMillis()}"
             val request = Request.Builder()
-                .url(manifestUrl)
+                .url(freshUrl)
                 .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache")
                 .build()
 
             client.newCall(request).execute().use { response ->
