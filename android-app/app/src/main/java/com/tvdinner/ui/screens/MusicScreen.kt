@@ -66,7 +66,7 @@ fun MusicScreen(
     val coroutineScope = rememberCoroutineScope()
 
     suspend fun fetchMoreVideosInternal() {
-        if (!isAccessAllowed || isLoading || isLoadingMore || !hasMore) return
+        if (!isAccessAllowed || isLoading || isLoadingMore || !hasMore || selectedGenreId == "history") return
         isLoadingMore = true
         val nextPage = currentPage + 1
         val nextResults = if (debouncedQuery.isNotBlank()) {
@@ -101,17 +101,18 @@ fun MusicScreen(
 
     fun playVideoAtIndex(index: Int) {
         if (!isAccessAllowed || index !in videos.indices) return
-        if (index >= videos.size - 4 && hasMore && !isLoadingMore) {
+        val current = videos[index]
+        authRepo.addMusicToHistory(current)
+        if (index >= videos.size - 4 && hasMore && !isLoadingMore && selectedGenreId != "history") {
             coroutineScope.launch {
                 fetchMoreVideosInternal()
             }
         }
-        val current = videos[index]
         val next = videos.getOrNull(index + 1)
         val onNext: (() -> Unit) = {
             if (index + 1 < videos.size) {
                 playVideoAtIndex(index + 1)
-            } else {
+            } else if (selectedGenreId != "history") {
                 coroutineScope.launch {
                     fetchMoreVideosInternal()
                     if (index + 1 < videos.size) {
@@ -156,10 +157,12 @@ fun MusicScreen(
         }
         isLoading = true
         currentPage = 1
-        hasMore = true
+        hasMore = (selectedGenreId != "history")
 
         val initialResults = if (debouncedQuery.isNotBlank()) {
             catalogManager.searchMusicVideos(debouncedQuery, page = 1)
+        } else if (selectedGenreId == "history") {
+            authRepo.getMusicHistory()
         } else {
             catalogManager.getMusicForGenre(selectedGenreId, page = 1)
         }
@@ -285,12 +288,17 @@ fun MusicScreen(
                 )
             }
 
-            // Categories Bar (Trending and Genres)
+            // Categories Bar (Trending, History and Genres)
+            val allGenres = remember {
+                listOf(
+                    com.tvdinner.data.model.MusicGenre("history", "🕒 History", "🕒")
+                ) + com.tvdinner.data.music.MusicData.GENRES
+            }
             androidx.compose.foundation.lazy.LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(com.tvdinner.data.music.MusicData.GENRES) { genre ->
+                items(allGenres) { genre ->
                     val isSelected = (debouncedQuery.isBlank() && selectedGenreId == genre.id)
                     TvFocusableCard(
                         onClick = {
@@ -328,6 +336,13 @@ fun MusicScreen(
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
+            } else if (selectedGenreId == "history") {
+                Text(
+                    text = "Recently Played Music Videos",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = CinemaAccent
+                )
             }
 
             // Main Content: Infinite Scrolling Music Videos Grid
@@ -347,7 +362,11 @@ fun MusicScreen(
                             tint = TextMuted,
                             modifier = Modifier.size(40.dp)
                         )
-                        Text("No music videos found", color = TextMuted, fontSize = 14.sp)
+                        Text(
+                            text = if (selectedGenreId == "history") "No recently played music videos" else "No music videos found",
+                            color = TextMuted,
+                            fontSize = 14.sp
+                        )
                     }
                 }
             } else {

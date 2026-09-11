@@ -293,6 +293,7 @@ fun MainAppScreen(
                             AppTab.SETTINGS -> SettingsScreen(
                                 authRepo = authRepo,
                                 catalogManager = catalogManager,
+                                playerManager = playerManager,
                                 onSignOut = onSignOut
                             )
                         }
@@ -395,6 +396,7 @@ fun MainAppScreen(
                             AppTab.SETTINGS -> SettingsScreen(
                                 authRepo = authRepo,
                                 catalogManager = catalogManager,
+                                playerManager = playerManager,
                                 onSignOut = onSignOut
                             )
                         }
@@ -423,6 +425,7 @@ fun MainAppScreen(
             YouTubePlayerView(
                 videoId = ytState.videoId,
                 title = ytState.title,
+                captionsEnabled = authRepo.isMusicPodcastsCaptionsEnabled(),
                 onBack = {
                     YouTubeRemoteBridge.activeWebView = null
                     fullscreenYouTube = null

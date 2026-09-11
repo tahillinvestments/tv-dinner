@@ -97,7 +97,7 @@ fun MoviesScreen(
                 categoryScrollPositions[current] = gridState.firstVisibleItemIndex
             }
             selectedCategoryId = newCatId
-            if (newCatId != "watchlist") {
+            if (newCatId != "watchlist" && newCatId != "history") {
                 authRepo.setLastMovieCategoryId(newCatId)
             }
         }
@@ -108,7 +108,10 @@ fun MoviesScreen(
         if (categories.isEmpty()) {
             isLoading = true
             val rawCats = catalogManager.getMovieCategories()
-            val cats = listOf(MovieCategory("watchlist", "⭐ Watchlist")) + rawCats
+            val cats = listOf(
+                MovieCategory("watchlist", "⭐ Watchlist"),
+                MovieCategory("history", "🕒 History")
+            ) + rawCats
             categories = cats
             val savedCat = authRepo.getLastMovieCategoryId()
             val initialCatId = if (savedCat != null && cats.any { it.categoryId == savedCat }) {
@@ -119,12 +122,10 @@ fun MoviesScreen(
                 "watchlist"
             }
             selectedCategoryId = initialCatId
-            movies = if (initialCatId == "watchlist") {
-                catalogManager.getWatchlistMovies()
-            } else if (initialCatId.isNotBlank()) {
-                catalogManager.getMovies(initialCatId)
-            } else {
-                emptyList()
+            movies = when (initialCatId) {
+                "watchlist" -> catalogManager.getWatchlistMovies()
+                "history" -> catalogManager.getHistoryMovies()
+                else -> if (initialCatId.isNotBlank()) catalogManager.getMovies(initialCatId) else emptyList()
             }
             isLoading = false
         }
@@ -133,13 +134,13 @@ fun MoviesScreen(
     LaunchedEffect(selectedCategoryId) {
         if (!selectedCategoryId.isNullOrBlank() && categories.isNotEmpty() && searchQuery.isBlank()) {
             isLoading = true
-            if (selectedCategoryId != "watchlist") {
+            if (selectedCategoryId != "watchlist" && selectedCategoryId != "history") {
                 authRepo.setLastMovieCategoryId(selectedCategoryId ?: "")
             }
-            movies = if (selectedCategoryId == "watchlist") {
-                catalogManager.getWatchlistMovies()
-            } else {
-                catalogManager.getMovies(selectedCategoryId)
+            movies = when (selectedCategoryId) {
+                "watchlist" -> catalogManager.getWatchlistMovies()
+                "history" -> catalogManager.getHistoryMovies()
+                else -> catalogManager.getMovies(selectedCategoryId)
             }
             isLoading = false
         }
@@ -315,6 +316,7 @@ fun MoviesScreen(
                                     val streamUrl = apiClient.buildMovieStreamUrl(portal, user, pswd, movie.streamId, ext)
                                     lastPlayedMovieId = movie.streamId
                                     authRepo.setLastMovieStreamId(movie.streamId)
+                                    authRepo.addMovieToHistory(movie.streamId)
                                     if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
                                         resumePromptMovie = movie
                                     } else {
@@ -563,6 +565,7 @@ fun MoviesScreen(
                                 val ext = movie.containerExtension.ifBlank { "mp4" }
                                 val streamUrl = apiClient.buildMovieStreamUrl(portal, user, pswd, movie.streamId, ext)
                                 lastPlayedMovieId = movie.streamId
+                                authRepo.addMovieToHistory(movie.streamId)
                                 if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
                                     resumePromptMovie = movie
                                 } else {
@@ -721,6 +724,7 @@ fun MoviesScreen(
                             TvFocusableCard(
                                 onClick = {
                                     lastPlayedMovieId = movie.streamId
+                                    authRepo.addMovieToHistory(movie.streamId)
                                     resumePromptMovie = null
                                     onPlayMovie(streamUrl, movie.displayTitle, savedPos, streamKey)
                                 },
@@ -743,6 +747,7 @@ fun MoviesScreen(
                             TvFocusableCard(
                                 onClick = {
                                     lastPlayedMovieId = movie.streamId
+                                    authRepo.addMovieToHistory(movie.streamId)
                                     authRepo.clearPlaybackPosition(streamKey)
                                     resumePromptMovie = null
                                     onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)

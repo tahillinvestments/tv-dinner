@@ -415,7 +415,11 @@ class CatalogManager(
                     n.contains("PENTHOUSE") || n.contains("BRAZZERS") || n.contains("HANIME") ||
                     n.contains("HENTAI") || n.contains("REDLIGHT") || n.contains("VIVID") ||
                     n.contains("BABES") || n.contains("PASSION") || n.contains("DORCEL") ||
-                    n.contains("SEXY") || n.contains("CENTO") || n.contains("EXPLICIT")
+                    n.contains("SEXY") || n.contains("CENTO") || n.contains("EXPLICIT") ||
+                    n.contains("RATED R") || n.contains("RATED-R") || n.contains("R-RATED") ||
+                    n.contains("R RATED") || n.startsWith("R|") || n.startsWith("|R|") ||
+                    n.contains("|R|") || n.contains("RATING R") || n.contains("RATED: R") ||
+                    n.contains("RATED : R")
         }
 
         fun isAdultName(name: String): Boolean {
@@ -430,7 +434,11 @@ class CatalogManager(
                     n.contains("HANIME") || n.contains("HENTAI") || n.contains("REDLIGHT") ||
                     n.contains("VIVID") || n.contains("BABES") || n.contains("PASSION") ||
                     n.contains("DORCEL") || n.contains("SEXY") || n.contains("CENTO") ||
-                    n.contains("EXPLICIT")
+                    n.contains("EXPLICIT") ||
+                    n.contains("RATED R") || n.contains("RATED-R") || n.contains("R-RATED") ||
+                    n.contains("R RATED") || n.startsWith("R|") || n.startsWith("|R|") ||
+                    n.contains("|R|") || n.contains("RATING R") || n.contains("RATED: R") ||
+                    n.contains("RATED : R")
         }
 
         fun isUsCategory(catName: String): Boolean {
@@ -1077,6 +1085,21 @@ class CatalogManager(
         found
     }
 
+    suspend fun getHistoryMovies(): List<Movie> = withContext(Dispatchers.IO) {
+        val historyIds = authRepo.getMovieHistoryIds()
+        if (historyIds.isEmpty()) return@withContext emptyList()
+        val allCached = cachedMoviesByCat.values.flatten()
+        val map = allCached.associateBy { it.streamId }.toMutableMap()
+        val missingIds = historyIds.filter { !map.containsKey(it) }
+        if (missingIds.isNotEmpty()) {
+            val allMovies = getMovies("all")
+            for (m in allMovies) {
+                map[m.streamId] = m
+            }
+        }
+        historyIds.mapNotNull { map[it] }
+    }
+
     // Fast & Safe Multi-Category Movie Search (Comprehensive & Zero OOM Crashes)
     suspend fun searchMovies(query: String, selectedCategoryId: String? = null): List<Movie> = withContext(Dispatchers.IO) {
         val q = query.trim()
@@ -1225,6 +1248,21 @@ class CatalogManager(
             return@withContext (found + additional).distinctBy { it.seriesId }
         }
         found
+    }
+
+    suspend fun getHistorySeries(): List<Series> = withContext(Dispatchers.IO) {
+        val historyIds = authRepo.getSeriesHistoryIds()
+        if (historyIds.isEmpty()) return@withContext emptyList()
+        val allCached = cachedSeriesByCat.values.flatten()
+        val map = allCached.associateBy { it.seriesId }.toMutableMap()
+        val missingIds = historyIds.filter { !map.containsKey(it) }
+        if (missingIds.isNotEmpty()) {
+            val allSeries = getSeries("all")
+            for (s in allSeries) {
+                map[s.seriesId] = s
+            }
+        }
+        historyIds.mapNotNull { map[it] }
     }
 
     // Fast & Safe Multi-Category Series Search (Comprehensive & Zero OOM Crashes)

@@ -58,6 +58,7 @@ fun PodcastsScreen(
     val categories = listOf(
         "🔥 Trending",
         "⭐ Subscribed",
+        "🕒 History",
         "🤖 AI & Tech",
         "💼 Business & Ideas",
         "🧠 Science & Health",
@@ -88,6 +89,7 @@ fun PodcastsScreen(
     fun playEpisodeAtIndex(index: Int) {
         if (!isAccessAllowed || index !in liveEpisodes.indices) return
         val current = liveEpisodes[index]
+        authRepo.addPodcastToHistory(current)
         val next = liveEpisodes.getOrNull(index + 1)
         val onNext: (() -> Unit)? = if (index + 1 < liveEpisodes.size) {
             { playEpisodeAtIndex(index + 1) }
@@ -152,6 +154,12 @@ fun PodcastsScreen(
             val eps = catalogManager.getLivePodcastEpisodes(searchQuery)
             mainFeedEpisodes = eps
             liveEpisodes = eps
+        } else if (selectedCategory == "🕒 History") {
+            liveChannels = emptyList()
+            val eps = authRepo.getPodcastHistory()
+            mainFeedEpisodes = eps
+            liveEpisodes = eps
+            canLoadMore = false
         } else if (selectedCategory == "⭐ Subscribed") {
             val allChannels = mutableListOf<PodcastChannel>()
             for (id in subscribedIds) {
@@ -570,7 +578,7 @@ fun PodcastsScreen(
             } else if (liveEpisodes.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (selectedCategory == "⭐ Subscribed") "No subscribed podcasts yet. Click the bookmark icon on any channel to save it here!" else "No live podcast episodes found",
+                        text = if (selectedCategory == "⭐ Subscribed") "No subscribed podcasts yet. Click the bookmark icon on any channel to save it here!" else if (selectedCategory == "🕒 History") "No recently played podcast episodes in your history." else "No live podcast episodes found",
                         color = TextMuted,
                         fontSize = 14.sp
                     )

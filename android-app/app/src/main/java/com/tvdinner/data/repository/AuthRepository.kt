@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.tvdinner.data.model.CredentialEntry
+import com.tvdinner.data.model.MusicVideo
+import com.tvdinner.data.model.PodcastEpisode
 
 class AuthRepository(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("tvdinner_prefs", Context.MODE_PRIVATE)
@@ -364,6 +366,106 @@ class AuthRepository(context: Context) {
         prefs.edit().remove("live_channel_history").apply()
     }
 
+    // Movie Watch History (Last 30 watched movies)
+    fun getMovieHistoryIds(): List<Int> {
+        val raw = prefs.getString("movie_history", null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<Int>>() {}.type
+            gson.fromJson<List<Int>>(raw, type) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addMovieToHistory(streamId: Int) {
+        if (streamId <= 0) return
+        val current = getMovieHistoryIds().filter { it != streamId }.toMutableList()
+        current.add(0, streamId)
+        val limited = current.take(30)
+        prefs.edit().putString("movie_history", gson.toJson(limited)).apply()
+    }
+
+    fun clearMovieHistory() {
+        prefs.edit().remove("movie_history").apply()
+    }
+
+    // Series Watch History (Last 30 watched series)
+    fun getSeriesHistoryIds(): List<Int> {
+        val raw = prefs.getString("series_history", null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<Int>>() {}.type
+            gson.fromJson<List<Int>>(raw, type) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addSeriesToHistory(seriesId: Int) {
+        if (seriesId <= 0) return
+        val current = getSeriesHistoryIds().filter { it != seriesId }.toMutableList()
+        current.add(0, seriesId)
+        val limited = current.take(30)
+        prefs.edit().putString("series_history", gson.toJson(limited)).apply()
+    }
+
+    fun clearSeriesHistory() {
+        prefs.edit().remove("series_history").apply()
+    }
+
+    // Music Video Playback History (Last 40 played music videos)
+    fun getMusicHistory(): List<MusicVideo> {
+        val raw = prefs.getString("music_history", null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<MusicVideo>>() {}.type
+            gson.fromJson<List<MusicVideo>>(raw, type) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addMusicToHistory(video: MusicVideo) {
+        if (video.videoId.isBlank()) return
+        val current = getMusicHistory().filter { it.videoId != video.videoId }.toMutableList()
+        current.add(0, video)
+        val limited = current.take(40)
+        prefs.edit().putString("music_history", gson.toJson(limited)).apply()
+    }
+
+    fun clearMusicHistory() {
+        prefs.edit().remove("music_history").apply()
+    }
+
+    // Podcast Episode Playback History (Last 40 played podcast episodes)
+    fun getPodcastHistory(): List<PodcastEpisode> {
+        val raw = prefs.getString("podcast_history", null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<PodcastEpisode>>() {}.type
+            gson.fromJson<List<PodcastEpisode>>(raw, type) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addPodcastToHistory(episode: PodcastEpisode) {
+        if (episode.videoId.isBlank()) return
+        val current = getPodcastHistory().filter { it.videoId != episode.videoId }.toMutableList()
+        current.add(0, episode)
+        val limited = current.take(40)
+        prefs.edit().putString("podcast_history", gson.toJson(limited)).apply()
+    }
+
+    fun clearPodcastHistory() {
+        prefs.edit().remove("podcast_history").apply()
+    }
+
+    fun clearAllHistory() {
+        clearChannelHistory()
+        clearMovieHistory()
+        clearSeriesHistory()
+        clearMusicHistory()
+        clearPodcastHistory()
+    }
+
     // Live TV Focus & Selection Memory
     fun getLastLiveCategoryId(): String {
         return prefs.getString("last_live_category_id", null) ?: "672"
@@ -434,6 +536,15 @@ class AuthRepository(context: Context) {
 
     fun setVodSubtitlesEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("vod_subtitles_enabled", enabled).apply()
+    }
+
+    // Music & Podcasts Closed Captions Preference (Default: OFF)
+    fun isMusicPodcastsCaptionsEnabled(): Boolean {
+        return prefs.getBoolean("music_podcasts_captions_enabled", false)
+    }
+
+    fun setMusicPodcastsCaptionsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("music_podcasts_captions_enabled", enabled).apply()
     }
 
     // Adult Content (18+) Filter Toggle (Default: OFF)

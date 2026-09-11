@@ -107,7 +107,7 @@ fun SeriesScreen(
                 categoryScrollPositions[current] = gridState.firstVisibleItemIndex
             }
             selectedCategoryId = newCatId
-            if (newCatId != "watchlist") {
+            if (newCatId != "watchlist" && newCatId != "history") {
                 authRepo.setLastSeriesCategoryId(newCatId)
             }
         }
@@ -118,7 +118,10 @@ fun SeriesScreen(
         if (categories.isEmpty()) {
             isLoading = true
             val rawCats = catalogManager.getSeriesCategories()
-            val cats = listOf(SeriesCategory("watchlist", "⭐ Watchlist")) + rawCats
+            val cats = listOf(
+                SeriesCategory("watchlist", "⭐ Watchlist"),
+                SeriesCategory("history", "🕒 History")
+            ) + rawCats
             categories = cats
             val savedCat = authRepo.getLastSeriesCategoryId()
             val initialCatId = if (savedCat != null && cats.any { it.categoryId == savedCat }) {
@@ -129,12 +132,10 @@ fun SeriesScreen(
                 "watchlist"
             }
             selectedCategoryId = initialCatId
-            seriesList = if (initialCatId == "watchlist") {
-                catalogManager.getWatchlistSeries()
-            } else if (initialCatId.isNotBlank()) {
-                catalogManager.getSeries(initialCatId)
-            } else {
-                emptyList()
+            seriesList = when (initialCatId) {
+                "watchlist" -> catalogManager.getWatchlistSeries()
+                "history" -> catalogManager.getHistorySeries()
+                else -> if (initialCatId.isNotBlank()) catalogManager.getSeries(initialCatId) else emptyList()
             }
             isLoading = false
         }
@@ -143,13 +144,13 @@ fun SeriesScreen(
     LaunchedEffect(selectedCategoryId) {
         if (!selectedCategoryId.isNullOrBlank() && categories.isNotEmpty() && searchQuery.isBlank()) {
             isLoading = true
-            if (selectedCategoryId != "watchlist") {
+            if (selectedCategoryId != "watchlist" && selectedCategoryId != "history") {
                 authRepo.setLastSeriesCategoryId(selectedCategoryId ?: "")
             }
-            seriesList = if (selectedCategoryId == "watchlist") {
-                catalogManager.getWatchlistSeries()
-            } else {
-                catalogManager.getSeries(selectedCategoryId)
+            seriesList = when (selectedCategoryId) {
+                "watchlist" -> catalogManager.getWatchlistSeries()
+                "history" -> catalogManager.getHistorySeries()
+                else -> catalogManager.getSeries(selectedCategoryId)
             }
             isLoading = false
         }
@@ -757,6 +758,7 @@ fun SeriesScreen(
                                                 val targetKey = "ep_${series.seriesId}_${targetEp.id}"
                                                 val (nextNextCallback, nextNextTitle) = computeNextEpisode(targetEp.id, targetSeason)
                                                 val onNext: () -> Unit = {
+                                                    authRepo.addSeriesToHistory(series.seriesId)
                                                     onPlayEpisode(targetUrl, targetTitle, 0L, targetKey, nextNextCallback, nextNextTitle)
                                                 }
                                                 return Pair(onNext, "Next: S${targetSeason}E${targetEp.episodeNum}")
@@ -769,6 +771,7 @@ fun SeriesScreen(
                                                 val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
                                                 val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
                                                 val (nextCallback, nextTitle) = computeNextEpisode(ep.id, selectedSeason)
+                                                authRepo.addSeriesToHistory(series.seriesId)
                                                 if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
                                                     resumePromptEpisode = EpisodeResumePrompt(
                                                         title = epTitle,
@@ -885,6 +888,7 @@ fun SeriesScreen(
                             TvFocusableCard(
                                 onClick = {
                                     val pr = prompt
+                                    selectedSeries?.let { authRepo.addSeriesToHistory(it.seriesId) }
                                     resumePromptEpisode = null
                                     onPlayEpisode(pr.streamUrl, pr.title, pr.savedPos, pr.streamKey, pr.onNext, pr.nextTitle)
                                 },
@@ -906,6 +910,7 @@ fun SeriesScreen(
                             TvFocusableCard(
                                 onClick = {
                                     val pr = prompt
+                                    selectedSeries?.let { authRepo.addSeriesToHistory(it.seriesId) }
                                     authRepo.clearPlaybackPosition(pr.streamKey)
                                     resumePromptEpisode = null
                                     onPlayEpisode(pr.streamUrl, pr.title, 0L, pr.streamKey, pr.onNext, pr.nextTitle)

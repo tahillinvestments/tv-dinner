@@ -122,6 +122,31 @@ object YouTubeRemoteBridge {
     fun clearScrubBadge() {
         _scrubBadge.value = null
     }
+
+    fun toggleClosedCaptions() {
+        activeWebView?.evaluateJavascript(
+            """
+            (function() {
+                if (!window.ytPlayer) return;
+                try {
+                    var tracks = window.ytPlayer.getOption('captions', 'tracklist') || [];
+                    var current = window.ytPlayer.getOption('captions', 'track');
+                    if (current && current.languageCode) {
+                        window.ytPlayer.setOption('captions', 'track', {});
+                    } else if (tracks.length > 0) {
+                        window.ytPlayer.loadModule('captions');
+                        window.ytPlayer.setOption('captions', 'track', tracks[0]);
+                    } else {
+                        window.ytPlayer.loadModule('captions');
+                    }
+                } catch(e) {
+                    try { window.ytPlayer.loadModule('captions'); } catch(_) {}
+                }
+            })();
+            """.trimIndent(),
+            null
+        )
+    }
 }
 
 class YouTubeBridgeInterface(private val onEndedProvider: () -> (() -> Unit)?) {
@@ -142,6 +167,7 @@ fun YouTubePlayerView(
     onNextVideo: (() -> Unit)? = null,
     nextVideoTitle: String? = null,
     onPreviousVideo: (() -> Unit)? = null,
+    captionsEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val currentOnNextVideo by rememberUpdatedState(onNextVideo)
@@ -218,9 +244,11 @@ fun YouTubePlayerView(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
+                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
                     settings.apply {
                         javaScriptEnabled = true
                         domStorageEnabled = true
+                        databaseEnabled = true
                         mediaPlaybackRequiresUserGesture = false
                         allowFileAccess = true
                         allowContentAccess = true
@@ -228,10 +256,14 @@ fun YouTubePlayerView(
                         loadWithOverviewMode = true
                         cacheMode = WebSettings.LOAD_DEFAULT
                         mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                        userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
                     }
                     webChromeClient = object : WebChromeClient() {
                         override fun getDefaultVideoPoster(): android.graphics.Bitmap? {
                             return android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+                        }
+                        override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
+                            request?.grant(request.resources)
                         }
                     }
                     webViewClient = WebViewClient()
@@ -242,6 +274,7 @@ fun YouTubePlayerView(
                         "AndroidBridge"
                     )
 
+                    val ccPolicy = if (captionsEnabled) 1 else 0
                     val html = """
                         <!DOCTYPE html>
                         <html>
@@ -269,12 +302,14 @@ fun YouTubePlayerView(
                                             'fs': 1,
                                             'playsinline': 1,
                                             'enablejsapi': 1,
-                                            'origin': 'https://www.youtube-nocookie.com',
-                                            'iv_load_policy': 3
+                                            'origin': 'https://www.youtube.com',
+                                            'iv_load_policy': 3,
+                                            'cc_load_policy': $ccPolicy
                                         },
                                         events: {
                                             'onReady': function(e) {
                                                 window.ytPlayer = e.target;
+                                                ${if (captionsEnabled) "try { e.target.loadModule('captions'); } catch(_) {}" else ""}
                                                 if (window.pendingVideoId) {
                                                     e.target.loadVideoById(window.pendingVideoId);
                                                     window.pendingVideoId = null;
@@ -286,8 +321,20 @@ fun YouTubePlayerView(
                                             },
                                             'onError': function(e) {
                                                 console.log('YT Error:', e.data);
+                                                var vId = window.pendingVideoId || '$videoId';
+                                                if ((e.data === 150 || e.data === 101 || e.data === 100 || e.data === 2) && !window.didFallbackEmbed) {
+                                                    window.didFallbackEmbed = true;
+                                                    var p = document.getElementById('player');
+                                                    if (p) {
+                                                        p.innerHTML = '<iframe id="fallback-frame" width="100%" height="100%" src="https://www.youtube.com/embed/' + vId + '?autoplay=1&playsinline=1&enablejsapi=1&origin=https://www.youtube.com&rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+                                                    }
+                                                }
                                             },
                                             'onStateChange': function(e) {
+                                                if (e.data === 5) {
+                                                    try { e.target.playVideo(); } catch(_) {}
+                                                }
+                                                ${if (captionsEnabled) "if (e.data === 1) { try { e.target.loadModule('captions'); } catch(_) {} }" else ""}
                                                 if (e.data === 0) {
                                                     if (window.AndroidBridge && window.AndroidBridge.onVideoEnded) {
                                                         window.AndroidBridge.onVideoEnded();
@@ -297,12 +344,20 @@ fun YouTubePlayerView(
                                         }
                                     });
                                 }
+                                setTimeout(function() {
+                                    if (window.ytPlayer && typeof window.ytPlayer.getPlayerState === 'function') {
+                                        var state = window.ytPlayer.getPlayerState();
+                                        if (state !== 1 && state !== 2) {
+                                            try { window.ytPlayer.playVideo(); } catch(_) {}
+                                        }
+                                    }
+                                }, 3000);
                             </script>
                         </body>
                         </html>
                     """.trimIndent()
 
-                    loadDataWithBaseURL("https://www.youtube-nocookie.com", html, "text/html", "UTF-8", null)
+                    loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
                     webViewInstance = this
                     YouTubeRemoteBridge.activeWebView = this
                 }

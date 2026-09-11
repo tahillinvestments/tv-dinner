@@ -246,7 +246,10 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S -> {
-                    if (isVODFullscreenActive || isLiveFullscreenActive) {
+                    if (isYouTubeActive) {
+                        YouTubeRemoteBridge.toggleClosedCaptions()
+                        return true
+                    } else if (isVODFullscreenActive || isLiveFullscreenActive) {
                         playerManager.toggleClosedCaptions()
                         return true
                     }
@@ -304,7 +307,8 @@ class MainActivity : ComponentActivity() {
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE,
                     KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_MEDIA_REWIND,
                     KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_P, KeyEvent.KEYCODE_CHANNEL_DOWN,
-                    KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_FORWARD -> {
+                    KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_FORWARD,
+                    KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S -> {
                         return true
                     }
                 }

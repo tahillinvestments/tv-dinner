@@ -28,17 +28,22 @@ import com.tvdinner.BuildConfig
 import com.tvdinner.data.network.XtreamApiClient
 import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
+import com.tvdinner.player.ExoPlayerManager
 import com.tvdinner.ui.components.TvFocusableCard
+import com.tvdinner.ui.player.YouTubeRemoteBridge
 import com.tvdinner.ui.theme.*
 import com.tvdinner.update.UpdateManifest
 import com.tvdinner.update.UpdateManager
+import coil.Coil
 import kotlinx.coroutines.launch
 import java.io.File
 
+@OptIn(coil.annotation.ExperimentalCoilApi::class)
 @Composable
 fun SettingsScreen(
     authRepo: AuthRepository,
     catalogManager: CatalogManager? = null,
+    playerManager: ExoPlayerManager? = null,
     onSignOut: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -63,8 +68,13 @@ fun SettingsScreen(
     var editingField by remember { mutableStateOf<String?>(null) }
     var credsSavedMessage by remember { mutableStateOf<String?>(null) }
 
-    // Subtitle Preferences State
-    var vodSubtitlesEnabled by remember { mutableStateOf(authRepo.isVodSubtitlesEnabled()) }
+    // Subtitle & Closed Captions Preferences State
+    var musicPodcastsCaptionsEnabled by remember { mutableStateOf(authRepo.isMusicPodcastsCaptionsEnabled()) }
+
+    // History and System Reset Dialog States
+    var showClearHistoryDialog by remember { mutableStateOf(false) }
+    var showSystemRebootDialog by remember { mutableStateOf(false) }
+    var isRebooting by remember { mutableStateOf(false) }
 
     // Content Filtering State
     var adultContentEnabled by remember { mutableStateOf(authRepo.isAdultContentEnabled()) }
@@ -341,12 +351,12 @@ fun SettingsScreen(
                         }
                     }
 
-                    // Movie & Series Subtitles / Closed Captions Toggle
+                    // Music & Podcasts Closed Captions Toggle
                     TvFocusableCard(
                         onClick = {
-                            val next = !vodSubtitlesEnabled
-                            vodSubtitlesEnabled = next
-                            authRepo.setVodSubtitlesEnabled(next)
+                            val next = !musicPodcastsCaptionsEnabled
+                            musicPodcastsCaptionsEnabled = next
+                            authRepo.setMusicPodcastsCaptionsEnabled(next)
                         },
                         backgroundColor = CinemaSurfaceVariant,
                         shape = RoundedCornerShape(8.dp),
@@ -359,13 +369,13 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Movie & Series Subtitles (Closed Captions)",
+                                    text = "Music & Podcasts Closed Captions",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = if (vodSubtitlesEnabled) "Subtitles are enabled by default for Movies and Series" else "Subtitles are disabled by default (Default: OFF)",
+                                    text = if (musicPodcastsCaptionsEnabled) "Captions enabled by default for Music Videos and Podcasts" else "Captions disabled by default (Default: OFF)",
                                     fontSize = 11.sp,
                                     color = TextMuted,
                                     maxLines = 1,
@@ -374,10 +384,10 @@ fun SettingsScreen(
                             }
 
                             Switch(
-                                checked = vodSubtitlesEnabled,
+                                checked = musicPodcastsCaptionsEnabled,
                                 onCheckedChange = {
-                                    vodSubtitlesEnabled = it
-                                    authRepo.setVodSubtitlesEnabled(it)
+                                    musicPodcastsCaptionsEnabled = it
+                                    authRepo.setMusicPodcastsCaptionsEnabled(it)
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
@@ -390,11 +400,10 @@ fun SettingsScreen(
                         }
                     }
 
-                    // Clear Channel History
+                    // Multi-Section Clear History Card
                     TvFocusableCard(
                         onClick = {
-                            authRepo.clearChannelHistory()
-                            Toast.makeText(context, "Channel watch history cleared", Toast.LENGTH_SHORT).show()
+                            showClearHistoryDialog = true
                         },
                         backgroundColor = CinemaSurfaceVariant,
                         shape = RoundedCornerShape(8.dp),
@@ -407,7 +416,8 @@ fun SettingsScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.History,
@@ -417,15 +427,17 @@ fun SettingsScreen(
                                 )
                                 Column {
                                     Text(
-                                        text = "Clear Channel History",
+                                        text = "Clear Viewing & Listening History",
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = TextPrimary
                                     )
                                     Text(
-                                        text = "Reset the last 5 watched channels in Live TV",
+                                        text = "Choose one, more, or all sections to clear (Live, Movies, Series, Music, Podcasts)",
                                         fontSize = 11.sp,
-                                        color = TextMuted
+                                        color = TextMuted,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -435,7 +447,7 @@ fun SettingsScreen(
                                 border = androidx.compose.foundation.BorderStroke(1.dp, CinemaRed.copy(alpha = 0.3f))
                             ) {
                                 Text(
-                                    text = "CLEAR",
+                                    text = "MANAGE",
                                     color = CinemaRed,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -643,7 +655,107 @@ fun SettingsScreen(
                 }
             }
 
-            // 4. Content Filtering (Adult 18+ Filter) Card — at the VERY BOTTOM
+            // 4. System Maintenance & Stream Reboot Card
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = CinemaSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "System Reboot",
+                                tint = CinemaAccent,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "System Maintenance",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Reset streaming engines and clear temp buffers without losing credentials",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    TvFocusableCard(
+                        onClick = {
+                            showSystemRebootDialog = true
+                        },
+                        backgroundColor = CinemaSurfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(58.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Reboot",
+                                    tint = CinemaYellow,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "TV Dinner System Reboot",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "Flushes player instances, socket pools, and media caches to fix stalls or freezes",
+                                        fontSize = 11.sp,
+                                        color = TextMuted,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = CinemaYellow.copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaYellow.copy(alpha = 0.4f))
+                            ) {
+                                Text(
+                                    text = "REBOOT",
+                                    color = CinemaYellow,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. Content Filtering (Adult 18+ Filter) Card — at the VERY BOTTOM
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = CinemaSurface,
@@ -807,6 +919,245 @@ fun SettingsScreen(
 
                         LaunchedEffect(Unit) {
                             editFocusRequester.requestFocus()
+                        }
+                    }
+                }
+            }
+        }
+
+        // Multi-Section Clear History Dialog
+        if (showClearHistoryDialog) {
+            var clearLiveTv by remember { mutableStateOf(false) }
+            var clearMovies by remember { mutableStateOf(false) }
+            var clearSeries by remember { mutableStateOf(false) }
+            var clearMusic by remember { mutableStateOf(false) }
+            var clearPodcasts by remember { mutableStateOf(false) }
+
+            Dialog(onDismissRequest = { showClearHistoryDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = CinemaSurface,
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, CinemaAccent),
+                    modifier = Modifier.fillMaxWidth(0.95f).padding(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(Icons.Default.History, contentDescription = null, tint = CinemaAccent)
+                            Text(
+                                text = "Clear History",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        Text(
+                            text = "Select one, more, or all sections to clear viewing and listening history:",
+                            fontSize = 13.sp,
+                            color = TextSecondary
+                        )
+
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val items = listOf(
+                                Triple("Live TV Channels", clearLiveTv) { clearLiveTv = !clearLiveTv },
+                                Triple("Movies", clearMovies) { clearMovies = !clearMovies },
+                                Triple("Series", clearSeries) { clearSeries = !clearSeries },
+                                Triple("Music Videos", clearMusic) { clearMusic = !clearMusic },
+                                Triple("Podcasts", clearPodcasts) { clearPodcasts = !clearPodcasts }
+                            )
+
+                            items.forEach { (label, isChecked, toggle) ->
+                                TvFocusableCard(
+                                    onClick = toggle,
+                                    backgroundColor = if (isChecked) CinemaSurfaceLight else CinemaSurfaceVariant,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(text = label, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                        Checkbox(
+                                            checked = isChecked,
+                                            onCheckedChange = { toggle() },
+                                            colors = CheckboxDefaults.colors(
+                                                checkedColor = CinemaAccent,
+                                                uncheckedColor = TextMuted,
+                                                checkmarkColor = Color.Black
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
+                        ) {
+                            Button(
+                                onClick = { showClearHistoryDialog = false },
+                                colors = ButtonDefaults.buttonColors(containerColor = CinemaSurfaceVariant),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Cancel", color = TextSecondary, fontSize = 12.sp)
+                            }
+
+                            Button(
+                                onClick = {
+                                    authRepo.clearAllHistory()
+                                    catalogManager?.clearAllCaches()
+                                    Toast.makeText(context, "All history cleared across all sections", Toast.LENGTH_SHORT).show()
+                                    showClearHistoryDialog = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = CinemaRed),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Clear All", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            val anySelected = clearLiveTv || clearMovies || clearSeries || clearMusic || clearPodcasts
+                            Button(
+                                onClick = {
+                                    val cleared = mutableListOf<String>()
+                                    if (clearLiveTv) { authRepo.clearChannelHistory(); cleared.add("Live TV") }
+                                    if (clearMovies) { authRepo.clearMovieHistory(); cleared.add("Movies") }
+                                    if (clearSeries) { authRepo.clearSeriesHistory(); cleared.add("Series") }
+                                    if (clearMusic) { authRepo.clearMusicHistory(); cleared.add("Music") }
+                                    if (clearPodcasts) { authRepo.clearPodcastHistory(); cleared.add("Podcasts") }
+                                    catalogManager?.clearAllCaches()
+                                    if (cleared.isNotEmpty()) {
+                                        Toast.makeText(context, "Cleared history for: ${cleared.joinToString(", ")}", Toast.LENGTH_SHORT).show()
+                                    }
+                                    showClearHistoryDialog = false
+                                },
+                                enabled = anySelected,
+                                colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Clear Selected", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // System Reboot Confirmation Dialog
+        if (showSystemRebootDialog) {
+            Dialog(onDismissRequest = { if (!isRebooting) showSystemRebootDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = CinemaSurface,
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, CinemaYellow),
+                    modifier = Modifier.fillMaxWidth(0.92f).padding(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, tint = CinemaYellow)
+                            Text(
+                                text = "TV Dinner System Reboot",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        Text(
+                            text = "This will completely flush active media streams, evict open network connection pools, purge video/image caches, and reload directory channels.\n\nYour username, password, server URLs, and phone activation will remain 100% intact.",
+                            fontSize = 13.sp,
+                            color = TextSecondary,
+                            lineHeight = 18.sp
+                        )
+
+                        if (isRebooting) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                CircularProgressIndicator(color = CinemaYellow, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                Text("Rebooting media engines and clearing buffers...", color = CinemaYellow, fontSize = 13.sp)
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
+                            ) {
+                                Button(
+                                    onClick = { showSystemRebootDialog = false },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaSurfaceVariant),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Cancel", color = TextSecondary)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        isRebooting = true
+                                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                            try {
+                                                playerManager?.stop()
+                                            } catch (_: Exception) {}
+
+                                            try {
+                                                YouTubeRemoteBridge.activeWebView?.let { wv ->
+                                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                        try {
+                                                            wv.onPause()
+                                                            wv.stopLoading()
+                                                            wv.loadUrl("about:blank")
+                                                        } catch (_: Exception) {}
+                                                    }
+                                                }
+                                                YouTubeRemoteBridge.activeWebView = null
+                                            } catch (_: Exception) {}
+
+                                            try {
+                                                apiClient.okHttpClient.connectionPool.evictAll()
+                                                apiClient.okHttpClient.dispatcher.cancelAll()
+                                            } catch (_: Exception) {}
+
+                                            try {
+                                                Coil.imageLoader(context).memoryCache?.clear()
+                                                Coil.imageLoader(context).diskCache?.clear()
+                                            } catch (_: Exception) {}
+
+                                            try {
+                                                context.cacheDir.deleteRecursively()
+                                            } catch (_: Exception) {}
+
+                                            try {
+                                                catalogManager?.clearAllCaches()
+                                            } catch (_: Exception) {}
+
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                                isRebooting = false
+                                                showSystemRebootDialog = false
+                                                Toast.makeText(context, "TV Dinner System Reboot Complete: Streaming engines & caches refreshed.", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaYellow),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Reboot Now", color = Color.Black, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
