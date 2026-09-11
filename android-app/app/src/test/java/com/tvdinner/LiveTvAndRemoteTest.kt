@@ -396,5 +396,29 @@ class LiveTvAndRemoteTest {
         assertFalse(isEnglishTextTrack("fr", "French"))
         assertFalse(isEnglishTextTrack("de", "Deutsch"))
     }
-}
 
+    @Test
+    fun testRatedRAdultFiltering() {
+        // Rated R category filtering
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultCategory("RATED R"))
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultCategory("RATED-R MOVIES"))
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultCategory("R RATED CINEMA"))
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultCategory("R-RATED"))
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultCategory("R| MOVIES"))
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultCategory("|R| ACTION"))
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultCategory("RATED: R"))
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultCategory("RATING R"))
+
+        // Standard categories should not be filtered
+        assertFalse(com.tvdinner.data.repository.CatalogManager.isAdultCategory("ACTION MOVIES"))
+        assertFalse(com.tvdinner.data.repository.CatalogManager.isAdultCategory("COMEDY"))
+        assertFalse(com.tvdinner.data.repository.CatalogManager.isAdultCategory("FAMILY & KIDS"))
+
+        // Rated R movie title filtering
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultName("Deadpool (Rated R)"))
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultName("Action Thriller [R-RATED]"))
+        assertTrue(com.tvdinner.data.repository.CatalogManager.isAdultName("Gladiator |R| (2000)"))
+        assertFalse(com.tvdinner.data.repository.CatalogManager.isAdultName("Toy Story (PG)"))
+        assertFalse(com.tvdinner.data.repository.CatalogManager.isAdultName("Avengers: Endgame (PG-13)"))
+    }
+}
