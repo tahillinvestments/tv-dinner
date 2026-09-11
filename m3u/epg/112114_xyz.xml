@@ -59250,6 +59250,9 @@
 	<programme channel="newtv超级综艺" start="20260911091800 +0800" stop="20260911101800 +0800">
 		<title lang="zh">国家宝藏 展演季</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260911101800 +0800" stop="20260911114800 +0800">
+		<title lang="zh">味你而来</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -59301,6 +59304,9 @@
 	<programme channel="newtv超级电影" start="20260911081500 +0800" stop="20260911100900 +0800">
 		<title lang="zh">侵占</title>
 	</programme>
+	<programme channel="newtv超级电影" start="20260911100900 +0800" stop="20260911112600 +0800">
+		<title lang="zh">大力出奇迹</title>
+	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
 	</channel>
@@ -59345,6 +59351,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260911094000 +0800" stop="20260911102600 +0800">
 		<title lang="zh">08_刑警的日子</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260911102600 +0800" stop="20260911111100 +0800">
+		<title lang="zh">32_归队</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -59936,6 +59945,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260911091700 +0800" stop="20260911094700 +0800">
 		<title lang="zh">蟹黄山药狮子头好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260911094700 +0800" stop="20260911103200 +0800">
+		<title lang="zh">14_密战无声</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
