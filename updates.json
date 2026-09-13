@@ -1,20 +1,34 @@
 {
   "currentVersion": {
-    "versionCode": 226,
-    "versionName": "2.2.6",
-    "title": "Fullscreen Fix, Live TV Category D-Pad, VOD Covers & Launch Defaults",
-    "releaseNotes": "• Fullscreen Black Screen Fixed: Entering fullscreen no longer shows a black frame — stream resumes immediately on the new surface without requiring channel changes\n• Live TV Category D-Pad Auto-Update: Moving the remote D-pad up/down through categories now instantly updates the channel list without requiring a select press\n• Now Playing → Live TV Playback: Selecting a live channel from Now Playing immediately begins playing it in the preview pane — no extra button press needed\n• VOD Covers in Now Playing: All movie and series poster images in Now Playing now load reliably with retry logic and fallback resolution\n• VOD Time Bar During Operations: Progress bar and timestamps appear whenever you interact with the player controls\n• Default to Live TV: App now opens directly on Live TV on every launch",
-    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.6/app-release.apk",
+    "versionCode": 227,
+    "versionName": "2.2.3-r227",
+    "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard (Republished)",
+    "releaseNotes": "[Republished Build based on v2.2.3 (Build 223)]\n• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
+    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r227/app-release.apk",
     "mandatory": false,
-    "publishedAt": "2026-09-13T19:42:05.603Z"
+    "publishedAt": "2026-09-13T20:58:17.444Z"
   },
   "releases": [
+    {
+      "id": "rel-227",
+      "versionCode": 227,
+      "versionName": "2.2.3-r227",
+      "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard (Republished)",
+      "status": "PUBLISHED",
+      "releaseNotes": "[Republished Build based on v2.2.3 (Build 223)]\n• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
+      "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+      "localApkUrl": "public/apks/tv-dinner-v2.2.3-r227.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r227/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-13T20:58:17.434Z",
+      "publishedAt": "2026-09-13T20:58:17.444Z"
+    },
     {
       "id": "rel-226",
       "versionCode": 226,
       "versionName": "2.2.6",
       "title": "Fullscreen Fix, Live TV Category D-Pad, VOD Covers & Launch Defaults",
-      "status": "PUBLISHED",
+      "status": "ARCHIVED",
       "releaseNotes": "• Fullscreen Black Screen Fixed: Entering fullscreen no longer shows a black frame — stream resumes immediately on the new surface without requiring channel changes\n• Live TV Category D-Pad Auto-Update: Moving the remote D-pad up/down through categories now instantly updates the channel list without requiring a select press\n• Now Playing → Live TV Playback: Selecting a live channel from Now Playing immediately begins playing it in the preview pane — no extra button press needed\n• VOD Covers in Now Playing: All movie and series poster images in Now Playing now load reliably with retry logic and fallback resolution\n• VOD Time Bar During Operations: Progress bar and timestamps appear whenever you interact with the player controls\n• Default to Live TV: App now opens directly on Live TV on every launch",
       "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
       "localApkUrl": "public/apks/tv-dinner-v2.2.6.apk",
