@@ -41907,6 +41907,9 @@
 	<programme channel="newtv超级综艺" start="20260914023100 +0800" stop="20260914031800 +0800">
 		<title lang="zh">24_照亮你</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260914031800 +0800" stop="20260914051900 +0800">
+		<title lang="zh">影视留声机</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -42497,6 +42500,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260914023500 +0800" stop="20260914030500 +0800">
 		<title lang="zh">杏花村好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260914030500 +0800" stop="20260914035100 +0800">
+		<title lang="zh">38_孤战</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
