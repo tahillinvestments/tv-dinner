@@ -12570,6 +12570,12 @@
 	<programme channel="咪咕综合体育" start="20260914014500 +0800" stop="20260914044500 +0800">
 		<title lang="zh">网球世界-2026美国网球公开赛 男单决赛 直播</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20260914044500 +0800" stop="20260914045000 +0800">
+		<title lang="zh">频道宣传</title>
+	</programme>
+	<programme channel="咪咕综合体育" start="20260914045000 +0800" stop="20260914070000 +0800">
+		<title lang="zh">UFC格斗之夜上海站 主赛</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>
@@ -12590,6 +12596,9 @@
 	</programme>
 	<programme channel="咪咕足球" start="20260914040500 +0800" stop="20260914044000 +0800">
 		<title lang="zh">西班牙篮球黄金一代 01 屏障</title>
+	</programme>
+	<programme channel="咪咕足球" start="20260914044500 +0800" stop="20260914062500 +0800">
+		<title lang="zh">我爱女篮-25/26WCBA常规赛 第1轮 河南豫光金铅-江西鲸裕清酒</title>
 	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
@@ -42024,6 +42033,9 @@
 	<programme channel="newtv超级综艺" start="20260914031800 +0800" stop="20260914051900 +0800">
 		<title lang="zh">影视留声机</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260914051900 +0800" stop="20260914081600 +0800">
+		<title lang="zh">中国唱将</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -42045,6 +42057,9 @@
 	<programme channel="newtv超级电影" start="20260914041500 +0800" stop="20260914053400 +0800">
 		<title lang="zh">篮球美少女</title>
 	</programme>
+	<programme channel="newtv超级电影" start="20260914053400 +0800" stop="20260914071900 +0800">
+		<title lang="zh">海浪</title>
+	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
 	</channel>
@@ -42065,6 +42080,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260914042400 +0800" stop="20260914051000 +0800">
 		<title lang="zh">29_隐身的名字</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260914051000 +0800" stop="20260914055600 +0800">
+		<title lang="zh">30_隐身的名字</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -42632,6 +42650,12 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260914035100 +0800" stop="20260914043600 +0800">
 		<title lang="zh">39_孤战</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260914043600 +0800" stop="20260914050600 +0800">
+		<title lang="zh">徽封贡酒好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260914050600 +0800" stop="20260914055200 +0800">
+		<title lang="zh">40_孤战</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
