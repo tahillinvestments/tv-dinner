@@ -838,7 +838,6 @@ fun LiveTvScreen(
                                     .clickable {
                                         try {
                                             keyboardController?.hide()
-                                            focusManager.clearFocus()
                                         } catch (_: Exception) {}
                                         val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
                                         val user = channel.streamUser ?: authRepo.getActiveUsername()
@@ -991,12 +990,6 @@ fun LiveTvScreen(
                                     focusedScale = 1.04f,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .onFocusChanged { focusState ->
-                                            if (focusState.isFocused) {
-                                                selectedCategoryId = cat.categoryId
-                                                authRepo.setLastLiveCategoryId(cat.categoryId)
-                                            }
-                                        }
                                         .then(
                                             if (isSelected || (selectedCategoryId == null && isFirstCat)) {
                                                 if (contentFocusRequester != null) Modifier.focusRequester(selectedCategoryFocusRequester).focusRequester(contentFocusRequester)
@@ -1211,7 +1204,6 @@ fun LiveTvScreen(
                                         onClick = {
                                             try {
                                                 keyboardController?.hide()
-                                                focusManager.clearFocus()
                                             } catch (_: Exception) {}
                                             try {
                                                 val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()

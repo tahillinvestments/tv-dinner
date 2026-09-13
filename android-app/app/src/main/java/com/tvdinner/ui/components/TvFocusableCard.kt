@@ -52,13 +52,6 @@ fun TvFocusableCard(
     Surface(
         modifier = modifier
             .scale(scale)
-            .onFocusChanged { state ->
-                isFocused = state.isFocused
-                if (!state.isFocused) {
-                    isKeyDownOnThisCard = false
-                    isLongPressHandled = false
-                }
-            }
             .then(
                 if (isFocused) {
                     Modifier.shadow(
@@ -74,18 +67,29 @@ fun TvFocusableCard(
                     )
                 }
             )
-            .focusable()
+            .onFocusChanged { state ->
+                isFocused = state.isFocused
+                if (!state.isFocused) {
+                    isKeyDownOnThisCard = false
+                    isLongPressHandled = false
+                }
+            }
             .onKeyEvent { keyEvent ->
                 val code = keyEvent.nativeKeyEvent.keyCode
-                val isSelectKey = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER
+                val isSelectKey = code == KeyEvent.KEYCODE_DPAD_CENTER ||
+                        code == KeyEvent.KEYCODE_ENTER ||
+                        code == KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                        code == KeyEvent.KEYCODE_BUTTON_A ||
+                        code == KeyEvent.KEYCODE_BUTTON_SELECT
 
                 if (keyEvent.type == KeyEventType.KeyDown && isSelectKey) {
-                    isKeyDownOnThisCard = true
-                    if (onLongClick != null && (keyEvent.nativeKeyEvent.isLongPress || keyEvent.nativeKeyEvent.repeatCount == 1)) {
+                    if (onLongClick != null && (keyEvent.nativeKeyEvent.isLongPress || keyEvent.nativeKeyEvent.repeatCount >= 1)) {
                         isLongPressHandled = true
                         onLongClick()
                         return@onKeyEvent true
                     }
+                    isKeyDownOnThisCard = true
+                    return@onKeyEvent true
                 } else if (keyEvent.type == KeyEventType.KeyUp && isSelectKey) {
                     if (isLongPressHandled) {
                         isLongPressHandled = false

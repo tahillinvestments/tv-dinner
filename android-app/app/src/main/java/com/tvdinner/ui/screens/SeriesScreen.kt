@@ -388,7 +388,6 @@ fun SeriesScreen(
                                 onClick = {
                                     try {
                                         keyboardController?.hide()
-                                        focusManager.clearFocus()
                                     } catch (_: Exception) {}
                                     selectedSeries = series
                                     lastSelectedSeriesId = series.seriesId
@@ -631,7 +630,6 @@ fun SeriesScreen(
                                     onClick = {
                                         try {
                                             keyboardController?.hide()
-                                            focusManager.clearFocus()
                                         } catch (_: Exception) {}
                                         selectedSeries = series
                                         lastSelectedSeriesId = series.seriesId
@@ -897,7 +895,6 @@ fun SeriesScreen(
                                             onClick = {
                                                 try {
                                                     keyboardController?.hide()
-                                                    focusManager.clearFocus()
                                                 } catch (_: Exception) {}
                                                 val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
                                                 val currentSavedDur = authRepo.getPlaybackDuration(streamKey)

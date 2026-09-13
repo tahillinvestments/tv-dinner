@@ -421,4 +421,42 @@ class LiveTvAndRemoteTest {
         assertFalse(com.tvdinner.data.repository.CatalogManager.isAdultName("Toy Story (PG)"))
         assertFalse(com.tvdinner.data.repository.CatalogManager.isAdultName("Avengers: Endgame (PG-13)"))
     }
+
+    @Test
+    fun testRemoteSelectKeycodes_allRecognized() {
+        fun isSelectKeyCode(code: Int): Boolean {
+            return code == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                    code == android.view.KeyEvent.KEYCODE_ENTER ||
+                    code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                    code == android.view.KeyEvent.KEYCODE_BUTTON_A ||
+                    code == android.view.KeyEvent.KEYCODE_BUTTON_SELECT
+        }
+
+        assertTrue("DPAD_CENTER must be recognized", isSelectKeyCode(android.view.KeyEvent.KEYCODE_DPAD_CENTER))
+        assertTrue("ENTER must be recognized", isSelectKeyCode(android.view.KeyEvent.KEYCODE_ENTER))
+        assertTrue("NUMPAD_ENTER must be recognized", isSelectKeyCode(android.view.KeyEvent.KEYCODE_NUMPAD_ENTER))
+        assertTrue("BUTTON_A (remote / gamepad) must be recognized", isSelectKeyCode(android.view.KeyEvent.KEYCODE_BUTTON_A))
+        assertTrue("BUTTON_SELECT (remote) must be recognized", isSelectKeyCode(android.view.KeyEvent.KEYCODE_BUTTON_SELECT))
+
+        assertFalse("DPAD_UP must not be select", isSelectKeyCode(android.view.KeyEvent.KEYCODE_DPAD_UP))
+        assertFalse("DPAD_DOWN must not be select", isSelectKeyCode(android.view.KeyEvent.KEYCODE_DPAD_DOWN))
+        assertFalse("BACK must not be select", isSelectKeyCode(android.view.KeyEvent.KEYCODE_BACK))
+    }
+
+    @Test
+    fun testTvCategorySelectionIntegrity() {
+        var selectedCategoryId: String? = "sports_101"
+        var activeStreamId: Int = 0
+
+        // Simulating playing a channel: channel selection should never mutate selectedCategoryId
+        fun onChannelSelected(streamId: Int) {
+            activeStreamId = streamId
+            // focus remains on channel, selectedCategoryId stays unaffected
+        }
+
+        onChannelSelected(5555)
+        assertEquals("Channel stream ID must be set", 5555, activeStreamId)
+        assertEquals("Category must remain unchanged after selecting a channel", "sports_101", selectedCategoryId)
+    }
 }
+

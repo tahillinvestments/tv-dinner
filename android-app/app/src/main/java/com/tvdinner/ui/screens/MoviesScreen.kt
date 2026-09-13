@@ -361,7 +361,6 @@ fun MoviesScreen(
                                 onClick = {
                                     try {
                                         keyboardController?.hide()
-                                        focusManager.clearFocus()
                                     } catch (_: Exception) {}
                                     val currentPortal = authRepo.getVodPortalUrl()
                                     val currentUser = authRepo.getVodUsername()
@@ -641,7 +640,6 @@ fun MoviesScreen(
                             onClick = {
                                 try {
                                     keyboardController?.hide()
-                                    focusManager.clearFocus()
                                 } catch (_: Exception) {}
                                 val currentPortal = authRepo.getVodPortalUrl()
                                 val currentUser = authRepo.getVodUsername()
