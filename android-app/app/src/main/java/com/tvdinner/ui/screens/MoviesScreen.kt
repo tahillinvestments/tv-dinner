@@ -29,8 +29,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,6 +48,7 @@ import com.tvdinner.data.model.MovieCategory
 import com.tvdinner.data.network.XtreamApiClient
 import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
+import com.tvdinner.ui.components.AccessRestrictedView
 import com.tvdinner.ui.components.AppSearchBar
 import com.tvdinner.ui.components.TvFocusableCard
 import com.tvdinner.ui.theme.*
@@ -61,8 +67,17 @@ fun MoviesScreen(
     catalogManager: CatalogManager,
     onPlayMovie: (String, String, Long, String) -> Unit, // (url, title, startPosMs, streamKey)
     isPlayingFullscreen: Boolean = false,
+    onOpenSettings: (() -> Unit)? = null,
+    targetMovieId: Int? = null,
+    targetCategoryId: String? = null,
+    onTargetMovieConsumed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val isCredentialsVerified by authRepo.isCredentialsVerifiedState.collectAsState()
+    val activeUsername by authRepo.activeUsernameState.collectAsState()
+    val activePassword by authRepo.activePasswordState.collectAsState()
+    val isAccessAllowed = activeUsername.isNotBlank() && activePassword.isNotBlank() && isCredentialsVerified
+
     var categories by remember { mutableStateOf<List<MovieCategory>>(emptyList()) }
     var selectedCategoryId by rememberSaveable { mutableStateOf<String?>(authRepo.getLastMovieCategoryId()) }
     var movies by remember { mutableStateOf<List<Movie>>(emptyList()) }
@@ -75,10 +90,9 @@ fun MoviesScreen(
     var isSorting by remember { mutableStateOf(false) }
     var movieWatchlistIds by remember { mutableStateOf(authRepo.getMovieWatchlistIds()) }
     val coroutineScope = rememberCoroutineScope()
-
-    val portal = authRepo.getVodPortalUrl()
-    val user = authRepo.getActiveUsername()
-    val pswd = authRepo.getActivePassword()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    val categoryNameMap = remember(categories) { categories.associate { it.categoryId to it.categoryName } }
 
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -103,8 +117,37 @@ fun MoviesScreen(
         }
     }
 
+    val targetMovieFocusRequester = remember { FocusRequester() }
+
+    // Deep navigation from Now page: switch category if needed and scroll/focus target movie
+    LaunchedEffect(targetMovieId, targetCategoryId) {
+        if (!targetCategoryId.isNullOrBlank() && selectedCategoryId != targetCategoryId) {
+            selectCategory(targetCategoryId)
+        }
+    }
+
+    LaunchedEffect(targetMovieId, sortedAndFilteredMovies) {
+        if (targetMovieId != null && targetMovieId > 0 && sortedAndFilteredMovies.isNotEmpty()) {
+            val idx = sortedAndFilteredMovies.indexOfFirst { it.streamId == targetMovieId }
+            if (idx >= 0) {
+                gridState.scrollToItem(idx)
+                delay(150)
+                try {
+                    targetMovieFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+                onTargetMovieConsumed()
+            }
+        }
+    }
+
     // Smart Fast Loading (Loads first or remembered category)
-    LaunchedEffect(Unit) {
+    LaunchedEffect(Unit, isAccessAllowed) {
+        if (!isAccessAllowed) {
+            categories = emptyList()
+            movies = emptyList()
+            isLoading = false
+            return@LaunchedEffect
+        }
         if (categories.isEmpty()) {
             isLoading = true
             val rawCats = catalogManager.getMovieCategories()
@@ -131,7 +174,8 @@ fun MoviesScreen(
         }
     }
 
-    LaunchedEffect(selectedCategoryId) {
+    LaunchedEffect(selectedCategoryId, isAccessAllowed) {
+        if (!isAccessAllowed) return@LaunchedEffect
         if (!selectedCategoryId.isNullOrBlank() && categories.isNotEmpty() && searchQuery.isBlank()) {
             isLoading = true
             if (selectedCategoryId != "watchlist" && selectedCategoryId != "history") {
@@ -217,7 +261,12 @@ fun MoviesScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
-        if (isMobile) {
+        if (!isAccessAllowed) {
+            AccessRestrictedView(
+                featureName = "Movies (VOD)",
+                onOpenSettings = onOpenSettings
+            )
+        } else if (isMobile) {
             // Mobile Portrait / Compact View: Single Column with horizontal categories
             Column(
                 modifier = Modifier
@@ -310,10 +359,17 @@ fun MoviesScreen(
 
                             TvFocusableCard(
                                 onClick = {
+                                    try {
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
+                                    } catch (_: Exception) {}
+                                    val currentPortal = authRepo.getVodPortalUrl()
+                                    val currentUser = authRepo.getVodUsername()
+                                    val currentPswd = authRepo.getVodPassword()
                                     val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
                                     val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
-                                    val ext = movie.containerExtension.ifBlank { "mp4" }
-                                    val streamUrl = apiClient.buildMovieStreamUrl(portal, user, pswd, movie.streamId, ext)
+                                    val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
+                                    val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
                                     lastPlayedMovieId = movie.streamId
                                     authRepo.setLastMovieStreamId(movie.streamId)
                                     authRepo.addMovieToHistory(movie.streamId)
@@ -341,7 +397,10 @@ fun MoviesScreen(
                                 backgroundColor = CinemaSurface,
                                 focusedBorderColor = CinemaFocus,
                                 focusedScale = 1.05f,
-                                modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight()
+                                    .then(if (movie.streamId == targetMovieId) Modifier.focusRequester(targetMovieFocusRequester) else Modifier)
                             ) {
                                 Column {
                                     Box(
@@ -421,6 +480,26 @@ fun MoviesScreen(
                                             .fillMaxWidth()
                                             .padding(horizontal = 8.dp, vertical = 6.dp)
                                     ) {
+                                        val catName = categoryNameMap[movie.categoryId]
+                                        if (searchQuery.isNotBlank() && !catName.isNullOrBlank()) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = CinemaSurfaceVariant,
+                                                border = BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f)),
+                                                modifier = Modifier.padding(bottom = 3.dp)
+                                            ) {
+                                                Text(
+                                                    text = catName,
+                                                    color = CinemaAccent,
+                                                    fontSize = 8.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+
                                         Text(
                                             text = movie.displayTitle,
                                             color = TextPrimary,
@@ -560,11 +639,19 @@ fun MoviesScreen(
 
                         TvFocusableCard(
                             onClick = {
+                                try {
+                                    keyboardController?.hide()
+                                    focusManager.clearFocus()
+                                } catch (_: Exception) {}
+                                val currentPortal = authRepo.getVodPortalUrl()
+                                val currentUser = authRepo.getVodUsername()
+                                val currentPswd = authRepo.getVodPassword()
                                 val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
                                 val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
-                                val ext = movie.containerExtension.ifBlank { "mp4" }
-                                val streamUrl = apiClient.buildMovieStreamUrl(portal, user, pswd, movie.streamId, ext)
+                                val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
+                                val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
                                 lastPlayedMovieId = movie.streamId
+                                authRepo.setLastMovieStreamId(movie.streamId)
                                 authRepo.addMovieToHistory(movie.streamId)
                                 if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
                                     resumePromptMovie = movie
@@ -591,7 +678,10 @@ fun MoviesScreen(
                             backgroundColor = CinemaSurface,
                             focusedBorderColor = CinemaFocus,
                             focusedScale = 1.05f,
-                            modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .wrapContentHeight()
+                                .then(if (movie.streamId == targetMovieId) Modifier.focusRequester(targetMovieFocusRequester) else Modifier)
                         ) {
                             Column {
                                 Box(
@@ -666,15 +756,40 @@ fun MoviesScreen(
                                     }
                                 }
 
-                                Text(
-                                    text = movie.displayTitle,
-                                    color = TextPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(8.dp)
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                ) {
+                                    val catName = categoryNameMap[movie.categoryId]
+                                    if (searchQuery.isNotBlank() && !catName.isNullOrBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = CinemaSurfaceVariant,
+                                            border = BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f)),
+                                            modifier = Modifier.padding(bottom = 3.dp)
+                                        ) {
+                                            Text(
+                                                text = catName,
+                                                color = CinemaAccent,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = movie.displayTitle,
+                                        color = TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
@@ -688,8 +803,11 @@ fun MoviesScreen(
             val movie = resumePromptMovie!!
             val streamKey = "movie_${movie.streamId}"
             val savedPos = authRepo.getPlaybackPosition(streamKey)
-            val ext = movie.containerExtension.ifBlank { "mp4" }
-            val streamUrl = apiClient.buildMovieStreamUrl(portal, user, pswd, movie.streamId, ext)
+            val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
+            val currentPortal = authRepo.getVodPortalUrl()
+            val currentUser = authRepo.getVodUsername()
+            val currentPswd = authRepo.getVodPassword()
+            val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
 
             Dialog(onDismissRequest = { resumePromptMovie = null }) {
                 Surface(

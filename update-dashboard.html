@@ -187,21 +187,63 @@
 
     const DEFAULT_MANIFEST = {
       "currentVersion": {
-        "versionCode": 221,
-        "versionName": "2.2.1",
-        "title": "Search Bar Pre-Selection Focus, Live TV Malformed Container Fix & VOD Decoder Auto-Recovery",
-        "releaseNotes": "• Instant Search Bar Focus: Search bar immediately highlights the moment TV remote D-pad moves over it before pressing Select, featuring 1.04x scale expansion, 3dp amber border, glowing halo shadow, and 'PRESS OK TO SEARCH' gold badge\n• Live TV Container Fix: Resolved 'ERROR_CODE_PARSING_CONTAINER_MALFORMED' by removing strict AUD detection from MPEG-TS extractors, adding SCTE-35 splice stream tolerance, and rejecting deceptive HTML error pages in the media stream\n• VOD Decoder Auto-Recovery & 4K Crash Protection: Fixed decoding failed reconnect stalls by auto-advancing past corrupt keyframes and refreshing hardware codec surfaces; reduced backBuffer to 20s to eliminate 4K out-of-memory crashes",
-        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.1/app-release.apk",
+        "versionCode": 224,
+        "versionName": "2.2.4",
+        "title": "Real-Time Credential Vetting (ACTIVE/INACTIVE), Direct Auth & Module Unlock",
+        "releaseNotes": "• Real-Time Credential Vetting: Vets credentials upon entry directly against the 4 authorized portals in parallel, showing bright green ACTIVE or bright red INACTIVE badge with instant module auto-unlock\n• Direct Username & Password Auth: Replaced phone number entry with clean direct Username and Password fields; removed all phone activation systems, formatters, and lookups\n• Quad-Portal Authorization: Strictly locked to the 4 approved portals (vpn.uhdp.top, tv.wd.uhdp.top, vpn.uhd4.top, tv.wd.uhd4.top); purged legacy portal5458 and kstv\n• Module Content Loading & Mutex Fix: Eliminated Kotlin Mutex re-entrancy deadlock in CatalogManager, restoring instant channel and catalog loading across Now, Live TV, Movies, Series, Music, and Podcasts\n• Raw Query Parameters & Auth Parsing: Reverted urlEncode escaping to standard raw query format and enhanced auth/status extraction to reliably validate accounts\n• Now Page Deep Navigation: Selecting any card in Now Playing directly routes to Live TV, Movies, Series, or Podcasts with targeted category selection and item auto-focus\n• VOD Forced-Pause Elimination: Resolved playback stall on newly launched VOD items with strict buffering play guards, initial hidden HUD, and 1000ms key release isolation\n• Show Password Toggle: Added eye visibility toggle in Settings and login dialogs to view entered credentials\n• Deep System Reboot Restart: System reboot flushes all media caches and seamlessly restarts the application process",
+        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.4/app-release.apk",
         "mandatory": false,
-        "publishedAt": "2026-09-11T02:58:37.006Z"
+        "publishedAt": "2026-09-13T18:14:21.890Z"
       },
       "releases": [
+        {
+          "id": "rel-224",
+          "versionCode": 224,
+          "versionName": "2.2.4",
+          "title": "Real-Time Credential Vetting (ACTIVE/INACTIVE), Direct Auth & Module Unlock",
+          "status": "PUBLISHED",
+          "releaseNotes": "• Real-Time Credential Vetting: Vets credentials upon entry directly against the 4 authorized portals in parallel, showing bright green ACTIVE or bright red INACTIVE badge with instant module auto-unlock\n• Direct Username & Password Auth: Replaced phone number entry with clean direct Username and Password fields; removed all phone activation systems, formatters, and lookups\n• Quad-Portal Authorization: Strictly locked to the 4 approved portals (vpn.uhdp.top, tv.wd.uhdp.top, vpn.uhd4.top, tv.wd.uhd4.top); purged legacy portal5458 and kstv\n• Module Content Loading & Mutex Fix: Eliminated Kotlin Mutex re-entrancy deadlock in CatalogManager, restoring instant channel and catalog loading across Now, Live TV, Movies, Series, Music, and Podcasts\n• Raw Query Parameters & Auth Parsing: Reverted urlEncode escaping to standard raw query format and enhanced auth/status extraction to reliably validate accounts\n• Now Page Deep Navigation: Selecting any card in Now Playing directly routes to Live TV, Movies, Series, or Podcasts with targeted category selection and item auto-focus\n• VOD Forced-Pause Elimination: Resolved playback stall on newly launched VOD items with strict buffering play guards, initial hidden HUD, and 1000ms key release isolation\n• Show Password Toggle: Added eye visibility toggle in Settings and login dialogs to view entered credentials\n• Deep System Reboot Restart: System reboot flushes all media caches and seamlessly restarts the application process",
+          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+          "localApkUrl": "public/apks/tv-dinner-v2.2.4.apk",
+          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.4/app-release.apk",
+          "mandatory": false,
+          "createdAt": "2026-09-13T16:36:45.592Z",
+          "publishedAt": "2026-09-13T18:14:21.883Z"
+        },
+        {
+          "id": "rel-223",
+          "versionCode": 223,
+          "versionName": "2.2.3",
+          "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard",
+          "status": "STAGED",
+          "releaseNotes": "• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
+          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+          "localApkUrl": "public/apks/tv-dinner-v2.2.3.apk",
+          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3/app-release.apk",
+          "mandatory": false,
+          "createdAt": "2026-09-13T15:48:35.536Z",
+          "publishedAt": null
+        },
+        {
+          "id": "rel-222",
+          "versionCode": 222,
+          "versionName": "2.2.2",
+          "title": "Quad-Portal Direct Failover, Validated Xtream Server Auth, Now Page & Universal Access Lockdown",
+          "status": "STAGED",
+          "releaseNotes": "• Quad-Portal Failover Sequence: Guaranteed direct server connection across 4 prioritized server portals with zero fallbacks to dummy local presets\n• Validated Server Auth: Full support for active Xtream credentials with instant authorization and cache synchronization on live streams and VOD\n• Server Portal Privacy: Internalized portal management and sanitized UI to ensure server addresses remain secure\n• Now Page Live Feeds: Fixed empty 'On Air Right Now' and 'Trending Premieres & Blockbusters' by populating live EPG progress and active VOD streams directly from authenticated server portals\n• Universal Access Lockdown: Uniform 'Access Restricted' security guard across Live TV, Movies, Series, Now, Music, and Podcasts when credentials are not entered\n• Surf-Saver Smart Mashup: Cross-category personalized programming row blending watch history, favorites, and watchlist genres",
+          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
+          "localApkUrl": "public/apks/tv-dinner-v2.2.2.apk",
+          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.2/app-release.apk",
+          "mandatory": false,
+          "createdAt": "2026-09-13T02:11:12.192Z",
+          "publishedAt": null
+        },
         {
           "id": "rel-221",
           "versionCode": 221,
           "versionName": "2.2.1",
           "title": "Search Bar Pre-Selection Focus, Live TV Malformed Container Fix & VOD Decoder Auto-Recovery",
-          "status": "PUBLISHED",
+          "status": "ARCHIVED",
           "releaseNotes": "• Instant Search Bar Focus: Search bar immediately highlights the moment TV remote D-pad moves over it before pressing Select, featuring 1.04x scale expansion, 3dp amber border, glowing halo shadow, and 'PRESS OK TO SEARCH' gold badge\n• Live TV Container Fix: Resolved 'ERROR_CODE_PARSING_CONTAINER_MALFORMED' by removing strict AUD detection from MPEG-TS extractors, adding SCTE-35 splice stream tolerance, and rejecting deceptive HTML error pages in the media stream\n• VOD Decoder Auto-Recovery & 4K Crash Protection: Fixed decoding failed reconnect stalls by auto-advancing past corrupt keyframes and refreshing hardware codec surfaces; reduced backBuffer to 20s to eliminate 4K out-of-memory crashes",
           "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
           "localApkUrl": "public/apks/tv-dinner-v2.2.1.apk",
@@ -478,7 +520,10 @@
 
         tr.className = isCurrentLive ? "bg-emerald-950/20 border-l-2 border-emerald-500 hover:bg-[#1E293B]/40 transition" : "hover:bg-[#1E293B]/40 transition";
 
-        const downloadHref = rel.apkUrl || (rel.versionName ? `https://github.com/tahillinvestments/tv-dinner/releases/download/v${rel.versionName}/app-release.apk` : 'https://github.com/tahillinvestments/tv-dinner/releases/latest');
+        const localPath = (rel.localApkUrl || `public/apks/tv-dinner-v${rel.versionName}.apk`).replace(/^[/\\]+/, '');
+        const downloadHref = isStaged
+          ? ((window.location.protocol === 'http:' || window.location.protocol === 'https:') ? `/${localPath}` : `./${localPath}`)
+          : (rel.apkUrl || (rel.versionName ? `https://github.com/tahillinvestments/tv-dinner/releases/download/v${rel.versionName}/app-release.apk` : 'https://github.com/tahillinvestments/tv-dinner/releases/latest'));
         const downloadFileName = `tv-dinner-v${rel.versionName}.apk`;
         const adbCommand = `adb install -r "${rel.apkPath || 'android-app/app/build/outputs/apk/release/app-release.apk'}"`;
 
@@ -543,31 +588,68 @@
       const target = data.releases.find(r => r.id === relId || r.versionCode === versionCode);
       if (!target) return;
 
-      const confirmMsg = isRepublish
-        ? `Are you sure you want to RE-PUBLISH former release v${target.versionName} (Build ${target.versionCode}) to production?\n\nThis will make Build ${target.versionCode} the active version deployed to all user TVs.`
+      const maxCode = Math.max(...data.releases.map(r => r.versionCode || 0));
+      const shouldDuplicate = isRepublish || target.status === 'ARCHIVED' || (target.versionCode < maxCode);
+      const duplicateCode = maxCode + 1;
+      const duplicateName = `${target.versionName}-r${duplicateCode}`;
+
+      const confirmMsg = shouldDuplicate
+        ? `Are you sure you want to RE-PUBLISH former release v${target.versionName} (Build ${target.versionCode}) to production?\n\nA newer duplicate build (Build ${duplicateCode} / v${duplicateName}) will be created so that all Android TV clients pick up and install the update without downgrade rejection.`
         : `Are you ready to publish version v${target.versionName} (Build ${target.versionCode}) to production?\n\nThis will push changes to GitHub, create the GitHub Release with the APK, and deploy the live update to all TVs.`;
 
       if (!confirm(confirmMsg)) return;
 
-      // Mark target as published and all other releases as archived
-      data.releases.forEach(r => {
-        if (r.id === target.id || r.versionCode === target.versionCode) {
-          r.status = 'PUBLISHED';
-          r.publishedAt = new Date().toISOString();
-        } else if (r.status === 'PUBLISHED') {
-          r.status = 'ARCHIVED';
-        }
-      });
+      if (shouldDuplicate) {
+        const duplicateRelease = {
+          id: `rel-${duplicateCode}`,
+          versionCode: duplicateCode,
+          versionName: duplicateName,
+          title: `${target.title} (Republished)`,
+          status: 'PUBLISHED',
+          releaseNotes: `[Republished Build based on v${target.versionName} (Build ${target.versionCode})]\n${target.releaseNotes || ''}`,
+          apkPath: "android-app/app/build/outputs/apk/release/app-release.apk",
+          localApkUrl: `public/apks/tv-dinner-v${duplicateName}.apk`,
+          apkUrl: `https://github.com/tahillinvestments/tv-dinner/releases/download/v${duplicateName}/app-release.apk`,
+          mandatory: target.mandatory || false,
+          createdAt: new Date().toISOString(),
+          publishedAt: new Date().toISOString()
+        };
 
-      data.currentVersion = {
-        versionCode: target.versionCode,
-        versionName: target.versionName,
-        title: target.title,
-        releaseNotes: target.releaseNotes,
-        apkUrl: target.apkUrl,
-        mandatory: target.mandatory || false,
-        publishedAt: new Date().toISOString()
-      };
+        data.releases.forEach(r => {
+          if (r.status === 'PUBLISHED') r.status = 'ARCHIVED';
+        });
+        data.releases.unshift(duplicateRelease);
+
+        data.currentVersion = {
+          versionCode: duplicateRelease.versionCode,
+          versionName: duplicateRelease.versionName,
+          title: duplicateRelease.title,
+          releaseNotes: duplicateRelease.releaseNotes,
+          apkUrl: duplicateRelease.apkUrl,
+          mandatory: duplicateRelease.mandatory,
+          publishedAt: duplicateRelease.publishedAt
+        };
+      } else {
+        // Mark target as published and all other releases as archived
+        data.releases.forEach(r => {
+          if (r.id === target.id || r.versionCode === target.versionCode) {
+            r.status = 'PUBLISHED';
+            r.publishedAt = new Date().toISOString();
+          } else if (r.status === 'PUBLISHED') {
+            r.status = 'ARCHIVED';
+          }
+        });
+
+        data.currentVersion = {
+          versionCode: target.versionCode,
+          versionName: target.versionName,
+          title: target.title,
+          releaseNotes: target.releaseNotes,
+          apkUrl: target.apkUrl,
+          mandatory: target.mandatory || false,
+          publishedAt: new Date().toISOString()
+        };
+      }
 
       saveManifest(data);
 
@@ -579,7 +661,14 @@
           const res = await fetch(ep, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ relId: target.id, versionCode: target.versionCode, release: target, currentVersion: data.currentVersion, manifest: data })
+            body: JSON.stringify({
+              relId: target.id,
+              versionCode: target.versionCode,
+              isRepublish: shouldDuplicate,
+              release: target,
+              currentVersion: data.currentVersion,
+              manifest: data
+            })
           });
           if (res.ok) {
             syncedToDisk = true;
@@ -589,10 +678,10 @@
       }
 
       if (syncedToDisk) {
-        alert(`🚀 Version v${target.versionName} (Build ${target.versionCode}) has been ${isRepublish ? 'RE-PUBLISHED' : 'PUBLISHED'} LIVE!\n\n• Manifests updated on disk\n• Pushed to GitHub main\n• Live update active for all user TVs`);
+        alert(`🚀 Version v${data.currentVersion.versionName} (Build ${data.currentVersion.versionCode}) has been ${shouldDuplicate ? 'RE-PUBLISHED' : 'PUBLISHED'} LIVE!\n\n• Manifests updated on disk\n• Pushed to GitHub main\n• Live update active for all user TVs`);
         window.location.reload();
       } else {
-        const cmd = `node scripts/publish-update.js ${target.versionCode}`;
+        const cmd = shouldDuplicate ? `node scripts/publish-update.js ${target.versionCode} --republish` : `node scripts/publish-update.js ${target.versionCode}`;
         try { navigator.clipboard.writeText(cmd); } catch (_) {}
         alert(`⚠️ Local dashboard server is not connected.\n\nTo complete the live publication to GitHub & user TVs, run this command in your terminal:\n\n${cmd}\n\n(Command copied to your clipboard!)`);
       }

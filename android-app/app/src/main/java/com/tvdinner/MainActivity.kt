@@ -25,7 +25,6 @@ import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
 import com.tvdinner.player.ExoPlayerManager
 import com.tvdinner.ui.player.YouTubeRemoteBridge
-import com.tvdinner.ui.screens.ActivationScreen
 import com.tvdinner.ui.screens.MainAppScreen
 import com.tvdinner.ui.theme.TVDinnerTheme
 import kotlinx.coroutines.Dispatchers

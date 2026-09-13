@@ -13,19 +13,32 @@ class AuthRepository(context: Context) {
     private val gson = Gson()
 
     companion object {
-        private const val KEY_ACTIVATED_PHONE = "activated_phone"
-        private const val KEY_ADMIN_CREDENTIALS = "admin_credentials"
         private const val KEY_IPTV_PORTAL = "iptv_portal_url"
         private const val KEY_BACKUP_IPTV_PORTAL = "backup_iptv_portal_url"
         private const val KEY_VOD_PORTAL = "vod_portal_url"
         private const val KEY_ACTIVE_USERNAME = "active_xtream_username"
         private const val KEY_ACTIVE_PASSWORD = "active_xtream_password"
         private const val KEY_CREDENTIALS_VERIFIED = "credentials_verified"
+        private const val KEY_CREDENTIALS_CLEARED = "credentials_explicitly_cleared"
         const val DEFAULT_SERVER_URL = "http://vpn.uhdp.top:80"
-        const val BACKUP_SERVER_URL = "http://vpn.uhd4.top:80"
+        const val BACKUP_SERVER_URL = "http://tv.wd.uhdp.top:80"
 
-        val DEFAULT_CREDENTIALS = emptyList<CredentialEntry>()
+        val SERVER_PORTALS = listOf(
+            "http://vpn.uhdp.top:80",
+            "http://tv.wd.uhdp.top:80",
+            "http://vpn.uhd4.top:80",
+            "http://tv.wd.uhd4.top:80"
+        )
     }
+
+    private val _isCredentialsVerified = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean(KEY_CREDENTIALS_VERIFIED, false))
+    val isCredentialsVerifiedState: kotlinx.coroutines.flow.StateFlow<Boolean> = _isCredentialsVerified
+
+    private val _activeUsername = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString(KEY_ACTIVE_USERNAME, "")?.trim() ?: "")
+    val activeUsernameState: kotlinx.coroutines.flow.StateFlow<String> = _activeUsername
+
+    private val _activePassword = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString(KEY_ACTIVE_PASSWORD, "")?.trim() ?: "")
+    val activePasswordState: kotlinx.coroutines.flow.StateFlow<String> = _activePassword
 
     fun isActivated(): Boolean {
         return true
@@ -37,6 +50,7 @@ class AuthRepository(context: Context) {
 
     fun setCredentialsVerified(verified: Boolean) {
         prefs.edit().putBoolean(KEY_CREDENTIALS_VERIFIED, verified).apply()
+        _isCredentialsVerified.value = verified
     }
 
     fun hasValidCredentials(): Boolean {
@@ -44,88 +58,43 @@ class AuthRepository(context: Context) {
     }
 
     fun hasVerifiedActiveCredentials(): Boolean {
-        return hasValidCredentials()
+        return hasValidCredentials() && isCredentialsVerified()
     }
 
-    fun getActivatedPhone(): String? {
-        return prefs.getString(KEY_ACTIVATED_PHONE, null)
-    }
-
-    fun getAllCredentials(): List<CredentialEntry> {
-        val json = prefs.getString(KEY_ADMIN_CREDENTIALS, null)
-        if (json.isNullOrBlank()) {
-            return emptyList()
-        }
-        return try {
-            val type = object : TypeToken<List<CredentialEntry>>() {}.type
-            gson.fromJson<List<CredentialEntry>>(json, type) ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    fun saveCredentials(list: List<CredentialEntry>) {
-        val json = gson.toJson(list)
-        prefs.edit().putString(KEY_ADMIN_CREDENTIALS, json).apply()
-    }
-
-    fun normalizePhone(phone: String): String {
-        return phone.replace(Regex("\\D"), "")
-    }
-
-    fun formatPhone(digits: String): String {
-        val clean = normalizePhone(digits)
-        return if (clean.length == 10) {
-            "(${clean.substring(0, 3)}) ${clean.substring(3, 6)}-${clean.substring(6)}"
-        } else {
-            digits
-        }
-    }
-
-    fun activatePhone(rawPhone: String): Boolean {
-        val clean = normalizePhone(rawPhone)
-        if (clean.length < 10) return false
-        val formatted = formatPhone(clean)
-        prefs.edit().putString(KEY_ACTIVATED_PHONE, formatted).apply()
-        return true
+    fun isCredentialsCleared(): Boolean {
+        return prefs.getBoolean(KEY_CREDENTIALS_CLEARED, false)
     }
 
     fun signOut() {
-        prefs.edit()
-            .remove(KEY_ACTIVATED_PHONE)
-            .remove(KEY_CREDENTIALS_VERIFIED)
-            .apply()
+        clearCredentials()
     }
 
     fun getActiveUsername(): String {
-        val direct = prefs.getString(KEY_ACTIVE_USERNAME, null)
-        if (!direct.isNullOrBlank()) return direct.trim()
-        val fromPhone = getActivatedPhone()?.let { phone ->
-            getAllCredentials().firstOrNull { normalizePhone(it.phone) == normalizePhone(phone) }?.user
-        }
-        return fromPhone?.trim() ?: ""
+        if (isCredentialsCleared()) return ""
+        return prefs.getString(KEY_ACTIVE_USERNAME, "")?.trim() ?: ""
     }
 
     fun getActivePassword(): String {
-        val direct = prefs.getString(KEY_ACTIVE_PASSWORD, null)
-        if (!direct.isNullOrBlank()) return direct.trim()
-        val fromPhone = getActivatedPhone()?.let { phone ->
-            getAllCredentials().firstOrNull { normalizePhone(it.phone) == normalizePhone(phone) }?.pswd
-        }
-        return fromPhone?.trim() ?: ""
+        if (isCredentialsCleared()) return ""
+        return prefs.getString(KEY_ACTIVE_PASSWORD, "")?.trim() ?: ""
     }
 
     fun getActiveLiveCredentials(): CredentialEntry {
-        val u = getActiveUsername()
-        val p = getActivePassword()
-        val phone = getActivatedPhone() ?: "(317) 515-0204"
-        return CredentialEntry(phone, u, p)
+        return CredentialEntry(user = getActiveUsername(), pswd = getActivePassword())
+    }
+
+    fun getOrderedServerPortals(): List<String> {
+        val saved = prefs.getString(KEY_IPTV_PORTAL, null)?.trim()?.removeSuffix("/")
+        if (!saved.isNullOrBlank() && SERVER_PORTALS.contains(saved)) {
+            return listOf(saved) + SERVER_PORTALS.filter { it != saved }
+        }
+        return SERVER_PORTALS
     }
 
     fun getLivePortalUrl(): String {
-        val saved = prefs.getString(KEY_IPTV_PORTAL, null)
-        return if (!saved.isNullOrBlank()) {
-            saved.trim().removeSuffix("/")
+        val saved = prefs.getString(KEY_IPTV_PORTAL, null)?.trim()?.removeSuffix("/")
+        return if (!saved.isNullOrBlank() && SERVER_PORTALS.contains(saved)) {
+            saved
         } else {
             DEFAULT_SERVER_URL
         }
@@ -133,13 +102,15 @@ class AuthRepository(context: Context) {
 
     fun setLivePortalUrl(url: String) {
         val clean = url.trim().removeSuffix("/")
-        prefs.edit().putString(KEY_IPTV_PORTAL, clean).apply()
+        if (SERVER_PORTALS.contains(clean)) {
+            prefs.edit().putString(KEY_IPTV_PORTAL, clean).apply()
+        }
     }
 
     fun getBackupPortalUrl(): String {
-        val saved = prefs.getString(KEY_BACKUP_IPTV_PORTAL, null)
-        return if (!saved.isNullOrBlank()) {
-            saved.trim().removeSuffix("/")
+        val saved = prefs.getString(KEY_BACKUP_IPTV_PORTAL, null)?.trim()?.removeSuffix("/")
+        return if (!saved.isNullOrBlank() && SERVER_PORTALS.contains(saved)) {
+            saved
         } else {
             BACKUP_SERVER_URL
         }
@@ -147,29 +118,26 @@ class AuthRepository(context: Context) {
 
     fun setBackupPortalUrl(url: String) {
         val clean = url.trim().removeSuffix("/")
-        prefs.edit().putString(KEY_BACKUP_IPTV_PORTAL, clean).apply()
-    }
-
-    fun getFailoverUrl(currentUrl: String): String {
-        val primary = getLivePortalUrl()
-        val backup = getBackupPortalUrl()
-        return if (currentUrl.contains(primary)) {
-            currentUrl.replace(primary, backup)
-        } else if (currentUrl.contains(backup)) {
-            currentUrl.replace(backup, primary)
-        } else if (currentUrl.contains("vpn.uhdp.top:80")) {
-            currentUrl.replace("vpn.uhdp.top:80", "vpn.uhd4.top:80")
-        } else if (currentUrl.contains("vpn.uhd4.top:80")) {
-            currentUrl.replace("vpn.uhd4.top:80", "vpn.uhdp.top:80")
-        } else {
-            currentUrl
+        if (SERVER_PORTALS.contains(clean)) {
+            prefs.edit().putString(KEY_BACKUP_IPTV_PORTAL, clean).apply()
         }
     }
 
+    fun getFailoverUrl(currentUrl: String): String {
+        for (i in SERVER_PORTALS.indices) {
+            val portal = SERVER_PORTALS[i]
+            if (currentUrl.contains(portal)) {
+                val nextPortal = SERVER_PORTALS[(i + 1) % SERVER_PORTALS.size]
+                return currentUrl.replace(portal, nextPortal)
+            }
+        }
+        return currentUrl
+    }
+
     fun getVodPortalUrl(): String {
-        val saved = prefs.getString(KEY_VOD_PORTAL, null)
-        return if (!saved.isNullOrBlank()) {
-            saved.trim().removeSuffix("/")
+        val saved = prefs.getString(KEY_VOD_PORTAL, null)?.trim()?.removeSuffix("/")
+        return if (!saved.isNullOrBlank() && SERVER_PORTALS.contains(saved)) {
+            saved
         } else {
             DEFAULT_SERVER_URL
         }
@@ -177,7 +145,9 @@ class AuthRepository(context: Context) {
 
     fun setVodPortalUrl(url: String) {
         val clean = url.trim().removeSuffix("/")
-        prefs.edit().putString(KEY_VOD_PORTAL, clean).apply()
+        if (SERVER_PORTALS.contains(clean)) {
+            prefs.edit().putString(KEY_VOD_PORTAL, clean).apply()
+        }
     }
 
     fun getVodUsername(): String = getActiveUsername()
@@ -187,17 +157,19 @@ class AuthRepository(context: Context) {
         val cleanU = user.trim()
         val cleanP = pswd.trim()
         val changed = cleanU != getActiveUsername() || cleanP != getActivePassword()
+
         val editor = prefs.edit()
             .putString(KEY_ACTIVE_USERNAME, cleanU)
             .putString(KEY_ACTIVE_PASSWORD, cleanP)
+            .putBoolean(KEY_CREDENTIALS_CLEARED, false)
+
         if (changed) {
             editor.remove(KEY_CREDENTIALS_VERIFIED)
+            _isCredentialsVerified.value = false
         }
         editor.apply()
-        val phone = getActivatedPhone() ?: "(317) 515-0204"
-        if (cleanU.isNotBlank() && cleanP.isNotBlank()) {
-            addOrUpdateCredential(phone, cleanU, cleanP)
-        }
+        _activeUsername.value = cleanU
+        _activePassword.value = cleanP
     }
 
     fun clearCredentials() {
@@ -205,26 +177,11 @@ class AuthRepository(context: Context) {
             .remove(KEY_ACTIVE_USERNAME)
             .remove(KEY_ACTIVE_PASSWORD)
             .remove(KEY_CREDENTIALS_VERIFIED)
+            .putBoolean(KEY_CREDENTIALS_CLEARED, true)
             .apply()
-    }
-
-    fun addOrUpdateCredential(phone: String, user: String, pswd: String) {
-        val list = getAllCredentials().toMutableList()
-        val clean = normalizePhone(phone)
-        val formatted = formatPhone(clean)
-        val idx = list.indexOfFirst { normalizePhone(it.phone) == clean }
-        if (idx >= 0) {
-            list[idx] = CredentialEntry(formatted, user, pswd)
-        } else {
-            list.add(0, CredentialEntry(formatted, user, pswd))
-        }
-        saveCredentials(list)
-    }
-
-    fun deleteCredential(phone: String) {
-        val clean = normalizePhone(phone)
-        val list = getAllCredentials().filter { normalizePhone(it.phone) != clean }
-        saveCredentials(list)
+        _activeUsername.value = ""
+        _activePassword.value = ""
+        _isCredentialsVerified.value = false
     }
 
     // Podcast Subscriptions
@@ -275,6 +232,15 @@ class AuthRepository(context: Context) {
                 .remove("dur_$streamKey")
                 .apply()
         }
+    }
+
+    // Now Page Personalization Preference
+    fun isNowPersonalizationEnabled(): Boolean {
+        return prefs.getBoolean("now_personalization_enabled", true)
+    }
+
+    fun setNowPersonalizationEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("now_personalization_enabled", enabled).apply()
     }
 
     // Favorite Live TV Channels
@@ -538,9 +504,9 @@ class AuthRepository(context: Context) {
         prefs.edit().putBoolean("vod_subtitles_enabled", enabled).apply()
     }
 
-    // Music & Podcasts Closed Captions Preference (Default: OFF)
+    // Music & Podcasts Closed Captions Preference (Default: ON)
     fun isMusicPodcastsCaptionsEnabled(): Boolean {
-        return prefs.getBoolean("music_podcasts_captions_enabled", false)
+        return prefs.getBoolean("music_podcasts_captions_enabled", true)
     }
 
     fun setMusicPodcastsCaptionsEnabled(enabled: Boolean) {

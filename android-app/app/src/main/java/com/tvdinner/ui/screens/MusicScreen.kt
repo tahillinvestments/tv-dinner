@@ -34,6 +34,7 @@ import coil.compose.AsyncImage
 import com.tvdinner.data.model.MusicVideo
 import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
+import com.tvdinner.ui.components.AccessRestrictedView
 import com.tvdinner.ui.components.AppSearchBar
 import com.tvdinner.ui.components.TvFocusableCard
 import com.tvdinner.ui.theme.*
@@ -48,9 +49,10 @@ fun MusicScreen(
     onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val isAccessAllowed = remember(authRepo.getActiveUsername(), authRepo.getActivePassword()) {
-        authRepo.hasVerifiedActiveCredentials()
-    }
+    val isCredentialsVerified by authRepo.isCredentialsVerifiedState.collectAsState()
+    val activeUsername by authRepo.activeUsernameState.collectAsState()
+    val activePassword by authRepo.activePasswordState.collectAsState()
+    val isAccessAllowed = activeUsername.isNotBlank() && activePassword.isNotBlank() && isCredentialsVerified
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var debouncedQuery by remember { mutableStateOf("") }
@@ -190,65 +192,10 @@ fun MusicScreen(
 
     Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
         if (!isAccessAllowed) {
-            Box(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.widthIn(max = 480.dp)
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = CinemaPrimary.copy(alpha = 0.15f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaPrimary.copy(alpha = 0.5f)),
-                        modifier = Modifier.size(72.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Access Restricted",
-                                tint = CinemaAccent,
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = "ACCESS RESTRICTED",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextPrimary,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "Music and Podcasts require verified active credentials. Please enter and verify your active subscription credentials in Settings to unlock access.",
-                        fontSize = 14.sp,
-                        color = TextSecondary,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        lineHeight = 20.sp
-                    )
-                    if (onOpenSettings != null) {
-                        TvFocusableCard(
-                            onClick = onOpenSettings,
-                            shape = RoundedCornerShape(10.dp),
-                            backgroundColor = CinemaPrimary,
-                            focusedBorderColor = CinemaFocus,
-                            focusedScale = 1.05f,
-                            modifier = Modifier.padding(top = 8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(18.dp))
-                                Text("Open Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            }
-                        }
-                    }
-                }
-            }
+            AccessRestrictedView(
+                featureName = "Music",
+                onOpenSettings = onOpenSettings
+            )
         } else {
             Column(
                 modifier = Modifier

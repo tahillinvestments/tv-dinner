@@ -1,7 +1,7 @@
 // Android debug sentinel — signals the JS bundle executed successfully
 if (typeof window !== 'undefined') window.__tvdinner_loaded = true;
 
-import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, ChevronLeft, Radio, Globe, Clock } from 'lucide';
+import { createIcons, Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, ChevronLeft, Radio, Globe, Clock, Sparkles, Flame, Zap, TrendingUp, Sliders, Heart, PlayCircle } from 'lucide';
 
 import { fetchAndParseM3U, parseM3U } from './parser';
 import { IPTVPlayer } from './player';
@@ -31,7 +31,7 @@ import './style.css';
 // Initialize Lucide icons
 const iconConfig = {
   icons: {
-    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, ChevronLeft, Radio, Globe
+    Menu, X, Play, Pause, Tv, Search, Info, AlertTriangle, RefreshCw, Volume2, Volume1, VolumeX, Maximize, SquareStack, ExternalLink, Star, Monitor, Settings, ArrowLeft, Home, Film, ChevronRight, ChevronLeft, Radio, Globe, Clock, Sparkles, Flame, Zap, TrendingUp, Sliders, Heart, PlayCircle
   }
 };
 
@@ -703,6 +703,11 @@ function switchTab(tabName) {
         applyFilterAndRender();
       }
     }
+  } else if (tabName === 'now') {
+    loadNowDashboard();
+    if (state.selectedMedia === null && holder && playerSection) {
+      holder.appendChild(playerSection);
+    }
   } else if (tabName === 'home') {
     if (!isLiveTvActive()) {
       const homeStatusText = document.getElementById('home-status-text');
@@ -786,6 +791,678 @@ async function loadRowData(container, xtreamPromise) {
   } catch (e) {
     console.warn('[VOD Dashboard] Row load error:', e);
   }
+}
+
+// ==========================================================================
+// NOW HUB & SURF-SAVER CONTROLLER
+// ==========================================================================
+
+let nowClockTimer = null;
+
+function isPersonalizationEnabled() {
+  try {
+    return localStorage.getItem('now_personalization_enabled') !== 'false';
+  } catch (e) {
+    return true;
+  }
+}
+
+function updateNowClock() {
+  const timeEl = document.getElementById('now-live-time');
+  if (!timeEl) return;
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  timeEl.textContent = `${dateStr} • ${timeStr}`;
+}
+
+function updateNowModeUI() {
+  const isPersonalized = isPersonalizationEnabled();
+  const badge = document.getElementById('now-personalization-badge');
+  const label = document.getElementById('now-personalization-label');
+  const title = document.getElementById('now-mashup-title');
+  const subtitle = document.getElementById('now-mashup-subtitle');
+  const indicator = document.getElementById('now-mashup-mode-indicator');
+  const pillLabel = document.getElementById('now-mashup-pill-label');
+
+  if (badge && label) {
+    if (isPersonalized) {
+      badge.className = 'now-personalization-pill';
+      label.textContent = 'Surf-Saver Active';
+    } else {
+      badge.className = 'now-personalization-pill generic-mode';
+      label.textContent = 'Generic Trending Mode';
+    }
+  }
+
+  if (pillLabel) {
+    pillLabel.textContent = isPersonalized ? 'Surf-Saver Mashup' : 'Popular Mashup';
+  }
+
+  if (title) {
+    title.innerHTML = isPersonalized
+      ? `<i data-lucide="sparkles" class="w-5 h-5 text-amber-400"></i> Surf-Saver Smart Mashup`
+      : `<i data-lucide="trending-up" class="w-5 h-5 text-blue-400"></i> Popular Across TV DINNER`;
+  }
+
+  if (subtitle) {
+    subtitle.textContent = isPersonalized
+      ? 'Hand-picked cross-category mix of Live TV, VOD, and Podcasts based on your tastes & activity.'
+      : 'Generically trending current broadcasts, popular movies, and top podcasts across all categories.';
+  }
+
+  if (indicator) {
+    indicator.textContent = isPersonalized ? 'Personalized' : 'Generic Trending';
+    indicator.className = isPersonalized ? 'now-badge-mode' : 'now-badge-mode generic';
+  }
+
+  createIcons(iconConfig);
+}
+
+// Universal Player Launcher: plays Live TV channel, VOD movie, TV series, or podcast immediately
+function playNowMediaItem(item) {
+  if (!item) return;
+  console.log('[Now Play] Launching playback for item:', item);
+
+  // 1. Live TV Channel
+  if (item.type === 'channel' || item.stream_type === 'live' || (item.url && item.url.includes('.m3u8')) || (item.name && item.num && !item.stream_id)) {
+    const ch = item.channel || item;
+    switchTab('live');
+    playChannel(ch);
+    return;
+  }
+
+  // 2. Podcast (Audio or Video)
+  if (item.type === 'podcast' || item.category === 'Podcast' || item.channelName || item.audioUrl || item.feedUrl || item.youtubeId) {
+    const ep = item.episode || item;
+    const isAudio = Boolean(ep.audioUrl || ep.audio_url || ep.enclosure?.url || ep.mediaType === 'audio' || (!ep.youtubeId && !ep.videoId));
+    if (isAudio) {
+      playPodcastEpisodeInDock(ep);
+      if (player && typeof player.showToast === 'function') {
+        player.showToast(`Playing Podcast: ${ep.title || 'Episode'}`);
+      }
+    } else {
+      openPodcastModal(ep);
+    }
+    return;
+  }
+
+  // 3. VOD TV Series
+  if (item.type === 'tv' || item.media_type === 'tv' || item.series_id) {
+    openDetailsView({ ...item, media_type: 'tv' });
+    return;
+  }
+
+  // 4. VOD Movie
+  openDetailsView({ ...item, media_type: 'movie' });
+}
+
+// Load Section 1: Live Broadcasts with Real-Time EPG & Program Progress
+async function loadNowLiveBroadcasts() {
+  const container = document.getElementById('now-live-grid');
+  if (!container) return;
+
+  if (!state.channels || state.channels.length === 0) {
+    if (isLiveTvActive()) {
+      await loadIPTVPlaylist().catch(() => {});
+    }
+  }
+
+  if (!state.channels || state.channels.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state-card col-span-full">
+        <i data-lucide="tv" class="w-8 h-8 text-slate-500"></i>
+        <h3>No Live Channels Available</h3>
+        <p>Please check your IPTV configuration in Settings.</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Gather candidate on-air channels: favorites first, then key major entertainment/sports/news networks
+  const favChannels = state.channels.filter(ch => state.favorites.includes(ch.id));
+  const majorNetworkRegex = /hbo|espn|fox sports|nbc|cbs|cnn|discovery|tnt|fx|mtv|starz|paramount|cinema|amc|disney/i;
+  const networkChannels = state.channels.filter(ch => majorNetworkRegex.test(ch.name || ch.group || ''));
+  const remainingChannels = state.channels.filter(ch => !favChannels.includes(ch) && !networkChannels.includes(ch));
+
+  const candidates = [...favChannels, ...networkChannels, ...remainingChannels].slice(0, 8);
+  container.innerHTML = '';
+
+  candidates.forEach(ch => {
+    const epg = getChannelEPGInfo(ch);
+    const prog = getProgramProgress(epg);
+    const programTitle = prog.title || epg.title || (ch.name + ' Broadcast');
+    const percent = Math.max(0, Math.min(100, prog.percent || 0));
+    const remainingText = prog.remainingMinutes > 0 ? `${prog.remainingMinutes}m left` : 'Live Now';
+    const timeRange = (prog.formattedStart && prog.formattedEnd) ? `${prog.formattedStart} – ${prog.formattedEnd}` : 'On Air';
+
+    const card = document.createElement('div');
+    card.className = 'now-live-card';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+
+    card.innerHTML = `
+      <div class="now-live-card-top">
+        <div class="now-live-channel-info">
+          ${ch.logo ? `<img src="${ch.logo}" alt="${ch.name}" class="now-live-channel-logo" loading="lazy" onerror="this.style.display='none'">` : `<div class="now-live-channel-logo flex items-center justify-center text-amber-400 font-bold text-xs"><i data-lucide="tv" class="w-4 h-4"></i></div>`}
+          <div class="min-w-0">
+            <h4 class="now-live-channel-name">${ch.name}</h4>
+            <span class="now-live-channel-group">${ch.group || 'Live Broadcast'}</span>
+          </div>
+        </div>
+        <span class="now-on-air-badge">
+          <span class="pulse-dot"></span> LIVE
+        </span>
+      </div>
+
+      <h3 class="now-live-program-title" title="${programTitle}">${programTitle}</h3>
+
+      <div class="now-epg-progress-wrap">
+        <div class="now-epg-progress-track">
+          <div class="now-epg-progress-fill" style="width: ${percent}%;"></div>
+        </div>
+        <div class="now-epg-time-row">
+          <span>${timeRange}</span>
+          <span class="now-epg-remaining-badge">${remainingText}</span>
+        </div>
+      </div>
+
+      ${epg.nextTitle ? `
+        <div class="now-up-next-row">
+          <span class="now-up-next-tag">UP NEXT</span>
+          <span class="now-up-next-title">${epg.nextTitle}</span>
+          ${epg.nextStartTime ? `<span class="now-up-next-time">@ ${formatTime(epg.nextStartTime)}</span>` : ''}
+        </div>
+      ` : ''}
+    `;
+
+    const handlePlay = (e) => {
+      if (e) e.stopPropagation();
+      playNowMediaItem({ type: 'channel', channel: ch });
+    };
+
+    card.addEventListener('click', handlePlay);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handlePlay(e);
+      }
+    });
+
+    container.appendChild(card);
+  });
+}
+
+// Load Section 2: Surf-Saver Smart Mashup (Tuned to activity & saves vs. Generic Trending)
+async function loadNowSmartMashup() {
+  const mashupGrid = document.getElementById('now-mashup-grid');
+  const resumeContainer = document.getElementById('now-resume-container');
+  const resumeGrid = document.getElementById('now-resume-grid');
+  if (!mashupGrid) return;
+
+  const isPersonalized = isPersonalizationEnabled();
+  let mashupItems = [];
+
+  // 1. Check Continue Watching / Jump Back In items (Personalized mode only)
+  if (isPersonalized && resumeContainer && resumeGrid) {
+    try {
+      const rawResume = JSON.parse(localStorage.getItem('vod_resume_positions') || '{}');
+      const resumeEntries = Object.entries(rawResume)
+        .map(([key, val]) => ({ key, ...val }))
+        .filter(entry => entry && entry.position > 15 && (!entry.duration || (entry.position / entry.duration < 0.92)))
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        .slice(0, 5);
+
+      if (resumeEntries.length > 0) {
+        resumeContainer.classList.remove('hidden');
+        resumeGrid.innerHTML = '';
+        resumeEntries.forEach(entry => {
+          const mKey = entry.key || '';
+          const isTV = mKey.startsWith('series_') || mKey.startsWith('tv_');
+          const cleanTitle = entry.title || 'Resume Stream';
+          const posFormatted = formatTime(entry.position);
+          const durFormatted = entry.duration ? formatTime(entry.duration) : '';
+          const pct = entry.duration ? Math.min(100, Math.round((entry.position / entry.duration) * 100)) : 35;
+
+          const card = document.createElement('div');
+          card.className = 'detail-item-card hover-scale cursor-pointer relative';
+          card.setAttribute('role', 'button');
+          card.setAttribute('tabindex', '0');
+          card.innerHTML = `
+            <div class="w-full h-32 bg-slate-900 flex items-center justify-center relative overflow-hidden rounded-t-xl">
+              <i data-lucide="play-circle" class="w-10 h-10 text-indigo-400"></i>
+              <span class="absolute top-2 left-2 bg-indigo-600/80 text-white text-[9px] font-bold px-2 py-0.5 rounded backdrop-blur">RESUME</span>
+              <div class="absolute bottom-0 inset-x-0 h-1.5 bg-slate-800">
+                <div class="h-full bg-indigo-500" style="width: ${pct}%;"></div>
+              </div>
+            </div>
+            <div class="detail-item-info">
+              <h4 class="detail-item-title truncate">${cleanTitle}</h4>
+              <div class="detail-item-meta">
+                <span class="text-indigo-300 font-semibold">${posFormatted}${durFormatted ? ` / ${durFormatted}` : ''}</span>
+                <span class="flex items-center gap-1 text-emerald-400 font-semibold"><i data-lucide="play" class="w-3 h-3 fill-emerald-400"></i> Play</span>
+              </div>
+            </div>
+          `;
+
+          const resumeAction = () => {
+            const parsedId = mKey.replace(/^(movie_|series_|tv_)/, '');
+            openDetailsView({ id: parsedId, stream_id: parsedId, title: cleanTitle, name: cleanTitle, media_type: isTV ? 'tv' : 'movie' });
+          };
+          card.addEventListener('click', resumeAction);
+          card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resumeAction(); }
+          });
+          resumeGrid.appendChild(card);
+        });
+      } else {
+        resumeContainer.classList.add('hidden');
+      }
+    } catch (e) {
+      resumeContainer.classList.add('hidden');
+    }
+  } else if (resumeContainer) {
+    resumeContainer.classList.add('hidden');
+  }
+
+  // 2. Build Mashup Items
+  try {
+    if (isPersonalized) {
+      // PERSONALIZED SURF-SAVER MIX:
+      // Mix of favorite/recent Live TV, Watchlist genre-matched movies/shows, and podcasts
+      
+      // A. Best matching Live Channels (favorites or high-priority sports/news)
+      const favChs = (state.channels || []).filter(c => state.favorites.includes(c.id));
+      if (favChs.length > 0) {
+        mashupItems.push({
+          type: 'channel',
+          channel: favChs[0],
+          title: favChs[0].name,
+          subtitle: favChs[0].group || 'Live TV',
+          image: favChs[0].logo || '',
+          tag: '🔴 LIVE TV',
+          tagClass: 'live'
+        });
+      } else if (state.channels && state.channels.length > 0) {
+        const topSports = state.channels.find(c => /espn|sports/i.test(c.name || c.group || '')) || state.channels[0];
+        mashupItems.push({
+          type: 'channel',
+          channel: topSports,
+          title: topSports.name,
+          subtitle: topSports.group || 'Live Sports',
+          image: topSports.logo || '',
+          tag: '🔴 LIVE TV',
+          tagClass: 'live'
+        });
+      }
+
+      // B. Genre-matched VOD Movies from Watchlist tastes or TMDB trending
+      const trendingData = await getTrending(1).catch(() => ({ results: [] }));
+      const trendingList = trendingData.results || [];
+      const trendingMovies = trendingList.filter(item => item.media_type === 'movie');
+      const trendingTV = trendingList.filter(item => item.media_type === 'tv');
+
+      // Add top 3 movies
+      trendingMovies.slice(0, 3).forEach(m => {
+        mashupItems.push({
+          ...m,
+          type: 'movie',
+          media_type: 'movie',
+          title: m.title || m.name,
+          subtitle: `⭐ ${(m.vote_average || 8).toFixed(1)} • ${(m.release_date || '2024').split('-')[0]}`,
+          image: getMediaPoster(m, 'w342'),
+          tag: '🎬 VOD MOVIE',
+          tagClass: 'movie'
+        });
+      });
+
+      // Add top 2 TV series
+      trendingTV.slice(0, 2).forEach(t => {
+        mashupItems.push({
+          ...t,
+          type: 'tv',
+          media_type: 'tv',
+          title: t.name || t.title,
+          subtitle: `⭐ ${(t.vote_average || 8).toFixed(1)} • ${(t.first_air_date || '2024').split('-')[0]}`,
+          image: getMediaPoster(t, 'w342'),
+          tag: '📺 TV SERIES',
+          tagClass: 'series'
+        });
+      });
+
+      // Add top 2 Podcasts (curated for you or latest)
+      const forYouPods = await fetchForYouCuratedPodcasts().catch(() => []);
+      const podList = forYouPods.length > 0 ? forYouPods : getAllPodcastChannels();
+      podList.slice(0, 2).forEach(p => {
+        mashupItems.push({
+          ...p,
+          type: 'podcast',
+          title: p.channelName || p.title,
+          subtitle: p.host || p.category || 'Podcast',
+          image: p.avatar || p.thumbnail || '',
+          tag: '🎙️ PODCAST',
+          tagClass: 'podcast'
+        });
+      });
+
+    } else {
+      // GENERIC TRENDING MODE (Personalization disabled in settings):
+      // Globally popular broadcasts, daily blockbusters, and top-chart podcasts
+      if (state.channels && state.channels.length > 0) {
+        const topNews = state.channels.find(c => /cnn|fox news|nbc news/i.test(c.name || '')) || state.channels[0];
+        mashupItems.push({
+          type: 'channel',
+          channel: topNews,
+          title: topNews.name,
+          subtitle: topNews.group || 'Live News',
+          image: topNews.logo || '',
+          tag: '🔴 LIVE TV',
+          tagClass: 'live'
+        });
+      }
+
+      const trendingData = await getTrending(1).catch(() => ({ results: [] }));
+      const trendingList = trendingData.results || [];
+
+      trendingList.slice(0, 5).forEach(item => {
+        const isTV = item.media_type === 'tv';
+        mashupItems.push({
+          ...item,
+          type: isTV ? 'tv' : 'movie',
+          title: item.title || item.name,
+          subtitle: `⭐ ${(item.vote_average || 8).toFixed(1)} • ${(item.release_date || item.first_air_date || '2024').split('-')[0]}`,
+          image: getMediaPoster(item, 'w342'),
+          tag: isTV ? '📺 TV SHOW' : '🎬 MOVIE',
+          tagClass: isTV ? 'series' : 'movie'
+        });
+      });
+
+      const allPods = getAllPodcastChannels();
+      allPods.slice(0, 2).forEach(p => {
+        mashupItems.push({
+          ...p,
+          type: 'podcast',
+          title: p.channelName,
+          subtitle: p.category || 'Podcast',
+          image: p.avatar || '',
+          tag: '🎙️ PODCAST',
+          tagClass: 'podcast'
+        });
+      });
+    }
+  } catch (err) {
+    console.warn('[Now Hub] Mashup compilation error:', err);
+  }
+
+  mashupGrid.innerHTML = '';
+  if (mashupItems.length === 0) {
+    mashupGrid.innerHTML = '<span class="text-xs text-slate-500 py-4 col-span-full">No suggestions available.</span>';
+    return;
+  }
+
+  mashupItems.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'now-mashup-card';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+
+    const isLive = item.type === 'channel';
+    card.innerHTML = `
+      <div class="${isLive ? 'now-mashup-thumb-wrap' : 'now-mashup-poster-wrap'}">
+        <span class="now-type-tag ${item.tagClass || 'movie'}">${item.tag || 'FEATURED'}</span>
+        <img src="${item.image || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=342&q=80'}" alt="${item.title}" class="now-mashup-img" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=342&q=80';">
+        <div class="now-mashup-play-overlay">
+          <div class="now-mashup-play-btn">
+            <i data-lucide="play" class="w-5 h-5 fill-black text-black"></i>
+          </div>
+        </div>
+      </div>
+      <div class="now-mashup-info">
+        <h4 class="now-mashup-card-title">${item.title}</h4>
+        <div class="now-mashup-meta">
+          <span>${item.subtitle || ''}</span>
+          <span class="text-amber-400 font-semibold flex items-center gap-1">
+            <i data-lucide="play" class="w-3 h-3 fill-amber-400"></i> Stream
+          </span>
+        </div>
+      </div>
+    `;
+
+    const handleAction = (e) => {
+      if (e) e.stopPropagation();
+      playNowMediaItem(item);
+    };
+
+    card.addEventListener('click', handleAction);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAction(e); }
+    });
+
+    mashupGrid.appendChild(card);
+  });
+}
+
+// Load Section 3: Today's Trending Premieres (VOD)
+async function loadNowTrendingPremierers() {
+  const container = document.getElementById('now-trending-vod-row');
+  if (!container) return;
+
+  try {
+    const data = await getTrending(1).catch(() => ({ results: [] }));
+    const results = (data.results || []).filter(item => item.media_type === 'movie' || item.media_type === 'tv').slice(0, 10);
+    renderCardRow(results, container);
+  } catch (e) {
+    console.warn('[Now Hub] Trending premier error:', e);
+  }
+}
+
+// Load Section 4: Trending Podcasts Today
+async function loadNowPodcasts() {
+  const container = document.getElementById('now-podcasts-row');
+  if (!container) return;
+
+  try {
+    const episodes = await getLatestPodcastEpisodes().catch(() => []);
+    const topChannels = getAllPodcastChannels();
+    const list = episodes.length > 0 ? episodes.slice(0, 6) : topChannels.slice(0, 6);
+
+    container.innerHTML = '';
+    list.forEach(item => {
+      const title = item.title || item.channelName || 'Podcast Episode';
+      const host = item.channelName || item.host || 'Top Podcast';
+      const avatar = item.thumbnail || item.avatar || 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';
+      const duration = item.duration ? formatPodcastDuration(item.duration) : (item.subscribers || 'Listen Now');
+
+      const card = document.createElement('div');
+      card.className = 'now-podcast-card';
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+
+      card.innerHTML = `
+        <img src="${avatar}" alt="${title}" class="now-podcast-thumb" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80';">
+        <div class="now-podcast-info">
+          <h4 class="now-podcast-title" title="${title}">${title}</h4>
+          <p class="now-podcast-host truncate">${host}</p>
+          <span class="now-podcast-duration flex items-center gap-1">
+            <i data-lucide="play" class="w-3 h-3 fill-emerald-400"></i> ${duration}
+          </span>
+        </div>
+      `;
+
+      const playAudio = (e) => {
+        if (e) e.stopPropagation();
+        playNowMediaItem({ type: 'podcast', episode: item });
+      };
+
+      card.addEventListener('click', playAudio);
+      card.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playAudio(e); }
+      });
+
+      container.appendChild(card);
+    });
+  } catch (e) {
+    console.warn('[Now Hub] Podcasts load error:', e);
+  }
+}
+
+// Load Section 5: My Favorites (Live Status)
+async function loadNowFavorites() {
+  const grid = document.getElementById('now-favorites-grid');
+  const empty = document.getElementById('now-favorites-empty');
+  if (!grid) return;
+
+  const favChannels = (state.channels || []).filter(ch => state.favorites.includes(ch.id));
+  if (favChannels.length === 0) {
+    grid.innerHTML = '';
+    if (empty) empty.classList.remove('hidden');
+    return;
+  }
+
+  if (empty) empty.classList.add('hidden');
+  grid.innerHTML = '';
+
+  favChannels.forEach(channel => {
+    const epg = getChannelEPGInfo(channel);
+    const prog = getProgramProgress(epg);
+    const title = prog.title || epg.title || channel.name;
+
+    const card = document.createElement('div');
+    card.className = 'detail-item-card hover-scale cursor-pointer border border-pink-500/20 relative';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+
+    card.innerHTML = `
+      <div class="w-full h-32 bg-slate-900 flex items-center justify-center p-3 relative rounded-t-xl overflow-hidden">
+        ${channel.logo ? `<img src="${channel.logo}" alt="${channel.name}" class="max-h-full max-w-full object-contain" loading="lazy" onerror="this.style.display='none'">` : `<i data-lucide="tv" class="w-8 h-8 text-pink-400"></i>`}
+        <span class="absolute top-2 left-2 bg-pink-500/20 text-pink-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-pink-500/40">LIVE</span>
+      </div>
+      <div class="detail-item-info">
+        <h4 class="detail-item-title truncate">${channel.name}</h4>
+        <p class="text-[11px] text-slate-400 truncate mb-1">${title}</p>
+        <div class="detail-item-meta">
+          <span class="detail-item-year">${channel.group || 'Live TV'}</span>
+          <span class="detail-item-rating flex items-center gap-1 text-pink-400 font-semibold">
+            <i data-lucide="play" class="w-3 h-3 fill-pink-400"></i> Watch
+          </span>
+        </div>
+      </div>
+    `;
+
+    const playFav = (e) => {
+      if (e) e.stopPropagation();
+      switchTab('live');
+      playChannel(channel);
+    };
+
+    card.addEventListener('click', playFav);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playFav(e); }
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+// Load Section 6: My Watchlist
+async function loadNowWatchlist() {
+  const row = document.getElementById('now-watchlist-row');
+  const empty = document.getElementById('now-watchlist-empty');
+  if (!row) return;
+
+  const validWatchlist = (state.watchlist || []).filter(item => item && !isPodcastWatchlistItem(item));
+  if (validWatchlist.length === 0) {
+    row.innerHTML = '';
+    if (empty) empty.classList.remove('hidden');
+    return;
+  }
+
+  if (empty) empty.classList.add('hidden');
+  renderCardRow(validWatchlist, row);
+}
+
+function setupNowPageListeners() {
+  const refreshBtn = document.getElementById('now-refresh-btn');
+  if (refreshBtn && !refreshBtn.__wired) {
+    refreshBtn.__wired = true;
+    refreshBtn.addEventListener('click', () => {
+      if (player && typeof player.showToast === 'function') {
+        player.showToast("Refreshing Live Feeds & Trending Shows...");
+      }
+      loadNowDashboard();
+    });
+  }
+
+  const tuneBtn = document.getElementById('now-settings-shortcut-btn');
+  if (tuneBtn && !tuneBtn.__wired) {
+    tuneBtn.__wired = true;
+    tuneBtn.addEventListener('click', () => switchTab('settings'));
+  }
+
+  const seeAllLive = document.getElementById('now-see-all-live-btn');
+  if (seeAllLive && !seeAllLive.__wired) {
+    seeAllLive.__wired = true;
+    seeAllLive.addEventListener('click', () => switchTab('live'));
+  }
+
+  const seeAllVod = document.getElementById('now-see-all-vod-btn');
+  if (seeAllVod && !seeAllVod.__wired) {
+    seeAllVod.__wired = true;
+    seeAllVod.addEventListener('click', () => switchTab('movies'));
+  }
+
+  const seeAllPodcasts = document.getElementById('now-see-all-podcasts-btn');
+  if (seeAllPodcasts && !seeAllPodcasts.__wired) {
+    seeAllPodcasts.__wired = true;
+    seeAllPodcasts.addEventListener('click', () => switchTab('podcasts'));
+  }
+
+  const seeAllWatchlist = document.getElementById('now-see-all-watchlist-btn');
+  if (seeAllWatchlist && !seeAllWatchlist.__wired) {
+    seeAllWatchlist.__wired = true;
+    seeAllWatchlist.addEventListener('click', () => switchTab('library'));
+  }
+
+  // Jump pills smooth scrolling
+  document.querySelectorAll('.now-jump-pill[data-target]').forEach(pill => {
+    if (!pill.__wired) {
+      pill.__wired = true;
+      pill.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetId = pill.getAttribute('data-target');
+        const targetEl = document.getElementById(targetId);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        document.querySelectorAll('.now-jump-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+      });
+    }
+  });
+}
+
+// Main Now Dashboard Loader Entry Point
+async function loadNowDashboard() {
+  updateNowClock();
+  updateNowModeUI();
+
+  if (!nowClockTimer) {
+    nowClockTimer = setInterval(updateNowClock, 30000);
+  }
+
+  setupNowPageListeners();
+
+  await Promise.allSettled([
+    loadNowLiveBroadcasts(),
+    loadNowTrendingPremierers(),
+    loadNowPodcasts(),
+    loadNowFavorites(),
+    loadNowWatchlist()
+  ]);
+
+  await loadNowSmartMashup();
+
+  createIcons(iconConfig);
 }
 
 // Load Movies Dashboard hero + curated category carousels directly from real Xtream VOD server catalog
@@ -4652,6 +5329,21 @@ function setupSettingsScreen() {
   if (passwordInput) passwordInput.value = activePass;
   if (proxyInput) proxyInput.value = localStorage.getItem('external_proxy_url') || DEFAULT_PROXY;
 
+  const personalizationToggle = document.getElementById('settings-personalization-toggle');
+  if (personalizationToggle) {
+    personalizationToggle.checked = localStorage.getItem('now_personalization_enabled') !== 'false';
+    personalizationToggle.addEventListener('change', () => {
+      const enabled = personalizationToggle.checked;
+      localStorage.setItem('now_personalization_enabled', enabled ? 'true' : 'false');
+      if (player && typeof player.showToast === 'function') {
+        player.showToast(enabled ? "Personalized 'Now' suggestions enabled" : "Generic trending mode enabled");
+      }
+      if (state.activeTab === 'now') {
+        loadNowDashboard();
+      }
+    });
+  }
+
   const saveCredsBtn = document.getElementById('settings-save-creds-btn');
   const resetCredsBtn = document.getElementById('settings-reset-creds-btn');
   const credsStatusBadge = document.getElementById('settings-creds-status-badge');
@@ -4675,31 +5367,49 @@ function setupSettingsScreen() {
     if (passwordInput) passwordInput.value = p;
 
     try {
-      const portalUrl = (localStorage.getItem('iptv_portal_url') || 'http://vpn.uhdp.top:80').trim().replace(/\/$/, '');
-      const testUrl = `${portalUrl}/player_api.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`;
-      const resp = await fetchWithFallback(testUrl);
+      const approvedPortals = [
+        'http://vpn.uhdp.top:80',
+        'http://tv.wd.uhdp.top:80',
+        'http://vpn.uhd4.top:80',
+        'http://tv.wd.uhd4.top:80'
+      ];
+      const savedPortal = (localStorage.getItem('iptv_portal_url') || '').trim().replace(/\/$/, '');
+      const orderedPortals = savedPortal && approvedPortals.includes(savedPortal)
+        ? [savedPortal, ...approvedPortals.filter(p => p !== savedPortal)]
+        : approvedPortals;
+
       let isValid = false;
       let statusDetail = '';
+      let activePortal = orderedPortals[0];
 
-      if (resp && resp.ok) {
-        const text = await resp.text();
+      for (const portal of orderedPortals) {
         try {
-          const json = JSON.parse(text);
-          if (json && json.user_info) {
-            const status = json.user_info.status || 'Active';
-            const auth = json.user_info.auth !== undefined ? json.user_info.auth : 1;
-            isValid = (auth === 1 || auth === '1') && String(status).toLowerCase() === 'active';
-            statusDetail = isValid ? `Active & Verified • Max Cons: ${json.user_info.max_connections || '1'}` : `Account Status: ${status} (Authentication Failed)`;
-          } else if (Array.isArray(json) && json.length > 0) {
-            isValid = true;
-            statusDetail = `Active & Verified • ${json.length} Categories Available`;
+          const testUrl = `${portal}/player_api.php?username=${u}&password=${p}`;
+          const resp = await fetchWithFallback(testUrl);
+          if (resp && resp.ok) {
+            const text = await resp.text();
+            let json = null;
+            try { json = JSON.parse(text); } catch (_) {}
+            if (json && json.user_info) {
+              const status = json.user_info.status || 'Active';
+              const auth = json.user_info.auth !== undefined ? json.user_info.auth : 1;
+              const isStatusInactive = String(status).toLowerCase() === 'inactive' || String(status).toLowerCase() === 'disabled' || String(status).toLowerCase() === 'expired' || String(status).toLowerCase() === 'banned';
+              if ((auth === 1 || auth === '1') && !isStatusInactive) {
+                isValid = true;
+                activePortal = portal;
+                localStorage.setItem('iptv_portal_url', portal);
+                statusDetail = `Active & Verified • Max Cons: ${json.user_info.max_connections || '1'}`;
+                break;
+              }
+            } else if (Array.isArray(json) && json.length > 0) {
+              isValid = true;
+              activePortal = portal;
+              localStorage.setItem('iptv_portal_url', portal);
+              statusDetail = `Active & Verified • ${json.length} Categories Available`;
+              break;
+            }
           }
-        } catch (_) {
-          // If response starts with json/m3u data
-          if (text.includes('user_info') || text.includes('category_id')) {
-            isValid = true;
-          }
-        }
+        } catch (_) {}
       }
 
       if (isValid) {

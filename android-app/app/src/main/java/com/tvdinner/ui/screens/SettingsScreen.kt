@@ -22,6 +22,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.tvdinner.BuildConfig
@@ -36,6 +39,9 @@ import com.tvdinner.update.UpdateManifest
 import com.tvdinner.update.UpdateManager
 import coil.Coil
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.Dispatchers
 import java.io.File
 
 @OptIn(coil.annotation.ExperimentalCoilApi::class)
@@ -45,6 +51,8 @@ fun SettingsScreen(
     catalogManager: CatalogManager? = null,
     playerManager: ExoPlayerManager? = null,
     onSignOut: () -> Unit = {},
+    onCredentialsChanged: () -> Unit = {},
+    onVerificationSuccess: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -52,24 +60,91 @@ fun SettingsScreen(
     val updateManager = remember { UpdateManager(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Account & Credentials State
+    // Account & Credentials State (observed reactively from AuthRepository)
     var isTestingCreds by remember { mutableStateOf(false) }
-    val hasValidCreds = remember(authRepo.getActiveUsername(), authRepo.getActivePassword()) {
-        authRepo.hasValidCredentials()
+    val isVerified by authRepo.isCredentialsVerifiedState.collectAsState()
+    val activeUserFromRepo by authRepo.activeUsernameState.collectAsState()
+    val activePswdFromRepo by authRepo.activePasswordState.collectAsState()
+    val hasValidCreds = activeUserFromRepo.isNotBlank() && activePswdFromRepo.isNotBlank()
+
+    var isAccountActive by remember(isVerified) { mutableStateOf(isVerified) }
+    var accountStatus by remember(isVerified, hasValidCreds) {
+        mutableStateOf(
+            if (isVerified) "ACTIVE"
+            else if (hasValidCreds) "INACTIVE"
+            else "CREDENTIALS REQUIRED"
+        )
     }
-    var accountStatus by remember { mutableStateOf(if (hasValidCreds) "ACTIVE & SAVED" else "CREDENTIALS REQUIRED") }
-    var isAccountActive by remember { mutableStateOf(hasValidCreds) }
-    var accountStatusDetail by remember { 
-        mutableStateOf<String?>(if (hasValidCreds) "Credentials loaded from local storage." else "Enter your username and password below to activate live TV & movies.") 
+    var accountStatusDetail by remember(isVerified, hasValidCreds) { 
+        mutableStateOf<String?>(
+            if (isVerified) "Active subscription verified. All modules unlocked."
+            else if (hasValidCreds) "Credentials entered but unverified. Press 'Verify & Apply' to connect."
+            else "Enter your username and password below to activate TV Dinner."
+        ) 
     }
 
-    var customUser by remember { mutableStateOf(authRepo.getActiveUsername()) }
-    var customPswd by remember { mutableStateOf(authRepo.getActivePassword()) }
+    var customUser by remember(activeUserFromRepo) { mutableStateOf(activeUserFromRepo) }
+    var customPswd by remember(activePswdFromRepo) { mutableStateOf(activePswdFromRepo) }
     var editingField by remember { mutableStateOf<String?>(null) }
     var credsSavedMessage by remember { mutableStateOf<String?>(null) }
 
+    fun verifyAndApplyCredentials(userToTest: String, pswdToTest: String) {
+        val u = userToTest.trim()
+        val p = pswdToTest.trim()
+        if (u.isBlank() || p.isBlank()) {
+            credsSavedMessage = "Please enter both username and password."
+            return
+        }
+
+        customUser = u
+        customPswd = p
+        authRepo.setDirectCredentials(u, p)
+
+        isTestingCreds = true
+        accountStatus = "TESTING..."
+        accountStatusDetail = "Vetting credentials with IPTV server..."
+        credsSavedMessage = "Connecting to server to verify credentials..."
+
+        coroutineScope.launch {
+            val portals = authRepo.getOrderedServerPortals()
+            val testJobs = portals.map { portal ->
+                async(Dispatchers.IO) {
+                    portal to apiClient.testCredentials(portal, u, p)
+                }
+            }
+            val results = testJobs.awaitAll()
+            val successfulMatch = results.firstOrNull { it.second.isValid }
+
+            isTestingCreds = false
+            if (successfulMatch != null) {
+                val (activePortal, result) = successfulMatch
+                authRepo.setLivePortalUrl(activePortal)
+                authRepo.setVodPortalUrl(activePortal)
+                authRepo.setCredentialsVerified(true)
+                catalogManager?.clearAllCaches()
+                isAccountActive = true
+                accountStatus = "ACTIVE"
+                accountStatusDetail = result.message
+                credsSavedMessage = "Credentials verified & ACTIVE! All modules unlocked."
+                onCredentialsChanged()
+                onVerificationSuccess()
+            } else {
+                val firstResult = results.firstOrNull()?.second
+                val detailMsg = firstResult?.message ?: "Authentication failed. Inactive or invalid credentials."
+                authRepo.setCredentialsVerified(false)
+                catalogManager?.clearAllCaches()
+                isAccountActive = false
+                accountStatus = "INACTIVE"
+                accountStatusDetail = detailMsg
+                credsSavedMessage = "Verification failed: Credentials are INACTIVE or invalid."
+                onCredentialsChanged()
+            }
+        }
+    }
+
     // Subtitle & Closed Captions Preferences State
     var musicPodcastsCaptionsEnabled by remember { mutableStateOf(authRepo.isMusicPodcastsCaptionsEnabled()) }
+    var nowPersonalizationEnabled by remember { mutableStateOf(authRepo.isNowPersonalizationEnabled()) }
 
     // History and System Reset Dialog States
     var showClearHistoryDialog by remember { mutableStateOf(false) }
@@ -126,18 +201,37 @@ fun SettingsScreen(
                             color = TextPrimary
                         )
 
+                        val statusColor = when (accountStatus) {
+                            "ACTIVE" -> CinemaGreen
+                            "INACTIVE" -> CinemaRed
+                            "TESTING..." -> CinemaYellow
+                            else -> CinemaYellow
+                        }
+
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = if (isAccountActive) CinemaGreen.copy(alpha = 0.15f) else CinemaYellow.copy(alpha = 0.15f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isAccountActive) CinemaGreen.copy(alpha = 0.4f) else CinemaYellow.copy(alpha = 0.4f))
+                            color = statusColor.copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, statusColor.copy(alpha = 0.4f))
                         ) {
-                            Text(
-                                text = accountStatus,
-                                color = if (isAccountActive) CinemaGreen else CinemaYellow,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
+                            ) {
+                                if (isTestingCreds) {
+                                    CircularProgressIndicator(
+                                        color = statusColor,
+                                        modifier = Modifier.size(10.dp),
+                                        strokeWidth = 1.5.dp
+                                    )
+                                }
+                                Text(
+                                    text = accountStatus,
+                                    color = statusColor,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
 
@@ -145,7 +239,7 @@ fun SettingsScreen(
                         Text(
                             text = accountStatusDetail!!,
                             fontSize = 12.sp,
-                            color = if (isAccountActive) CinemaGreen else TextMuted,
+                            color = if (isAccountActive) CinemaGreen else if (accountStatus == "INACTIVE") CinemaRed else TextMuted,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -194,6 +288,8 @@ fun SettingsScreen(
                             }
                         }
 
+                        var showCardPassword by remember { mutableStateOf(false) }
+
                         // Password Field (Click to Edit - no keyboard on D-pad navigation)
                         TvFocusableCard(
                             onClick = { editingField = "pswd" },
@@ -210,35 +306,50 @@ fun SettingsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text("Password", color = TextMuted, fontSize = 11.sp)
                                     Text(
-                                        text = if (customPswd.isNotBlank()) "••••••••••••" else "Click to enter password",
+                                        text = if (customPswd.isNotBlank()) {
+                                            if (showCardPassword) customPswd else "••••••••••••"
+                                        } else "Click to enter password",
                                         color = if (customPswd.isNotBlank()) TextPrimary else TextMuted,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit Password",
-                                    tint = CinemaAccent,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    if (customPswd.isNotBlank()) {
+                                        IconButton(onClick = { showCardPassword = !showCardPassword }) {
+                                            Icon(
+                                                imageVector = if (showCardPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                contentDescription = if (showCardPassword) "Hide Password" else "Show Password",
+                                                tint = CinemaAccent,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Edit Password",
+                                        tint = CinemaAccent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
 
                     if (credsSavedMessage != null) {
+                        val msgColor = if (isAccountActive) CinemaGreen else CinemaRed
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (isAccountActive) CinemaGreen.copy(alpha = 0.15f) else CinemaRed.copy(alpha = 0.15f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isAccountActive) CinemaGreen.copy(alpha = 0.3f) else CinemaRed.copy(alpha = 0.3f)),
+                            color = msgColor.copy(alpha = 0.15f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, msgColor.copy(alpha = 0.3f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = credsSavedMessage!!,
-                                color = if (isAccountActive) CinemaGreen else CinemaRed,
+                                color = msgColor,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
@@ -260,6 +371,7 @@ fun SettingsScreen(
                                 accountStatus = "CREDENTIALS REQUIRED"
                                 accountStatusDetail = "Credentials cleared. Enter new credentials above to connect."
                                 credsSavedMessage = "Credentials cleared."
+                                onCredentialsChanged()
                             },
                             enabled = !isTestingCreds,
                             colors = ButtonDefaults.buttonColors(containerColor = CinemaSurfaceVariant),
@@ -271,35 +383,7 @@ fun SettingsScreen(
 
                         Button(
                             onClick = {
-                                val u = customUser.trim()
-                                val p = customPswd.trim()
-                                if (u.isBlank() || p.isBlank()) {
-                                    credsSavedMessage = "Please enter both username and password."
-                                    return@Button
-                                }
-                                authRepo.setDirectCredentials(u, p)
-                                catalogManager?.clearAllCaches()
-                                isTestingCreds = true
-                                accountStatus = "TESTING..."
-                                credsSavedMessage = "Testing credentials with server..."
-                                coroutineScope.launch {
-                                    val testPortal = authRepo.getLivePortalUrl()
-                                    val result = apiClient.testCredentials(testPortal, u, p)
-                                    isTestingCreds = false
-                                    if (result.isValid) {
-                                        authRepo.setCredentialsVerified(true)
-                                        isAccountActive = true
-                                        accountStatus = "ACTIVE & VERIFIED"
-                                        accountStatusDetail = result.message
-                                        credsSavedMessage = "Credentials verified & activated! Feeds updated."
-                                    } else {
-                                        authRepo.setCredentialsVerified(false)
-                                        isAccountActive = false
-                                        accountStatus = "INVALID CREDENTIALS"
-                                        accountStatusDetail = result.message
-                                        credsSavedMessage = "Credentials failed server verification."
-                                    }
-                                }
+                                verifyAndApplyCredentials(customUser, customPswd)
                             },
                             enabled = !isTestingCreds,
                             colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary),
@@ -307,9 +391,15 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f).height(44.dp)
                         ) {
                             if (isTestingCreds) {
-                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Text("Vetting...", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                }
                             } else {
-                                Text("Save & Apply", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text("Verify & Apply", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -375,7 +465,7 @@ fun SettingsScreen(
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = if (musicPodcastsCaptionsEnabled) "Captions enabled by default for Music Videos and Podcasts" else "Captions disabled by default (Default: OFF)",
+                                    text = if (musicPodcastsCaptionsEnabled) "Captions enabled for Music Videos and Podcasts (Default: ON)" else "Captions disabled for Music Videos and Podcasts",
                                     fontSize = 11.sp,
                                     color = TextMuted,
                                     maxLines = 1,
@@ -388,6 +478,65 @@ fun SettingsScreen(
                                 onCheckedChange = {
                                     musicPodcastsCaptionsEnabled = it
                                     authRepo.setMusicPodcastsCaptionsEnabled(it)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = CinemaAccent,
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = CinemaSurfaceLight
+                                ),
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+                    }
+
+                    // Smart Personalization Toggle (Now Tab)
+                    TvFocusableCard(
+                        onClick = {
+                            val next = !nowPersonalizationEnabled
+                            nowPersonalizationEnabled = next
+                            authRepo.setNowPersonalizationEnabled(next)
+                            Toast.makeText(
+                                context,
+                                if (next) "Smart Personalization enabled on 'Now' page" else "Generic trending mode enabled on 'Now' page",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        backgroundColor = CinemaSurfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(54.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Smart Personalization (Now Tab)",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = if (nowPersonalizationEnabled) "Tailors 'Now' page based on your history, saves & watchlist" else "Shows generic trending movies, series & live TV (Default trending)",
+                                    fontSize = 11.sp,
+                                    color = TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Switch(
+                                checked = nowPersonalizationEnabled,
+                                onCheckedChange = {
+                                    nowPersonalizationEnabled = it
+                                    authRepo.setNowPersonalizationEnabled(it)
+                                    Toast.makeText(
+                                        context,
+                                        if (it) "Smart Personalization enabled on 'Now' page" else "Generic trending mode enabled on 'Now' page",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
@@ -850,6 +999,7 @@ fun SettingsScreen(
             var tempValue by remember(editingField) {
                 mutableStateOf(if (isUserField) customUser else customPswd)
             }
+            var isPasswordVisible by remember { mutableStateOf(false) }
             val editFocusRequester = remember { FocusRequester() }
 
             Dialog(onDismissRequest = { editingField = null }) {
@@ -870,11 +1020,45 @@ fun SettingsScreen(
                             color = Color.White
                         )
 
+                        val onCommitField: () -> Unit = {
+                            val trimmed = tempValue.trim()
+                            val newUser = if (isUserField) trimmed else customUser.trim()
+                            val newPswd = if (!isUserField) trimmed else customPswd.trim()
+                            customUser = newUser
+                            customPswd = newPswd
+                            editingField = null
+
+                            if (newUser.isNotBlank() && newPswd.isNotBlank()) {
+                                // Immediate vetting upon entry!
+                                verifyAndApplyCredentials(newUser, newPswd)
+                            } else {
+                                authRepo.setDirectCredentials(newUser, newPswd)
+                                authRepo.setCredentialsVerified(false)
+                                isAccountActive = false
+                                accountStatus = "CREDENTIALS REQUIRED"
+                                accountStatusDetail = if (newUser.isBlank()) "Enter username to connect." else "Enter password to connect."
+                                credsSavedMessage = "Credentials updated. Enter both username and password to verify."
+                            }
+                        }
+
                         OutlinedTextField(
                             value = tempValue,
                             onValueChange = { tempValue = it },
                             singleLine = true,
-                            visualTransformation = if (!isUserField) PasswordVisualTransformation() else VisualTransformation.None,
+                            visualTransformation = if (!isUserField && !isPasswordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { onCommitField() }),
+                            trailingIcon = if (!isUserField) {
+                                {
+                                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                        Icon(
+                                            imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                            contentDescription = if (isPasswordVisible) "Hide Password" else "Show Password",
+                                            tint = CinemaAccent
+                                        )
+                                    }
+                                }
+                            } else null,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = CinemaAccent,
                                 unfocusedBorderColor = CinemaSurfaceLight,
@@ -890,7 +1074,7 @@ fun SettingsScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
                         ) {
                             Button(
                                 onClick = { editingField = null },
@@ -901,19 +1085,25 @@ fun SettingsScreen(
                             }
 
                             Button(
-                                onClick = {
-                                    if (isUserField) {
-                                        customUser = tempValue
-                                    } else {
-                                        customPswd = tempValue
-                                    }
-                                    credsSavedMessage = null
-                                    editingField = null
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary),
+                                onClick = onCommitField,
+                                colors = ButtonDefaults.buttonColors(containerColor = CinemaSurfaceLight),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+
+                            val userForTest = if (isUserField) tempValue.trim() else customUser.trim()
+                            val pswdForTest = if (!isUserField) tempValue.trim() else customPswd.trim()
+                            val canVerifyNow = userForTest.isNotBlank() && pswdForTest.isNotBlank()
+
+                            if (canVerifyNow) {
+                                Button(
+                                    onClick = onCommitField,
+                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaPrimary),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Verify & Save", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
 
@@ -1078,7 +1268,7 @@ fun SettingsScreen(
                         }
 
                         Text(
-                            text = "This will completely flush active media streams, evict open network connection pools, purge video/image caches, and reload directory channels.\n\nYour username, password, server URLs, and phone activation will remain 100% intact.",
+                            text = "This will completely flush active media streams, evict open network connection pools, purge video/image caches, and reload directory channels.\n\nYour username, password, and server settings will remain 100% intact.",
                             fontSize = 13.sp,
                             color = TextSecondary,
                             lineHeight = 18.sp
@@ -1156,9 +1346,19 @@ fun SettingsScreen(
                                                 catalogManager?.clearAllCaches()
                                             } catch (_: Exception) {}
 
-                                            isRebooting = false
-                                            showSystemRebootDialog = false
-                                            Toast.makeText(context, "TV Dinner System Reboot Complete: Media engine & caches fully rebuilt.", Toast.LENGTH_LONG).show()
+                                            kotlinx.coroutines.delay(400)
+
+                                            // Step 6: Trigger true Android application process restart
+                                            val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                                            if (launchIntent?.component != null) {
+                                                val restartIntent = android.content.Intent.makeRestartActivityTask(launchIntent.component)
+                                                context.startActivity(restartIntent)
+                                                Runtime.getRuntime().exit(0)
+                                            } else {
+                                                isRebooting = false
+                                                showSystemRebootDialog = false
+                                                Toast.makeText(context, "TV Dinner System Reboot Complete: Media engine & caches fully rebuilt.", Toast.LENGTH_LONG).show()
+                                            }
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = CinemaYellow),

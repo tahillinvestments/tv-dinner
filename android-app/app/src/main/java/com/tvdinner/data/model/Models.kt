@@ -3,9 +3,9 @@ package com.tvdinner.data.model
 import com.google.gson.annotations.SerializedName
 
 data class CredentialEntry(
-    val phone: String,
     val user: String,
-    val pswd: String
+    val pswd: String,
+    val phone: String = ""
 )
 
 data class LiveCategory(

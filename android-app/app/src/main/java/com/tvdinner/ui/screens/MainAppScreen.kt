@@ -20,6 +20,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
 import com.tvdinner.MainActivity
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import com.tvdinner.data.model.PodcastEpisode
 import com.tvdinner.data.network.XtreamApiClient
 import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
@@ -31,6 +37,7 @@ import com.tvdinner.ui.player.YouTubeRemoteBridge
 import com.tvdinner.ui.theme.*
 
 enum class AppTab(val label: String, val icon: ImageVector) {
+    NOW("Now", Icons.Default.AutoAwesome),
     LIVE("Live TV", Icons.Default.Tv),
     MOVIES("Movies", Icons.Default.Movie),
     SERIES("Series", Icons.Default.VideoLibrary),
@@ -62,7 +69,9 @@ fun MainAppScreen(
     playerManager: ExoPlayerManager,
     onSignOut: () -> Unit
 ) {
-    var activeTab by remember { mutableStateOf(AppTab.LIVE) }
+    val coroutineScope = rememberCoroutineScope()
+    var activeTab by remember { mutableStateOf(AppTab.NOW) }
+    var credentialsRevision by remember { mutableIntStateOf(0) }
     val liveTabFocusRequester = remember { FocusRequester() }
     val liveContentFocusRequester = remember { FocusRequester() }
 
@@ -73,6 +82,15 @@ fun MainAppScreen(
     var fullscreenMedia by remember { mutableStateOf<FullscreenMediaState?>(null) }
     var fullscreenYouTube by remember { mutableStateOf<FullscreenYouTubeState?>(null) }
 
+    // Target Navigation States from NowScreen
+    var targetChannelId by remember { mutableStateOf<Int?>(null) }
+    var targetLiveCategoryId by remember { mutableStateOf<String?>(null) }
+    var targetMovieId by remember { mutableStateOf<Int?>(null) }
+    var targetMovieCategoryId by remember { mutableStateOf<String?>(null) }
+    var targetSeriesId by remember { mutableStateOf<Int?>(null) }
+    var targetSeriesCategoryId by remember { mutableStateOf<String?>(null) }
+    var targetPodcastEpisode by remember { mutableStateOf<PodcastEpisode?>(null) }
+
     // Sync VOD, YouTube and Live TV fullscreen states and next-item callbacks with MainActivity for remote key interception
     LaunchedEffect(fullscreenMedia, isLiveTvFullscreen, fullscreenYouTube) {
         MainActivity.isVODFullscreenActive = (fullscreenMedia != null)
@@ -80,6 +98,28 @@ fun MainAppScreen(
         MainActivity.onNextEpisodeCallback = fullscreenMedia?.onNextEpisode
         MainActivity.onNextYouTubeCallback = fullscreenYouTube?.onNextVideo
         MainActivity.onPreviousYouTubeCallback = fullscreenYouTube?.onPreviousVideo
+    }
+
+    // Auto-vet credentials against the 4 approved portals on app startup
+    LaunchedEffect(Unit) {
+        if (authRepo.hasValidCredentials()) {
+            val u = authRepo.getActiveUsername()
+            val p = authRepo.getActivePassword()
+            val portals = authRepo.getOrderedServerPortals()
+            val jobs = portals.map { portal ->
+                async(Dispatchers.IO) {
+                    portal to apiClient.testCredentials(portal, u, p)
+                }
+            }
+            val results = jobs.awaitAll()
+            val match = results.firstOrNull { it.second.isValid }
+            if (match != null) {
+                val (activePortal, _) = match
+                authRepo.setLivePortalUrl(activePortal)
+                authRepo.setVodPortalUrl(activePortal)
+                authRepo.setCredentialsVerified(true)
+            }
+        }
     }
 
     fun switchTab(newTab: AppTab) {
@@ -101,7 +141,7 @@ fun MainAppScreen(
     }
 
     // Hierarchical Back Button Handler
-    BackHandler(enabled = fullscreenMedia != null || fullscreenYouTube != null || isLiveTvFullscreen || activeTab != AppTab.LIVE) {
+    BackHandler(enabled = fullscreenMedia != null || fullscreenYouTube != null || isLiveTvFullscreen || activeTab != AppTab.NOW) {
         if (fullscreenMedia != null) {
             playerManager.stop()
             fullscreenMedia = null
@@ -117,8 +157,8 @@ fun MainAppScreen(
             fullscreenYouTube = null
         } else if (isLiveTvFullscreen) {
             isLiveTvFullscreen = false
-        } else if (activeTab != AppTab.LIVE) {
-            switchTab(AppTab.LIVE)
+        } else if (activeTab != AppTab.NOW) {
+            switchTab(AppTab.NOW)
         }
     }
 
@@ -217,85 +257,155 @@ fun MainAppScreen(
 
                     // Main Content View (Maintains 100% state persistence)
                     Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                        when (activeTab) {
-                            AppTab.LIVE -> LiveTvScreen(
-                                authRepo = authRepo,
-                                apiClient = apiClient,
-                                catalogManager = catalogManager,
-                                playerManager = playerManager,
-                                isFullscreen = isLiveTvFullscreen,
-                                onToggleFullscreen = { isLiveTvFullscreen = it },
-                                contentFocusRequester = liveContentFocusRequester,
-                                onRequestFocusSidebar = {
-                                    try {
-                                        liveTabFocusRequester.requestFocus()
-                                    } catch (_: Exception) {}
-                                }
-                            )
-                            AppTab.MOVIES -> MoviesScreen(
-                                authRepo = authRepo,
-                                apiClient = apiClient,
-                                catalogManager = catalogManager,
-                                isPlayingFullscreen = (fullscreenMedia != null),
-                                onPlayMovie = { url, title, startPos, streamKey ->
-                                    YouTubeRemoteBridge.activeWebView = null
-                                    fullscreenYouTube = null
-                                    isLiveTvFullscreen = false
-                                    playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
-                                    fullscreenMedia = FullscreenMediaState(
-                                        url = url,
-                                        title = title,
-                                        onNextEpisode = null,
-                                        nextEpisodeTitle = null
-                                    )
-                                }
-                            )
-                            AppTab.SERIES -> SeriesScreen(
-                                authRepo = authRepo,
-                                apiClient = apiClient,
-                                catalogManager = catalogManager,
-                                isPlayingFullscreen = (fullscreenMedia != null),
-                                onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
-                                    YouTubeRemoteBridge.activeWebView = null
-                                    fullscreenYouTube = null
-                                    isLiveTvFullscreen = false
-                                    playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
-                                    fullscreenMedia = FullscreenMediaState(
-                                        url = url,
-                                        title = title,
-                                        onNextEpisode = onNext,
-                                        nextEpisodeTitle = nextTitle
-                                    )
-                                }
-                            )
-                            AppTab.MUSIC -> MusicScreen(
-                                authRepo = authRepo,
-                                catalogManager = catalogManager,
-                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                    playerManager.stop()
-                                    fullscreenMedia = null
-                                    isLiveTvFullscreen = false
-                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
-                                },
-                                onOpenSettings = { switchTab(AppTab.SETTINGS) }
-                            )
-                            AppTab.PODCASTS -> PodcastsScreen(
-                                authRepo = authRepo,
-                                catalogManager = catalogManager,
-                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                    playerManager.stop()
-                                    fullscreenMedia = null
-                                    isLiveTvFullscreen = false
-                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
-                                },
-                                onOpenSettings = { switchTab(AppTab.SETTINGS) }
-                            )
-                            AppTab.SETTINGS -> SettingsScreen(
+                        if (activeTab == AppTab.SETTINGS) {
+                            SettingsScreen(
                                 authRepo = authRepo,
                                 catalogManager = catalogManager,
                                 playerManager = playerManager,
-                                onSignOut = onSignOut
+                                onSignOut = onSignOut,
+                                onCredentialsChanged = { credentialsRevision++ },
+                                onVerificationSuccess = {
+                                    coroutineScope.launch {
+                                        delay(1200)
+                                        switchTab(AppTab.LIVE)
+                                    }
+                                }
                             )
+                        } else {
+                            key(credentialsRevision) {
+                                when (activeTab) {
+                                    AppTab.NOW -> NowScreen(
+                                        authRepo = authRepo,
+                                        apiClient = apiClient,
+                                        catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onPlayLiveChannel = { channel ->
+                                            targetChannelId = channel.streamId
+                                            targetLiveCategoryId = channel.categoryId
+                                            switchTab(AppTab.LIVE)
+                                        },
+                                        onPlayMovie = { movie ->
+                                            targetMovieId = movie.streamId
+                                            targetMovieCategoryId = movie.categoryId
+                                            switchTab(AppTab.MOVIES)
+                                        },
+                                        onPlaySeries = { series ->
+                                            targetSeriesId = series.seriesId
+                                            targetSeriesCategoryId = series.categoryId
+                                            switchTab(AppTab.SERIES)
+                                        },
+                                        onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            playerManager.stop()
+                                            fullscreenMedia = null
+                                            isLiveTvFullscreen = false
+                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                        },
+                                        onSelectPodcast = { episode ->
+                                            targetPodcastEpisode = episode
+                                            switchTab(AppTab.PODCASTS)
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) }
+                                    )
+                                    AppTab.LIVE -> LiveTvScreen(
+                                        authRepo = authRepo,
+                                        apiClient = apiClient,
+                                        catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        isFullscreen = isLiveTvFullscreen,
+                                        onToggleFullscreen = { isLiveTvFullscreen = it },
+                                        contentFocusRequester = liveContentFocusRequester,
+                                        onRequestFocusSidebar = {
+                                            try {
+                                                liveTabFocusRequester.requestFocus()
+                                            } catch (_: Exception) {}
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) },
+                                        targetChannelId = targetChannelId,
+                                        targetCategoryId = targetLiveCategoryId,
+                                        onTargetChannelConsumed = {
+                                            targetChannelId = null
+                                            targetLiveCategoryId = null
+                                        }
+                                    )
+                                    AppTab.MOVIES -> MoviesScreen(
+                                        authRepo = authRepo,
+                                        apiClient = apiClient,
+                                        catalogManager = catalogManager,
+                                        isPlayingFullscreen = (fullscreenMedia != null),
+                                        onPlayMovie = { url, title, startPos, streamKey ->
+                                            YouTubeRemoteBridge.activeWebView = null
+                                            fullscreenYouTube = null
+                                            isLiveTvFullscreen = false
+                                            playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
+                                            fullscreenMedia = FullscreenMediaState(
+                                                url = url,
+                                                title = title,
+                                                onNextEpisode = null,
+                                                nextEpisodeTitle = null
+                                            )
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) },
+                                        targetMovieId = targetMovieId,
+                                        targetCategoryId = targetMovieCategoryId,
+                                        onTargetMovieConsumed = {
+                                            targetMovieId = null
+                                            targetMovieCategoryId = null
+                                        }
+                                    )
+                                    AppTab.SERIES -> SeriesScreen(
+                                        authRepo = authRepo,
+                                        apiClient = apiClient,
+                                        catalogManager = catalogManager,
+                                        isPlayingFullscreen = (fullscreenMedia != null),
+                                        onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
+                                            YouTubeRemoteBridge.activeWebView = null
+                                            fullscreenYouTube = null
+                                            isLiveTvFullscreen = false
+                                            playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
+                                            fullscreenMedia = FullscreenMediaState(
+                                                url = url,
+                                                title = title,
+                                                onNextEpisode = onNext,
+                                                nextEpisodeTitle = nextTitle
+                                            )
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) },
+                                        targetSeriesId = targetSeriesId,
+                                        targetCategoryId = targetSeriesCategoryId,
+                                        onTargetSeriesConsumed = {
+                                            targetSeriesId = null
+                                            targetSeriesCategoryId = null
+                                        }
+                                    )
+                                    AppTab.MUSIC -> MusicScreen(
+                                        authRepo = authRepo,
+                                        catalogManager = catalogManager,
+                                        onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            playerManager.stop()
+                                            fullscreenMedia = null
+                                            isLiveTvFullscreen = false
+                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) }
+                                    )
+                                    AppTab.PODCASTS -> PodcastsScreen(
+                                        authRepo = authRepo,
+                                        catalogManager = catalogManager,
+                                        onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            playerManager.stop()
+                                            fullscreenMedia = null
+                                            isLiveTvFullscreen = false
+                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) },
+                                        targetEpisode = targetPodcastEpisode,
+                                        onTargetEpisodeConsumed = {
+                                            targetPodcastEpisode = null
+                                        }
+                                    )
+                                    AppTab.SETTINGS -> {}
+                                }
+                            }
                         }
                     }
                 }
@@ -328,77 +438,147 @@ fun MainAppScreen(
                     }
                 ) { padding ->
                     Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-                        when (activeTab) {
-                            AppTab.LIVE -> LiveTvScreen(
-                                authRepo = authRepo,
-                                apiClient = apiClient,
-                                catalogManager = catalogManager,
-                                playerManager = playerManager,
-                                isFullscreen = isLiveTvFullscreen,
-                                onToggleFullscreen = { isLiveTvFullscreen = it }
-                            )
-                            AppTab.MOVIES -> MoviesScreen(
-                                authRepo = authRepo,
-                                apiClient = apiClient,
-                                catalogManager = catalogManager,
-                                isPlayingFullscreen = (fullscreenMedia != null),
-                                onPlayMovie = { url, title, startPos, streamKey ->
-                                    fullscreenYouTube = null
-                                    isLiveTvFullscreen = false
-                                    playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
-                                    fullscreenMedia = FullscreenMediaState(
-                                        url = url,
-                                        title = title,
-                                        onNextEpisode = null,
-                                        nextEpisodeTitle = null
-                                    )
-                                }
-                            )
-                            AppTab.SERIES -> SeriesScreen(
-                                authRepo = authRepo,
-                                apiClient = apiClient,
-                                catalogManager = catalogManager,
-                                isPlayingFullscreen = (fullscreenMedia != null),
-                                onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
-                                    fullscreenYouTube = null
-                                    isLiveTvFullscreen = false
-                                    playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
-                                    fullscreenMedia = FullscreenMediaState(
-                                        url = url,
-                                        title = title,
-                                        onNextEpisode = onNext,
-                                        nextEpisodeTitle = nextTitle
-                                    )
-                                }
-                            )
-                            AppTab.MUSIC -> MusicScreen(
-                                authRepo = authRepo,
-                                catalogManager = catalogManager,
-                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                    playerManager.stop()
-                                    fullscreenMedia = null
-                                    isLiveTvFullscreen = false
-                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
-                                },
-                                onOpenSettings = { switchTab(AppTab.SETTINGS) }
-                            )
-                            AppTab.PODCASTS -> PodcastsScreen(
-                                authRepo = authRepo,
-                                catalogManager = catalogManager,
-                                onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                    playerManager.stop()
-                                    fullscreenMedia = null
-                                    isLiveTvFullscreen = false
-                                    fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
-                                },
-                                onOpenSettings = { switchTab(AppTab.SETTINGS) }
-                            )
-                            AppTab.SETTINGS -> SettingsScreen(
+                        if (activeTab == AppTab.SETTINGS) {
+                            SettingsScreen(
                                 authRepo = authRepo,
                                 catalogManager = catalogManager,
                                 playerManager = playerManager,
-                                onSignOut = onSignOut
+                                onSignOut = onSignOut,
+                                onCredentialsChanged = { credentialsRevision++ },
+                                onVerificationSuccess = {
+                                    coroutineScope.launch {
+                                        delay(1200)
+                                        switchTab(AppTab.LIVE)
+                                    }
+                                }
                             )
+                        } else {
+                            key(credentialsRevision) {
+                                when (activeTab) {
+                                    AppTab.NOW -> NowScreen(
+                                        authRepo = authRepo,
+                                        apiClient = apiClient,
+                                        catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onPlayLiveChannel = { channel ->
+                                            targetChannelId = channel.streamId
+                                            targetLiveCategoryId = channel.categoryId
+                                            switchTab(AppTab.LIVE)
+                                        },
+                                        onPlayMovie = { movie ->
+                                            targetMovieId = movie.streamId
+                                            targetMovieCategoryId = movie.categoryId
+                                            switchTab(AppTab.MOVIES)
+                                        },
+                                        onPlaySeries = { series ->
+                                            targetSeriesId = series.seriesId
+                                            targetSeriesCategoryId = series.categoryId
+                                            switchTab(AppTab.SERIES)
+                                        },
+                                        onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            playerManager.stop()
+                                            fullscreenMedia = null
+                                            isLiveTvFullscreen = false
+                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                        },
+                                        onSelectPodcast = { episode ->
+                                            targetPodcastEpisode = episode
+                                            switchTab(AppTab.PODCASTS)
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) }
+                                    )
+                                    AppTab.LIVE -> LiveTvScreen(
+                                        authRepo = authRepo,
+                                        apiClient = apiClient,
+                                        catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        isFullscreen = isLiveTvFullscreen,
+                                        onToggleFullscreen = { isLiveTvFullscreen = it },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) },
+                                        targetChannelId = targetChannelId,
+                                        targetCategoryId = targetLiveCategoryId,
+                                        onTargetChannelConsumed = {
+                                            targetChannelId = null
+                                            targetLiveCategoryId = null
+                                        }
+                                    )
+                                    AppTab.MOVIES -> MoviesScreen(
+                                        authRepo = authRepo,
+                                        apiClient = apiClient,
+                                        catalogManager = catalogManager,
+                                        isPlayingFullscreen = (fullscreenMedia != null),
+                                        onPlayMovie = { url, title, startPos, streamKey ->
+                                            fullscreenYouTube = null
+                                            isLiveTvFullscreen = false
+                                            playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
+                                            fullscreenMedia = FullscreenMediaState(
+                                                url = url,
+                                                title = title,
+                                                onNextEpisode = null,
+                                                nextEpisodeTitle = null
+                                            )
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) },
+                                        targetMovieId = targetMovieId,
+                                        targetCategoryId = targetMovieCategoryId,
+                                        onTargetMovieConsumed = {
+                                            targetMovieId = null
+                                            targetMovieCategoryId = null
+                                        }
+                                    )
+                                    AppTab.SERIES -> SeriesScreen(
+                                        authRepo = authRepo,
+                                        apiClient = apiClient,
+                                        catalogManager = catalogManager,
+                                        isPlayingFullscreen = (fullscreenMedia != null),
+                                        onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
+                                            fullscreenYouTube = null
+                                            isLiveTvFullscreen = false
+                                            playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
+                                            fullscreenMedia = FullscreenMediaState(
+                                                url = url,
+                                                title = title,
+                                                onNextEpisode = onNext,
+                                                nextEpisodeTitle = nextTitle
+                                            )
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) },
+                                        targetSeriesId = targetSeriesId,
+                                        targetCategoryId = targetSeriesCategoryId,
+                                        onTargetSeriesConsumed = {
+                                            targetSeriesId = null
+                                            targetSeriesCategoryId = null
+                                        }
+                                    )
+                                    AppTab.MUSIC -> MusicScreen(
+                                        authRepo = authRepo,
+                                        catalogManager = catalogManager,
+                                        onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            playerManager.stop()
+                                            fullscreenMedia = null
+                                            isLiveTvFullscreen = false
+                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) }
+                                    )
+                                    AppTab.PODCASTS -> PodcastsScreen(
+                                        authRepo = authRepo,
+                                        catalogManager = catalogManager,
+                                        onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            playerManager.stop()
+                                            fullscreenMedia = null
+                                            isLiveTvFullscreen = false
+                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                        },
+                                        onOpenSettings = { switchTab(AppTab.SETTINGS) },
+                                        targetEpisode = targetPodcastEpisode,
+                                        onTargetEpisodeConsumed = {
+                                            targetPodcastEpisode = null
+                                        }
+                                    )
+                                    AppTab.SETTINGS -> {}
+                                }
+                            }
                         }
                     }
                 }

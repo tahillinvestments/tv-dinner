@@ -160,7 +160,11 @@ class SpatialNavigationEngine {
       '.genre-chip',
       '.ctrl-btn',
       '.settings-tab-btn',
-      '.settings-btn'
+      '.settings-btn',
+      '.now-live-card',
+      '.now-mashup-card',
+      '.now-podcast-card',
+      '.now-jump-pill'
     ];
 
     const rawSet = new Set();

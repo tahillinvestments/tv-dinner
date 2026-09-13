@@ -51,6 +51,7 @@ fun AppSearchBar(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
+    showOkBadge: Boolean = true,
     onSearch: (() -> Unit)? = null,
     onMoveLeft: (() -> Unit)? = null,
     onMoveRight: (() -> Unit)? = null,
@@ -190,7 +191,7 @@ fun AppSearchBar(
         )
         Spacer(modifier = Modifier.width(8.dp))
         // High-contrast TV Focus Badge: unmistakable cue when D-pad focuses the bar before clicking
-        if (isPreSelectFocused) {
+        if (isPreSelectFocused && showOkBadge) {
             Surface(
                 shape = RoundedCornerShape(6.dp),
                 color = CinemaFocus,

@@ -16,8 +16,10 @@ if (!fs.existsSync(updatesJsonPath)) {
 const updatesData = JSON.parse(fs.readFileSync(updatesJsonPath, 'utf8'));
 
 const targetArg = process.argv[2];
+const isRepublishFlag = process.argv.includes('--republish');
+
 let targetRelease;
-if (targetArg) {
+if (targetArg && targetArg !== '--republish') {
   targetRelease = updatesData.releases.find(r => String(r.versionCode) === targetArg || r.id === targetArg);
   if (!targetRelease) {
     console.warn(`⚠️ Target release '${targetArg}' not found in updates.json, falling back to staged release.`);
@@ -32,19 +34,78 @@ if (!targetRelease) {
   process.exit(1);
 }
 
+const maxCode = Math.max(...updatesData.releases.map(r => r.versionCode || 0));
+const isOlderBuild = isRepublishFlag || (targetRelease.status === 'ARCHIVED') || (targetRelease.versionCode < maxCode);
+
+if (isOlderBuild) {
+  const newCode = maxCode + 1;
+  const newVersionName = `${targetRelease.versionName}-r${newCode}`;
+  console.log(`\n🔄 REPUBLISH OF OLDER BUILD DETECTED: Build ${targetRelease.versionCode} (v${targetRelease.versionName})`);
+  console.log(`✨ Creating newer version duplicate: Build ${newCode} (v${newVersionName}) so Android TV clients detect and install update...`);
+
+  // Locate source APK
+  const possibleSourcePaths = [
+    path.join(projectRoot, targetRelease.localApkUrl || ''),
+    path.join(projectRoot, 'public', 'apks', `tv-dinner-v${targetRelease.versionName}.apk`),
+    path.join(projectRoot, 'public', 'apks', 'tv-dinner-latest.apk'),
+    path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk')
+  ];
+  const sourceApk = possibleSourcePaths.find(p => p && fs.existsSync(p));
+
+  if (sourceApk) {
+    const newLocalApkName = `tv-dinner-v${newVersionName}.apk`;
+    const destApkPath = path.join(projectRoot, 'public', 'apks', newLocalApkName);
+    const latestApkPath = path.join(projectRoot, 'public', 'apks', 'tv-dinner-latest.apk');
+    const rootApkPath = path.join(projectRoot, 'tv-dinner-release.apk');
+    const releaseApkDest = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
+
+    fs.copyFileSync(sourceApk, destApkPath);
+    fs.copyFileSync(sourceApk, latestApkPath);
+    fs.copyFileSync(sourceApk, rootApkPath);
+    if (fs.existsSync(path.dirname(releaseApkDest))) {
+      fs.copyFileSync(sourceApk, releaseApkDest);
+    }
+    console.log(`✅ Duplicated APK to ${newLocalApkName} and refreshed latest release APK targets.`);
+  }
+
+  // Create duplicate release object
+  const duplicateRelease = {
+    id: `rel-${newCode}`,
+    versionCode: newCode,
+    versionName: newVersionName,
+    title: `${targetRelease.title} (Republished)`,
+    status: 'PUBLISHED',
+    releaseNotes: `[Republished Build based on v${targetRelease.versionName} (Build ${targetRelease.versionCode})]\n${targetRelease.releaseNotes || ''}`,
+    apkPath: "android-app/app/build/outputs/apk/release/app-release.apk",
+    localApkUrl: `public/apks/tv-dinner-v${newVersionName}.apk`,
+    apkUrl: `https://github.com/tahillinvestments/tv-dinner/releases/download/v${newVersionName}/app-release.apk`,
+    mandatory: targetRelease.mandatory || false,
+    createdAt: new Date().toISOString(),
+    publishedAt: new Date().toISOString()
+  };
+
+  updatesData.releases.forEach(r => {
+    if (r.status === 'PUBLISHED') {
+      r.status = 'ARCHIVED';
+    }
+  });
+  updatesData.releases.unshift(duplicateRelease);
+  targetRelease = duplicateRelease;
+} else {
+  // 1. Mark target as published and older published as archived
+  updatesData.releases.forEach(r => {
+    if (r.id === targetRelease.id || r.versionCode === targetRelease.versionCode) {
+      r.status = 'PUBLISHED';
+      r.publishedAt = new Date().toISOString();
+    } else if (r.status === 'PUBLISHED') {
+      r.status = 'ARCHIVED';
+    }
+  });
+}
+
 console.log(`\n======================================================`);
 console.log(`🚀 PUBLISHING BUILD ${targetRelease.versionCode} (v${targetRelease.versionName})...`);
 console.log(`======================================================\n`);
-
-// 1. Mark target as published and older published as archived
-updatesData.releases.forEach(r => {
-  if (r.id === targetRelease.id || r.versionCode === targetRelease.versionCode) {
-    r.status = 'PUBLISHED';
-    r.publishedAt = new Date().toISOString();
-  } else if (r.status === 'PUBLISHED') {
-    r.status = 'ARCHIVED';
-  }
-});
 
 updatesData.currentVersion = {
   versionCode: targetRelease.versionCode,

@@ -18,7 +18,11 @@ class CatalogManager(
     private val musicService: YouTubeMusicService = YouTubeMusicService()
 ) {
     private val tag = "CatalogManager"
-    private val mutex = Mutex()
+    private val liveMutex = Mutex()
+    private val vodMutex = Mutex()
+    private val seriesMutex = Mutex()
+    private val podcastMutex = Mutex()
+    private val musicMutex = Mutex()
 
     // In-Memory Music Cache
     private val cachedMusicArtistsByGenre = mutableMapOf<String, List<MusicArtist>>()
@@ -165,22 +169,25 @@ class CatalogManager(
         val ch = cachedLiveChannels?.firstOrNull { it.streamId == streamId }
             ?: cachedLiveChannelsByCat.values.flatten().firstOrNull { it.streamId == streamId }
         val credentials = authRepo.getActiveLiveCredentials()
-        val portal = ch?.portalUrl ?: authRepo.getLivePortalUrl()
-        val user = ch?.streamUser ?: credentials?.user ?: "f2e1d20954"
-        val pswd = ch?.streamPassword ?: credentials?.pswd ?: "a7a8bf92d242"
-        try {
-            val shortEpg = apiClient.getShortEpg(portal, user, pswd, streamId, limit = 8)
-            if (shortEpg != null && !shortEpg.epgListings.isNullOrEmpty()) {
-                cachedFullEpgByStreamId[streamId] = shortEpg
-                val currentProg = resolveCurrentProgram(shortEpg.epgListings)
-                val title = currentProg?.decodedTitle
-                if (!title.isNullOrBlank()) {
-                    cachedEpgByStreamId[streamId] = title
+        val user = ch?.streamUser ?: credentials.user
+        val pswd = ch?.streamPassword ?: credentials.pswd
+        if (user.isBlank() || pswd.isBlank()) return@withContext null
+        val portals = if (!ch?.portalUrl.isNullOrBlank()) listOf(ch.portalUrl!!) else authRepo.getOrderedServerPortals()
+        for (portal in portals) {
+            try {
+                val shortEpg = apiClient.getShortEpg(portal, user, pswd, streamId, limit = 8)
+                if (shortEpg != null && !shortEpg.epgListings.isNullOrEmpty()) {
+                    cachedFullEpgByStreamId[streamId] = shortEpg
+                    val currentProg = resolveCurrentProgram(shortEpg.epgListings)
+                    val title = currentProg?.decodedTitle
+                    if (!title.isNullOrBlank()) {
+                        cachedEpgByStreamId[streamId] = title
+                    }
+                    return@withContext shortEpg
                 }
-                return@withContext shortEpg
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to fetch full EPG for streamId $streamId on $portal: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e(tag, "Failed to fetch full EPG for streamId $streamId: ${e.message}")
         }
 
         // Tier 3 Synthesis Fallback: Always provide continuous time-accurate schedule
@@ -229,8 +236,8 @@ class CatalogManager(
                     launch {
                         semaphore.withPermit {
                             val portal = ch.portalUrl ?: authRepo.getLivePortalUrl()
-                            val user = ch.streamUser ?: credentials?.user ?: "f2e1d20954"
-                            val pswd = ch.streamPassword ?: credentials?.pswd ?: "a7a8bf92d242"
+                            val user = ch.streamUser ?: credentials.user
+                            val pswd = ch.streamPassword ?: credentials.pswd
                             try {
                                 val shortEpg = apiClient.getShortEpg(portal, user, pswd, ch.streamId, limit = 8)
                                 if (shortEpg != null && !shortEpg.epgListings.isNullOrEmpty()) {
@@ -824,138 +831,173 @@ class CatalogManager(
     // MARK: - Live TV
     suspend fun getLiveCategories(forceRefresh: Boolean = false): List<LiveCategory> = withContext(Dispatchers.IO) {
         val showAdult = authRepo.isAdultContentEnabled()
-        if (!forceRefresh && cachedLiveCategories != null) {
+        if (!forceRefresh && !cachedLiveCategories.isNullOrEmpty()) {
             var list = cachedLiveCategories!!
             if (!showAdult) list = list.filter { !isAdultCategory(it.categoryName) }
             return@withContext list
         }
-        mutex.withLock {
+        liveMutex.withLock {
             val showAdultInner = authRepo.isAdultContentEnabled()
-            if (!forceRefresh && cachedLiveCategories != null) {
+            if (!forceRefresh && !cachedLiveCategories.isNullOrEmpty()) {
                 var list = cachedLiveCategories!!
                 if (!showAdultInner) list = list.filter { !isAdultCategory(it.categoryName) }
                 return@withLock list
             }
             val credentials = authRepo.getActiveLiveCredentials()
-            val portal = authRepo.getLivePortalUrl()
-            val user = credentials?.user ?: "f2e1d20954"
-            val pswd = credentials?.pswd ?: "a7a8bf92d242"
-            val fetched = apiClient.getLiveCategories(portal, user, pswd)
-            if (fetched.isNotEmpty() && authRepo.hasValidCredentials()) {
-                authRepo.setCredentialsVerified(true)
+            val user = credentials.user
+            val pswd = credentials.pswd
+            if (user.isBlank() || pswd.isBlank()) {
+                return@withLock emptyList()
             }
-            val sorted = fetched.sortedBy { getLiveCategoryPriority(it.categoryName) }
-
-            // All Channels category removed per specification
-            val fullList = sorted.filter { it.categoryId != "all" && !it.categoryName.equals("All Channels", ignoreCase = true) }
-            cachedLiveCategories = fullList
-            var result = fullList
-            if (!showAdultInner) result = result.filter { !isAdultCategory(it.categoryName) }
-            result
+            var fetched = emptyList<LiveCategory>()
+            val portals = authRepo.getOrderedServerPortals()
+            for (p in portals) {
+                val list = apiClient.getLiveCategories(p, user, pswd)
+                if (list.isNotEmpty()) {
+                    fetched = list
+                    authRepo.setLivePortalUrl(p)
+                    break
+                }
+            }
+            if (fetched.isNotEmpty()) {
+                if (authRepo.hasValidCredentials()) {
+                    authRepo.setCredentialsVerified(true)
+                }
+                val sorted = fetched.sortedBy { getLiveCategoryPriority(it.categoryName) }
+                val fullList = sorted.filter { it.categoryId != "all" && !it.categoryName.equals("All Channels", ignoreCase = true) }
+                cachedLiveCategories = fullList
+                var result = fullList
+                if (!showAdultInner) result = result.filter { !isAdultCategory(it.categoryName) }
+                result
+            } else {
+                emptyList()
+            }
         }
     }
 
     suspend fun getLiveChannels(categoryId: String? = "all", forceRefresh: Boolean = false): List<Channel> = withContext(Dispatchers.IO) {
         val showAdult = authRepo.isAdultContentEnabled()
         val key = categoryId ?: "all"
-        if (!forceRefresh && cachedLiveChannelsByCat.containsKey(key)) {
+        if (!forceRefresh && !cachedLiveChannelsByCat[key].isNullOrEmpty()) {
             var cached = cachedLiveChannelsByCat[key]!!
-            if (cached.isNotEmpty() || key == "all") {
-                if (!showAdult) cached = cached.filter { !isAdultCategory(it.categoryId ?: "") && !isAdultName(it.name) }
-                return@withContext cached
-            }
+            if (!showAdult) cached = cached.filter { !isAdultCategory(it.categoryId ?: "") && !isAdultName(it.name) }
+            return@withContext cached
         }
-        mutex.withLock {
+        liveMutex.withLock {
             val showAdultInner = authRepo.isAdultContentEnabled()
-            if (!forceRefresh && cachedLiveChannelsByCat.containsKey(key)) {
+            if (!forceRefresh && !cachedLiveChannelsByCat[key].isNullOrEmpty()) {
                 var cached = cachedLiveChannelsByCat[key]!!
-                if (cached.isNotEmpty() || key == "all") {
-                    if (!showAdultInner) cached = cached.filter { !isAdultCategory(it.categoryId ?: "") && !isAdultName(it.name) }
-                    return@withLock cached
-                }
+                if (!showAdultInner) cached = cached.filter { !isAdultCategory(it.categoryId ?: "") && !isAdultName(it.name) }
+                return@withLock cached
             }
             val credentials = authRepo.getActiveLiveCredentials()
-            val portal = authRepo.getLivePortalUrl()
-            val user = credentials?.user ?: "f2e1d20954"
-            val pswd = credentials?.pswd ?: "a7a8bf92d242"
-
-            var fetched = if (key == "all") {
-                apiClient.getLiveStreams(portal, user, pswd, null)
-            } else {
-                apiClient.getLiveStreams(portal, user, pswd, key)
+            val user = credentials.user
+            val pswd = credentials.pswd
+            if (user.isBlank() || pswd.isBlank()) {
+                return@withLock emptyList()
             }
+            var fetched = emptyList<Channel>()
+            var activePortal = authRepo.getLivePortalUrl()
+            val portals = authRepo.getOrderedServerPortals()
 
-            // Failover to backup portal if primary returned empty
-            if (fetched.isEmpty()) {
-                val backupPortal = authRepo.getBackupPortalUrl()
-                if (backupPortal.isNotBlank() && backupPortal != portal) {
-                    fetched = if (key == "all") {
-                        apiClient.getLiveStreams(backupPortal, user, pswd, null)
+            for (p in portals) {
+                val streams = if (key == "all") {
+                    val bulk = apiClient.getLiveStreams(p, user, pswd, null)
+                    if (bulk.isNotEmpty()) {
+                        bulk
                     } else {
-                        apiClient.getLiveStreams(backupPortal, user, pswd, key)
+                        // Resilient fallback: Query streams for top categories directly without re-locking
+                        val topCats = (cachedLiveCategories ?: apiClient.getLiveCategories(p, user, pswd)).take(4)
+                        val aggregated = mutableListOf<Channel>()
+                        for (cat in topCats) {
+                            val catStreams = apiClient.getLiveStreams(p, user, pswd, cat.categoryId)
+                            aggregated.addAll(catStreams)
+                        }
+                        aggregated
                     }
+                } else {
+                    apiClient.getLiveStreams(p, user, pswd, key)
+                }
+                if (streams.isNotEmpty()) {
+                    fetched = streams
+                    activePortal = p
+                    authRepo.setLivePortalUrl(p)
+                    break
                 }
             }
 
-            // Fallback: If specific category_id returned empty from server, check full catalog if cached
-            if (fetched.isEmpty() && key != "all" && cachedLiveChannelsByCat.containsKey("all")) {
-                val allChannels = cachedLiveChannelsByCat["all"] ?: emptyList()
-                fetched = allChannels.filter { it.categoryId == key }
-            }
+            if (fetched.isNotEmpty()) {
+                // Filter out placeholder separator banners (e.g. "##### USA GENERAL #####")
+                val bannerPattern = Regex("^[#*=_~\\s]{2,}")
+                fetched = fetched.filter { !bannerPattern.containsMatchIn(it.name.trim()) }
 
-            // Filter out placeholder separator banners (e.g. "##### USA GENERAL #####")
-            val bannerPattern = Regex("^[#*=_~\\s]{2,}")
-            fetched = fetched.filter { !bannerPattern.containsMatchIn(it.name.trim()) }
+                if (authRepo.hasValidCredentials()) {
+                    authRepo.setCredentialsVerified(true)
+                }
 
-            if (fetched.isNotEmpty() && authRepo.hasValidCredentials()) {
-                authRepo.setCredentialsVerified(true)
-            }
+                for (ch in fetched) {
+                    ch.portalUrl = activePortal
+                    ch.streamUser = user
+                    ch.streamPassword = pswd
+                }
 
-            for (ch in fetched) {
-                ch.portalUrl = portal
-                ch.streamUser = user
-                ch.streamPassword = pswd
-            }
+                // Sort all US channels in front when viewing all channels
+                if (key == "all") {
+                    fetched = fetched.sortedBy { getLiveChannelPriority(it) }
+                }
 
-            // Sort all US channels in front when viewing all channels
-            if (key == "all") {
-                fetched = fetched.sortedBy { getLiveChannelPriority(it) }
+                cachedLiveChannelsByCat[key] = fetched
+                if (key == "all") {
+                    cachedLiveChannels = fetched
+                }
+                var result = fetched
+                if (!showAdultInner) result = result.filter { !isAdultCategory(it.categoryId ?: "") && !isAdultName(it.name) }
+                result
+            } else {
+                emptyList()
             }
-
-            cachedLiveChannelsByCat[key] = fetched
-            if (key == "all") {
-                cachedLiveChannels = fetched
-            }
-            var result = fetched
-            if (!showAdultInner) result = result.filter { !isAdultCategory(it.categoryId ?: "") && !isAdultName(it.name) }
-            result
         }
     }
 
     // MARK: - VOD Movies
     suspend fun getMovieCategories(forceRefresh: Boolean = false): List<MovieCategory> = withContext(Dispatchers.IO) {
         val showAdult = authRepo.isAdultContentEnabled()
-        if (!forceRefresh && cachedMovieCategories != null) {
+        if (!forceRefresh && !cachedMovieCategories.isNullOrEmpty()) {
             var list = cachedMovieCategories!!
             if (!showAdult) list = list.filter { !isAdultCategory(it.categoryName) }
             return@withContext list
         }
-        mutex.withLock {
+        vodMutex.withLock {
             val showAdultInner = authRepo.isAdultContentEnabled()
-            if (!forceRefresh && cachedMovieCategories != null) {
+            if (!forceRefresh && !cachedMovieCategories.isNullOrEmpty()) {
                 var list = cachedMovieCategories!!
                 if (!showAdultInner) list = list.filter { !isAdultCategory(it.categoryName) }
                 return@withLock list
             }
-            val portal = authRepo.getVodPortalUrl()
             val user = authRepo.getVodUsername()
             val pswd = authRepo.getVodPassword()
-            val fetched = apiClient.getVodCategories(portal, user, pswd)
-            val sorted = fetched.sortedBy { getMovieCategoryPriority(it.categoryName) }
-            cachedMovieCategories = sorted
-            var result = sorted
-            if (!showAdultInner) result = result.filter { !isAdultCategory(it.categoryName) }
-            result
+            if (user.isBlank() || pswd.isBlank()) {
+                return@withLock emptyList()
+            }
+            var fetched = emptyList<MovieCategory>()
+            val portals = authRepo.getOrderedServerPortals()
+            for (p in portals) {
+                val list = apiClient.getVodCategories(p, user, pswd)
+                if (list.isNotEmpty()) {
+                    fetched = list
+                    authRepo.setVodPortalUrl(p)
+                    break
+                }
+            }
+            if (fetched.isNotEmpty()) {
+                val sorted = fetched.sortedBy { getMovieCategoryPriority(it.categoryName) }
+                cachedMovieCategories = sorted
+                var result = sorted
+                if (!showAdultInner) result = result.filter { !isAdultCategory(it.categoryName) }
+                result
+            } else {
+                emptyList()
+            }
         }
     }
 
@@ -1042,32 +1084,34 @@ class CatalogManager(
     }
 
     suspend fun getMovies(categoryId: String? = null, forceRefresh: Boolean = false): List<Movie> = withContext(Dispatchers.IO) {
-        val targetCatId = categoryId ?: getMovieCategories().firstOrNull()?.categoryId ?: return@withContext emptyList()
+        val categories = getMovieCategories()
+        val targetCatId = categoryId ?: categories.firstOrNull()?.categoryId ?: return@withContext emptyList()
         val key = targetCatId
-        if (!forceRefresh && cachedMoviesByCat.containsKey(key)) {
-            val cached = cachedMoviesByCat[key]!!
-            if (cached.isNotEmpty()) {
-                return@withContext cached
-            }
+        if (!forceRefresh && !cachedMoviesByCat[key].isNullOrEmpty()) {
+            return@withContext cachedMoviesByCat[key]!!
         }
-        mutex.withLock {
-            if (!forceRefresh && cachedMoviesByCat.containsKey(key)) {
-                val cached = cachedMoviesByCat[key]!!
-                if (cached.isNotEmpty()) {
-                    return@withLock cached
-                }
+        vodMutex.withLock {
+            if (!forceRefresh && !cachedMoviesByCat[key].isNullOrEmpty()) {
+                return@withLock cachedMoviesByCat[key]!!
             }
-            val portal = authRepo.getVodPortalUrl()
             val user = authRepo.getVodUsername()
             val pswd = authRepo.getVodPassword()
-            var fetched = apiClient.getVodStreams(portal, user, pswd, targetCatId)
-            if (fetched.isEmpty()) {
-                val backupPortal = authRepo.getBackupPortalUrl()
-                if (backupPortal.isNotBlank() && backupPortal != portal) {
-                    fetched = apiClient.getVodStreams(backupPortal, user, pswd, targetCatId)
+            if (user.isBlank() || pswd.isBlank()) {
+                return@withLock emptyList()
+            }
+            var fetched = emptyList<Movie>()
+            val portals = authRepo.getOrderedServerPortals()
+            for (p in portals) {
+                val list = apiClient.getVodStreams(p, user, pswd, targetCatId)
+                if (list.isNotEmpty()) {
+                    fetched = list.map { m -> if (m.categoryId.isNullOrBlank()) m.copy(categoryId = targetCatId) else m }
+                    authRepo.setVodPortalUrl(p)
+                    break
                 }
             }
-            cachedMoviesByCat[key] = fetched
+            if (fetched.isNotEmpty()) {
+                cachedMoviesByCat[key] = fetched
+            }
             fetched
         }
     }
@@ -1110,6 +1154,7 @@ class CatalogManager(
         val portal = authRepo.getVodPortalUrl()
         val user = authRepo.getVodUsername()
         val pswd = authRepo.getVodPassword()
+        if (user.isBlank() || pswd.isBlank()) return@withContext emptyList()
 
         val selectedCat = allCats.firstOrNull { it.categoryId == selectedCategoryId }
         val isSearchingInAdult = selectedCat != null && isAdultCategory(selectedCat.categoryName)
@@ -1152,7 +1197,8 @@ class CatalogManager(
             val deferreds = chunk.map { cat ->
                 async(Dispatchers.IO) {
                     try {
-                        val list = apiClient.getVodStreams(portal, user, pswd, cat.categoryId)
+                        val rawList = apiClient.getVodStreams(portal, user, pswd, cat.categoryId)
+                        val list = rawList.map { m -> if (m.categoryId.isNullOrBlank()) m.copy(categoryId = cat.categoryId) else m }
                         synchronized(cachedMoviesByCat) {
                             cachedMoviesByCat[cat.categoryId] = list
                         }
@@ -1183,56 +1229,75 @@ class CatalogManager(
     // MARK: - VOD Series
     suspend fun getSeriesCategories(forceRefresh: Boolean = false): List<SeriesCategory> = withContext(Dispatchers.IO) {
         val showAdult = authRepo.isAdultContentEnabled()
-        if (!forceRefresh && cachedSeriesCategories != null) {
+        if (!forceRefresh && !cachedSeriesCategories.isNullOrEmpty()) {
             var list = cachedSeriesCategories!!
             if (!showAdult) list = list.filter { !isAdultCategory(it.categoryName) }
             return@withContext list
         }
-        mutex.withLock {
+        seriesMutex.withLock {
             val showAdultInner = authRepo.isAdultContentEnabled()
-            if (!forceRefresh && cachedSeriesCategories != null) {
+            if (!forceRefresh && !cachedSeriesCategories.isNullOrEmpty()) {
                 var list = cachedSeriesCategories!!
                 if (!showAdultInner) list = list.filter { !isAdultCategory(it.categoryName) }
                 return@withLock list
             }
-            val portal = authRepo.getVodPortalUrl()
             val user = authRepo.getVodUsername()
             val pswd = authRepo.getVodPassword()
-            val fetched = apiClient.getSeriesCategories(portal, user, pswd)
-            val sorted = fetched.sortedBy { getSeriesCategoryPriority(it.categoryName) }
-            cachedSeriesCategories = sorted
-            var result = sorted
-            if (!showAdultInner) result = result.filter { !isAdultCategory(it.categoryName) }
-            result
+            if (user.isBlank() || pswd.isBlank()) {
+                return@withLock emptyList()
+            }
+            var fetched = emptyList<SeriesCategory>()
+            val portals = authRepo.getOrderedServerPortals()
+            for (p in portals) {
+                val list = apiClient.getSeriesCategories(p, user, pswd)
+                if (list.isNotEmpty()) {
+                    fetched = list
+                    authRepo.setVodPortalUrl(p)
+                    break
+                }
+            }
+            if (fetched.isNotEmpty()) {
+                val sorted = fetched.sortedBy { getSeriesCategoryPriority(it.categoryName) }
+                cachedSeriesCategories = sorted
+                var result = sorted
+                if (!showAdultInner) result = result.filter { !isAdultCategory(it.categoryName) }
+                result
+            } else {
+                emptyList()
+            }
         }
     }
 
     suspend fun getSeries(categoryId: String? = null, forceRefresh: Boolean = false): List<Series> = withContext(Dispatchers.IO) {
-        val targetCatId = categoryId ?: getSeriesCategories().firstOrNull()?.categoryId ?: return@withContext emptyList()
+        val categories = getSeriesCategories()
+        val targetCatId = categoryId ?: categories.firstOrNull()?.categoryId ?: return@withContext emptyList()
         val key = targetCatId
-        if (!forceRefresh && cachedSeriesByCat.containsKey(key)) {
-            val cached = cachedSeriesByCat[key]!!
-            if (cached.isNotEmpty()) {
-                return@withContext cached
-            }
+        if (!forceRefresh && !cachedSeriesByCat[key].isNullOrEmpty()) {
+            return@withContext cachedSeriesByCat[key]!!
         }
-        mutex.withLock {
-            if (!forceRefresh && cachedSeriesByCat.containsKey(key)) {
-                val cached = cachedSeriesByCat[key]!!
-                if (cached.isNotEmpty()) return@withLock cached
+        seriesMutex.withLock {
+            if (!forceRefresh && !cachedSeriesByCat[key].isNullOrEmpty()) {
+                return@withLock cachedSeriesByCat[key]!!
             }
-            val portal = authRepo.getVodPortalUrl()
             val user = authRepo.getVodUsername()
             val pswd = authRepo.getVodPassword()
+            if (user.isBlank() || pswd.isBlank()) {
+                return@withLock emptyList()
+            }
 
-            var fetched = apiClient.getSeries(portal, user, pswd, key)
-            if (fetched.isEmpty()) {
-                val backupPortal = authRepo.getBackupPortalUrl()
-                if (backupPortal.isNotBlank() && backupPortal != portal) {
-                    fetched = apiClient.getSeries(backupPortal, user, pswd, key)
+            var fetched = emptyList<Series>()
+            val portals = authRepo.getOrderedServerPortals()
+            for (p in portals) {
+                val list = apiClient.getSeries(p, user, pswd, key)
+                if (list.isNotEmpty()) {
+                    fetched = list.map { s -> if (s.categoryId.isNullOrBlank()) s.copy(categoryId = key) else s }
+                    authRepo.setVodPortalUrl(p)
+                    break
                 }
             }
-            cachedSeriesByCat[key] = fetched
+            if (fetched.isNotEmpty()) {
+                cachedSeriesByCat[key] = fetched
+            }
             fetched
         }
     }
@@ -1275,6 +1340,7 @@ class CatalogManager(
         val portal = authRepo.getVodPortalUrl()
         val user = authRepo.getVodUsername()
         val pswd = authRepo.getVodPassword()
+        if (user.isBlank() || pswd.isBlank()) return@withContext emptyList()
 
         val selectedCat = allCats.firstOrNull { it.categoryId == selectedCategoryId }
         val isSearchingInAdult = selectedCat != null && isAdultCategory(selectedCat.categoryName)
@@ -1317,7 +1383,8 @@ class CatalogManager(
             val deferreds = chunk.map { cat ->
                 async(Dispatchers.IO) {
                     try {
-                        val list = apiClient.getSeries(portal, user, pswd, cat.categoryId)
+                        val rawList = apiClient.getSeries(portal, user, pswd, cat.categoryId)
+                        val list = rawList.map { s -> if (s.categoryId.isNullOrBlank()) s.copy(categoryId = cat.categoryId) else s }
                         synchronized(cachedSeriesByCat) {
                             cachedSeriesByCat[cat.categoryId] = list
                         }
@@ -1349,12 +1416,21 @@ class CatalogManager(
         if (!forceRefresh && cachedSeriesInfoMap.containsKey(seriesId)) {
             return@withContext cachedSeriesInfoMap[seriesId]
         }
-        mutex.withLock {
+        seriesMutex.withLock {
             if (!forceRefresh && cachedSeriesInfoMap.containsKey(seriesId)) return@withLock cachedSeriesInfoMap[seriesId]
-            val portal = authRepo.getVodPortalUrl()
             val user = authRepo.getVodUsername()
             val pswd = authRepo.getVodPassword()
-            val info = apiClient.getSeriesInfo(portal, user, pswd, seriesId)
+            if (user.isBlank() || pswd.isBlank()) return@withLock null
+            var info: SeriesInfoResponse? = null
+            val portals = authRepo.getOrderedServerPortals()
+            for (p in portals) {
+                val res = apiClient.getSeriesInfo(p, user, pswd, seriesId)
+                if (res != null) {
+                    info = res
+                    authRepo.setVodPortalUrl(p)
+                    break
+                }
+            }
             if (info != null) {
                 cachedSeriesInfoMap[seriesId] = info
             }
@@ -1368,7 +1444,7 @@ class CatalogManager(
         if (!forceRefresh && cachedPodcastChannelsByCat.containsKey(key)) {
             return@withContext cachedPodcastChannelsByCat[key]!!
         }
-        mutex.withLock {
+        podcastMutex.withLock {
             if (!forceRefresh && cachedPodcastChannelsByCat.containsKey(key)) return@withLock cachedPodcastChannelsByCat[key]!!
             val channels = podcastService.fetchLivePodcastChannels(category)
             cachedPodcastChannelsByCat[key] = channels
@@ -1381,7 +1457,7 @@ class CatalogManager(
         if (!forceRefresh && cachedPodcastEpisodesByCat.containsKey(key)) {
             return@withContext cachedPodcastEpisodesByCat[key]!!
         }
-        mutex.withLock {
+        podcastMutex.withLock {
             if (!forceRefresh && cachedPodcastEpisodesByCat.containsKey(key)) return@withLock cachedPodcastEpisodesByCat[key]!!
             val episodes = podcastService.searchLiveEpisodes(categoryOrQuery, page = 1)
             cachedPodcastEpisodesByCat[key] = episodes
@@ -1397,7 +1473,7 @@ class CatalogManager(
         if (!forceRefresh && cachedPodcastEpisodesByChannel.containsKey(channel.id)) {
             return@withContext cachedPodcastEpisodesByChannel[channel.id]!!
         }
-        mutex.withLock {
+        podcastMutex.withLock {
             if (!forceRefresh && cachedPodcastEpisodesByChannel.containsKey(channel.id)) return@withLock cachedPodcastEpisodesByChannel[channel.id]!!
             val episodes = podcastService.fetchEpisodesForChannel(channel)
             cachedPodcastEpisodesByChannel[channel.id] = episodes
@@ -1432,7 +1508,7 @@ class CatalogManager(
         if (!forceRefresh && cachedMusicArtistsByGenre.containsKey(key)) {
             return@withContext cachedMusicArtistsByGenre[key]!!
         }
-        mutex.withLock {
+        musicMutex.withLock {
             if (!forceRefresh && cachedMusicArtistsByGenre.containsKey(key)) return@withLock cachedMusicArtistsByGenre[key]!!
             val artists = musicService.fetchArtistsForGenre(genre)
             cachedMusicArtistsByGenre[key] = artists
@@ -1444,7 +1520,7 @@ class CatalogManager(
         if (!forceRefresh && cachedMusicVideosByArtist.containsKey(artist.id)) {
             return@withContext cachedMusicVideosByArtist[artist.id]!!
         }
-        mutex.withLock {
+        musicMutex.withLock {
             if (!forceRefresh && cachedMusicVideosByArtist.containsKey(artist.id)) return@withLock cachedMusicVideosByArtist[artist.id]!!
             val videos = musicService.fetchMusicVideosForArtist(artist)
             cachedMusicVideosByArtist[artist.id] = videos

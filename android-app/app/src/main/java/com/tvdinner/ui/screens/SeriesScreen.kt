@@ -4,6 +4,7 @@ import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +27,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -40,6 +45,7 @@ import com.tvdinner.data.model.SeriesInfoResponse
 import com.tvdinner.data.network.XtreamApiClient
 import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
+import com.tvdinner.ui.components.AccessRestrictedView
 import com.tvdinner.ui.components.AppSearchBar
 import com.tvdinner.ui.components.TvFocusableCard
 import com.tvdinner.ui.theme.*
@@ -66,8 +72,17 @@ fun SeriesScreen(
     catalogManager: CatalogManager,
     onPlayEpisode: (String, String, Long, String, (() -> Unit)?, String?) -> Unit, // (url, title, startPosMs, streamKey, onNext, nextTitle)
     isPlayingFullscreen: Boolean = false,
+    onOpenSettings: (() -> Unit)? = null,
+    targetSeriesId: Int? = null,
+    targetCategoryId: String? = null,
+    onTargetSeriesConsumed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val isCredentialsVerified by authRepo.isCredentialsVerifiedState.collectAsState()
+    val activeUsername by authRepo.activeUsernameState.collectAsState()
+    val activePassword by authRepo.activePasswordState.collectAsState()
+    val isAccessAllowed = activeUsername.isNotBlank() && activePassword.isNotBlank() && isCredentialsVerified
+
     var categories by remember { mutableStateOf<List<SeriesCategory>>(emptyList()) }
     var selectedCategoryId by rememberSaveable { mutableStateOf<String?>(authRepo.getLastSeriesCategoryId()) }
     var seriesList by remember { mutableStateOf<List<Series>>(emptyList()) }
@@ -97,6 +112,13 @@ fun SeriesScreen(
     val isCompact = configuration.screenWidthDp < 600
     val isMobile = !isTv && (configuration.orientation == Configuration.ORIENTATION_PORTRAIT || isCompact)
 
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
+    val categoryNameMap = remember(categories) {
+        categories.associate { it.categoryId to it.categoryName }
+    }
+
     val gridState = rememberLazyGridState()
     val categoryListState = rememberLazyListState()
     val categoryScrollPositions = remember { mutableMapOf<String, Int>() }
@@ -113,8 +135,37 @@ fun SeriesScreen(
         }
     }
 
+    val targetSeriesFocusRequester = remember { FocusRequester() }
+
+    // Deep navigation from Now page: switch category if needed and scroll/focus target series
+    LaunchedEffect(targetSeriesId, targetCategoryId) {
+        if (!targetCategoryId.isNullOrBlank() && selectedCategoryId != targetCategoryId) {
+            selectCategory(targetCategoryId)
+        }
+    }
+
+    LaunchedEffect(targetSeriesId, sortedAndFilteredSeries) {
+        if (targetSeriesId != null && targetSeriesId > 0 && sortedAndFilteredSeries.isNotEmpty()) {
+            val idx = sortedAndFilteredSeries.indexOfFirst { it.seriesId == targetSeriesId }
+            if (idx >= 0) {
+                gridState.scrollToItem(idx)
+                delay(150)
+                try {
+                    targetSeriesFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+                onTargetSeriesConsumed()
+            }
+        }
+    }
+
     // Smart Fast Loading (Loads first or remembered category)
-    LaunchedEffect(Unit) {
+    LaunchedEffect(Unit, isAccessAllowed) {
+        if (!isAccessAllowed) {
+            categories = emptyList()
+            seriesList = emptyList()
+            isLoading = false
+            return@LaunchedEffect
+        }
         if (categories.isEmpty()) {
             isLoading = true
             val rawCats = catalogManager.getSeriesCategories()
@@ -141,7 +192,8 @@ fun SeriesScreen(
         }
     }
 
-    LaunchedEffect(selectedCategoryId) {
+    LaunchedEffect(selectedCategoryId, isAccessAllowed) {
+        if (!isAccessAllowed) return@LaunchedEffect
         if (!selectedCategoryId.isNullOrBlank() && categories.isNotEmpty() && searchQuery.isBlank()) {
             isLoading = true
             if (selectedCategoryId != "watchlist" && selectedCategoryId != "history") {
@@ -241,7 +293,12 @@ fun SeriesScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
-        if (isMobile) {
+        if (!isAccessAllowed) {
+            AccessRestrictedView(
+                featureName = "Series (VOD)",
+                onOpenSettings = onOpenSettings
+            )
+        } else if (isMobile) {
             // Mobile Portrait / Compact View: Single Column with horizontal categories
             Column(
                 modifier = Modifier
@@ -329,6 +386,10 @@ fun SeriesScreen(
                         items(sortedAndFilteredSeries, key = { it.seriesId }) { series ->
                             TvFocusableCard(
                                 onClick = {
+                                    try {
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
+                                    } catch (_: Exception) {}
                                     selectedSeries = series
                                     lastSelectedSeriesId = series.seriesId
                                     authRepo.setLastSeriesId(series.seriesId)
@@ -351,7 +412,10 @@ fun SeriesScreen(
                                 backgroundColor = CinemaSurface,
                                 focusedBorderColor = CinemaFocus,
                                 focusedScale = 1.05f,
-                                modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight()
+                                    .then(if (series.seriesId == targetSeriesId) Modifier.focusRequester(targetSeriesFocusRequester) else Modifier)
                             ) {
                                 Column {
                                     Box(
@@ -406,15 +470,40 @@ fun SeriesScreen(
                                         }
                                     }
 
-                                    Text(
-                                        text = series.displayTitle,
-                                        color = TextPrimary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(8.dp)
-                                    )
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    ) {
+                                        val catName = categoryNameMap[series.categoryId]
+                                        if (searchQuery.isNotBlank() && !catName.isNullOrBlank()) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = CinemaSurfaceVariant,
+                                                border = BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f)),
+                                                modifier = Modifier.padding(bottom = 3.dp)
+                                            ) {
+                                                Text(
+                                                    text = catName,
+                                                    color = CinemaAccent,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Text(
+                                            text = series.displayTitle,
+                                            color = TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -540,6 +629,10 @@ fun SeriesScreen(
                             items(sortedAndFilteredSeries, key = { it.seriesId }) { series ->
                                 TvFocusableCard(
                                     onClick = {
+                                        try {
+                                            keyboardController?.hide()
+                                            focusManager.clearFocus()
+                                        } catch (_: Exception) {}
                                         selectedSeries = series
                                         lastSelectedSeriesId = series.seriesId
                                         authRepo.setLastSeriesId(series.seriesId)
@@ -562,7 +655,10 @@ fun SeriesScreen(
                                     backgroundColor = CinemaSurface,
                                     focusedBorderColor = CinemaFocus,
                                     focusedScale = 1.05f,
-                                    modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .wrapContentHeight()
+                                        .then(if (series.seriesId == targetSeriesId) Modifier.focusRequester(targetSeriesFocusRequester) else Modifier)
                                 ) {
                                     Column {
                                         Box(
@@ -617,15 +713,40 @@ fun SeriesScreen(
                                             }
                                         }
 
-                                        Text(
-                                            text = series.displayTitle,
-                                            color = TextPrimary,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.padding(8.dp)
-                                        )
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                                        ) {
+                                            val catName = categoryNameMap[series.categoryId]
+                                            if (searchQuery.isNotBlank() && !catName.isNullOrBlank()) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = CinemaSurfaceVariant,
+                                                    border = BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f)),
+                                                    modifier = Modifier.padding(bottom = 3.dp)
+                                                ) {
+                                                    Text(
+                                                        text = catName,
+                                                        color = CinemaAccent,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            Text(
+                                                text = series.displayTitle,
+                                                color = TextPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -721,9 +842,12 @@ fun SeriesScreen(
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     items(currentEpisodes) { ep ->
-                                        val ext = ep.containerExtension.ifBlank { "mp4" }
+                                        val ext = ep.containerExtension?.ifBlank { "mp4" } ?: "mp4"
                                         val streamIdInt = ep.id.toIntOrNull() ?: 0
-                                        val streamUrl = apiClient.buildSeriesStreamUrl(portal, user, pswd, streamIdInt, ext)
+                                        val currentPortal = authRepo.getVodPortalUrl()
+                                        val currentUser = authRepo.getVodUsername()
+                                        val currentPswd = authRepo.getVodPassword()
+                                        val streamUrl = apiClient.buildSeriesStreamUrl(currentPortal, currentUser, currentPswd, streamIdInt, ext)
                                         val epTitle = "${series.displayTitle} - S${selectedSeason}E${ep.episodeNum}: ${ep.title}"
                                         val streamKey = "ep_${series.seriesId}_${ep.id}"
                                         val savedPos = authRepo.getPlaybackPosition(streamKey)
@@ -751,9 +875,12 @@ fun SeriesScreen(
                                             }
 
                                             if (targetEp != null) {
-                                                val targetExt = targetEp.containerExtension.ifBlank { "mp4" }
+                                                val targetExt = targetEp.containerExtension?.ifBlank { "mp4" } ?: "mp4"
                                                 val targetStreamId = targetEp.id.toIntOrNull() ?: 0
-                                                val targetUrl = apiClient.buildSeriesStreamUrl(portal, user, pswd, targetStreamId, targetExt)
+                                                val curPort = authRepo.getVodPortalUrl()
+                                                val curUser = authRepo.getVodUsername()
+                                                val curPass = authRepo.getVodPassword()
+                                                val targetUrl = apiClient.buildSeriesStreamUrl(curPort, curUser, curPass, targetStreamId, targetExt)
                                                 val targetTitle = "${series.displayTitle} - S${targetSeason}E${targetEp.episodeNum}: ${targetEp.title}"
                                                 val targetKey = "ep_${series.seriesId}_${targetEp.id}"
                                                 val (nextNextCallback, nextNextTitle) = computeNextEpisode(targetEp.id, targetSeason)
@@ -768,6 +895,10 @@ fun SeriesScreen(
 
                                         TvFocusableCard(
                                             onClick = {
+                                                try {
+                                                    keyboardController?.hide()
+                                                    focusManager.clearFocus()
+                                                } catch (_: Exception) {}
                                                 val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
                                                 val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
                                                 val (nextCallback, nextTitle) = computeNextEpisode(ep.id, selectedSeason)

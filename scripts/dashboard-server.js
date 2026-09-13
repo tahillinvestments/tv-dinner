@@ -34,9 +34,13 @@ function handlePublish(req, res) {
     } catch (_) {}
 
     const target = parsed.versionCode || parsed.relId;
-    console.log(`\n[Dashboard Server] Received Publish request from Dashboard UI${target ? ` for target: ${target}` : ''}...`);
+    const isRepublish = parsed.isRepublish;
+    console.log(`\n[Dashboard Server] Received ${isRepublish ? 'Re-Publish' : 'Publish'} request from Dashboard UI${target ? ` for target: ${target}` : ''}...`);
 
-    const cmd = target ? `node scripts/publish-update.js "${target}"` : 'node scripts/publish-update.js';
+    let cmd = target ? `node scripts/publish-update.js "${target}"` : 'node scripts/publish-update.js';
+    if (isRepublish) {
+      cmd += ' --republish';
+    }
     exec(cmd, { cwd: projectRoot }, (err, stdout, stderr) => {
       if (err) {
         console.error('[Dashboard Server] Publish error:', stderr || err.message);
@@ -79,7 +83,16 @@ const server = http.createServer((req, res) => {
 
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
     const contentType = getContentType(filePath);
-    res.writeHead(200, { 'Content-Type': contentType });
+    const stat = fs.statSync(filePath);
+    const headers = {
+      'Content-Type': contentType,
+      'Content-Length': stat.size
+    };
+    if (filePath.endsWith('.apk')) {
+      const filename = path.basename(filePath);
+      headers['Content-Disposition'] = `attachment; filename="${filename}"`;
+    }
+    res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);
   } else {
     res.writeHead(404, { 'Content-Type': 'text/plain' });

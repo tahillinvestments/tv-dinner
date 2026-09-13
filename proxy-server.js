@@ -63,9 +63,8 @@ async function forwardStream(req, res, targetUrlStr) {
     return;
   }
 
-  const isIptvHost = targetUrl.hostname.includes('portal5458') ||
-    targetUrl.hostname.includes('kstv') ||
-    targetUrl.hostname.includes('asoseller') ||
+  const isIptvHost = targetUrl.hostname.includes('uhdp.top') ||
+    targetUrl.hostname.includes('uhd4.top') ||
     targetUrl.pathname.includes('/live/') ||
     targetUrl.pathname.includes('/movie/') ||
     targetUrl.pathname.includes('/series/');

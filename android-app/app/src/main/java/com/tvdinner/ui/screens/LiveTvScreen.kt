@@ -7,6 +7,7 @@ import android.widget.Toast
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -35,6 +36,7 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,6 +49,7 @@ import com.tvdinner.data.network.XtreamApiClient
 import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
 import com.tvdinner.player.ExoPlayerManager
+import com.tvdinner.ui.components.AccessRestrictedView
 import com.tvdinner.ui.components.AppSearchBar
 import com.tvdinner.ui.components.TvFocusableCard
 import com.tvdinner.ui.player.NativePlayerView
@@ -68,8 +71,17 @@ fun LiveTvScreen(
     onToggleFullscreen: (Boolean) -> Unit = {},
     contentFocusRequester: FocusRequester? = null,
     onRequestFocusSidebar: (() -> Unit)? = null,
+    onOpenSettings: (() -> Unit)? = null,
+    targetChannelId: Int? = null,
+    targetCategoryId: String? = null,
+    onTargetChannelConsumed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val isCredentialsVerified by authRepo.isCredentialsVerifiedState.collectAsState()
+    val activeUsername by authRepo.activeUsernameState.collectAsState()
+    val activePassword by authRepo.activePasswordState.collectAsState()
+    val isAccessAllowed = activeUsername.isNotBlank() && activePassword.isNotBlank() && isCredentialsVerified
+
     val coroutineScope = rememberCoroutineScope()
     var categories by remember { mutableStateOf<List<LiveCategory>>(emptyList()) }
     var selectedCategoryId by rememberSaveable { mutableStateOf<String?>(authRepo.getLastLiveCategoryId()) }
@@ -105,6 +117,11 @@ fun LiveTvScreen(
     val fullscreenFocusRequester = remember { FocusRequester() }
     val searchBarFocusRequester = remember { FocusRequester() }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    val categoryNameMap = remember(categories) {
+        categories.associate { it.categoryId to it.categoryName }
+    }
 
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -138,7 +155,13 @@ fun LiveTvScreen(
     }
 
     // Direct & Fast Live TV Category Loading
-    LaunchedEffect(Unit) {
+    LaunchedEffect(Unit, isAccessAllowed) {
+        if (!isAccessAllowed) {
+            categories = emptyList()
+            channels = emptyList()
+            isLoading = false
+            return@LaunchedEffect
+        }
         if (categories.isEmpty()) {
             isLoading = true
             val rawCategories = catalogManager.getLiveCategories()
@@ -195,7 +218,8 @@ fun LiveTvScreen(
     }
 
     // Load Channels whenever Category Changes
-    LaunchedEffect(selectedCategoryId) {
+    LaunchedEffect(selectedCategoryId, isAccessAllowed) {
+        if (!isAccessAllowed) return@LaunchedEffect
         if (selectedCategoryId != null && categories.isNotEmpty()) {
             isLoading = true
             authRepo.setLastLiveCategoryId(selectedCategoryId ?: "672")
@@ -354,6 +378,31 @@ fun LiveTvScreen(
         }
     }
 
+    // Deep navigation from Now page: scroll to target channel and request focus
+    LaunchedEffect(targetChannelId, targetCategoryId) {
+        if (!targetCategoryId.isNullOrBlank() && selectedCategoryId != targetCategoryId) {
+            selectedCategoryId = targetCategoryId
+            authRepo.setLastLiveCategoryId(targetCategoryId)
+        }
+    }
+
+    LaunchedEffect(targetChannelId, filteredChannels) {
+        if (targetChannelId != null && targetChannelId > 0 && filteredChannels.isNotEmpty()) {
+            val idx = filteredChannels.indexOfFirst { it.streamId == targetChannelId }
+            if (idx >= 0) {
+                val ch = filteredChannels[idx]
+                activeChannel = ch
+                authRepo.setLastLiveStreamId(ch.streamId)
+                channelListState.scrollToItem((idx - 1).coerceAtLeast(0))
+                delay(150)
+                try {
+                    activeCardFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+                onTargetChannelConsumed()
+            }
+        }
+    }
+
     // Remote Up / Down Channel Surfing Logic
     fun tuneChannel(delta: Int) {
         if (filteredChannels.isEmpty()) return
@@ -452,7 +501,12 @@ fun LiveTvScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(CinemaBackground)) {
-        if (isFullscreen) {
+        if (!isAccessAllowed) {
+            AccessRestrictedView(
+                featureName = "Live TV",
+                onOpenSettings = onOpenSettings
+            )
+        } else if (isFullscreen) {
             // Fullscreen Live TV: Full-bleed with Remote Up/Down Channel Surfing
             Box(
                 modifier = Modifier
@@ -719,6 +773,7 @@ fun LiveTvScreen(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         placeholder = "Search channels...",
+                        showOkBadge = false,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -781,6 +836,10 @@ fun LiveTvScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
+                                        try {
+                                            keyboardController?.hide()
+                                            focusManager.clearFocus()
+                                        } catch (_: Exception) {}
                                         val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
                                         val user = channel.streamUser ?: authRepo.getActiveUsername()
                                         val pswd = channel.streamPassword ?: authRepo.getActivePassword()
@@ -829,6 +888,24 @@ fun LiveTvScreen(
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
+                                            val catName = categoryNameMap[channel.categoryId]
+                                            if (searchQuery.isNotBlank() && !catName.isNullOrBlank()) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = CinemaSurfaceVariant,
+                                                    border = BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f))
+                                                ) {
+                                                    Text(
+                                                        text = catName,
+                                                        color = CinemaAccent,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                         if (!channelEpg.isNullOrBlank()) {
                                             Text(
@@ -1061,6 +1138,7 @@ fun LiveTvScreen(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             placeholder = "Search channels...",
+                            showOkBadge = false,
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(searchBarFocusRequester),
@@ -1131,6 +1209,10 @@ fun LiveTvScreen(
 
                                     TvFocusableCard(
                                         onClick = {
+                                            try {
+                                                keyboardController?.hide()
+                                                focusManager.clearFocus()
+                                            } catch (_: Exception) {}
                                             try {
                                                 val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
                                                 val user = channel.streamUser ?: authRepo.getActiveUsername()
@@ -1274,6 +1356,24 @@ fun LiveTvScreen(
                                                         .weight(1f, fill = false)
                                                         .then(if (isCardFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier)
                                                 )
+                                                val catName = categoryNameMap[channel.categoryId]
+                                                if (searchQuery.isNotBlank() && !catName.isNullOrBlank()) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = CinemaSurfaceVariant,
+                                                        border = BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f))
+                                                    ) {
+                                                        Text(
+                                                            text = catName,
+                                                            color = CinemaAccent,
+                                                            fontSize = 9.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
                                             }
 
                                             if (!channelEpg.isNullOrBlank()) {

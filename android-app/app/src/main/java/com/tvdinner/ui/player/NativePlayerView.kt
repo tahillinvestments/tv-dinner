@@ -63,9 +63,11 @@ fun NativePlayerView(
     val resizeMode by playerManager.resizeMode.collectAsState()
     val isCcEnabled by playerManager.isClosedCaptionsEnabled.collectAsState()
 
-    var showControls by remember { mutableStateOf(true) }
+    var showControls by remember { mutableStateOf(false) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val focusRequester = remember { FocusRequester() }
+    val mountTimestamp = remember { System.currentTimeMillis() }
+    var centerKeyDownReceived by remember { mutableStateOf(false) }
 
     var showAspectHud by remember { mutableStateOf(false) }
     var lastObservedResizeMode by remember { mutableIntStateOf(resizeMode) }
@@ -125,14 +127,33 @@ fun NativePlayerView(
             .background(Color.Black)
             .then(if (onBack != null) Modifier.focusRequester(focusRequester).focusable() else Modifier)
             .onKeyEvent { keyEvent ->
+                val keyCode = keyEvent.nativeKeyEvent.keyCode
+                val isSelectKey = keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                                  keyCode == KeyEvent.KEYCODE_ENTER ||
+                                  keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+
+                if (keyEvent.type == KeyEventType.KeyDown && isSelectKey) {
+                    centerKeyDownReceived = true
+                    return@onKeyEvent false
+                }
+
                 if (keyEvent.type == KeyEventType.KeyUp) {
-                    when (keyEvent.nativeKeyEvent.keyCode) {
-                        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                            playerManager.togglePlayPause()
-                            showControls = true
-                            lastInteractionTime = System.currentTimeMillis()
+                    if (isSelectKey) {
+                        val isRecentMount = (System.currentTimeMillis() - mountTimestamp) < 1000L
+                        if (!centerKeyDownReceived || isRecentMount) {
+                            // Stray KeyUp leaked from prior screen or card click: consume and ignore
+                            centerKeyDownReceived = false
                             return@onKeyEvent true
                         }
+                        centerKeyDownReceived = false
+                        if (!isBuffering) {
+                            playerManager.togglePlayPause()
+                        }
+                        showControls = true
+                        lastInteractionTime = System.currentTimeMillis()
+                        return@onKeyEvent true
+                    }
+                    when (keyCode) {
                         KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
                             if (!isLive) {
                                 playerManager.seekRewind10s()
@@ -302,9 +323,9 @@ fun NativePlayerView(
             }
         }
 
-        // Player Controls HUD Overlay (Visible when showControls is true or when paused)
+        // Player Controls HUD Overlay (Visible when showControls is true or when paused, but hidden during buffering)
         AnimatedVisibility(
-            visible = showControls || !isPlaying,
+            visible = (showControls && !isBuffering) || (!isPlaying && !isBuffering && errorMessage == null),
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
@@ -491,7 +512,9 @@ fun NativePlayerView(
 
                     TvFocusableCard(
                         onClick = {
-                            playerManager.togglePlayPause()
+                            if (!isBuffering) {
+                                playerManager.togglePlayPause()
+                            }
                             lastInteractionTime = System.currentTimeMillis()
                         },
                         modifier = Modifier.size(68.dp),

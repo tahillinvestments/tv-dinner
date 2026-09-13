@@ -115,6 +115,7 @@ class XtreamApiClient {
 
     suspend fun getLiveCategories(portalUrl: String, user: String, pswd: String): List<LiveCategory> =
         withContext(Dispatchers.IO) {
+            if (user.isBlank() || pswd.isBlank()) return@withContext emptyList()
             try {
                 val url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_live_categories"
                 val json = fetchJsonFast(url) ?: return@withContext emptyList()
@@ -132,6 +133,7 @@ class XtreamApiClient {
         pswd: String,
         categoryId: String? = null
     ): List<Channel> = withContext(Dispatchers.IO) {
+        if (user.isBlank() || pswd.isBlank()) return@withContext emptyList()
         try {
             var url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_live_streams"
             if (!categoryId.isNullOrBlank() && categoryId != "all") {
@@ -149,6 +151,7 @@ class XtreamApiClient {
 
     suspend fun getVodCategories(portalUrl: String, user: String, pswd: String): List<MovieCategory> =
         withContext(Dispatchers.IO) {
+            if (user.isBlank() || pswd.isBlank()) return@withContext emptyList()
             try {
                 val url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_vod_categories"
                 val json = fetchJsonFast(url) ?: return@withContext emptyList()
@@ -166,6 +169,7 @@ class XtreamApiClient {
         pswd: String,
         categoryId: String? = null
     ): List<Movie> = withContext(Dispatchers.IO) {
+        if (user.isBlank() || pswd.isBlank()) return@withContext emptyList()
         try {
             var url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_vod_streams"
             if (!categoryId.isNullOrBlank() && categoryId != "all") {
@@ -183,6 +187,7 @@ class XtreamApiClient {
 
     suspend fun getSeriesCategories(portalUrl: String, user: String, pswd: String): List<SeriesCategory> =
         withContext(Dispatchers.IO) {
+            if (user.isBlank() || pswd.isBlank()) return@withContext emptyList()
             try {
                 val url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_series_categories"
                 val json = fetchJsonFast(url) ?: return@withContext emptyList()
@@ -200,6 +205,7 @@ class XtreamApiClient {
         pswd: String,
         categoryId: String? = null
     ): List<Series> = withContext(Dispatchers.IO) {
+        if (user.isBlank() || pswd.isBlank()) return@withContext emptyList()
         try {
             var url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_series"
             if (!categoryId.isNullOrBlank() && categoryId != "all") {
@@ -221,6 +227,7 @@ class XtreamApiClient {
         pswd: String,
         seriesId: Int
     ): SeriesInfoResponse? = withContext(Dispatchers.IO) {
+        if (user.isBlank() || pswd.isBlank()) return@withContext null
         try {
             val url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_series_info&series_id=$seriesId"
             val json = fetchJsonFast(url) ?: return@withContext null
@@ -287,6 +294,7 @@ class XtreamApiClient {
         streamId: Int,
         limit: Int = 10
     ): ShortEpgResponse? = withContext(Dispatchers.IO) {
+        if (user.isBlank() || pswd.isBlank()) return@withContext null
         try {
             val url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_short_epg&stream_id=$streamId&limit=$limit"
             val json = fetchJsonFast(url) ?: return@withContext null
@@ -327,37 +335,83 @@ class XtreamApiClient {
         }
         try {
             val url = "$portalUrl/player_api.php?username=$user&password=$pswd"
-            val json = fetchJsonFast(url)
-            if (json.isNullOrBlank()) {
-                return@withContext AuthResult(false, "Inactive", "Unable to connect to IPTV server. Check network connection.")
-            }
-            val jsonObj = try {
-                gson.fromJson(json, com.google.gson.JsonObject::class.java)
-            } catch (_: Exception) {
-                null
+            val req = Request.Builder().url(url).build()
+            val resp = okHttpClient.newCall(req).execute()
+            val code = resp.code
+            val body = resp.body?.string()
+            resp.close()
+
+            if (code == 513 || code == 401 || code == 403) {
+                return@withContext AuthResult(false, "Inactive", "Account Status: Inactive / Invalid Credentials (HTTP $code)")
             }
 
-            val userInfo = jsonObj?.getAsJsonObject("user_info")
-            if (userInfo != null) {
-                val auth = try { userInfo.get("auth")?.asInt ?: 1 } catch (_: Exception) { 1 }
-                val status = try { userInfo.get("status")?.asString ?: "Active" } catch (_: Exception) { "Active" }
-                val expDate = try { userInfo.get("exp_date")?.asString } catch (_: Exception) { null }
-                val maxConn = try { userInfo.get("max_connections")?.asString } catch (_: Exception) { null }
+            if (resp.isSuccessful && !body.isNullOrBlank()) {
+                val jsonObj = try {
+                    gson.fromJson(body, com.google.gson.JsonObject::class.java)
+                } catch (_: Exception) {
+                    null
+                }
 
-                val isActive = auth == 1 && status.equals("Active", ignoreCase = true)
-                if (isActive) {
+                val userInfo = jsonObj?.getAsJsonObject("user_info")
+                if (userInfo != null) {
+                    val authElem = userInfo.get("auth")
+                    val auth = try {
+                        when {
+                            authElem == null -> 1
+                            authElem.isJsonPrimitive && authElem.asJsonPrimitive.isNumber -> authElem.asInt
+                            authElem.isJsonPrimitive && authElem.asJsonPrimitive.isBoolean -> if (authElem.asBoolean) 1 else 0
+                            authElem.isJsonPrimitive && authElem.asJsonPrimitive.isString -> authElem.asString.trim().toIntOrNull() ?: if (authElem.asString.equals("true", ignoreCase = true)) 1 else 0
+                            else -> 0
+                        }
+                    } catch (_: Exception) { 1 }
+
+                    val rawStatus = try { userInfo.get("status")?.asString?.trim() } catch (_: Exception) { null }
+                    val isStatusExplicitlyInactive = rawStatus != null && (
+                        rawStatus.equals("Inactive", ignoreCase = true) ||
+                        rawStatus.equals("Disabled", ignoreCase = true) ||
+                        rawStatus.equals("Banned", ignoreCase = true) ||
+                        rawStatus.equals("Expired", ignoreCase = true)
+                    )
+
+                    val isActive = auth == 1 && !isStatusExplicitlyInactive
+                    val expDate = try { userInfo.get("exp_date")?.asString } catch (_: Exception) { null }
+                    val maxConn = try { userInfo.get("max_connections")?.asString } catch (_: Exception) { null }
+
+                    if (isActive) {
+                        val expFormatted = if (!expDate.isNullOrBlank() && expDate != "null") {
+                            try {
+                                val timestamp = expDate.toLong()
+                                val millis = if (timestamp < 10000000000L) timestamp * 1000L else timestamp
+                                val sdf = java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault())
+                                "Exp: ${sdf.format(java.util.Date(millis))}"
+                            } catch (_: Exception) {
+                                "Exp: $expDate"
+                            }
+                        } else ""
+                        val maxConnMsg = if (!maxConn.isNullOrBlank() && maxConn != "null") "Max Cons: $maxConn" else ""
+                        val parts = listOf("Active & Verified", expFormatted, maxConnMsg).filter { it.isNotBlank() }
+                        return@withContext AuthResult(
+                            isValid = true,
+                            status = "Active",
+                            message = parts.joinToString(" • "),
+                            expDate = expDate,
+                            maxConnections = maxConn
+                        )
+                    } else {
+                        val failStatus = rawStatus ?: "Inactive"
+                        return@withContext AuthResult(
+                            isValid = false,
+                            status = failStatus,
+                            message = "Account Status: $failStatus (Authentication Failed)"
+                        )
+                    }
+                }
+
+                if (body.trim().startsWith("[")) {
                     return@withContext AuthResult(
                         isValid = true,
                         status = "Active",
-                        message = "Active & Verified • Connected to IPTV Server (Max Cons: ${maxConn ?: "1"})",
-                        expDate = expDate,
-                        maxConnections = maxConn
-                    )
-                } else {
-                    return@withContext AuthResult(
-                        isValid = false,
-                        status = status,
-                        message = "Account Status: $status (Authentication Failed)"
+                        message = "Active & Verified • Server Connected"
                     )
                 }
             }
@@ -375,7 +429,7 @@ class XtreamApiClient {
             AuthResult(false, "Inactive", "Authentication failed. Inactive or invalid credentials.")
         } catch (e: Exception) {
             Log.e(tag, "testCredentials error: ${e.message}")
-            AuthResult(false, "Error", "Connection error: ${e.localizedMessage ?: e.message}")
+            AuthResult(false, "Connection Error", "Connection error: ${e.localizedMessage ?: e.message}")
         }
     }
 }

@@ -42,6 +42,7 @@ fun TvFocusableCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     var isLongPressHandled by remember { mutableStateOf(false) }
+    var isKeyDownOnThisCard by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) focusedScale else 1.0f,
         animationSpec = tween(durationMillis = 150),
@@ -51,7 +52,13 @@ fun TvFocusableCard(
     Surface(
         modifier = modifier
             .scale(scale)
-            .onFocusChanged { isFocused = it.isFocused }
+            .onFocusChanged { state ->
+                isFocused = state.isFocused
+                if (!state.isFocused) {
+                    isKeyDownOnThisCard = false
+                    isLongPressHandled = false
+                }
+            }
             .then(
                 if (isFocused) {
                     Modifier.shadow(
@@ -73,6 +80,7 @@ fun TvFocusableCard(
                 val isSelectKey = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER
 
                 if (keyEvent.type == KeyEventType.KeyDown && isSelectKey) {
+                    isKeyDownOnThisCard = true
                     if (onLongClick != null && (keyEvent.nativeKeyEvent.isLongPress || keyEvent.nativeKeyEvent.repeatCount == 1)) {
                         isLongPressHandled = true
                         onLongClick()
@@ -81,8 +89,14 @@ fun TvFocusableCard(
                 } else if (keyEvent.type == KeyEventType.KeyUp && isSelectKey) {
                     if (isLongPressHandled) {
                         isLongPressHandled = false
+                        isKeyDownOnThisCard = false
                         return@onKeyEvent true
                     }
+                    if (!isKeyDownOnThisCard) {
+                        // Stray KeyUp leaked from a prior screen or focus transition: consume and ignore
+                        return@onKeyEvent true
+                    }
+                    isKeyDownOnThisCard = false
                     onClick()
                     return@onKeyEvent true
                 }

@@ -9,7 +9,7 @@ import { URL } from 'url';
 const STRIP_REQ_HEADERS = new Set(['host', 'referer', 'origin', 'x-forwarded-for', 'x-real-ip', 'accept-encoding']);
 
 // Known IPTV portal hosts that need the VLC user-agent spoof
-const IPTV_HOSTS = new Set(['vpn.uhdp.top', 'portal5458.com', 'kstv.us', 'asoseller.org', '91.239.79.63']);
+const IPTV_HOSTS = new Set(['vpn.uhdp.top', 'tv.wd.uhdp.top', 'vpn.uhd4.top', 'tv.wd.uhd4.top']);
 
 /**
  * Rewrite an HLS playlist so all segment and sub-playlist URLs are
@@ -17,7 +17,7 @@ const IPTV_HOSTS = new Set(['vpn.uhdp.top', 'portal5458.com', 'kstv.us', 'asosel
  */
 function rewriteM3U8(m3uText, baseUrl, proxySegments = false) {
   const base = new URL(baseUrl);
-  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('trxdnscloud') || base.hostname.includes('portal5458') || base.hostname.includes('asoseller') || base.protocol === 'http:' || base.pathname.includes('/live/') || base.pathname.includes('/movie/') || base.pathname.includes('/series/');
+  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('uhdp.top') || base.hostname.includes('uhd4.top') || base.protocol === 'http:' || base.pathname.includes('/live/') || base.pathname.includes('/movie/') || base.pathname.includes('/series/');
 
   return m3uText.split('\n').map(line => {
     const trimmed = line.trim();
@@ -47,7 +47,7 @@ function proxyRequest(req, res, targetUrlStr, proxySegments = false) {
     return;
   }
 
-  const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('trxdnscloud') || targetUrl.hostname.includes('portal5458') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/') || targetUrl.pathname.includes('/movie/') || targetUrl.pathname.includes('/series/');
+  const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('uhdp.top') || targetUrl.hostname.includes('uhd4.top') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/') || targetUrl.pathname.includes('/movie/') || targetUrl.pathname.includes('/series/');
   const transport = targetUrl.protocol === 'https:' ? https : http;
 
   const outHeaders = {};

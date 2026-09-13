@@ -129,18 +129,21 @@ object YouTubeRemoteBridge {
             (function() {
                 if (!window.ytPlayer) return;
                 try {
-                    var tracks = window.ytPlayer.getOption('captions', 'tracklist') || [];
-                    var current = window.ytPlayer.getOption('captions', 'track');
-                    if (current && current.languageCode) {
-                        window.ytPlayer.setOption('captions', 'track', {});
-                    } else if (tracks.length > 0) {
-                        window.ytPlayer.loadModule('captions');
-                        window.ytPlayer.setOption('captions', 'track', tracks[0]);
+                    var current = null;
+                    try { current = window.ytPlayer.getOption('captions', 'track'); } catch(e) {}
+                    if (current && (current.languageCode || current.displayName)) {
+                        try { window.ytPlayer.setOption('captions', 'track', {}); } catch(e) {}
+                        try { window.ytPlayer.unloadModule('captions'); } catch(e) {}
                     } else {
-                        window.ytPlayer.loadModule('captions');
+                        try { window.ytPlayer.loadModule('captions'); } catch(e) {}
+                        var tracks = [];
+                        try { tracks = window.ytPlayer.getOption('captions', 'tracklist') || []; } catch(e) {}
+                        if (tracks.length > 0) {
+                            window.ytPlayer.setOption('captions', 'track', tracks[0]);
+                        }
                     }
                 } catch(e) {
-                    try { window.ytPlayer.loadModule('captions'); } catch(_) {}
+                    try { window.ytPlayer.unloadModule('captions'); } catch(_) {}
                 }
             })();
             """.trimIndent(),
@@ -174,8 +177,31 @@ fun YouTubePlayerView(
     val currentOnPreviousVideo by rememberUpdatedState(onPreviousVideo)
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     var showControls by remember { mutableStateOf(true) }
+    var isCcOn by remember(captionsEnabled) { mutableStateOf(captionsEnabled) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val scrubBadge by YouTubeRemoteBridge.scrubBadge.collectAsState()
+
+    LaunchedEffect(isCcOn) {
+        if (!isCcOn) {
+            webViewInstance?.evaluateJavascript(
+                "if (window.ytPlayer) { try { window.ytPlayer.setOption('captions', 'track', {}); } catch(_) {} try { window.ytPlayer.unloadModule('captions'); } catch(_) {} }",
+                null
+            )
+        } else {
+            webViewInstance?.evaluateJavascript(
+                """
+                if (window.ytPlayer) {
+                    try {
+                        window.ytPlayer.loadModule('captions');
+                        var tracks = window.ytPlayer.getOption('captions', 'tracklist') || [];
+                        if (tracks.length > 0) window.ytPlayer.setOption('captions', 'track', tracks[0]);
+                    } catch(_) {}
+                }
+                """.trimIndent(),
+                null
+            )
+        }
+    }
 
     // Auto-hide controls
     LaunchedEffect(showControls, lastInteractionTime) {
@@ -304,7 +330,7 @@ fun YouTubePlayerView(
                                         events: {
                                             'onReady': function(e) {
                                                 window.ytPlayer = e.target;
-                                                ${if (captionsEnabled) "try { e.target.loadModule('captions'); } catch(_) {}" else ""}
+                                                ${if (captionsEnabled) "try { e.target.loadModule('captions'); var tr = e.target.getOption('captions', 'tracklist') || []; if (tr.length > 0) e.target.setOption('captions', 'track', tr[0]); } catch(_) {}" else "try { e.target.setOption('captions', 'track', {}); e.target.unloadModule('captions'); } catch(_) {}"}
                                                 if (window.pendingVideoId) {
                                                     e.target.loadVideoById(window.pendingVideoId);
                                                     window.pendingVideoId = null;
@@ -318,7 +344,9 @@ fun YouTubePlayerView(
                                                 console.log('YT Error:', e.data);
                                             },
                                             'onStateChange': function(e) {
-                                                ${if (captionsEnabled) "if (e.data === 1) { try { e.target.loadModule('captions'); } catch(_) {} }" else ""}
+                                                if (e.data === 1) {
+                                                    ${if (captionsEnabled) "try { e.target.loadModule('captions'); } catch(_) {}" else "try { e.target.setOption('captions', 'track', {}); e.target.unloadModule('captions'); } catch(_) {}"}
+                                                }
                                                 if (e.data === 0) {
                                                     if (window.AndroidBridge && window.AndroidBridge.onVideoEnded) {
                                                         window.AndroidBridge.onVideoEnded();
@@ -473,6 +501,26 @@ fun YouTubePlayerView(
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Icon(imageVector = Icons.Default.FastForward, contentDescription = "Forward", tint = Color.White)
+                        }
+                    }
+
+                    TvFocusableCard(
+                        onClick = {
+                            isCcOn = !isCcOn
+                            YouTubeRemoteBridge.toggleClosedCaptions()
+                            lastInteractionTime = System.currentTimeMillis()
+                        },
+                        modifier = Modifier.size(48.dp),
+                        shape = CircleShape,
+                        backgroundColor = if (isCcOn) CinemaAccent else CinemaSurfaceVariant.copy(alpha = 0.8f)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.ClosedCaption,
+                                contentDescription = "Closed Captions",
+                                tint = if (isCcOn) Color.Black else Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
                     }
 
