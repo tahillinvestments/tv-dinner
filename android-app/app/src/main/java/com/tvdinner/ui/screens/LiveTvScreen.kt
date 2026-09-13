@@ -146,6 +146,18 @@ fun LiveTvScreen(
         }
     }
 
+    // Fix fullscreen black screen: entering fullscreen destroys the preview NativePlayerView and
+    // mounts a new one, temporarily detaching ExoPlayer's video surface. After the new surface
+    // attaches, recoverLiveStream() re-prepares the codec so video resumes immediately.
+    LaunchedEffect(isFullscreen) {
+        if (isFullscreen) {
+            delay(120)
+            if (playerManager.currentStreamUrl.value.isNotBlank()) {
+                playerManager.recoverLiveStream()
+            }
+        }
+    }
+
     // Auto-hide channel surfing banner
     LaunchedEffect(channelBannerChannel) {
         if (channelBannerChannel != null) {
@@ -393,6 +405,17 @@ fun LiveTvScreen(
                 val ch = filteredChannels[idx]
                 activeChannel = ch
                 authRepo.setLastLiveStreamId(ch.streamId)
+                authRepo.addChannelToHistory(ch.streamId)
+                // Begin playing the channel immediately on arrival from Now Playing
+                val portal = ch.portalUrl ?: authRepo.getLivePortalUrl()
+                val user = ch.streamUser ?: authRepo.getActiveUsername()
+                val pswd = ch.streamPassword ?: authRepo.getActivePassword()
+                val streamUrl = if (!ch.directStreamUrl.isNullOrBlank()) {
+                    ch.directStreamUrl
+                } else {
+                    apiClient.buildLiveStreamUrl(portal, user, pswd, ch.streamId)
+                }
+                playerManager.playStream(streamUrl, ch.name, isLive = true)
                 channelListState.scrollToItem((idx - 1).coerceAtLeast(0))
                 delay(150)
                 try {
@@ -996,6 +1019,12 @@ fun LiveTvScreen(
                                                 else Modifier.focusRequester(selectedCategoryFocusRequester)
                                             } else Modifier
                                         )
+                                        .onFocusChanged { focusState ->
+                                            if (focusState.isFocused) {
+                                                selectedCategoryId = cat.categoryId
+                                                authRepo.setLastLiveCategoryId(cat.categoryId)
+                                            }
+                                        }
                                         .onPreviewKeyEvent { keyEvent ->
                                             if (keyEvent.type == KeyEventType.KeyDown) {
                                                 when (keyEvent.key) {

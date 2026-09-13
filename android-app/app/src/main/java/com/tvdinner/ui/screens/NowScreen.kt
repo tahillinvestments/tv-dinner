@@ -609,12 +609,9 @@ fun NowScreen(
                                         ) {
                                             Column {
                                                 Box(modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
-                                                    val poster = movie.streamIcon?.takeIf { it.isNotBlank() }
-                                                        ?: catalogManager.getCachedPosterUrl(movie.displayTitle, false)
-                                                    AsyncImage(
-                                                        model = poster,
-                                                        contentDescription = movie.displayTitle,
-                                                        contentScale = ContentScale.Crop,
+                                                    MoviePosterImage(
+                                                        movie = movie,
+                                                        catalogManager = catalogManager,
                                                         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                                     )
                                                     Surface(
@@ -649,12 +646,9 @@ fun NowScreen(
                                         ) {
                                             Column {
                                                 Box(modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
-                                                    val cover = series.cover?.takeIf { it.isNotBlank() }
-                                                        ?: catalogManager.getCachedPosterUrl(series.displayTitle, true)
-                                                    AsyncImage(
-                                                        model = cover,
-                                                        contentDescription = series.displayTitle,
-                                                        contentScale = ContentScale.Crop,
+                                                    SeriesPosterImage(
+                                                        series = series,
+                                                        catalogManager = catalogManager,
                                                         modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                                     )
                                                     Surface(
@@ -773,12 +767,9 @@ fun NowScreen(
                                 ) {
                                     Column {
                                         Box(modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
-                                            val poster = movie.streamIcon?.takeIf { it.isNotBlank() }
-                                                ?: catalogManager.getCachedPosterUrl(movie.displayTitle, false)
-                                            AsyncImage(
-                                                model = poster,
-                                                contentDescription = movie.displayTitle,
-                                                contentScale = ContentScale.Crop,
+                                            MoviePosterImage(
+                                                movie = movie,
+                                                catalogManager = catalogManager,
                                                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                             )
                                             if (movie.rating5Based != null && movie.rating5Based > 0) {
@@ -964,12 +955,9 @@ fun NowScreen(
                                     ) {
                                         Column {
                                             Box(modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
-                                                val poster = movie.streamIcon?.takeIf { it.isNotBlank() }
-                                                    ?: catalogManager.getCachedPosterUrl(movie.displayTitle, false)
-                                                AsyncImage(
-                                                    model = poster,
-                                                    contentDescription = movie.displayTitle,
-                                                    contentScale = ContentScale.Crop,
+                                                MoviePosterImage(
+                                                    movie = movie,
+                                                    catalogManager = catalogManager,
                                                     modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                                 )
                                                 Surface(
@@ -1004,12 +992,9 @@ fun NowScreen(
                                     ) {
                                         Column {
                                             Box(modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
-                                                val cover = series.cover?.takeIf { it.isNotBlank() }
-                                                    ?: catalogManager.getCachedPosterUrl(series.displayTitle, true)
-                                                AsyncImage(
-                                                    model = cover,
-                                                    contentDescription = series.displayTitle,
-                                                    contentScale = ContentScale.Crop,
+                                                SeriesPosterImage(
+                                                    series = series,
+                                                    catalogManager = catalogManager,
                                                     modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                                                 )
                                                 Surface(

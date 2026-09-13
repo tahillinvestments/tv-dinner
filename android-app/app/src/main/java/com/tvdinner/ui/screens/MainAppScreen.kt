@@ -70,7 +70,7 @@ fun MainAppScreen(
     onSignOut: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var activeTab by remember { mutableStateOf(AppTab.NOW) }
+    var activeTab by remember { mutableStateOf(AppTab.LIVE) }
     var credentialsRevision by remember { mutableIntStateOf(0) }
     val liveTabFocusRequester = remember { FocusRequester() }
     val liveContentFocusRequester = remember { FocusRequester() }
