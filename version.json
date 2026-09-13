@@ -1,9 +1,9 @@
 {
-  "versionCode": 224,
-  "versionName": "2.2.4",
-  "title": "Real-Time Credential Vetting (ACTIVE/INACTIVE), Direct Auth & Module Unlock",
-  "releaseNotes": "• Real-Time Credential Vetting: Vets credentials upon entry directly against the 4 authorized portals in parallel, showing bright green ACTIVE or bright red INACTIVE badge with instant module auto-unlock\n• Direct Username & Password Auth: Replaced phone number entry with clean direct Username and Password fields; removed all phone activation systems, formatters, and lookups\n• Quad-Portal Authorization: Strictly locked to the 4 approved portals (vpn.uhdp.top, tv.wd.uhdp.top, vpn.uhd4.top, tv.wd.uhd4.top); purged legacy portal5458 and kstv\n• Module Content Loading & Mutex Fix: Eliminated Kotlin Mutex re-entrancy deadlock in CatalogManager, restoring instant channel and catalog loading across Now, Live TV, Movies, Series, Music, and Podcasts\n• Raw Query Parameters & Auth Parsing: Reverted urlEncode escaping to standard raw query format and enhanced auth/status extraction to reliably validate accounts\n• Now Page Deep Navigation: Selecting any card in Now Playing directly routes to Live TV, Movies, Series, or Podcasts with targeted category selection and item auto-focus\n• VOD Forced-Pause Elimination: Resolved playback stall on newly launched VOD items with strict buffering play guards, initial hidden HUD, and 1000ms key release isolation\n• Show Password Toggle: Added eye visibility toggle in Settings and login dialogs to view entered credentials\n• Deep System Reboot Restart: System reboot flushes all media caches and seamlessly restarts the application process",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.4/app-release.apk",
+  "versionCode": 225,
+  "versionName": "2.2.5",
+  "title": "Remote Control Single-Press Selection & Live TV Category Stability",
+  "releaseNotes": "• Single-Press Selection: Fixed remote control select/OK double-press requirement across all cards and buttons by removing redundant focusable modifiers, eliminating focus shifts, and capturing KeyDown events\n• Full Remote & Gamepad Coverage: Added KEYCODE_BUTTON_A and KEYCODE_BUTTON_SELECT support alongside D-pad Center, Enter, and Numpad Enter\n• Live TV Category Stability: Fixed unintended category jumping when selecting a channel to play by removing clearFocus and category onFocusChanged auto-selection\n• VOD Focus Protection: Eliminated clearFocus calls in Movies and Series to ensure stable remote D-pad focus during playback launch and dialog interactions",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.5/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-13T18:14:21.890Z"
+  "publishedAt": "2026-09-13T19:03:50.602Z"
 }
