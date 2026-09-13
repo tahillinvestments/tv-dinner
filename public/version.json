@@ -1,9 +1,9 @@
 {
-  "versionCode": 225,
-  "versionName": "2.2.5",
-  "title": "Remote Control Single-Press Selection & Live TV Category Stability",
-  "releaseNotes": "• Single-Press Selection: Fixed remote control select/OK double-press requirement across all cards and buttons by removing redundant focusable modifiers, eliminating focus shifts, and capturing KeyDown events\n• Full Remote & Gamepad Coverage: Added KEYCODE_BUTTON_A and KEYCODE_BUTTON_SELECT support alongside D-pad Center, Enter, and Numpad Enter\n• Live TV Category Stability: Fixed unintended category jumping when selecting a channel to play by removing clearFocus and category onFocusChanged auto-selection\n• VOD Focus Protection: Eliminated clearFocus calls in Movies and Series to ensure stable remote D-pad focus during playback launch and dialog interactions",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.5/app-release.apk",
+  "versionCode": 226,
+  "versionName": "2.2.6",
+  "title": "Fullscreen Fix, Live TV Category D-Pad, VOD Covers & Launch Defaults",
+  "releaseNotes": "• Fullscreen Black Screen Fixed: Entering fullscreen no longer shows a black frame — stream resumes immediately on the new surface without requiring channel changes\n• Live TV Category D-Pad Auto-Update: Moving the remote D-pad up/down through categories now instantly updates the channel list without requiring a select press\n• Now Playing → Live TV Playback: Selecting a live channel from Now Playing immediately begins playing it in the preview pane — no extra button press needed\n• VOD Covers in Now Playing: All movie and series poster images in Now Playing now load reliably with retry logic and fallback resolution\n• VOD Time Bar During Operations: Progress bar and timestamps appear whenever you interact with the player controls\n• Default to Live TV: App now opens directly on Live TV on every launch",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.6/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-13T19:03:50.602Z"
+  "publishedAt": "2026-09-13T19:42:05.603Z"
 }
