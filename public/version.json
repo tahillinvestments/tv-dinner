@@ -1,9 +1,9 @@
 {
-  "versionCode": 227,
-  "versionName": "2.2.3-r227",
+  "versionCode": 228,
+  "versionName": "2.2.3-r228",
   "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard (Republished)",
   "releaseNotes": "[Republished Build based on v2.2.3 (Build 223)]\n• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r227/app-release.apk",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r228/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-13T20:58:17.444Z"
+  "publishedAt": "2026-09-13T20:59:56.644Z"
 }
