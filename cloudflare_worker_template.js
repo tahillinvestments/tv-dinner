@@ -11,11 +11,11 @@
  */
 
 const STRIP_REQ_HEADERS = new Set(['host', 'referer', 'origin', 'x-forwarded-for', 'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor']);
-const IPTV_HOSTS = new Set(['portal5458.com', 'kstv.us']);
+const IPTV_HOSTS = new Set(['vpn.uhdp.top', 'tv.wd.uhdp.top', 'vpn.uhd4.top', 'tv.wd.uhd4.top']);
 
 function rewriteM3U8(m3uText, baseUrl, workerUrl, proxySegments) {
   const base = new URL(baseUrl);
-  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('portal5458') || base.protocol === 'http:' || base.pathname.includes('/live/');
+  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('uhdp.top') || base.hostname.includes('uhd4.top') || base.protocol === 'http:' || base.pathname.includes('/live/') || base.pathname.includes('/movie/') || base.pathname.includes('/series/');
 
   return m3uText.split('\n').map(line => {
     const trimmed = line.trim();
@@ -74,7 +74,7 @@ export default {
     }
     newHeaders.set('host', targetUrl.host);
 
-    const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('portal5458') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/');
+    const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('uhdp.top') || targetUrl.hostname.includes('uhd4.top') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/') || targetUrl.pathname.includes('/movie/') || targetUrl.pathname.includes('/series/');
 
     if (isIptvHost) {
       newHeaders.set('User-Agent', 'VLC/3.0.21 LibVLC/3.0.21');

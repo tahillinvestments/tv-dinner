@@ -20,8 +20,8 @@
       localStorage.setItem('debug_error_stack', e.reason ? e.reason.stack : '');
     });
   </script>
-  <script type="module" crossorigin src="/assets/index-Bw6Krz4P.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-Tx_ll6ER.css">
+  <script type="module" crossorigin src="/assets/index-DvF-XJxH.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-Cuf0YXlK.css">
 </head>
 <body class="dark-theme">
   
@@ -38,6 +38,10 @@
       <button class="nav-link active" data-tab="home" title="Home Hub">
         <i data-lucide="home"></i>
         <span>Home</span>
+      </button>
+      <button class="nav-link" data-tab="now" title="What's On Now & Curated For You">
+        <i data-lucide="sparkles"></i>
+        <span>Now</span>
       </button>
       <button class="nav-link" data-tab="live" title="Live TV">
         <i data-lucide="tv"></i>
@@ -84,6 +88,9 @@
       <nav class="mobile-drawer-nav">
         <button class="mobile-drawer-link active" data-tab="home">
           <i data-lucide="home"></i> <span>Home</span>
+        </button>
+        <button class="mobile-drawer-link" data-tab="now">
+          <i data-lucide="sparkles"></i> <span>Now</span>
         </button>
         <button class="mobile-drawer-link" data-tab="live">
           <i data-lucide="tv"></i> <span>Live TV</span>
@@ -147,6 +154,29 @@
         <!-- Selection Cards Grid -->
         <div class="home-select-grid">
           
+          <!-- 0. Now Hub Card -->
+          <div class="home-select-card theme-amber home-card-featured" data-nav="now" tabindex="0" role="button">
+            <div class="home-card-bg-icon">
+              <i data-lucide="sparkles" class="w-24 h-24"></i>
+            </div>
+            <div class="home-card-header">
+              <div class="home-card-icon-wrap" style="background: linear-gradient(135deg, #f59e0b, #ec4899); color: #fff;">
+                <i data-lucide="sparkles" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <span class="home-card-tag" style="color: #fbbf24; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3);">Live & Trending Now</span>
+                <h3 class="home-card-title">Now Hub</h3>
+                <p class="home-card-desc">
+                  Real-time live broadcasts, today's trending movies & series, watchlist shortcuts, and smart surf-saver recommendations.
+                </p>
+              </div>
+            </div>
+            <div class="home-card-action">
+              <span>Explore What's On Now</span>
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </div>
+          </div>
+
           <!-- 1. Live TV Card -->
           <div class="home-select-card theme-red" data-nav="live" tabindex="0" role="button">
             <div class="home-card-bg-img" style="background-image: url('/images/livetv_card_bg.jpg');"></div>
@@ -292,6 +322,208 @@
           </div>
 
         </div>
+
+      </div>
+    </div>
+
+    <!-- Tab Now: What's On Now, Trending Today, Surf-Saver Mashup, Watchlist & Favorites -->
+    <div id="tab-now" class="tab-screen hidden">
+      <div class="now-hub-container custom-scrollbar">
+        
+        <!-- Now Hero Banner with Live Clock & Surf-Saver Mode -->
+        <div class="now-hero-banner">
+          <div class="now-hero-info">
+            <div class="flex items-center gap-2 flex-wrap mb-2">
+              <div class="now-live-pill">
+                <span class="pulse-dot"></span>
+                <span>ON AIR &amp; TRENDING</span>
+              </div>
+              <div id="now-clock-badge" class="now-clock-badge">
+                <i data-lucide="clock" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span id="now-live-time">Loading clock...</span>
+              </div>
+              <div id="now-personalization-badge" class="now-personalization-pill">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span id="now-personalization-label">Surf-Saver Active</span>
+              </div>
+            </div>
+            <h1 class="now-hero-title">
+              What's Streaming <span class="gradient-text-amber">Right Now</span>
+            </h1>
+            <p class="now-hero-desc">
+              Save time surfing with real-time live broadcasts, today's hottest premieres, and smart programming matched to your activity.
+            </p>
+          </div>
+
+          <!-- Quick Actions / Quick Jump -->
+          <div class="now-quick-actions">
+            <button id="now-refresh-btn" class="now-action-btn" title="Refresh Live Feeds">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+              <span>Refresh</span>
+            </button>
+            <button id="now-settings-shortcut-btn" class="now-action-btn" title="Personalization Settings">
+              <i data-lucide="sliders" class="w-4 h-4"></i>
+              <span>Tune Feed</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick Jump Filter Navigation Pills -->
+        <div class="now-jump-bar custom-scrollbar">
+          <button class="now-jump-pill active" data-target="now-section-live">
+            <i data-lucide="tv" class="w-3.5 h-3.5 text-red-500"></i> <span>Live On Air</span>
+          </button>
+          <button class="now-jump-pill" data-target="now-section-mashup">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-400"></i> <span id="now-mashup-pill-label">Surf-Saver Mashup</span>
+          </button>
+          <button class="now-jump-pill" data-target="now-section-trending">
+            <i data-lucide="flame" class="w-3.5 h-3.5 text-orange-500"></i> <span>Today's Trending</span>
+          </button>
+          <button class="now-jump-pill" data-target="now-section-podcasts">
+            <i data-lucide="radio" class="w-3.5 h-3.5 text-emerald-400"></i> <span>Podcasts</span>
+          </button>
+          <button class="now-jump-pill" data-target="now-section-favorites">
+            <i data-lucide="heart" class="w-3.5 h-3.5 text-pink-500"></i> <span>Favorites</span>
+          </button>
+          <button class="now-jump-pill" data-target="now-section-watchlist">
+            <i data-lucide="star" class="w-3.5 h-3.5 text-yellow-400"></i> <span>Watchlist</span>
+          </button>
+        </div>
+
+        <!-- SECTION 1: 🔴 On Now: Live Broadcasts with Real-Time Program Progress -->
+        <section id="now-section-live" class="now-content-section">
+          <div class="now-section-header">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="live-pulse-dot"></span>
+                <h2 class="now-section-title">On Now: Live TV Broadcasts</h2>
+              </div>
+              <p class="now-section-subtitle">Real-time programming airing right now with live progress &amp; upcoming guides.</p>
+            </div>
+            <button class="now-see-all-btn" id="now-see-all-live-btn">
+              <span>All Live TV</span> <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div id="now-live-grid" class="now-live-channels-grid custom-scrollbar">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+        </section>
+
+        <!-- SECTION 2: ⚡ Surf-Saver Smart Mashup (Tuned For You / Generic Trending) -->
+        <section id="now-section-mashup" class="now-content-section">
+          <div class="now-section-header">
+            <div>
+              <h2 class="now-section-title flex items-center gap-2" id="now-mashup-title">
+                <i data-lucide="sparkles" class="w-5 h-5 text-amber-400"></i> Surf-Saver Smart Mashup
+              </h2>
+              <p class="now-section-subtitle" id="now-mashup-subtitle">
+                Hand-picked cross-category mix of Live TV, VOD, and Podcasts based on your tastes &amp; activity.
+              </p>
+            </div>
+            <div id="now-mashup-mode-indicator" class="now-badge-mode">Personalized</div>
+          </div>
+
+          <!-- Continue Watching / Jump Back In Row (shown when available) -->
+          <div id="now-resume-container" class="now-sub-row mb-5 hidden">
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <i data-lucide="play" class="w-3.5 h-3.5 text-indigo-400"></i> Jump Back In
+            </h3>
+            <div id="now-resume-grid" class="carousel-list custom-scrollbar"></div>
+          </div>
+
+          <!-- Main Mashup Cards Grid -->
+          <div id="now-mashup-grid" class="now-mashup-cards-grid custom-scrollbar">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+        </section>
+
+        <!-- SECTION 3: 🍿 Trending Today & Upcoming (Movies & TV Series) -->
+        <section id="now-section-trending" class="now-content-section">
+          <div class="now-section-header">
+            <div>
+              <h2 class="now-section-title flex items-center gap-2">
+                <i data-lucide="flame" class="w-5 h-5 text-orange-500"></i> Today's Trending Premieres
+              </h2>
+              <p class="now-section-subtitle">Top blockbuster movies and viral TV shows streaming today.</p>
+            </div>
+            <button class="now-see-all-btn" id="now-see-all-vod-btn">
+              <span>Browse Movies</span> <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div id="now-trending-vod-row" class="carousel-list custom-scrollbar">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+        </section>
+
+        <!-- SECTION 4: 🎙️ Trending Podcasts Today -->
+        <section id="now-section-podcasts" class="now-content-section">
+          <div class="now-section-header">
+            <div>
+              <h2 class="now-section-title flex items-center gap-2">
+                <i data-lucide="radio" class="w-5 h-5 text-emerald-400"></i> Trending Podcasts &amp; Audio
+              </h2>
+              <p class="now-section-subtitle">Fresh interviews, tech deep dives, and comedy episodes out today.</p>
+            </div>
+            <button class="now-see-all-btn" id="now-see-all-podcasts-btn">
+              <span>All Podcasts</span> <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div id="now-podcasts-row" class="now-podcasts-grid custom-scrollbar">
+            <!-- Loaded dynamically -->
+          </div>
+        </section>
+
+        <!-- SECTION 5: ⭐ My Favorites (With Real-Time Airing Information) -->
+        <section id="now-section-favorites" class="now-content-section">
+          <div class="now-section-header">
+            <div>
+              <h2 class="now-section-title flex items-center gap-2">
+                <i data-lucide="heart" class="w-5 h-5 text-pink-500"></i> My Favorites
+              </h2>
+              <p class="now-section-subtitle">Your bookmarked Live TV channels and favorite podcasts.</p>
+            </div>
+          </div>
+          <div id="now-favorites-grid" class="carousel-list custom-scrollbar">
+            <!-- Loaded dynamically -->
+          </div>
+          <div id="now-favorites-empty" class="empty-state-card hidden py-6">
+            <i data-lucide="heart" class="w-8 h-8 text-slate-500"></i>
+            <h4 class="text-sm font-semibold text-white mt-2">No Favorites Added Yet</h4>
+            <p class="text-xs text-slate-400">Star your favorite Live TV channels to see what's on them right here.</p>
+          </div>
+        </section>
+
+        <!-- SECTION 6: 📌 My Watchlist -->
+        <section id="now-section-watchlist" class="now-content-section pb-12">
+          <div class="now-section-header">
+            <div>
+              <h2 class="now-section-title flex items-center gap-2">
+                <i data-lucide="star" class="w-5 h-5 text-yellow-400"></i> My Watchlist
+              </h2>
+              <p class="now-section-subtitle">Saved movies &amp; series ready for one-click instant streaming.</p>
+            </div>
+            <button class="now-see-all-btn" id="now-see-all-watchlist-btn">
+              <span>Open Watchlist</span> <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div id="now-watchlist-row" class="carousel-list custom-scrollbar">
+            <!-- Loaded dynamically -->
+          </div>
+          <div id="now-watchlist-empty" class="empty-state-card hidden py-6">
+            <i data-lucide="star" class="w-8 h-8 text-slate-500"></i>
+            <h4 class="text-sm font-semibold text-white mt-2">Watchlist is Empty</h4>
+            <p class="text-xs text-slate-400">Save movies and shows while browsing to jump back in anytime.</p>
+          </div>
+        </section>
 
       </div>
     </div>
@@ -962,7 +1194,30 @@
           </div>
         </div>
 
-
+        <!-- Personalization & Now Feed Section -->
+        <div class="settings-form-section">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="text-white font-bold text-base">Smart Personalization</h3>
+                <span class="text-[11px] text-slate-400 block">Curate the "Now" page based on your activity</span>
+              </div>
+            </div>
+            <label class="toggle-switch" for="settings-personalization-toggle">
+              <input type="checkbox" id="settings-personalization-toggle" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <p class="section-desc mt-2">
+            Save time surfing by tailoring your "Now" feed with programming based on your watch history, saved channels, watchlist genres, and podcast subscriptions.
+          </p>
+          <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-400 leading-relaxed mt-2">
+            <span class="text-amber-400 font-semibold">Preference Mode:</span> When turned off, the "Now" page switches to generic mode, showing globally trending current broadcasts, popular movies, and top podcasts across TV DINNER.
+          </div>
+        </div>
 
         <div class="settings-form-actions" style="display: none;">
           <button id="settings-save-btn" class="btn btn-primary btn-save flex items-center gap-2">

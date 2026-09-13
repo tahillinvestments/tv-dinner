@@ -1,9 +1,9 @@
 {
-  "versionCode": 221,
-  "versionName": "2.2.1",
-  "title": "Search Bar Pre-Selection Focus, Live TV Malformed Container Fix & VOD Decoder Auto-Recovery",
-  "releaseNotes": "• Instant Search Bar Focus: Search bar immediately highlights the moment TV remote D-pad moves over it before pressing Select, featuring 1.04x scale expansion, 3dp amber border, glowing halo shadow, and 'PRESS OK TO SEARCH' gold badge\n• Live TV Container Fix: Resolved 'ERROR_CODE_PARSING_CONTAINER_MALFORMED' by removing strict AUD detection from MPEG-TS extractors, adding SCTE-35 splice stream tolerance, and rejecting deceptive HTML error pages in the media stream\n• VOD Decoder Auto-Recovery & 4K Crash Protection: Fixed decoding failed reconnect stalls by auto-advancing past corrupt keyframes and refreshing hardware codec surfaces; reduced backBuffer to 20s to eliminate 4K out-of-memory crashes",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.1/app-release.apk",
+  "versionCode": 224,
+  "versionName": "2.2.4",
+  "title": "Real-Time Credential Vetting (ACTIVE/INACTIVE), Direct Auth & Module Unlock",
+  "releaseNotes": "• Real-Time Credential Vetting: Vets credentials upon entry directly against the 4 authorized portals in parallel, showing bright green ACTIVE or bright red INACTIVE badge with instant module auto-unlock\n• Direct Username & Password Auth: Replaced phone number entry with clean direct Username and Password fields; removed all phone activation systems, formatters, and lookups\n• Quad-Portal Authorization: Strictly locked to the 4 approved portals (vpn.uhdp.top, tv.wd.uhdp.top, vpn.uhd4.top, tv.wd.uhd4.top); purged legacy portal5458 and kstv\n• Module Content Loading & Mutex Fix: Eliminated Kotlin Mutex re-entrancy deadlock in CatalogManager, restoring instant channel and catalog loading across Now, Live TV, Movies, Series, Music, and Podcasts\n• Raw Query Parameters & Auth Parsing: Reverted urlEncode escaping to standard raw query format and enhanced auth/status extraction to reliably validate accounts\n• Now Page Deep Navigation: Selecting any card in Now Playing directly routes to Live TV, Movies, Series, or Podcasts with targeted category selection and item auto-focus\n• VOD Forced-Pause Elimination: Resolved playback stall on newly launched VOD items with strict buffering play guards, initial hidden HUD, and 1000ms key release isolation\n• Show Password Toggle: Added eye visibility toggle in Settings and login dialogs to view entered credentials\n• Deep System Reboot Restart: System reboot flushes all media caches and seamlessly restarts the application process",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.4/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-11T02:58:37.006Z"
+  "publishedAt": "2026-09-13T18:14:21.890Z"
 }
