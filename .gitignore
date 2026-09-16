@@ -3,6 +3,7 @@ dist
 .DS_Store
 .gemini
 .agents/
+staging-apks/*.apk
 
 .vercel
 

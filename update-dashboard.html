@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TV Dinner — App Update Management Dashboard</title>
+  <title>TV Dinner — Update Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -12,13 +12,8 @@
         extend: {
           colors: {
             cinema: {
-              bg: '#0B0F19',
-              surface: '#131927',
-              variant: '#1E293B',
-              border: '#243048',
-              primary: '#6366F1',
-              accent: '#06B6D4',
-              focus: '#38BDF8'
+              bg: '#0B0F19', surface: '#131927', variant: '#1E293B',
+              border: '#243048', primary: '#6366F1', accent: '#06B6D4'
             }
           }
         }
@@ -26,920 +21,404 @@
     }
   </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .staged-row  { border-left: 3px solid #F59E0B; background: rgba(245,158,11,0.05); }
+    .live-row    { border-left: 3px solid #10B981; background: rgba(16,185,129,0.06); }
+    .confirm-panel { animation: slideIn .18s ease; }
+    @keyframes slideIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+    .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  </style>
 </head>
 <body class="bg-[#0B0F19] text-slate-100 min-h-screen font-sans antialiased p-4 md:p-8">
-  <div class="max-w-6xl mx-auto space-y-6">
-    
-    <!-- Header -->
-    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#131927] border border-[#243048] p-6 rounded-2xl shadow-xl">
-      <div class="flex items-center gap-4">
-        <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
-          <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
-        </div>
-        <div>
-          <h1 class="text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
-            TV Dinner Update Center
-            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">Management Hub</span>
-          </h1>
-          <p class="text-xs text-slate-400">Stage, test, auto-increment, and publish TV Dinner Android APK releases.</p>
-        </div>
+<div class="max-w-6xl mx-auto space-y-6">
+
+  <!-- Header -->
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#131927] border border-[#243048] p-6 rounded-2xl shadow-xl">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30">
+        <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
       </div>
-      <div class="flex items-center gap-3">
-        <a href="https://github.com/tahillinvestments/tv-dinner/releases" target="_blank" class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-200 border border-[#243048] rounded-xl text-xs font-bold transition flex items-center gap-2">
-          <i class="fa-brands fa-github"></i> View GitHub Releases
+      <div>
+        <h1 class="text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
+          TV Dinner Update Center
+          <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">Management Hub</span>
+        </h1>
+        <p class="text-xs text-slate-400">Stage → Test → Publish your Android APK releases.</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="https://github.com/tahillinvestments/tv-dinner/releases" target="_blank"
+         class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-200 border border-[#243048] rounded-xl text-xs font-bold transition flex items-center gap-2">
+        <i class="fa-brands fa-github"></i> GitHub Releases
+      </a>
+      <button id="btn-export-manifest"
+              class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-200 border border-[#243048] rounded-xl text-xs font-bold transition flex items-center gap-2">
+        <i class="fa-solid fa-download"></i> Export version.json
+      </button>
+      <button id="btn-refresh"
+              class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-200 border border-[#243048] rounded-xl text-xs font-bold transition flex items-center gap-2" title="Refresh manifest">
+        <i class="fa-solid fa-rotate"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Active Production Banner -->
+  <div id="live-version-banner"
+       class="bg-gradient-to-r from-emerald-950/40 via-[#131927] to-cyan-950/40 border border-emerald-500/40 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
+    <div class="flex items-center gap-3.5">
+      <div class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
+      <div>
+        <span class="text-[11px] font-bold tracking-wider uppercase text-emerald-400">Active Live Production Version</span>
+        <h2 id="live-version-title" class="text-lg font-black text-white">Loading…</h2>
+        <p id="live-version-notes" class="text-xs text-slate-400 mt-0.5"></p>
+      </div>
+    </div>
+    <div class="text-right flex md:flex-col items-center md:items-end justify-between gap-2">
+      <span id="live-version-time" class="text-[11px] text-slate-400"></span>
+      <div class="flex items-center gap-2">
+        <a id="btn-download-live-apk" href="#" download
+           class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 shadow">
+          <i class="fa-solid fa-download text-emerald-400"></i> Download Live APK
         </a>
-        <button id="btn-create-update" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-indigo-600/20">
-          <i class="fa-solid fa-plus"></i> Stage New Update
-        </button>
-        <button id="btn-export-manifest" class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-200 border border-[#243048] rounded-xl text-xs font-bold transition flex items-center gap-2">
-          <i class="fa-solid fa-download"></i> Export version.json
-        </button>
+        <span class="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-xs font-black">LIVE ON TVS</span>
       </div>
-    </header>
+    </div>
+  </div>
 
-    <!-- Active Production Release Card -->
-    <div id="live-version-banner" class="bg-gradient-to-r from-emerald-950/40 via-[#131927] to-cyan-950/40 border border-emerald-500/40 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
-      <div class="flex items-center gap-3.5">
-        <div class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
-        <div>
-          <span class="text-[11px] font-bold tracking-wider uppercase text-emerald-400">Active Live Production Version</span>
-          <h2 id="live-version-title" class="text-lg font-black text-white">v2.0.3 (Code: 203) — Direct Server Migration</h2>
-          <p id="live-version-notes" class="text-xs text-slate-400 mt-0.5">Stable release running direct OkHttp connection to http://vpn.uhdp.top:80.</p>
+  <!-- Staged Alert Banner (shown only when staged builds exist) -->
+  <div id="staged-alert" class="hidden bg-amber-950/30 border border-amber-500/50 p-4 rounded-2xl flex items-start gap-3">
+    <i class="fa-solid fa-triangle-exclamation text-amber-400 mt-0.5"></i>
+    <div>
+      <p class="text-sm font-bold text-amber-300">Staged Builds Awaiting Review</p>
+      <p id="staged-alert-detail" class="text-xs text-amber-200/70 mt-0.5"></p>
+    </div>
+  </div>
+
+  <!-- Releases Table -->
+  <div class="bg-[#131927] border border-[#243048] rounded-2xl shadow-xl overflow-hidden">
+    <div class="p-5 border-b border-[#243048] flex items-center justify-between">
+      <div>
+        <h3 class="text-base font-bold text-white">Releases &amp; Staged Builds</h3>
+        <p class="text-xs text-slate-400">Review staged builds and click Publish when approved.</p>
+      </div>
+      <span id="staged-count-badge"
+            class="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold">
+        0 Staged
+      </span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr class="bg-[#1E293B]/60 text-slate-400 border-b border-[#243048] font-bold uppercase tracking-wider text-[10px]">
+            <th class="py-3.5 px-4">Version</th>
+            <th class="py-3.5 px-4">Release Title</th>
+            <th class="py-3.5 px-4">Notes</th>
+            <th class="py-3.5 px-4">Status</th>
+            <th class="py-3.5 px-4">Date</th>
+            <th class="py-3.5 px-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="releases-table-body" class="divide-y divide-[#243048]"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Quick Guide -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="bg-[#131927] border border-[#243048] p-4 rounded-xl">
+      <div class="flex items-center gap-2.5 text-cyan-400 text-sm font-bold mb-1">
+        <i class="fa-solid fa-code-branch"></i> 1. Stage Build
+      </div>
+      <p class="text-xs text-slate-400">Run <code class="bg-[#1E293B] px-1 rounded">npm run android:stage</code> after building the APK. Adds to dashboard; no live impact.</p>
+    </div>
+    <div class="bg-[#131927] border border-[#243048] p-4 rounded-xl">
+      <div class="flex items-center gap-2.5 text-amber-400 text-sm font-bold mb-1">
+        <i class="fa-solid fa-flask"></i> 2. Test APK
+      </div>
+      <p class="text-xs text-slate-400">Download the test APK and side-load on your device. Versions can skip numbers — that's fine.</p>
+    </div>
+    <div class="bg-[#131927] border border-[#243048] p-4 rounded-xl">
+      <div class="flex items-center gap-2.5 text-emerald-400 text-sm font-bold mb-1">
+        <i class="fa-solid fa-rocket"></i> 3. Publish
+      </div>
+      <p class="text-xs text-slate-400">Click Publish in the dashboard. Bumps versionCode in Gradle, rebuilds APK, pushes to GitHub — Android TVs auto-update.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Publish Confirmation Panel (inline, replaces confirm()) -->
+<div id="confirm-overlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+  <div class="confirm-panel bg-[#131927] border border-[#243048] w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
+    <div class="flex items-center gap-3 border-b border-[#243048] pb-3">
+      <i id="confirm-icon" class="fa-solid fa-rocket text-emerald-400 text-lg"></i>
+      <h3 id="confirm-title" class="text-base font-bold text-white">Publish to Production?</h3>
+    </div>
+    <div class="space-y-2 text-xs">
+      <div class="bg-[#1E293B] rounded-xl p-3 space-y-1">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Version</span>
+          <span id="confirm-version" class="font-mono font-bold text-white"></span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Build</span>
+          <span id="confirm-build" class="font-mono text-slate-300"></span>
         </div>
       </div>
-      <div class="text-right flex md:flex-col items-center md:items-end justify-between gap-2">
-        <span id="live-version-time" class="text-[11px] text-slate-400">Published: Aug 28, 2026</span>
-        <div class="flex items-center gap-2">
-          <a id="btn-download-live-apk" href="public/apks/tv-dinner-latest.apk" download="tv-dinner-live.apk" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 shadow">
-            <i class="fa-solid fa-download text-emerald-400"></i> Download Live APK
+      <p id="confirm-notes" class="text-slate-400 leading-relaxed max-h-28 overflow-y-auto bg-[#1E293B] rounded-xl p-3 whitespace-pre-wrap"></p>
+      <div id="confirm-warn" class="hidden bg-amber-950/40 border border-amber-500/30 rounded-xl p-3 text-amber-300">
+        <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+        <strong>Republish detected.</strong> A new build with an incremented versionCode will be compiled so Android TVs accept the update.
+      </div>
+      <p class="text-slate-500 text-[11px]">This will rebuild the APK, push to GitHub, and deploy the live update to all TVs.</p>
+    </div>
+    <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-[#243048]">
+      <button id="confirm-cancel"
+              class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition">Cancel</button>
+      <button id="confirm-publish"
+              class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-600/20">
+        <i class="fa-solid fa-rocket"></i> <span id="confirm-btn-label">Publish Live</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Manifest loading ──────────────────────────────────────────────────────────
+// Priority: 1) /api/manifest (local server)  2) ./updates.json  3) GitHub raw
+let _manifest = null;
+
+async function loadManifest() {
+  if (_manifest) return _manifest;
+
+  // Try local dashboard server first
+  for (const url of ['/api/manifest', 'http://127.0.0.1:3888/api/manifest']) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) { _manifest = await res.json(); return _manifest; }
+    } catch (_) {}
+  }
+
+  // Fallback: relative updates.json (works when file:// or plain HTTP)
+  try {
+    const res = await fetch('./updates.json?t=' + Date.now(), { cache: 'no-store' });
+    if (res.ok) { _manifest = await res.json(); return _manifest; }
+  } catch (_) {}
+
+  // Last resort: GitHub raw
+  try {
+    const res = await fetch('https://raw.githubusercontent.com/tahillinvestments/tv-dinner/main/updates.json?t=' + Date.now());
+    if (res.ok) { _manifest = await res.json(); return _manifest; }
+  } catch (_) {}
+
+  return { currentVersion: {}, releases: [] };
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+async function renderDashboard() {
+  const data = await loadManifest();
+  const current = data.currentVersion || {};
+  const releases = data.releases || [];
+
+  // Live banner
+  document.getElementById('live-version-title').textContent =
+    `v${current.versionName || '—'} (Build ${current.versionCode || '—'}) — ${current.title || 'Current Production Build'}`;
+  document.getElementById('live-version-notes').textContent = current.releaseNotes?.split('\n')[0] || '';
+  document.getElementById('live-version-time').textContent =
+    current.publishedAt ? `Published: ${new Date(current.publishedAt).toLocaleDateString()}` : '';
+  const liveBtn = document.getElementById('btn-download-live-apk');
+  liveBtn.href = current.apkUrl || '#';
+  liveBtn.download = `tv-dinner-v${current.versionName || 'latest'}.apk`;
+
+  // Staged alert banner
+  const staged = releases.filter(r => r.status === 'STAGED');
+  const stagedAlert = document.getElementById('staged-alert');
+  document.getElementById('staged-count-badge').textContent = `${staged.length} Staged`;
+
+  if (staged.length > 0) {
+    stagedAlert.classList.remove('hidden');
+    document.getElementById('staged-alert-detail').textContent =
+      staged.map(r => `v${r.versionName} (Build ${r.versionCode}): ${r.title}`).join(' • ');
+  } else {
+    stagedAlert.classList.add('hidden');
+  }
+
+  // Table
+  const tbody = document.getElementById('releases-table-body');
+  tbody.innerHTML = '';
+
+  releases.forEach(rel => {
+    const isLive   = current.versionCode && rel.versionCode === current.versionCode;
+    const isStaged = rel.status === 'STAGED';
+
+    // APK download href
+    let downloadHref = rel.apkUrl || '#';
+    let downloadLabel = 'Download APK';
+    if (isStaged && rel.stagedApk) {
+      // Served by dashboard server from /staging-apks/
+      const filename = rel.stagedApk.split('/').pop();
+      downloadHref = `/staging-apks/${filename}`;
+      if (window.location.protocol === 'file:') {
+        downloadHref = `http://127.0.0.1:3888/staging-apks/${filename}`;
+      }
+      downloadLabel = '🧪 Test APK';
+    }
+
+    const adbSrc = rel.stagedApk
+      ? rel.stagedApk.replace(/\//g, '\\')
+      : `android-app\\app\\build\\outputs\\apk\\release\\app-release.apk`;
+    const adbCmd = `adb install -r "${adbSrc}"`;
+
+    const statusBadge = isLive
+      ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-circle-check text-[9px]"></i> LIVE</span>`
+      : isStaged
+        ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-clock text-[9px]"></i> STAGED</span>`
+        : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/20 text-slate-400 border border-slate-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-box-archive text-[9px]"></i> ARCHIVED</span>`;
+
+    const actionBtn = isLive
+      ? `<span class="text-xs text-emerald-400 font-bold px-2 py-1 inline-flex items-center gap-1"><i class="fa-solid fa-check-double"></i> Active</span>`
+      : isStaged
+        ? `<button onclick="openConfirm('${rel.id}', ${rel.versionCode}, false)"
+                   class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
+             <i class="fa-solid fa-rocket"></i> Publish
+           </button>`
+        : `<button onclick="openConfirm('${rel.id}', ${rel.versionCode}, true)"
+                   class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-amber-600/20">
+             <i class="fa-solid fa-rotate"></i> Re-Publish
+           </button>`;
+
+    const tr = document.createElement('tr');
+    tr.className = isLive ? 'live-row hover:bg-[#1E293B]/40 transition'
+                 : isStaged ? 'staged-row hover:bg-amber-950/10 transition'
+                 : 'hover:bg-[#1E293B]/40 transition';
+
+    tr.innerHTML = `
+      <td class="py-3.5 px-4 font-mono font-bold text-white">
+        <div class="flex items-center gap-1.5">
+          <span>v${rel.versionName}</span>
+          ${isStaged ? `<span class="px-1.5 py-0.5 text-[9px] font-black bg-amber-500/30 text-amber-300 rounded border border-amber-500/40">NEW</span>` : ''}
+        </div>
+        <span class="text-[10px] text-slate-400 font-normal">Build ${rel.versionCode}</span>
+      </td>
+      <td class="py-3.5 px-4 font-bold text-slate-200 max-w-[200px]">${rel.title || ''}</td>
+      <td class="py-3.5 px-4 text-slate-300 max-w-xs">
+        <span class="line-clamp-2 text-[11px] leading-relaxed">${(rel.releaseNotes || '').replace(/\n/g, '<br>')}</span>
+      </td>
+      <td class="py-3.5 px-4">${statusBadge}</td>
+      <td class="py-3.5 px-4 text-slate-400 text-[11px]">
+        ${rel.publishedAt ? new Date(rel.publishedAt).toLocaleDateString() : (rel.createdAt ? new Date(rel.createdAt).toLocaleDateString() : '—')}
+      </td>
+      <td class="py-3.5 px-4">
+        <div class="inline-flex items-center gap-2 justify-end w-full">
+          <a href="${downloadHref}" download="${`tv-dinner-v${rel.versionName}.apk`}"
+             class="px-3 py-1.5 ${isStaged ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20' : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20'} text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md"
+             title="Download ${isStaged ? 'test' : ''} APK">
+            <i class="fa-solid fa-download"></i> ${downloadLabel}
           </a>
-          <span class="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-xs font-black">
-            LIVE ON TVS
-          </span>
+          <button onclick="copyAdbCommand('${adbCmd.replace(/'/g, "\\'")}', this)"
+                  class="px-2.5 py-1.5 bg-[#1E293B] hover:bg-slate-700 text-slate-300 border border-[#243048] rounded-lg text-xs font-medium transition inline-flex items-center gap-1"
+                  title="Copy ADB install command">
+            <i class="fa-solid fa-terminal text-[10px]"></i> ADB
+          </button>
+          ${actionBtn}
         </div>
-      </div>
-    </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
 
-    <!-- Releases Management Table -->
-    <div class="bg-[#131927] border border-[#243048] rounded-2xl shadow-xl overflow-hidden">
-      <div class="p-5 border-b border-[#243048] flex items-center justify-between">
-        <div>
-          <h3 class="text-base font-bold text-white">Releases & Staged Builds</h3>
-          <p class="text-xs text-slate-400">Select any staged build below to review notes and publish to production.</p>
-        </div>
-        <span id="staged-count-badge" class="px-2.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-bold">
-          1 Staged Update Waiting
-        </span>
-      </div>
+// ── Publish confirmation panel ────────────────────────────────────────────────
+let _pendingPublish = null;
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="bg-[#1E293B]/60 text-slate-400 border-b border-[#243048] font-bold uppercase tracking-wider text-[10px]">
-              <th class="py-3.5 px-4">Version</th>
-              <th class="py-3.5 px-4">Release Title</th>
-              <th class="py-3.5 px-4">Notes & Changelog</th>
-              <th class="py-3.5 px-4">Status</th>
-              <th class="py-3.5 px-4">Created / Staged</th>
-              <th class="py-3.5 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="releases-table-body" class="divide-y divide-[#243048]">
-            <!-- Dynamic rows inserted by JS -->
-          </tbody>
-        </table>
-      </div>
-    </div>
+window.openConfirm = async function(relId, versionCode, isRepublish) {
+  const data = await loadManifest();
+  const rel = data.releases.find(r => r.id === relId || r.versionCode === versionCode);
+  if (!rel) return;
 
-    <!-- Quick Manual / Guide -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div class="bg-[#131927] border border-[#243048] p-4 rounded-xl">
-        <div class="flex items-center gap-2.5 text-cyan-400 text-sm font-bold mb-1">
-          <i class="fa-solid fa-code-branch"></i> 1. Stage Build
-        </div>
-        <p class="text-xs text-slate-400">Compile your Android APK with Gradle and stage a release with description and notes.</p>
-      </div>
-      <div class="bg-[#131927] border border-[#243048] p-4 rounded-xl">
-        <div class="flex items-center gap-2.5 text-indigo-400 text-sm font-bold mb-1">
-          <i class="fa-solid fa-rocket"></i> 2. Auto-Increment & Publish
-        </div>
-        <p class="text-xs text-slate-400">Clicking 'Publish' auto-appends the next incremental version number and updates the live manifest.</p>
-      </div>
-      <div class="bg-[#131927] border border-[#243048] p-4 rounded-xl">
-        <div class="flex items-center gap-2.5 text-emerald-400 text-sm font-bold mb-1">
-          <i class="fa-solid fa-tv"></i> 3. Direct TV Installation
-        </div>
-        <p class="text-xs text-slate-400">TV Dinner apps detect the new build, download the APK, and trigger the native TV installer.</p>
-      </div>
-    </div>
+  _pendingPublish = { relId, versionCode, isRepublish };
 
-  </div>
+  document.getElementById('confirm-icon').className =
+    `fa-solid ${isRepublish ? 'fa-rotate text-amber-400' : 'fa-rocket text-emerald-400'} text-lg`;
+  document.getElementById('confirm-title').textContent =
+    isRepublish ? `Re-Publish v${rel.versionName}?` : `Publish v${rel.versionName} Live?`;
+  document.getElementById('confirm-version').textContent = `v${rel.versionName}`;
+  document.getElementById('confirm-build').textContent = `Build ${rel.versionCode}`;
+  document.getElementById('confirm-notes').textContent = rel.releaseNotes || '';
+  document.getElementById('confirm-btn-label').textContent = isRepublish ? 'Re-Publish Live' : 'Publish Live';
 
-  <!-- Stage New Update Modal -->
-  <div id="modal-stage-update" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-    <div class="bg-[#131927] border border-[#243048] w-full max-w-lg rounded-2xl p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between border-b border-[#243048] pb-3">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-plus text-indigo-400"></i> Stage New App Update
-        </h3>
-        <button id="btn-close-modal" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
-      </div>
+  const warn = document.getElementById('confirm-warn');
+  isRepublish ? warn.classList.remove('hidden') : warn.classList.add('hidden');
 
-      <div class="space-y-3 text-xs">
-        <div>
-          <label class="block text-slate-300 font-bold mb-1">Release Title</label>
-          <input type="text" id="input-title" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500" placeholder="e.g. Live TV Navigation & Subtitles Update">
-        </div>
-        
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-slate-300 font-bold mb-1">Version Name</label>
-            <input type="text" id="input-version-name" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500" placeholder="e.g. 2.0.4">
-          </div>
-          <div>
-            <label class="block text-slate-300 font-bold mb-1">Version Code</label>
-            <input type="number" id="input-version-code" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500" placeholder="e.g. 204">
-          </div>
-        </div>
+  document.getElementById('confirm-overlay').classList.remove('hidden');
+};
 
-        <div>
-          <label class="block text-slate-300 font-bold mb-1">Release Notes / Changelog</label>
-          <textarea id="input-notes" rows="4" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500 custom-scrollbar font-mono text-[11px]" placeholder="• Real-time D-pad Category-to-Channel fix&#10;• Clean channel names&#10;• Subtitles in Settings"></textarea>
-        </div>
+document.getElementById('confirm-cancel').onclick = () => {
+  document.getElementById('confirm-overlay').classList.add('hidden');
+  _pendingPublish = null;
+};
 
-        <div>
-          <label class="block text-slate-300 font-bold mb-1">Target APK Download URL / Path</label>
-          <input type="text" id="input-apk-url" class="w-full bg-[#1E293B] border border-[#243048] rounded-xl px-3 py-2 text-white outline-none focus:border-indigo-500 font-mono text-[11px]" value="https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.4/app-release.apk">
-        </div>
-      </div>
+document.getElementById('confirm-publish').onclick = async () => {
+  if (!_pendingPublish) return;
+  const { relId, versionCode, isRepublish } = _pendingPublish;
+  document.getElementById('confirm-overlay').classList.add('hidden');
 
-      <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-[#243048]">
-        <button id="btn-cancel-modal" class="px-4 py-2 bg-[#1E293B] hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition">Cancel</button>
-        <button id="btn-save-staged" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-indigo-600/20">
-          <i class="fa-solid fa-check"></i> Stage Update
-        </button>
-      </div>
-    </div>
-  </div>
+  const btn = document.getElementById('confirm-publish');
+  const orig = btn.innerHTML;
+  btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Publishing…`;
+  btn.disabled = true;
 
-  <script>
-    const STORAGE_KEY = 'tvdinner_updates_manifest';
-
-    const DEFAULT_MANIFEST = {
-      "currentVersion": {
-        "versionCode": 229,
-        "versionName": "2.2.3-r229",
-        "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard (Republished)",
-        "releaseNotes": "[Republished Build based on v2.2.3 (Build 223)]\n• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
-        "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r229/app-release.apk",
-        "mandatory": false,
-        "publishedAt": "2026-09-13T21:00:22.644Z"
-      },
-      "releases": [
-        {
-          "id": "rel-229",
-          "versionCode": 229,
-          "versionName": "2.2.3-r229",
-          "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard (Republished)",
-          "status": "PUBLISHED",
-          "releaseNotes": "[Republished Build based on v2.2.3 (Build 223)]\n• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.3-r229.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r229/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-13T21:00:22.643Z",
-          "publishedAt": "2026-09-13T21:00:22.644Z"
-        },
-        {
-          "id": "rel-228",
-          "versionCode": 228,
-          "versionName": "2.2.3-r228",
-          "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard (Republished)",
-          "status": "ARCHIVED",
-          "releaseNotes": "[Republished Build based on v2.2.3 (Build 223)]\n• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.3-r228.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r228/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-13T20:59:56.643Z",
-          "publishedAt": "2026-09-13T20:59:56.643Z"
-        },
-        {
-          "id": "rel-227",
-          "versionCode": 227,
-          "versionName": "2.2.3-r227",
-          "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard (Republished)",
-          "status": "ARCHIVED",
-          "releaseNotes": "[Republished Build based on v2.2.3 (Build 223)]\n• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.3-r227.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r227/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-13T20:58:17.434Z",
-          "publishedAt": "2026-09-13T20:58:17.444Z"
-        },
-        {
-          "id": "rel-226",
-          "versionCode": 226,
-          "versionName": "2.2.6",
-          "title": "Fullscreen Fix, Live TV Category D-Pad, VOD Covers & Launch Defaults",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Fullscreen Black Screen Fixed: Entering fullscreen no longer shows a black frame — stream resumes immediately on the new surface without requiring channel changes\n• Live TV Category D-Pad Auto-Update: Moving the remote D-pad up/down through categories now instantly updates the channel list without requiring a select press\n• Now Playing → Live TV Playback: Selecting a live channel from Now Playing immediately begins playing it in the preview pane — no extra button press needed\n• VOD Covers in Now Playing: All movie and series poster images in Now Playing now load reliably with retry logic and fallback resolution\n• VOD Time Bar During Operations: Progress bar and timestamps appear whenever you interact with the player controls\n• Default to Live TV: App now opens directly on Live TV on every launch",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.6.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.6/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-13T19:42:02.121Z",
-          "publishedAt": "2026-09-13T19:42:05.601Z"
-        },
-        {
-          "id": "rel-225",
-          "versionCode": 225,
-          "versionName": "2.2.5",
-          "title": "Remote Control Single-Press Selection & Live TV Category Stability",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Single-Press Selection: Fixed remote control select/OK double-press requirement across all cards and buttons by removing redundant focusable modifiers, eliminating focus shifts, and capturing KeyDown events\n• Full Remote & Gamepad Coverage: Added KEYCODE_BUTTON_A and KEYCODE_BUTTON_SELECT support alongside D-pad Center, Enter, and Numpad Enter\n• Live TV Category Stability: Fixed unintended category jumping when selecting a channel to play by removing clearFocus and category onFocusChanged auto-selection\n• VOD Focus Protection: Eliminated clearFocus calls in Movies and Series to ensure stable remote D-pad focus during playback launch and dialog interactions",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.5.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.5/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-13T19:03:38.568Z",
-          "publishedAt": "2026-09-13T19:03:50.599Z"
-        },
-        {
-          "id": "rel-224",
-          "versionCode": 224,
-          "versionName": "2.2.4",
-          "title": "Real-Time Credential Vetting (ACTIVE/INACTIVE), Direct Auth & Module Unlock",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Real-Time Credential Vetting: Vets credentials upon entry directly against the 4 authorized portals in parallel, showing bright green ACTIVE or bright red INACTIVE badge with instant module auto-unlock\n• Direct Username & Password Auth: Replaced phone number entry with clean direct Username and Password fields; removed all phone activation systems, formatters, and lookups\n• Quad-Portal Authorization: Strictly locked to the 4 approved portals (vpn.uhdp.top, tv.wd.uhdp.top, vpn.uhd4.top, tv.wd.uhd4.top); purged legacy portal5458 and kstv\n• Module Content Loading & Mutex Fix: Eliminated Kotlin Mutex re-entrancy deadlock in CatalogManager, restoring instant channel and catalog loading across Now, Live TV, Movies, Series, Music, and Podcasts\n• Raw Query Parameters & Auth Parsing: Reverted urlEncode escaping to standard raw query format and enhanced auth/status extraction to reliably validate accounts\n• Now Page Deep Navigation: Selecting any card in Now Playing directly routes to Live TV, Movies, Series, or Podcasts with targeted category selection and item auto-focus\n• VOD Forced-Pause Elimination: Resolved playback stall on newly launched VOD items with strict buffering play guards, initial hidden HUD, and 1000ms key release isolation\n• Show Password Toggle: Added eye visibility toggle in Settings and login dialogs to view entered credentials\n• Deep System Reboot Restart: System reboot flushes all media caches and seamlessly restarts the application process",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.4.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.4/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-13T16:36:45.592Z",
-          "publishedAt": "2026-09-13T18:14:21.883Z"
-        },
-        {
-          "id": "rel-223",
-          "versionCode": 223,
-          "versionName": "2.2.3",
-          "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard",
-          "status": "STAGED",
-          "releaseNotes": "• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.3.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-13T15:48:35.536Z",
-          "publishedAt": null
-        },
-        {
-          "id": "rel-222",
-          "versionCode": 222,
-          "versionName": "2.2.2",
-          "title": "Quad-Portal Direct Failover, Validated Xtream Server Auth, Now Page & Universal Access Lockdown",
-          "status": "STAGED",
-          "releaseNotes": "• Quad-Portal Failover Sequence: Guaranteed direct server connection across 4 prioritized server portals with zero fallbacks to dummy local presets\n• Validated Server Auth: Full support for active Xtream credentials with instant authorization and cache synchronization on live streams and VOD\n• Server Portal Privacy: Internalized portal management and sanitized UI to ensure server addresses remain secure\n• Now Page Live Feeds: Fixed empty 'On Air Right Now' and 'Trending Premieres & Blockbusters' by populating live EPG progress and active VOD streams directly from authenticated server portals\n• Universal Access Lockdown: Uniform 'Access Restricted' security guard across Live TV, Movies, Series, Now, Music, and Podcasts when credentials are not entered\n• Surf-Saver Smart Mashup: Cross-category personalized programming row blending watch history, favorites, and watchlist genres",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.2.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.2/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-13T02:11:12.192Z",
-          "publishedAt": null
-        },
-        {
-          "id": "rel-221",
-          "versionCode": 221,
-          "versionName": "2.2.1",
-          "title": "Search Bar Pre-Selection Focus, Live TV Malformed Container Fix & VOD Decoder Auto-Recovery",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Instant Search Bar Focus: Search bar immediately highlights the moment TV remote D-pad moves over it before pressing Select, featuring 1.04x scale expansion, 3dp amber border, glowing halo shadow, and 'PRESS OK TO SEARCH' gold badge\n• Live TV Container Fix: Resolved 'ERROR_CODE_PARSING_CONTAINER_MALFORMED' by removing strict AUD detection from MPEG-TS extractors, adding SCTE-35 splice stream tolerance, and rejecting deceptive HTML error pages in the media stream\n• VOD Decoder Auto-Recovery & 4K Crash Protection: Fixed decoding failed reconnect stalls by auto-advancing past corrupt keyframes and refreshing hardware codec surfaces; reduced backBuffer to 20s to eliminate 4K out-of-memory crashes",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.1.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.1/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-11T02:58:33.762Z",
-          "publishedAt": "2026-09-11T02:58:37.005Z"
-        },
-        {
-          "id": "rel-220",
-          "versionCode": 220,
-          "versionName": "2.2.0",
-          "title": "Restored Functional VOD Player Configuration & YouTube / Search Focus Enhancements",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Restored VOD Configuration: Fully reverted VOD media engine to the proven functional configuration (prioritize time over size, extension renderers prefer, standard 30s buffer) to guarantee reliable movie & series streaming\n• YouTube Feeds & Playback Resilience: Preserved fix eliminating global pauseTimers freeze and added instant channel RSS fallbacks so feeds never stall\n• Search Bar Pre-Selection Focus: Preserved distinct TV remote focus highlight with 1.03x scale expansion, amber halo glow, and 'PRESS OK TO SEARCH' cue",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.2.0.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.0/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-11T02:12:00.000Z",
-          "publishedAt": "2026-09-11T02:13:31.754Z"
-        },
-        {
-          "id": "rel-219",
-          "versionCode": 219,
-          "versionName": "2.1.9",
-          "title": "4K VOD Crash Fix, YouTube Feeds & Playback Resilience, and Search Bar Pre-Selection Focus",
-          "status": "ARCHIVED",
-          "releaseNotes": "• 4K VOD Stability: Eliminated 4K movie crashes and sudden app closure by disabling excessive backBuffer retention, removing prioritizeTimeOverSizeThresholds, dynamically querying HDMI audio capabilities, and enabling largeHeap\n• YouTube Feeds & Playback Resilience: Resolved subsequent playback freezes by eliminating global WebView pauseTimers, adding genre memory caching, and introducing guaranteed instant official RSS feed fallbacks\n• Search Bar Pre-Selection Focus: Unmistakable visual cues when moving over the search bar via D-pad before selection: animated scale expansion (1.03x), glowing amber shadow, and high-contrast 'PRESS OK TO SEARCH' badge",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.9.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.9/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-11T01:36:00.000Z",
-          "publishedAt": "2026-09-11T01:39:48.165Z"
-        },
-        {
-          "id": "rel-218",
-          "versionCode": 218,
-          "versionName": "2.1.8",
-          "title": "Restored Music & Podcasts Video Playback, Native YouTube Player & Stability Fixes",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Restored Music & Podcasts Playback: Reverted to the rock-solid v2.1.5 player architecture with native WebView integration and privacy-enhanced youtube-nocookie embedding\n• Fixed Video Playback Lockup: Removed artificial desktop Windows UA and hardware layer override that caused black screens and bot verification blocks on YouTube\n• Reliable Media Transitions: Full media engine reinitialization during System Reboot with clean socket pool tear-down\n• Animated Search Focus: Distinct 3dp border glow and SEARCH label pill on remote D-pad focus",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.8.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.8/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-11T01:13:46.088Z",
-          "publishedAt": "2026-09-11T01:13:51.378Z"
-        },
-        {
-          "id": "rel-217",
-          "versionCode": 217,
-          "versionName": "2.1.7",
-          "title": "Media Engine Reinitialization, YouTube Feeds Fix & Animated Search Focus",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Media Engine Reinitialization: System Reboot completely resets media OkHttp dispatcher and socket pool with full ExoPlayer rebuild\n• YouTube, Music & Podcasts Recovery: Prevented premature cancellation of in-flight catalog and feed requests during reboot\n• High-Contrast Search Focus: Smooth animated color and 3dp border expansion on D-pad focus with visible SEARCH label pill",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.7.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.7/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-11T01:00:15.213Z",
-          "publishedAt": "2026-09-11T01:00:19.801Z"
-        },
-        {
-          "id": "rel-216",
-          "versionCode": 216,
-          "versionName": "2.1.6",
-          "title": "Music Video Playback Fix, TV Dinner System Reboot, Module-Wide History & Rated-R Filtering",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Music & Podcasts Playback: Eliminated black screens and hesitation on music videos with modern desktop Chrome UA and instant playback watchdog\n• TV Dinner System Reboot: Added streaming system reset button in Settings to flush playback engines, socket pools, and caches without touching credentials\n• Module-Wide History: Added 🕒 History to Movies, Series, Music, and Podcasts with selective multi-section clear dialog in Settings\n• Rated R Adult Filter: Automatically hides 'Rated R' movie categories and titles when the Adult Content Filter is active\n• Closed Captions: Updated Settings Closed Captions toggle and remote CC shortcuts to apply directly to Music and Podcasts",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.6.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.6/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-11T00:55:58.936Z",
-          "publishedAt": "2026-09-11T00:57:44.624Z"
-        },
-        {
-          "id": "rel-215",
-          "versionCode": 215,
-          "versionName": "2.1.5",
-          "title": "VOD Playback Stabilization, Seamless Transitions, Start-at-Beginning & Podcasts Navigation",
-          "status": "ARCHIVED",
-          "releaseNotes": "• VOD Playback Stabilization: Fixed stream errors and socket drops across the app with dedicated OkHttp dispatcher and extended 25s buffering headroom\n• Seamless Media Transitions: Switch between any media (Live TV, Movies, Series, Podcasts, Music) with clean state reset and zero need to restart app\n• VOD Start-at-Beginning: Movies and Series strictly start from 0:00 unless 'Resume' is explicitly chosen in the dialog\n• Podcasts Remote Back Navigation: Pressing Back on remote when viewing a channel's episode list returns directly to previous search or category view\n• Dashboard Re-Publishing: Re-publish former or archived releases directly from the update dashboard with one click",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.5.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.5/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-07T20:10:09.079Z",
-          "publishedAt": "2026-09-11T00:43:28.242Z"
-        },
-        {
-          "id": "rel-214",
-          "versionCode": 214,
-          "versionName": "2.1.4",
-          "title": "Favorites Ceiling Focus, Fast Updates, Seamless Navigation & Credential Gating",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Favorites Ceiling Focus: Favorites is now the hard ceiling focus in categories; pressing Up stays in categories and never escapes to Search\n• Channels-to-Search Navigation: Pressing D-Pad Up from top channel navigates directly to Search in TV/desktop mode\n• Unblocked Channel Navigation: Guaranteed instant Right navigation from categories to channels under all conditions without unmounting list\n• 10x Faster Downloads: Overhauled OTA update downloads with 128KB buffered I/O and throttled progress updates to download at full wire speed\n• Media Transition Hardening: Isolated streaming sockets and added stream generation tokens to eliminate disruptions and stale recovery timers\n• Verified Credential Gating: Music and Podcasts are strictly gated behind verified active credentials",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.4.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.4/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-07T17:18:00.790Z",
-          "publishedAt": "2026-09-07T17:18:05.095Z"
-        },
-        {
-          "id": "rel-213",
-          "versionCode": 213,
-          "versionName": "2.1.3",
-          "title": "Live TV Category Navigation Fix & Priority VOD Poster Loading",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Live TV D-Pad Navigation: Fixed controller lock when navigating Right from active playing category back into channels\n• Instant Channel Focus: Restores channel list position and focuses active playing channel when returning to its category\n• VOD Poster Loading: Resolved random timeouts and unloaded cards with dedicated 64-request OkHttp dispatcher and expanded connection pooling\n• TMDB Optimization: Scaled poster resolution to w342 for 5x faster card rendering and enhanced media tag sanitization for higher match rates\n• Poster Fallbacks: Automatic retry with exponential backoff and structured title/year fallback cards for missing posters",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.3.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.3/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-04T17:46:20.624Z",
-          "publishedAt": "2026-09-04T17:49:01.834Z"
-        },
-        {
-          "id": "rel-212",
-          "versionCode": 212,
-          "versionName": "2.1.2",
-          "title": "Native Installer Restoration & Smooth Update Workflow",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Native Installer Restoration: Completely removed custom permission interception that caused install hangs on Fire TV and Android TV\n• Direct Package Launch: Direct handoff to Android's native package installer with standard URI permissions\n• Clean Package com.tvdinner: Fully migrated clean package namespace with all v2.1.1 improvements",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.2.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.2/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-04T16:27:36.387Z",
-          "publishedAt": "2026-09-04T16:27:36.387Z"
-        },
-        {
-          "id": "rel-211",
-          "versionCode": 211,
-          "versionName": "2.1.1",
-          "title": "Clean Package Migration, Live TV Rewind, English CC & Safe Search",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Clean Package Migration: Migrated package identifier to com.tvdinner, removing all legacy developer tags\n• Live TV Rewind: Use remote Left button to step back up to 2 minutes in live stream buffer\n• Return to Live: Use remote Right button to advance toward live feed (right button becomes no-op once at live)\n• English Closed Captions: Automatic prioritization of English subtitle/CC tracks whenever captions are enabled\n• Adult Search Isolation: Adult items are strictly excluded from search results unless an adult category tab is selected",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.1.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.1/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-04T15:57:36.068Z",
-          "publishedAt": "2026-09-04T16:04:46.382Z"
-        },
-        {
-          "id": "rel-210",
-          "versionCode": 210,
-          "versionName": "2.1.0",
-          "title": "Reliable OTA Installer, High-Contrast Search Focus & Remote Enhancements",
-          "status": "ARCHIVED",
-          "releaseNotes": "• OTA Update Reliability: Instant package installer launch with cached APK persistence (no re-download required) and unknown app permission handling\n• Distinct Version Details: Accurate, version-specific release notes for each release in update dialogs\n• High-Contrast Search Focus: Search bars across Live TV, Movies, Series, Music, and Podcasts glow bright cyan/blue when focused\n• Music Fast Skipping: Ultra-responsive YouTube track transitions using loadVideoById with zero playback dropouts\n• Podcasts Remote Navigation: Press D-Pad UP during podcast playback to immediately jump to the previous episode",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.1.0.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.1.0/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-03T21:26:47.640Z",
-          "publishedAt": "2026-09-03T21:26:47.640Z"
-        },
-        {
-          "id": "rel-209",
-          "versionCode": 209,
-          "versionName": "2.0.9",
-          "title": "Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)\n• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery\n• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed\n• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts\n• Settings: Added Primary and Backup Portal URL configuration fields",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.0.9.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.9/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-03T01:09:38.629Z",
-          "publishedAt": "2026-09-03T01:09:45.341Z"
-        },
-        {
-          "id": "rel-208",
-          "versionCode": 208,
-          "versionName": "2.0.8",
-          "title": "Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)\n• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery\n• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed\n• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts\n• Settings: Added Primary and Backup Portal URL configuration fields",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.0.8.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.8/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-03T00:04:08.180Z",
-          "publishedAt": "2026-09-03T00:04:13.579Z"
-        },
-        {
-          "id": "rel-207",
-          "versionCode": 207,
-          "versionName": "2.0.7",
-          "title": "Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)\n• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery\n• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed\n• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts\n• Settings: Added Primary and Backup Portal URL configuration fields",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.0.7.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.7/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-02T23:19:51.915Z",
-          "publishedAt": "2026-09-02T23:19:55.429Z"
-        },
-        {
-          "id": "rel-206",
-          "versionCode": 206,
-          "versionName": "2.0.6",
-          "title": "Live TV Navigation Fix, Backup Portal Failover & Priority Card Art Loading",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Live TV: Seamless right navigation from categories into channels across all categories (not just Favorites & History)\n• Backup Portal Failover: Plugged in http://vpn.uhd4.top:80 as official failover for bad HTTP status / stream drop recovery\n• In-App Stream Reconnect: Added clean socket eviction and Reconnect Stream button so app restart is never needed\n• Movies & Series Poster Priority: Proactive preloading of visible cards in viewing order with dedicated fast Coil timeouts\n• Settings: Added Primary and Backup Portal URL configuration fields",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.0.6.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.6/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-02T22:41:28.623Z",
-          "publishedAt": "2026-09-02T22:41:33.685Z"
-        },
-        {
-          "id": "rel-205",
-          "versionCode": 205,
-          "versionName": "2.0.5",
-          "title": "Live TV Navigation, Category Reorder, History, Poster Fixes & Remote Aspect Ratio",
-          "status": "ARCHIVED",
-          "releaseNotes": "• Live TV: Smooth D-pad Left & Back navigation directly from preview controls to channel list\n• Category Reorder: Moved News Network, Sports Network, Movie Network, Kids Network, Prime, PPV & Events, 4K Relax under Entertainment\n• Removed 'All Channels' category\n• Added 🕒 Channel History category (last 5 channels watched) with 'Clear History' in Settings\n• Enhanced Movies & Series poster loading with automatic TMDB resolution on missing/broken links (no fallback card art)\n• Added remote control aspect ratio toggle (Fit / Stretch / Zoom) with on-screen HUD pill overlay\n• Removed Next Episode button from series player\n• In-app network disconnect detection with automatic stream recovery and socket eviction\n• YouTube Music remote navigation: D-Pad Up (Previous) & Down (Next) with on-screen button\n• Ambient neon glow halo on focused cards",
-          "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-          "localApkUrl": "public/apks/tv-dinner-v2.0.5.apk",
-          "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.5/app-release.apk",
-          "mandatory": false,
-          "createdAt": "2026-09-02T22:41:03.203Z",
-          "publishedAt": "2026-09-02T22:45:00.000Z"
-        }
-      ]
-    };
-
-    function loadManifest() {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
-      return DEFAULT_MANIFEST;
-    }
-
-    function saveManifest(manifest) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(manifest, null, 2));
-      renderDashboard();
-    }
-
-    function renderDashboard() {
-      const data = loadManifest();
-      const current = data.currentVersion || {};
-      
-      // Update Live Version Header & Download button
-      document.getElementById('live-version-title').textContent = `v${current.versionName || '2.0.3'} (Build: ${current.versionCode || 203}) — ${current.title || 'Current Production Build'}`;
-      document.getElementById('live-version-notes').textContent = current.releaseNotes || 'Stable release';
-      document.getElementById('live-version-time').textContent = current.publishedAt ? `Published: ${new Date(current.publishedAt).toLocaleDateString()}` : 'Active';
-      const liveBtn = document.getElementById('btn-download-live-apk');
-      if (liveBtn) {
-        liveBtn.href = current.apkUrl || `https://github.com/tahillinvestments/tv-dinner/releases/download/v${current.versionName || '2.0.7'}/app-release.apk`;
-        liveBtn.download = `tv-dinner-v${current.versionName || '2.0.7'}.apk`;
-      }
-
-      const stagedCount = data.releases.filter(r => r.status === 'STAGED').length;
-      document.getElementById('staged-count-badge').textContent = `${stagedCount} Staged Update${stagedCount === 1 ? '' : 's'} Waiting`;
-
-      const tbody = document.getElementById('releases-table-body');
-      tbody.innerHTML = '';
-
-      data.releases.forEach(rel => {
-        const tr = document.createElement('tr');
-        const isCurrentLive = current.versionCode && (rel.versionCode === current.versionCode);
-        const isStaged = rel.status === 'STAGED';
-        const isArchived = !isCurrentLive && !isStaged;
-
-        tr.className = isCurrentLive ? "bg-emerald-950/20 border-l-2 border-emerald-500 hover:bg-[#1E293B]/40 transition" : "hover:bg-[#1E293B]/40 transition";
-
-        const localPath = (rel.localApkUrl || `public/apks/tv-dinner-v${rel.versionName}.apk`).replace(/^[/\\]+/, '');
-        const downloadHref = isStaged
-          ? ((window.location.protocol === 'http:' || window.location.protocol === 'https:') ? `/${localPath}` : `./${localPath}`)
-          : (rel.apkUrl || (rel.versionName ? `https://github.com/tahillinvestments/tv-dinner/releases/download/v${rel.versionName}/app-release.apk` : 'https://github.com/tahillinvestments/tv-dinner/releases/latest'));
-        const downloadFileName = `tv-dinner-v${rel.versionName}.apk`;
-        const adbCommand = `adb install -r "${rel.apkPath || 'android-app/app/build/outputs/apk/release/app-release.apk'}"`;
-
-        tr.innerHTML = `
-          <td class="py-3.5 px-4 font-mono font-bold text-white">
-            <div class="flex items-center gap-1.5">
-              <span>v${rel.versionName}</span>
-              ${isStaged ? `<span class="px-1.5 py-0.5 text-[9px] font-black bg-indigo-500/30 text-indigo-300 rounded border border-indigo-500/40">NEW</span>` : ''}
-              ${isCurrentLive ? `<span class="px-1.5 py-0.5 text-[9px] font-black bg-emerald-500/30 text-emerald-300 rounded border border-emerald-500/40">LIVE</span>` : ''}
-            </div>
-            <span class="text-[10px] text-slate-400 block font-normal">Build ${rel.versionCode}</span>
-          </td>
-          <td class="py-3.5 px-4 font-bold text-slate-200">
-            ${rel.title}
-          </td>
-          <td class="py-3.5 px-4 text-slate-300 max-w-xs" title="${(rel.releaseNotes || '').replace(/"/g, '&quot;')}">
-            <span class="line-clamp-2 text-[11px] leading-relaxed">${(rel.releaseNotes || '').replace(/\n/g, '<br>')}</span>
-          </td>
-          <td class="py-3.5 px-4">
-            ${isCurrentLive 
-              ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-circle-check text-[9px]"></i> CURRENT LIVE</span>`
-              : (isStaged
-                ? `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-clock text-[9px]"></i> STAGED</span>`
-                : `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/20 text-slate-400 border border-slate-500/40 inline-flex items-center gap-1"><i class="fa-solid fa-box-archive text-[9px]"></i> ARCHIVED</span>`)
-            }
-          </td>
-          <td class="py-3.5 px-4 text-slate-400">
-            ${rel.publishedAt ? new Date(rel.publishedAt).toLocaleDateString() : (rel.createdAt ? new Date(rel.createdAt).toLocaleDateString() : '—')}
-          </td>
-          <td class="py-3.5 px-4 text-right">
-            <div class="inline-flex items-center gap-2 justify-end">
-              <!-- Direct Download APK Button -->
-              <a href="${downloadHref}" download="${downloadFileName}" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98]" title="Download ${downloadFileName} to test before approving">
-                <i class="fa-solid fa-download"></i> Download APK
-              </a>
-
-              <!-- Quick ADB Command Copy -->
-              <button onclick="copyAdbCommand('${adbCommand}', this)" class="px-2.5 py-1.5 bg-[#1E293B] hover:bg-slate-700 text-slate-300 border border-[#243048] rounded-lg text-xs font-medium transition inline-flex items-center gap-1" title="Copy ADB install command to clipboard">
-                <i class="fa-solid fa-terminal text-[10px]"></i> ADB
-              </button>
-
-              ${isCurrentLive ? `
-                <span class="text-xs text-emerald-400 font-bold px-2 py-1 inline-flex items-center gap-1"><i class="fa-solid fa-check-double"></i> Active</span>
-              ` : (isStaged ? `
-                <button onclick="publishRelease('${rel.id}', ${rel.versionCode}, false)" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98]" title="Publish to all user TVs">
-                  <i class="fa-solid fa-rocket"></i> Publish
-                </button>
-              ` : `
-                <button onclick="publishRelease('${rel.id}', ${rel.versionCode}, true)" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition inline-flex items-center gap-1.5 shadow-md shadow-amber-600/20 hover:scale-[1.02] active:scale-[0.98]" title="Re-Publish Build ${rel.versionCode} to all user TVs">
-                  <i class="fa-solid fa-rotate"></i> Re-Publish
-                </button>
-              `)}
-            </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
+  // Call dashboard server to run publish-update.js
+  let success = false;
+  for (const ep of ['/api/publish', 'http://127.0.0.1:3888/api/publish']) {
+    try {
+      const res = await fetch(ep, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ relId, versionCode, isRepublish })
       });
-    }
+      if (res.ok) { success = true; break; }
+    } catch (_) {}
+  }
 
-    window.publishRelease = async function(relId, versionCode, isRepublish = false) {
-      const data = loadManifest();
-      const target = data.releases.find(r => r.id === relId || r.versionCode === versionCode);
-      if (!target) return;
+  btn.innerHTML = orig;
+  btn.disabled = false;
+  _pendingPublish = null;
 
-      const maxCode = Math.max(...data.releases.map(r => r.versionCode || 0));
-      const shouldDuplicate = isRepublish || target.status === 'ARCHIVED' || (target.versionCode < maxCode);
-      const duplicateCode = maxCode + 1;
-      const duplicateName = `${target.versionName}-r${duplicateCode}`;
+  if (success) {
+    _manifest = null; // clear cache so we reload fresh
+    await renderDashboard();
+    alert(`✅ Published! APK rebuilt with new versionCode — Android TVs will detect and install the update.`);
+  } else {
+    const cmd = `node scripts/publish-update.js ${versionCode}`;
+    try { navigator.clipboard.writeText(cmd); } catch (_) {}
+    alert(`⚠️ Dashboard server not running.\n\nRun this in your terminal:\n\n${cmd}\n\n(Copied to clipboard)`);
+  }
+};
 
-      const confirmMsg = shouldDuplicate
-        ? `Are you sure you want to RE-PUBLISH former release v${target.versionName} (Build ${target.versionCode}) to production?\n\nA newer duplicate build (Build ${duplicateCode} / v${duplicateName}) will be created so that all Android TV clients pick up and install the update without downgrade rejection.`
-        : `Are you ready to publish version v${target.versionName} (Build ${target.versionCode}) to production?\n\nThis will push changes to GitHub, create the GitHub Release with the APK, and deploy the live update to all TVs.`;
+// ── Utility actions ───────────────────────────────────────────────────────────
+window.copyAdbCommand = function(cmd, btn) {
+  navigator.clipboard.writeText(cmd).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> Copied!`;
+    setTimeout(() => { btn.innerHTML = orig; }, 2000);
+  }).catch(() => { prompt('Copy ADB Command:', cmd); });
+};
 
-      if (!confirm(confirmMsg)) return;
+document.getElementById('btn-export-manifest').onclick = async () => {
+  const data = await loadManifest();
+  const blob = new Blob([JSON.stringify(data.currentVersion || {}, null, 2)], { type: 'application/json' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'version.json' });
+  a.click();
+};
 
-      if (shouldDuplicate) {
-        const duplicateRelease = {
-          id: `rel-${duplicateCode}`,
-          versionCode: duplicateCode,
-          versionName: duplicateName,
-          title: `${target.title} (Republished)`,
-          status: 'PUBLISHED',
-          releaseNotes: `[Republished Build based on v${target.versionName} (Build ${target.versionCode})]\n${target.releaseNotes || ''}`,
-          apkPath: "android-app/app/build/outputs/apk/release/app-release.apk",
-          localApkUrl: `public/apks/tv-dinner-v${duplicateName}.apk`,
-          apkUrl: `https://github.com/tahillinvestments/tv-dinner/releases/download/v${duplicateName}/app-release.apk`,
-          mandatory: target.mandatory || false,
-          createdAt: new Date().toISOString(),
-          publishedAt: new Date().toISOString()
-        };
+document.getElementById('btn-refresh').onclick = () => {
+  _manifest = null;
+  renderDashboard();
+};
 
-        data.releases.forEach(r => {
-          if (r.status === 'PUBLISHED') r.status = 'ARCHIVED';
-        });
-        data.releases.unshift(duplicateRelease);
-
-        data.currentVersion = {
-          versionCode: duplicateRelease.versionCode,
-          versionName: duplicateRelease.versionName,
-          title: duplicateRelease.title,
-          releaseNotes: duplicateRelease.releaseNotes,
-          apkUrl: duplicateRelease.apkUrl,
-          mandatory: duplicateRelease.mandatory,
-          publishedAt: duplicateRelease.publishedAt
-        };
-      } else {
-        // Mark target as published and all other releases as archived
-        data.releases.forEach(r => {
-          if (r.id === target.id || r.versionCode === target.versionCode) {
-            r.status = 'PUBLISHED';
-            r.publishedAt = new Date().toISOString();
-          } else if (r.status === 'PUBLISHED') {
-            r.status = 'ARCHIVED';
-          }
-        });
-
-        data.currentVersion = {
-          versionCode: target.versionCode,
-          versionName: target.versionName,
-          title: target.title,
-          releaseNotes: target.releaseNotes,
-          apkUrl: target.apkUrl,
-          mandatory: target.mandatory || false,
-          publishedAt: new Date().toISOString()
-        };
-      }
-
-      saveManifest(data);
-
-      // Attempt to sync to disk & publish to GitHub via local dashboard server
-      let syncedToDisk = false;
-      const endpoints = ['/api/publish', 'http://127.0.0.1:3888/api/publish', 'http://localhost:3888/api/publish'];
-      for (const ep of endpoints) {
-        try {
-          const res = await fetch(ep, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              relId: target.id,
-              versionCode: target.versionCode,
-              isRepublish: shouldDuplicate,
-              release: target,
-              currentVersion: data.currentVersion,
-              manifest: data
-            })
-          });
-          if (res.ok) {
-            syncedToDisk = true;
-            break;
-          }
-        } catch (e) {}
-      }
-
-      if (syncedToDisk) {
-        alert(`🚀 Version v${data.currentVersion.versionName} (Build ${data.currentVersion.versionCode}) has been ${shouldDuplicate ? 'RE-PUBLISHED' : 'PUBLISHED'} LIVE!\n\n• Manifests updated on disk\n• Pushed to GitHub main\n• Live update active for all user TVs`);
-        window.location.reload();
-      } else {
-        const cmd = shouldDuplicate ? `node scripts/publish-update.js ${target.versionCode} --republish` : `node scripts/publish-update.js ${target.versionCode}`;
-        try { navigator.clipboard.writeText(cmd); } catch (_) {}
-        alert(`⚠️ Local dashboard server is not connected.\n\nTo complete the live publication to GitHub & user TVs, run this command in your terminal:\n\n${cmd}\n\n(Command copied to your clipboard!)`);
-      }
-    };
-
-    // Modal Events
-    const modal = document.getElementById('modal-stage-update');
-    document.getElementById('btn-create-update').onclick = () => {
-      const data = loadManifest();
-      const highestCode = Math.max(...data.releases.map(r => r.versionCode || 200), 203);
-      const nextCode = highestCode + 1;
-      const nextName = `2.0.${nextCode - 200}`;
-
-      document.getElementById('input-title').value = '';
-      document.getElementById('input-version-name').value = nextName;
-      document.getElementById('input-version-code').value = nextCode;
-      document.getElementById('input-notes').value = '• Performance improvements\n• Bug fixes';
-      document.getElementById('input-apk-url').value = `https://github.com/tahillinvestments/tv-dinner/releases/download/v${nextName}/app-release.apk`;
-      modal.classList.remove('hidden');
-    };
-
-    const closeModal = () => modal.classList.add('hidden');
-    document.getElementById('btn-close-modal').onclick = closeModal;
-    document.getElementById('btn-cancel-modal').onclick = closeModal;
-
-    document.getElementById('btn-save-staged').onclick = () => {
-      const title = document.getElementById('input-title').value.trim() || 'New Update Build';
-      const versionName = document.getElementById('input-version-name').value.trim() || '2.0.5';
-      const versionCode = parseInt(document.getElementById('input-version-code').value.trim(), 10) || 205;
-      const releaseNotes = document.getElementById('input-notes').value.trim() || 'Update notes';
-      const apkUrl = document.getElementById('input-apk-url').value.trim() || '';
-
-      const data = loadManifest();
-      const newRel = {
-        id: 'rel-' + Date.now(),
-        versionCode,
-        versionName,
-        title,
-        status: 'STAGED',
-        releaseNotes,
-        apkPath: 'android-app/app/build/outputs/apk/release/app-release.apk',
-        apkUrl,
-        mandatory: false,
-        createdAt: new Date().toISOString(),
-        publishedAt: null
-      };
-
-      data.releases.unshift(newRel);
-      saveManifest(data);
-      closeModal();
-    };
-
-    document.getElementById('btn-export-manifest').onclick = () => {
-      const data = loadManifest();
-      const current = data.currentVersion || {};
-      const blob = new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'version.json';
-      a.click();
-    };
-
-    window.copyAdbCommand = function(cmd, btn) {
-      navigator.clipboard.writeText(cmd).then(() => {
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> Copied!`;
-        setTimeout(() => { btn.innerHTML = originalHtml; }, 2000);
-      }).catch(() => {
-        prompt('Copy ADB Install Command:', cmd);
-      });
-    };
-
-    async function initDashboard() {
-      // 1. Collect all STAGED releases from DEFAULT_MANIFEST
-      let stagedReleases = (DEFAULT_MANIFEST.releases || []).filter(r => r.status === 'STAGED');
-      let currentLive = DEFAULT_MANIFEST.currentVersion || null;
-
-      // 2. Fetch updates.json to check for any fresh staged builds on disk or GitHub
-      try {
-        const updatesUrl = (window.location.protocol === 'file:')
-          ? './updates.json?nocache=' + Date.now()
-          : './updates.json?nocache=' + Date.now();
-        const res = await fetch(updatesUrl);
-        if (res.ok) {
-          const diskData = await res.json();
-          if (diskData && Array.isArray(diskData.releases)) {
-            diskData.releases.filter(r => r.status === 'STAGED').forEach(ds => {
-              if (!stagedReleases.some(e => e.versionCode === ds.versionCode)) {
-                stagedReleases.push(ds);
-              }
-            });
-            if (diskData.currentVersion) {
-              currentLive = diskData.currentVersion;
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Could not fetch ./updates.json directly', e);
-      }
-
-      // Fallback: If hosted on github.io, try raw updates.json if relative fetch was empty
-      if (stagedReleases.length === 0 && window.location.hostname.includes('github.io')) {
-        try {
-          const rawRes = await fetch('https://raw.githubusercontent.com/tahillinvestments/tv-dinner/main/updates.json?nocache=' + Date.now());
-          if (rawRes.ok) {
-            const rawData = await rawRes.json();
-            if (rawData && Array.isArray(rawData.releases)) {
-              stagedReleases = rawData.releases.filter(r => r.status === 'STAGED');
-              if (rawData.currentVersion) currentLive = rawData.currentVersion;
-            }
-          }
-        } catch (e) {}
-      }
-
-      // Clean up: Never allow builds that are ARCHIVED or PUBLISHED in DEFAULT_MANIFEST to remain STAGED
-      stagedReleases = stagedReleases.filter(sr => {
-        const match = (DEFAULT_MANIFEST.releases || []).find(dm => dm.versionCode === sr.versionCode);
-        if (match && match.status !== 'STAGED') return false;
-        return true;
-      });
-
-      // 3. Fetch published releases directly from GitHub Releases API
-      let publishedReleases = [];
-      try {
-        const ghRes = await fetch('https://api.github.com/repos/tahillinvestments/tv-dinner/releases');
-        if (ghRes.ok) {
-          const ghReleases = await ghRes.json();
-          if (Array.isArray(ghReleases) && ghReleases.length > 0) {
-            publishedReleases = ghReleases.map(gr => {
-              const tag = gr.tag_name || '';
-              const cleanVer = tag.replace(/^v/, '');
-              const codeMatch = (gr.body || gr.name || '').match(/Build\s*(\d+)/i) || (gr.tag_name || '').match(/(\d+)\.(\d+)\.(\d+)/);
-              let vCode = 207;
-              if (codeMatch && codeMatch[1] && !isNaN(codeMatch[1])) {
-                vCode = parseInt(codeMatch[1], 10);
-              }
-
-              const apkAsset = (gr.assets || []).find(a => a.name === 'app-release.apk') 
-                || (gr.assets || []).find(a => a.name.endsWith('.apk')) 
-                || {};
-
-              const downloadUrl = apkAsset.browser_download_url || `https://github.com/tahillinvestments/tv-dinner/releases/download/${tag}/app-release.apk`;
-
-              return {
-                id: `gh-${gr.id}`,
-                versionCode: vCode,
-                versionName: cleanVer,
-                title: gr.name || `TV Dinner v${cleanVer}`,
-                status: (currentLive && currentLive.versionCode === vCode) ? 'PUBLISHED' : 'ARCHIVED',
-                releaseNotes: gr.body || 'Production release',
-                apkPath: downloadUrl,
-                localApkUrl: downloadUrl,
-                apkUrl: downloadUrl,
-                mandatory: false,
-                createdAt: gr.created_at,
-                publishedAt: gr.published_at
-              };
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('Live GitHub API fetch failed', e);
-      }
-
-      // If GitHub Releases API failed or returned empty, fallback to DEFAULT_MANIFEST published releases
-      if (publishedReleases.length === 0) {
-        publishedReleases = (DEFAULT_MANIFEST.releases || []).filter(r => r.status !== 'STAGED');
-      }
-
-      // Merge: Staged builds on top, followed by published builds
-      const mergedReleases = [
-        ...stagedReleases,
-        ...publishedReleases.filter(pr => !stagedReleases.some(sr => sr.versionCode === pr.versionCode))
-      ];
-
-      const current = currentLive || publishedReleases[0] || DEFAULT_MANIFEST.currentVersion || {};
-      const finalManifest = {
-        currentVersion: current,
-        releases: mergedReleases
-      };
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(finalManifest, null, 2));
-      renderDashboard();
-    }
-
-    // Initialize
-    initDashboard();
-  </script>
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderDashboard();
+</script>
 </body>
 </html>

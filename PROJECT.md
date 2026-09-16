@@ -73,3 +73,33 @@ TV Dinner is a high-performance multimedia client designed for Android and web e
 
 ### Native Proxy ↔ Web Client
 - `/api/proxy?url={encodedUrl}`: OkHttp proxy endpoint returning original status (200/206), rewritten M3U8 or streamed binary payload, with permissive CORS headers.
+
+## Development & Release Workflow
+
+### Platform
+**Android APK only.** No web deployment, no browser build target. The Vite build is only used to bundle assets into the Android WebView via `scratch/build_apk_assets.js`.
+
+### Stage → Test → Publish Gate
+
+| Step | Command | What it does |
+|------|---------|--------------|
+| Build APK | `npm run android:build:release` | Vite build + Gradle `assembleRelease` |
+| Stage | `npm run android:stage` | Copies APK to `staging-apks/` (private), updates `updates.json` status=STAGED. **No live impact.** |
+| Test | Open dashboard | Download test APK from `staging-apks/`, side-load on device |
+| Publish | Dashboard → Publish | Bumps `versionCode` in `build.gradle.kts`, rebuilds APK, promotes to PUBLISHED, pushes to GitHub |
+
+### Rules
+- **Staging never touches `currentVersion`** in `updates.json` and never pushes to GitHub. TVs see no change.
+- **Publishing always bumps `versionCode` in Gradle and rebuilds** before uploading — this is required for Android to accept the APK as an update. If the APK's internal `versionCode` ≤ installed version, Android rejects it.
+- Versions **can skip numbers**. The staging counter doesn't need to be sequential with published builds. What matters is that each published APK has a strictly higher `versionCode` than what's installed.
+- `staging-apks/` is **gitignored** — test APKs never reach GitHub.
+- Never break working functionality. Test before publishing.
+
+### Key Files
+- `scripts/stage-update.js` — reads Gradle version, copies APK to `staging-apks/`, writes `updates.json`
+- `scripts/publish-update.js` — bumps Gradle version, rebuilds APK, promotes release, git push, creates GitHub Release
+- `scripts/dashboard-server.js` — local HTTP server (port 3888): serves dashboard, `/api/manifest`, `/api/publish`, `/staging-apks/`
+- `update-dashboard.html` — management UI (fetches manifest live from server)
+- `updates.json` — release manifest (ground truth for release history)
+- `public/version.json` — deployed live version endpoint polled by TV apps for OTA updates
+

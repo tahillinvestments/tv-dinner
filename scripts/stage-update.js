@@ -6,16 +6,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
+// ── Read version from Gradle ────────────────────────────────────────────────
 const gradlePath = path.join(projectRoot, 'android-app', 'app', 'build.gradle.kts');
 const gradleContent = fs.readFileSync(gradlePath, 'utf8');
 const codeMatch = gradleContent.match(/versionCode\s*=\s*(\d+)/);
 const nameMatch = gradleContent.match(/versionName\s*=\s*"([^"]+)"/);
-const versionCode = codeMatch ? parseInt(codeMatch[1], 10) : 206;
-const versionName = nameMatch ? nameMatch[1] : '2.0.6';
+const versionCode = codeMatch ? parseInt(codeMatch[1], 10) : 1;
+const versionName = nameMatch ? nameMatch[1] : '1.0.0';
 
+// ── Read release notes from version-notes.json ──────────────────────────────
 let releaseTitle = 'Performance improvements and bug fixes';
 let releaseNotes = '• General stability enhancements and UI optimizations';
-
 const versionNotesPath = path.join(projectRoot, 'version-notes.json');
 if (fs.existsSync(versionNotesPath)) {
   try {
@@ -25,139 +26,79 @@ if (fs.existsSync(versionNotesPath)) {
       releaseNotes = allNotes[versionName].releaseNotes || releaseNotes;
     }
   } catch (e) {
-    console.warn('Could not parse version-notes.json:', e.message);
+    console.warn('⚠️  Could not parse version-notes.json:', e.message);
   }
 }
 
-const releaseApkSource = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
-const debugApkSource = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-const sourceApk = fs.existsSync(releaseApkSource) ? releaseApkSource : debugApkSource;
+// ── Locate compiled APK ──────────────────────────────────────────────────────
+const releaseApk = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
+const debugApk   = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+const sourceApk  = fs.existsSync(releaseApk) ? releaseApk : (fs.existsSync(debugApk) ? debugApk : null);
 
-if (!fs.existsSync(sourceApk)) {
-  console.error('❌ No compiled APK found. Please build the APK first with: ./gradlew.bat assembleRelease');
+if (!sourceApk) {
+  console.error('❌ No compiled APK found. Build first:\n   npm run android:build:release');
   process.exit(1);
 }
 
-const publicApksDir = path.join(projectRoot, 'public', 'apks');
-fs.mkdirSync(publicApksDir, { recursive: true });
+// ── Copy to private staging-apks/ ───────────────────────────────────────────
+const stagingDir = path.join(projectRoot, 'staging-apks');
+fs.mkdirSync(stagingDir, { recursive: true });
 
-const targetVersionApk = path.join(publicApksDir, `tv-dinner-v${versionName}.apk`);
-const targetLatestApk = path.join(publicApksDir, 'tv-dinner-latest.apk');
-const targetAppReleaseApk = path.join(publicApksDir, 'app-release.apk');
-const rootReleaseApk = path.join(projectRoot, 'tv-dinner-release.apk');
+const apkFileName = `tv-dinner-v${versionName}-b${versionCode}.apk`;
+const stagedApkPath = path.join(stagingDir, apkFileName);
+fs.copyFileSync(sourceApk, stagedApkPath);
 
-fs.copyFileSync(sourceApk, targetVersionApk);
-fs.copyFileSync(sourceApk, targetLatestApk);
-fs.copyFileSync(sourceApk, targetAppReleaseApk);
-fs.copyFileSync(sourceApk, rootReleaseApk);
+const apkSizeMB = (fs.statSync(stagedApkPath).size / 1024 / 1024).toFixed(2);
+console.log(`\n✅ APK staged: ${apkFileName} (${apkSizeMB} MB)`);
 
-console.log(`✅ Staged APK: ${targetVersionApk} (${(fs.statSync(targetVersionApk).size / 1024 / 1024).toFixed(2)} MB)`);
-
+// ── Update updates.json ──────────────────────────────────────────────────────
 const updatesJsonPath = path.join(projectRoot, 'updates.json');
-let updatesData = {
-  currentVersion: {
-    versionCode: 203,
-    versionName: "2.0.3",
-    title: "Direct Server Migration & Fast Playback",
-    releaseNotes: "Stable release with direct stream connectivity.",
-    apkUrl: "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.3/app-release.apk",
-    mandatory: false,
-    publishedAt: "2026-08-28T12:00:00Z"
-  },
-  releases: [
-    {
-      id: "rel-203",
-      versionCode: 203,
-      versionName: "2.0.3",
-      title: "Direct Server Migration & Fast Playback",
-      status: "PUBLISHED",
-      releaseNotes: "• Migrated to direct high-speed server\n• Removed legacy proxy and VPN layers\n• Modernized Subscription settings",
-      apkPath: "android-app/app/build/outputs/apk/release/app-release.apk",
-      localApkUrl: "public/apks/tv-dinner-latest.apk",
-      apkUrl: "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.3/app-release.apk",
-      mandatory: false,
-      createdAt: "2026-08-28T12:00:00Z",
-      publishedAt: "2026-08-28T12:00:00Z"
-    }
-  ]
-};
+let updatesData = { currentVersion: {}, releases: [] };
 
 if (fs.existsSync(updatesJsonPath)) {
   try {
     let raw = fs.readFileSync(updatesJsonPath, 'utf8');
-    if (raw.charCodeAt(0) === 0xFEFF) {
-      raw = raw.slice(1);
-    }
+    if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1); // strip BOM
     const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.releases)) {
-      updatesData = parsed;
-    }
+    if (parsed && Array.isArray(parsed.releases)) updatesData = parsed;
   } catch (e) {
-    console.warn('Could not parse updates.json, keeping default base');
+    console.warn('⚠️  Could not parse updates.json, starting fresh.');
   }
 }
 
-if (!updatesData.currentVersion || !updatesData.currentVersion.versionCode) {
-  updatesData.currentVersion = {
-    versionCode: 203,
-    versionName: "2.0.3",
-    title: "Direct Server Migration & Fast Playback",
-    releaseNotes: "Stable release with direct stream connectivity.",
-    apkUrl: "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.0.3/app-release.apk",
-    localApkUrl: "public/apks/tv-dinner-latest.apk",
-    mandatory: false,
-    publishedAt: "2026-08-28T12:00:00Z"
-  };
-}
-
 const releaseId = `rel-${versionCode}`;
-const stagedRelease = {
+const stagedEntry = {
   id: releaseId,
-  versionCode: versionCode,
-  versionName: versionName,
+  versionCode,
+  versionName,
   title: releaseTitle,
   status: 'STAGED',
-  releaseNotes: releaseNotes,
-  apkPath: 'android-app/app/build/outputs/apk/release/app-release.apk',
-  localApkUrl: `public/apks/tv-dinner-v${versionName}.apk`,
+  releaseNotes,
+  stagedApk: `staging-apks/${apkFileName}`,   // private local path
   apkUrl: `https://github.com/tahillinvestments/tv-dinner/releases/download/v${versionName}/app-release.apk`,
   mandatory: false,
   createdAt: new Date().toISOString(),
   publishedAt: null
 };
 
-const existingIndex = updatesData.releases.findIndex(r => r.versionCode === versionCode || r.id === releaseId);
-if (existingIndex >= 0) {
-  updatesData.releases[existingIndex] = stagedRelease;
+const existingIdx = updatesData.releases.findIndex(
+  r => r.versionCode === versionCode || r.id === releaseId
+);
+if (existingIdx >= 0) {
+  updatesData.releases[existingIdx] = stagedEntry;
+  console.log(`🔄 Updated existing staged entry for v${versionName} (Build ${versionCode})`);
 } else {
-  updatesData.releases.unshift(stagedRelease);
+  updatesData.releases.unshift(stagedEntry);
 }
 
 fs.writeFileSync(updatesJsonPath, JSON.stringify(updatesData, null, 2), 'utf8');
-console.log(`✅ Updated ${updatesJsonPath} with staged build v${versionName} (Build ${versionCode})`);
 
-const dashboardHtmlPath = path.join(projectRoot, 'update-dashboard.html');
-if (fs.existsSync(dashboardHtmlPath)) {
-  let html = fs.readFileSync(dashboardHtmlPath, 'utf8');
-  const manifestJsonStr = JSON.stringify(updatesData, null, 2)
-    .split('\n')
-    .map((line, idx) => idx === 0 ? line : '    ' + line)
-    .join('\n');
-  
-  html = html.replace(/const DEFAULT_MANIFEST = \{[\s\S]*?\n    \};/, `const DEFAULT_MANIFEST = ${manifestJsonStr};`);
-  fs.writeFileSync(dashboardHtmlPath, html, 'utf8');
-  console.log(`✅ Synced update-dashboard.html with latest manifest`);
-}
-
-console.log('\n======================================================');
-console.log(`🎉 VERSION v${versionName} (Build ${versionCode}) STAGED SUCCESSFULLY!`);
-console.log('======================================================');
-console.log(`1. Test APK Locally:`);
-console.log(`   - Direct download file: public/apks/tv-dinner-v${versionName}.apk`);
-console.log(`   - Install on Android TV via ADB:`);
-console.log(`     adb install -r "android-app/app/build/outputs/apk/release/app-release.apk"`);
-console.log(`2. Open Update Dashboard in Browser:`);
-console.log(`   - Run: npm run update:dashboard (or open update-dashboard.html)`);
-console.log(`   - Click 'Download APK' to test the file on any device`);
-console.log(`   - Click 'Publish' whenever you are ready to push update to production!`);
-console.log('======================================================\n');
+console.log('\n══════════════════════════════════════════════════');
+console.log(`🎉 v${versionName} (Build ${versionCode}) STAGED`);
+console.log('══════════════════════════════════════════════════');
+console.log(`🧪 TEST APK: staging-apks/${apkFileName}`);
+console.log(`   Install via ADB:  adb install -r "${stagedApkPath}"`);
+console.log('');
+console.log('When ready → open the dashboard and click Publish:');
+console.log('   npm run update:dashboard');
+console.log('══════════════════════════════════════════════════\n');
