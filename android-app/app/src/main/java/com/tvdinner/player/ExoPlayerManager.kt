@@ -112,6 +112,8 @@ class ExoPlayerManager(
                 maxRequestsPerHost = 16
             })
             .connectionPool(okhttp3.ConnectionPool(8, 2, java.util.concurrent.TimeUnit.MINUTES))
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
             .addInterceptor { chain ->
                 val response = chain.proceed(chain.request())
                 // Prevent HTML error pages (e.g. HTTP 200 with HTML body returned by IPTV middleboxes / Cloudflare / expired tokens)
@@ -259,9 +261,17 @@ class ExoPlayerManager(
             } catch (_: Exception) {}
         }
 
-        // VOD files are hosted strictly on the primary VOD portal; do not fail over to Live TV backup proxies
+        var nextUrl = currentUrl
+        if (forceFailover || vodRecoveryAttempt >= 2) {
+            val failover = authRepo?.getFailoverUrl(currentUrl)
+            if (!failover.isNullOrBlank() && failover != currentUrl) {
+                Log.i(tag, "Failing over VOD stream to backup portal: $failover")
+                nextUrl = failover
+            }
+        }
+
         playStream(
-            url = currentUrl,
+            url = nextUrl,
             title = _currentTitle.value,
             isLive = false,
             startPositionMs = resumePos,
@@ -303,7 +313,7 @@ class ExoPlayerManager(
                 enableAudioTrackPlaybackParams: Boolean
             ): androidx.media3.exoplayer.audio.AudioSink {
                 return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
-                    .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                    .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.getCapabilities(context))
                     .setEnableFloatOutput(false)
                     .setEnableAudioTrackPlaybackParams(true)
                     .build()
@@ -645,6 +655,10 @@ class ExoPlayerManager(
             }
             if (effectiveUrl.contains(".m3u8", ignoreCase = true)) {
                 mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+            } else if (effectiveUrl.contains(".mkv", ignoreCase = true)) {
+                mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MATROSKA)
+            } else if (effectiveUrl.contains(".mp4", ignoreCase = true)) {
+                mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.VIDEO_MP4)
             }
             val mediaItem = mediaItemBuilder.build()
             setMediaItem(mediaItem)

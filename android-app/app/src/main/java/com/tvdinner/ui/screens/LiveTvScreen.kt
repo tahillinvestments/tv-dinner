@@ -745,14 +745,39 @@ fun LiveTvScreen(
                             }
 
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = activeChannel!!.name,
-                                    color = TextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                val cleanName = remember(activeChannel!!.name) { CatalogManager.cleanChannelDisplayName(activeChannel!!.name) }
+                                val activeCatName = categoryNameMap[activeChannel!!.categoryId]
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = cleanName,
+                                        color = TextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    if (!activeCatName.isNullOrBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = CinemaSurfaceVariant,
+                                            border = BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f))
+                                        ) {
+                                            Text(
+                                                text = CatalogManager.cleanCategoryDisplayName(activeCatName),
+                                                color = CinemaAccent,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                    }
+                                }
                                 val nowTitle = catalogManager.resolveCurrentProgram(activeFullEpg?.epgListings)?.decodedTitle
                                 if (!nowTitle.isNullOrBlank()) {
                                     Text(
@@ -910,24 +935,6 @@ fun LiveTvScreen(
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
-                                            val catName = categoryNameMap[channel.categoryId]
-                                            if (searchQuery.isNotBlank() && !catName.isNullOrBlank()) {
-                                                Surface(
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    color = CinemaSurfaceVariant,
-                                                    border = BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f))
-                                                ) {
-                                                    Text(
-                                                        text = catName,
-                                                        color = CinemaAccent,
-                                                        fontSize = 9.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                    )
-                                                }
-                                            }
                                         }
                                         if (!channelEpg.isNullOrBlank()) {
                                             Text(
@@ -1377,24 +1384,6 @@ fun LiveTvScreen(
                                                         .weight(1f, fill = false)
                                                         .then(if (isCardFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier)
                                                 )
-                                                val catName = categoryNameMap[channel.categoryId]
-                                                if (searchQuery.isNotBlank() && !catName.isNullOrBlank()) {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(4.dp),
-                                                        color = CinemaSurfaceVariant,
-                                                        border = BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f))
-                                                    ) {
-                                                        Text(
-                                                            text = catName,
-                                                            color = CinemaAccent,
-                                                            fontSize = 9.sp,
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis,
-                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                                        )
-                                                    }
-                                                }
                                             }
 
                                             if (!channelEpg.isNullOrBlank()) {
@@ -1588,6 +1577,7 @@ fun LiveTvScreen(
                         ) {
                             // Row 1: Channel Name & Number Header (Spacious, full width, no truncation)
                             Column(modifier = Modifier.fillMaxWidth()) {
+                                val activeCatName = activeChannel?.categoryId?.let { categoryNameMap[it] }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1632,6 +1622,23 @@ fun LiveTvScreen(
                                                 )
                                             }
                                         }
+                                        if (!activeCatName.isNullOrBlank()) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = CinemaSurfaceVariant,
+                                                border = androidx.compose.foundation.BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f))
+                                            ) {
+                                                Text(
+                                                    text = CatalogManager.cleanCategoryDisplayName(activeCatName),
+                                                    color = CinemaAccent,
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                     if (activeChannel != null || currentTitle.isNotBlank()) {
                                         Surface(
@@ -1650,8 +1657,9 @@ fun LiveTvScreen(
                                     }
                                 }
                                 val chNum = activeChannel?.num ?: 0
+                                val catSubtitle = if (!activeCatName.isNullOrBlank()) " • " + CatalogManager.cleanCategoryDisplayName(activeCatName) else ""
                                 Text(
-                                    text = if (chNum > 0) "Channel $chNum • 1080p 60fps Live" else "Live Broadcast • HD High Quality Stream",
+                                    text = if (chNum > 0) "Channel $chNum • 1080p 60fps Live$catSubtitle" else "Live Broadcast • HD High Quality Stream$catSubtitle",
                                     fontSize = 12.sp,
                                     color = TextSecondary,
                                     modifier = Modifier.padding(top = 2.dp)

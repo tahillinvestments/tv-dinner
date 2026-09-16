@@ -130,7 +130,9 @@ fun NativePlayerView(
                 val keyCode = keyEvent.nativeKeyEvent.keyCode
                 val isSelectKey = keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
                                   keyCode == KeyEvent.KEYCODE_ENTER ||
-                                  keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+                                  keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                                  keyCode == KeyEvent.KEYCODE_BUTTON_A ||
+                                  keyCode == KeyEvent.KEYCODE_BUTTON_SELECT
 
                 if (keyEvent.type == KeyEventType.KeyDown && isSelectKey) {
                     centerKeyDownReceived = true

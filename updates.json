@@ -1,27 +1,27 @@
 {
   "currentVersion": {
     "versionCode": 229,
-    "versionName": "2.2.3-r229",
-    "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard (Republished)",
-    "releaseNotes": "[Republished Build based on v2.2.3 (Build 223)]\n• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
-    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r229/app-release.apk",
+    "versionName": "2.2.9",
+    "title": "VOD Search Category Routing, Playback Stall Fix & Full App Restart",
+    "releaseNotes": "• Live TV Search Bar Focus: Cleaned up Live TV search bar on focus by removing the redundant 'OK TO SEARCH' badge for a cleaner, modern look\n• Preview Space Channel Location: Removed category badges from channel list items in search results; category location is now cleanly presented strictly in the preview info space below the live player\n• VOD Search Category Navigation: Selecting any Movie or Series search result navigates directly to that item's parent category, automatically scrolling and focusing the title within its category as if navigated manually\n• Continuous VOD Playback Fix: Resolved mid-stream pausing and stalling on titles like 'The Drop: A Snowfall Saga' (Hulu/FX/Fox/ABC) and high-bitrate series by eliminating socket read timeouts, adding Matroska MKV detection, and enabling dynamic hardware AudioCapabilities passthrough\n• Guaranteed Full System Reboot: Replaced immediate process exit with scheduled AlarmManager PendingIntent execution and affinity termination for a guaranteed 100% full OS-level app restart\n• Strict Quad-Portal Lock: Locked strictly to the 4 approved server portals (vpn.uhdp.top, tv.wd.uhdp.top, vpn.uhd4.top, tv.wd.uhd4.top) with zero references or fallbacks to unauthorized domains\n• Password Visibility Toggle: Added eye toggle button to view entered passwords in Settings and authentication dialogs\n• Streamlined Navigation: Retired the temporary Now Playing module to deliver a lightning-fast, rock-solid core entertainment experience",
+    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.9/app-release.apk",
     "mandatory": false,
-    "publishedAt": "2026-09-13T21:00:22.644Z"
+    "publishedAt": "2026-09-13T23:30:00.000Z"
   },
   "releases": [
     {
       "id": "rel-229",
       "versionCode": 229,
-      "versionName": "2.2.3-r229",
-      "title": "Category Badges in Search, VOD Instant Playback Fix & Key-Up Collision Guard (Republished)",
+      "versionName": "2.2.9",
+      "title": "VOD Search Category Routing, Playback Stall Fix & Full App Restart",
       "status": "PUBLISHED",
-      "releaseNotes": "[Republished Build based on v2.2.3 (Build 223)]\n• Category Identification in Search: Search results across Live TV, Movies, and Series now display distinct category badge tags identifying exactly which category each result belongs to\n• VOD Instant Playback (No Forced Pause): Eliminated remote key-up collision where pressing D-Pad Center/Enter on search cards inadvertently paused the video upon launch\n• Dynamic Credentials & Failover Sync: Ensured VOD and Live TV stream requests dynamically query active authenticated credentials and failover portals at launch time\n• IME & Focus Clearing: Search bar focus and soft keyboard automatically dismiss upon selecting a card for uninterrupted playback\n• Quad-Portal Failover Sequence: Continuous direct connection across 4 prioritized server portals with zero fallbacks to dummy presets",
+      "releaseNotes": "• Live TV Search Bar Focus: Cleaned up Live TV search bar on focus by removing the redundant 'OK TO SEARCH' badge for a cleaner, modern look\n• Preview Space Channel Location: Removed category badges from channel list items in search results; category location is now cleanly presented strictly in the preview info space below the live player\n• VOD Search Category Navigation: Selecting any Movie or Series search result navigates directly to that item's parent category, automatically scrolling and focusing the title within its category as if navigated manually\n• Continuous VOD Playback Fix: Resolved mid-stream pausing and stalling on titles like 'The Drop: A Snowfall Saga' (Hulu/FX/Fox/ABC) and high-bitrate series by eliminating socket read timeouts, adding Matroska MKV detection, and enabling dynamic hardware AudioCapabilities passthrough\n• Guaranteed Full System Reboot: Replaced immediate process exit with scheduled AlarmManager PendingIntent execution and affinity termination for a guaranteed 100% full OS-level app restart\n• Strict Quad-Portal Lock: Locked strictly to the 4 approved server portals (vpn.uhdp.top, tv.wd.uhdp.top, vpn.uhd4.top, tv.wd.uhd4.top) with zero references or fallbacks to unauthorized domains\n• Password Visibility Toggle: Added eye toggle button to view entered passwords in Settings and authentication dialogs\n• Streamlined Navigation: Retired the temporary Now Playing module to deliver a lightning-fast, rock-solid core entertainment experience",
       "apkPath": "android-app/app/build/outputs/apk/release/app-release.apk",
-      "localApkUrl": "public/apks/tv-dinner-v2.2.3-r229.apk",
-      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.3-r229/app-release.apk",
+      "localApkUrl": "public/apks/tv-dinner-v2.2.9.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.2.9/app-release.apk",
       "mandatory": false,
-      "createdAt": "2026-09-13T21:00:22.643Z",
-      "publishedAt": "2026-09-13T21:00:22.644Z"
+      "createdAt": "2026-09-13T23:30:00.000Z",
+      "publishedAt": "2026-09-13T23:30:00.000Z"
     },
     {
       "id": "rel-228",

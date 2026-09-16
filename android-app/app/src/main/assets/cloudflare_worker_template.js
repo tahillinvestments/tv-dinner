@@ -15,7 +15,7 @@ const IPTV_HOSTS = new Set(['vpn.uhdp.top', 'tv.wd.uhdp.top', 'vpn.uhd4.top', 't
 
 function rewriteM3U8(m3uText, baseUrl, workerUrl, proxySegments) {
   const base = new URL(baseUrl);
-  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('uhdp.top') || base.hostname.includes('uhd4.top') || base.protocol === 'http:' || base.pathname.includes('/live/');
+  const isIptvOrHttp = IPTV_HOSTS.has(base.hostname) || base.hostname.includes('uhdp.top') || base.hostname.includes('uhd4.top') || base.protocol === 'http:' || base.pathname.includes('/live/') || base.pathname.includes('/movie/') || base.pathname.includes('/series/');
 
   return m3uText.split('\n').map(line => {
     const trimmed = line.trim();
@@ -74,7 +74,7 @@ export default {
     }
     newHeaders.set('host', targetUrl.host);
 
-    const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('uhdp.top') || targetUrl.hostname.includes('uhd4.top') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/');
+    const isIptvHost = IPTV_HOSTS.has(targetUrl.hostname) || targetUrl.hostname.includes('uhdp.top') || targetUrl.hostname.includes('uhd4.top') || targetUrl.pathname.includes('player_api') || targetUrl.pathname.includes('.m3u') || targetUrl.pathname.includes('/live/') || targetUrl.pathname.includes('/movie/') || targetUrl.pathname.includes('/series/');
 
     if (isIptvHost) {
       newHeaders.set('User-Agent', 'VLC/3.0.21 LibVLC/3.0.21');

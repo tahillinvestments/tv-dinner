@@ -37,7 +37,6 @@ import com.tvdinner.ui.player.YouTubeRemoteBridge
 import com.tvdinner.ui.theme.*
 
 enum class AppTab(val label: String, val icon: ImageVector) {
-    NOW("Now", Icons.Default.AutoAwesome),
     LIVE("Live TV", Icons.Default.Tv),
     MOVIES("Movies", Icons.Default.Movie),
     SERIES("Series", Icons.Default.VideoLibrary),
@@ -141,7 +140,7 @@ fun MainAppScreen(
     }
 
     // Hierarchical Back Button Handler
-    BackHandler(enabled = fullscreenMedia != null || fullscreenYouTube != null || isLiveTvFullscreen || activeTab != AppTab.NOW) {
+    BackHandler(enabled = fullscreenMedia != null || fullscreenYouTube != null || isLiveTvFullscreen || activeTab != AppTab.LIVE) {
         if (fullscreenMedia != null) {
             playerManager.stop()
             fullscreenMedia = null
@@ -157,8 +156,8 @@ fun MainAppScreen(
             fullscreenYouTube = null
         } else if (isLiveTvFullscreen) {
             isLiveTvFullscreen = false
-        } else if (activeTab != AppTab.NOW) {
-            switchTab(AppTab.NOW)
+        } else if (activeTab != AppTab.LIVE) {
+            switchTab(AppTab.LIVE)
         }
     }
 
@@ -274,38 +273,7 @@ fun MainAppScreen(
                         } else {
                             key(credentialsRevision) {
                                 when (activeTab) {
-                                    AppTab.NOW -> NowScreen(
-                                        authRepo = authRepo,
-                                        apiClient = apiClient,
-                                        catalogManager = catalogManager,
-                                        playerManager = playerManager,
-                                        onPlayLiveChannel = { channel ->
-                                            targetChannelId = channel.streamId
-                                            targetLiveCategoryId = channel.categoryId
-                                            switchTab(AppTab.LIVE)
-                                        },
-                                        onPlayMovie = { movie ->
-                                            targetMovieId = movie.streamId
-                                            targetMovieCategoryId = movie.categoryId
-                                            switchTab(AppTab.MOVIES)
-                                        },
-                                        onPlaySeries = { series ->
-                                            targetSeriesId = series.seriesId
-                                            targetSeriesCategoryId = series.categoryId
-                                            switchTab(AppTab.SERIES)
-                                        },
-                                        onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                            playerManager.stop()
-                                            fullscreenMedia = null
-                                            isLiveTvFullscreen = false
-                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
-                                        },
-                                        onSelectPodcast = { episode ->
-                                            targetPodcastEpisode = episode
-                                            switchTab(AppTab.PODCASTS)
-                                        },
-                                        onOpenSettings = { switchTab(AppTab.SETTINGS) }
-                                    )
+
                                     AppTab.LIVE -> LiveTvScreen(
                                         authRepo = authRepo,
                                         apiClient = apiClient,
@@ -455,38 +423,7 @@ fun MainAppScreen(
                         } else {
                             key(credentialsRevision) {
                                 when (activeTab) {
-                                    AppTab.NOW -> NowScreen(
-                                        authRepo = authRepo,
-                                        apiClient = apiClient,
-                                        catalogManager = catalogManager,
-                                        playerManager = playerManager,
-                                        onPlayLiveChannel = { channel ->
-                                            targetChannelId = channel.streamId
-                                            targetLiveCategoryId = channel.categoryId
-                                            switchTab(AppTab.LIVE)
-                                        },
-                                        onPlayMovie = { movie ->
-                                            targetMovieId = movie.streamId
-                                            targetMovieCategoryId = movie.categoryId
-                                            switchTab(AppTab.MOVIES)
-                                        },
-                                        onPlaySeries = { series ->
-                                            targetSeriesId = series.seriesId
-                                            targetSeriesCategoryId = series.categoryId
-                                            switchTab(AppTab.SERIES)
-                                        },
-                                        onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                            playerManager.stop()
-                                            fullscreenMedia = null
-                                            isLiveTvFullscreen = false
-                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
-                                        },
-                                        onSelectPodcast = { episode ->
-                                            targetPodcastEpisode = episode
-                                            switchTab(AppTab.PODCASTS)
-                                        },
-                                        onOpenSettings = { switchTab(AppTab.SETTINGS) }
-                                    )
+
                                     AppTab.LIVE -> LiveTvScreen(
                                         authRepo = authRepo,
                                         apiClient = apiClient,

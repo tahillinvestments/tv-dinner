@@ -94,10 +94,10 @@ data class EpisodeInfo(
 )
 
 data class Episode(
-    @SerializedName("id") val id: String = "",
-    @SerializedName("episode_num") val episodeNum: Int = 0,
+    @SerializedName(value = "id", alternate = ["stream_id", "episode_id"]) val id: String = "",
+    @SerializedName(value = "episode_num", alternate = ["episode_number", "episode"]) val episodeNum: Int = 0,
     @SerializedName("title") val title: String = "",
-    @SerializedName("container_extension") val containerExtension: String = "mp4",
+    @SerializedName(value = "container_extension", alternate = ["extension", "ext", "container"]) val containerExtension: String = "mp4",
     @SerializedName("info") val info: EpisodeInfo? = null,
     @SerializedName("season") val season: Int = 1
 )

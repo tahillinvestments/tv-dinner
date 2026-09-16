@@ -5344,6 +5344,23 @@ function setupSettingsScreen() {
     });
   }
 
+  const togglePasswordBtn = document.getElementById('settings-toggle-password-btn');
+  if (togglePasswordBtn) {
+    togglePasswordBtn.addEventListener('click', () => {
+      if (passwordInput) {
+        const isPassword = passwordInput.type === 'password';
+        passwordInput.type = isPassword ? 'text' : 'password';
+        const eyeIcon = document.getElementById('settings-password-eye-icon');
+        if (eyeIcon) {
+          eyeIcon.setAttribute('data-lucide', isPassword ? 'eye-off' : 'eye');
+          if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+          }
+        }
+      }
+    });
+  }
+
   const saveCredsBtn = document.getElementById('settings-save-creds-btn');
   const resetCredsBtn = document.getElementById('settings-reset-creds-btn');
   const credsStatusBadge = document.getElementById('settings-creds-status-badge');

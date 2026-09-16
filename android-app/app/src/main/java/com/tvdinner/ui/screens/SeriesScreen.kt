@@ -135,25 +135,30 @@ fun SeriesScreen(
         }
     }
 
+    var pendingFocusSeriesId by remember { mutableStateOf<Int?>(null) }
+    val effectiveFocusSeriesId = targetSeriesId ?: pendingFocusSeriesId
     val targetSeriesFocusRequester = remember { FocusRequester() }
 
-    // Deep navigation from Now page: switch category if needed and scroll/focus target series
+    // Deep navigation: switch category if needed and scroll/focus target series
     LaunchedEffect(targetSeriesId, targetCategoryId) {
         if (!targetCategoryId.isNullOrBlank() && selectedCategoryId != targetCategoryId) {
             selectCategory(targetCategoryId)
         }
     }
 
-    LaunchedEffect(targetSeriesId, sortedAndFilteredSeries) {
-        if (targetSeriesId != null && targetSeriesId > 0 && sortedAndFilteredSeries.isNotEmpty()) {
-            val idx = sortedAndFilteredSeries.indexOfFirst { it.seriesId == targetSeriesId }
+    LaunchedEffect(effectiveFocusSeriesId, sortedAndFilteredSeries, searchQuery) {
+        if (searchQuery.isBlank() && effectiveFocusSeriesId != null && effectiveFocusSeriesId > 0 && sortedAndFilteredSeries.isNotEmpty()) {
+            val idx = sortedAndFilteredSeries.indexOfFirst { it.seriesId == effectiveFocusSeriesId }
             if (idx >= 0) {
                 gridState.scrollToItem(idx)
                 delay(150)
                 try {
                     targetSeriesFocusRequester.requestFocus()
                 } catch (_: Exception) {}
-                onTargetSeriesConsumed()
+                if (targetSeriesId != null) {
+                    onTargetSeriesConsumed()
+                }
+                pendingFocusSeriesId = null
             }
         }
     }
@@ -389,9 +394,18 @@ fun SeriesScreen(
                                     try {
                                         keyboardController?.hide()
                                     } catch (_: Exception) {}
-                                    selectedSeries = series
-                                    lastSelectedSeriesId = series.seriesId
-                                    authRepo.setLastSeriesId(series.seriesId)
+                                    if (searchQuery.isNotBlank()) {
+                                        val targetCatId = series.categoryId?.ifBlank { null }
+                                        pendingFocusSeriesId = series.seriesId
+                                        if (!targetCatId.isNullOrBlank()) {
+                                            selectCategory(targetCatId)
+                                        }
+                                        searchQuery = ""
+                                    } else {
+                                        selectedSeries = series
+                                        lastSelectedSeriesId = series.seriesId
+                                        authRepo.setLastSeriesId(series.seriesId)
+                                    }
                                 },
                                 onLongClick = {
                                     val added = authRepo.toggleSeriesWatchlist(series.seriesId)
@@ -414,7 +428,7 @@ fun SeriesScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .wrapContentHeight()
-                                    .then(if (series.seriesId == targetSeriesId) Modifier.focusRequester(targetSeriesFocusRequester) else Modifier)
+                                    .then(if (series.seriesId == effectiveFocusSeriesId) Modifier.focusRequester(targetSeriesFocusRequester) else Modifier)
                             ) {
                                 Column {
                                     Box(
@@ -631,9 +645,18 @@ fun SeriesScreen(
                                         try {
                                             keyboardController?.hide()
                                         } catch (_: Exception) {}
-                                        selectedSeries = series
-                                        lastSelectedSeriesId = series.seriesId
-                                        authRepo.setLastSeriesId(series.seriesId)
+                                        if (searchQuery.isNotBlank()) {
+                                            val targetCatId = series.categoryId?.ifBlank { null }
+                                            pendingFocusSeriesId = series.seriesId
+                                            if (!targetCatId.isNullOrBlank()) {
+                                                selectCategory(targetCatId)
+                                            }
+                                            searchQuery = ""
+                                        } else {
+                                            selectedSeries = series
+                                            lastSelectedSeriesId = series.seriesId
+                                            authRepo.setLastSeriesId(series.seriesId)
+                                        }
                                     },
                                     onLongClick = {
                                         val added = authRepo.toggleSeriesWatchlist(series.seriesId)
@@ -656,7 +679,7 @@ fun SeriesScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .wrapContentHeight()
-                                        .then(if (series.seriesId == targetSeriesId) Modifier.focusRequester(targetSeriesFocusRequester) else Modifier)
+                                        .then(if (series.seriesId == effectiveFocusSeriesId) Modifier.focusRequester(targetSeriesFocusRequester) else Modifier)
                                 ) {
                                     Column {
                                         Box(

@@ -117,25 +117,30 @@ fun MoviesScreen(
         }
     }
 
+    var pendingFocusMovieId by remember { mutableStateOf<Int?>(null) }
+    val effectiveFocusMovieId = targetMovieId ?: pendingFocusMovieId
     val targetMovieFocusRequester = remember { FocusRequester() }
 
-    // Deep navigation from Now page: switch category if needed and scroll/focus target movie
+    // Deep navigation: switch category if needed and scroll/focus target movie
     LaunchedEffect(targetMovieId, targetCategoryId) {
         if (!targetCategoryId.isNullOrBlank() && selectedCategoryId != targetCategoryId) {
             selectCategory(targetCategoryId)
         }
     }
 
-    LaunchedEffect(targetMovieId, sortedAndFilteredMovies) {
-        if (targetMovieId != null && targetMovieId > 0 && sortedAndFilteredMovies.isNotEmpty()) {
-            val idx = sortedAndFilteredMovies.indexOfFirst { it.streamId == targetMovieId }
+    LaunchedEffect(effectiveFocusMovieId, sortedAndFilteredMovies, searchQuery) {
+        if (searchQuery.isBlank() && effectiveFocusMovieId != null && effectiveFocusMovieId > 0 && sortedAndFilteredMovies.isNotEmpty()) {
+            val idx = sortedAndFilteredMovies.indexOfFirst { it.streamId == effectiveFocusMovieId }
             if (idx >= 0) {
                 gridState.scrollToItem(idx)
                 delay(150)
                 try {
                     targetMovieFocusRequester.requestFocus()
                 } catch (_: Exception) {}
-                onTargetMovieConsumed()
+                if (targetMovieId != null) {
+                    onTargetMovieConsumed()
+                }
+                pendingFocusMovieId = null
             }
         }
     }
@@ -362,20 +367,29 @@ fun MoviesScreen(
                                     try {
                                         keyboardController?.hide()
                                     } catch (_: Exception) {}
-                                    val currentPortal = authRepo.getVodPortalUrl()
-                                    val currentUser = authRepo.getVodUsername()
-                                    val currentPswd = authRepo.getVodPassword()
-                                    val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
-                                    val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
-                                    val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
-                                    val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
-                                    lastPlayedMovieId = movie.streamId
-                                    authRepo.setLastMovieStreamId(movie.streamId)
-                                    authRepo.addMovieToHistory(movie.streamId)
-                                    if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
-                                        resumePromptMovie = movie
+                                    if (searchQuery.isNotBlank()) {
+                                        val targetCatId = movie.categoryId?.ifBlank { null }
+                                        pendingFocusMovieId = movie.streamId
+                                        if (!targetCatId.isNullOrBlank()) {
+                                            selectCategory(targetCatId)
+                                        }
+                                        searchQuery = ""
                                     } else {
-                                        onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
+                                        val currentPortal = authRepo.getVodPortalUrl()
+                                        val currentUser = authRepo.getVodUsername()
+                                        val currentPswd = authRepo.getVodPassword()
+                                        val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
+                                        val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
+                                        val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
+                                        val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
+                                        lastPlayedMovieId = movie.streamId
+                                        authRepo.setLastMovieStreamId(movie.streamId)
+                                        authRepo.addMovieToHistory(movie.streamId)
+                                        if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
+                                            resumePromptMovie = movie
+                                        } else {
+                                            onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
+                                        }
                                     }
                                 },
                                 onLongClick = {
@@ -399,7 +413,7 @@ fun MoviesScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .wrapContentHeight()
-                                    .then(if (movie.streamId == targetMovieId) Modifier.focusRequester(targetMovieFocusRequester) else Modifier)
+                                    .then(if (movie.streamId == effectiveFocusMovieId) Modifier.focusRequester(targetMovieFocusRequester) else Modifier)
                             ) {
                                 Column {
                                     Box(
@@ -641,21 +655,30 @@ fun MoviesScreen(
                                 try {
                                     keyboardController?.hide()
                                 } catch (_: Exception) {}
-                                val currentPortal = authRepo.getVodPortalUrl()
-                                val currentUser = authRepo.getVodUsername()
-                                val currentPswd = authRepo.getVodPassword()
-                                val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
-                                val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
-                                val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
-                                val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
-                                lastPlayedMovieId = movie.streamId
-                                authRepo.setLastMovieStreamId(movie.streamId)
-                                authRepo.addMovieToHistory(movie.streamId)
-                                if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
-                                    resumePromptMovie = movie
+                                if (searchQuery.isNotBlank()) {
+                                    val targetCatId = movie.categoryId?.ifBlank { null }
+                                    pendingFocusMovieId = movie.streamId
+                                    if (!targetCatId.isNullOrBlank()) {
+                                        selectCategory(targetCatId)
+                                    }
+                                    searchQuery = ""
                                 } else {
-                                    // Automatic direct playback for new/unwatched movies
-                                    onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
+                                    val currentPortal = authRepo.getVodPortalUrl()
+                                    val currentUser = authRepo.getVodUsername()
+                                    val currentPswd = authRepo.getVodPassword()
+                                    val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
+                                    val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
+                                    val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
+                                    val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
+                                    lastPlayedMovieId = movie.streamId
+                                    authRepo.setLastMovieStreamId(movie.streamId)
+                                    authRepo.addMovieToHistory(movie.streamId)
+                                    if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
+                                        resumePromptMovie = movie
+                                    } else {
+                                        // Automatic direct playback for new/unwatched movies
+                                        onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
+                                    }
                                 }
                             },
                             onLongClick = {
@@ -679,7 +702,7 @@ fun MoviesScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .wrapContentHeight()
-                                .then(if (movie.streamId == targetMovieId) Modifier.focusRequester(targetMovieFocusRequester) else Modifier)
+                                .then(if (movie.streamId == effectiveFocusMovieId) Modifier.focusRequester(targetMovieFocusRequester) else Modifier)
                         ) {
                             Column {
                                 Box(

@@ -37,10 +37,6 @@
         <i data-lucide="home"></i>
         <span>Home</span>
       </button>
-      <button class="nav-link" data-tab="now" title="What's On Now & Curated For You">
-        <i data-lucide="sparkles"></i>
-        <span>Now</span>
-      </button>
       <button class="nav-link" data-tab="live" title="Live TV">
         <i data-lucide="tv"></i>
         <span>Live TV</span>
@@ -86,9 +82,6 @@
       <nav class="mobile-drawer-nav">
         <button class="mobile-drawer-link active" data-tab="home">
           <i data-lucide="home"></i> <span>Home</span>
-        </button>
-        <button class="mobile-drawer-link" data-tab="now">
-          <i data-lucide="sparkles"></i> <span>Now</span>
         </button>
         <button class="mobile-drawer-link" data-tab="live">
           <i data-lucide="tv"></i> <span>Live TV</span>
@@ -1178,7 +1171,12 @@
               </div>
               <div class="settings-input-group flex-1">
                 <label for="settings-iptv-password" class="settings-input-label">Password</label>
-                <input type="password" id="settings-iptv-password" class="settings-input-control" placeholder="2b0dd524f955" value="2b0dd524f955">
+                <div style="position: relative; display: flex; align-items: center; width: 100%;">
+                  <input type="password" id="settings-iptv-password" class="settings-input-control" placeholder="2b0dd524f955" value="2b0dd524f955" style="width: 100%; padding-right: 36px;">
+                  <button type="button" id="settings-toggle-password-btn" style="position: absolute; right: 8px; background: transparent; border: none; cursor: pointer; color: #94a3b8; display: flex; align-items: center; justify-content: center; padding: 4px;" title="Toggle password visibility">
+                    <i data-lucide="eye" id="settings-password-eye-icon" style="width: 16px; height: 16px;"></i>
+                  </button>
+                </div>
               </div>
             </div>
             <div class="flex items-center justify-end gap-2 mt-3">
@@ -1189,31 +1187,6 @@
                 <i data-lucide="check" class="w-3.5 h-3.5"></i> Save & Apply
               </button>
             </div>
-          </div>
-        </div>
-
-        <!-- Personalization & Now Feed Section -->
-        <div class="settings-form-section">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                <i data-lucide="sparkles" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <h3 class="text-white font-bold text-base">Smart Personalization</h3>
-                <span class="text-[11px] text-slate-400 block">Curate the "Now" page based on your activity</span>
-              </div>
-            </div>
-            <label class="toggle-switch" for="settings-personalization-toggle">
-              <input type="checkbox" id="settings-personalization-toggle" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <p class="section-desc mt-2">
-            Save time surfing by tailoring your "Now" feed with programming based on your watch history, saved channels, watchlist genres, and podcast subscriptions.
-          </p>
-          <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-400 leading-relaxed mt-2">
-            <span class="text-amber-400 font-semibold">Preference Mode:</span> When turned off, the "Now" page switches to generic mode, showing globally trending current broadcasts, popular movies, and top podcasts across TV DINNER.
           </div>
         </div>
 

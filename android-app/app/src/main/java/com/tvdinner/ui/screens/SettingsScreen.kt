@@ -1348,12 +1348,25 @@ fun SettingsScreen(
 
                                             kotlinx.coroutines.delay(400)
 
-                                            // Step 6: Trigger true Android application process restart
+                                            // Step 6: Trigger guaranteed full Android OS application restart
                                             val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                                            if (launchIntent?.component != null) {
-                                                val restartIntent = android.content.Intent.makeRestartActivityTask(launchIntent.component)
-                                                context.startActivity(restartIntent)
-                                                Runtime.getRuntime().exit(0)
+                                            if (launchIntent != null) {
+                                                launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                                val pendingIntent = android.app.PendingIntent.getActivity(
+                                                    context.applicationContext,
+                                                    9999,
+                                                    launchIntent,
+                                                    android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                                                )
+                                                val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as? android.app.AlarmManager
+                                                alarmManager?.set(
+                                                    android.app.AlarmManager.RTC,
+                                                    System.currentTimeMillis() + 350,
+                                                    pendingIntent
+                                                )
+                                                (context as? android.app.Activity)?.finishAffinity()
+                                                android.os.Process.killProcess(android.os.Process.myPid())
+                                                kotlin.system.exitProcess(0)
                                             } else {
                                                 isRebooting = false
                                                 showSystemRebootDialog = false
