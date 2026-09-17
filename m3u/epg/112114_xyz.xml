@@ -17826,6 +17826,9 @@
 	<programme channel="咪咕综合体育" start="20260917090000 +0800" stop="20260917094000 +0800">
 		<title lang="zh">英超精华-26/27赛季英超第1轮</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20260917094500 +0800" stop="20260917112500 +0800">
+		<title lang="zh">中超来噜-2026赛季中超 第18轮 上海申花-北京国安</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>
@@ -17867,6 +17870,9 @@
 	</programme>
 	<programme channel="咪咕足球" start="20260917090500 +0800" stop="20260917103500 +0800">
 		<title lang="zh">篮球：为爱而生10 抉择时刻</title>
+	</programme>
+	<programme channel="咪咕足球" start="20260917104500 +0800" stop="20260917114500 +0800">
+		<title lang="zh">超级三对三-2026超三联赛</title>
 	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
@@ -59103,6 +59109,9 @@
 	<programme channel="newtv超级综艺" start="20260917084500 +0800" stop="20260917100200 +0800">
 		<title lang="zh">国风超有戏b7寻风季</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260917100200 +0800" stop="20260917111900 +0800">
+		<title lang="zh">星光大道</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -59133,6 +59142,9 @@
 	<programme channel="newtv超级体育" start="20260917084000 +0800" stop="20260917101100 +0800">
 		<title lang="zh">国际足球赛场-26-27赛季西甲联赛第5轮 莱万特-巴塞罗那(4K)</title>
 	</programme>
+	<programme channel="newtv超级体育" start="20260917101100 +0800" stop="20260917112500 +0800">
+		<title lang="zh">实况录像-2026年女篮世界杯 半决赛 1</title>
+	</programme>
 	<channel id="newtv超级电影">
 		<display-name lang="zh">NEWTV超级电影</display-name>
 	</channel>
@@ -59156,6 +59168,9 @@
 	</programme>
 	<programme channel="newtv超级电影" start="20260917090200 +0800" stop="20260917103700 +0800">
 		<title lang="zh">洛克海特的遗物</title>
+	</programme>
+	<programme channel="newtv超级电影" start="20260917103700 +0800" stop="20260917115500 +0800">
+		<title lang="zh">澡堂也疯狂</title>
 	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
@@ -59201,6 +59216,12 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260917093500 +0800" stop="20260917102000 +0800">
 		<title lang="zh">22_家事法庭</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260917102000 +0800" stop="20260917110600 +0800">
+		<title lang="zh">23_家事法庭</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260917110600 +0800" stop="20260917115100 +0800">
+		<title lang="zh">24_家事法庭</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -59798,6 +59819,12 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260917093700 +0800" stop="20260917102300 +0800">
 		<title lang="zh">09_潜行者</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260917102300 +0800" stop="20260917110300 +0800">
+		<title lang="zh">VK13PROMAX 5G语音手机套装好物推荐</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260917110300 +0800" stop="20260917114900 +0800">
+		<title lang="zh">10_潜行者</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
