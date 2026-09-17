@@ -128,18 +128,22 @@ fun MoviesScreen(
         }
     }
 
-    LaunchedEffect(effectiveFocusMovieId, sortedAndFilteredMovies, searchQuery) {
-        if (searchQuery.isBlank() && effectiveFocusMovieId != null && effectiveFocusMovieId > 0 && sortedAndFilteredMovies.isNotEmpty()) {
+    LaunchedEffect(effectiveFocusMovieId, sortedAndFilteredMovies, searchQuery, isLoading) {
+        if (!isLoading && searchQuery.isBlank() && effectiveFocusMovieId != null && effectiveFocusMovieId > 0 && sortedAndFilteredMovies.isNotEmpty()) {
             val idx = sortedAndFilteredMovies.indexOfFirst { it.streamId == effectiveFocusMovieId }
             if (idx >= 0) {
-                gridState.scrollToItem(idx)
-                delay(150)
-                try {
-                    targetMovieFocusRequester.requestFocus()
-                } catch (_: Exception) {}
+                gridState.scrollToItem((idx - 2).coerceAtLeast(0))
+                for (attempt in 0..4) {
+                    delay(100)
+                    try {
+                        targetMovieFocusRequester.requestFocus()
+                        break
+                    } catch (_: Exception) {}
+                }
                 if (targetMovieId != null) {
                     onTargetMovieConsumed()
                 }
+                delay(600)
                 pendingFocusMovieId = null
             }
         }
@@ -415,6 +419,14 @@ fun MoviesScreen(
                                     .wrapContentHeight()
                                     .then(if (movie.streamId == effectiveFocusMovieId) Modifier.focusRequester(targetMovieFocusRequester) else Modifier)
                             ) {
+                                if (movie.streamId == effectiveFocusMovieId) {
+                                    LaunchedEffect(Unit) {
+                                        delay(60)
+                                        try {
+                                            targetMovieFocusRequester.requestFocus()
+                                        } catch (_: Exception) {}
+                                    }
+                                }
                                 Column {
                                     Box(
                                         modifier = Modifier
@@ -704,6 +716,14 @@ fun MoviesScreen(
                                 .wrapContentHeight()
                                 .then(if (movie.streamId == effectiveFocusMovieId) Modifier.focusRequester(targetMovieFocusRequester) else Modifier)
                         ) {
+                            if (movie.streamId == effectiveFocusMovieId) {
+                                LaunchedEffect(Unit) {
+                                    delay(60)
+                                    try {
+                                        targetMovieFocusRequester.requestFocus()
+                                    } catch (_: Exception) {}
+                                }
+                            }
                             Column {
                                 Box(
                                     modifier = Modifier

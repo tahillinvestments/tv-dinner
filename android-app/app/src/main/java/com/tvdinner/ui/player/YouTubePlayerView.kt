@@ -136,11 +136,16 @@ object YouTubeRemoteBridge {
                         try { window.ytPlayer.unloadModule('captions'); } catch(e) {}
                     } else {
                         try { window.ytPlayer.loadModule('captions'); } catch(e) {}
-                        var tracks = [];
-                        try { tracks = window.ytPlayer.getOption('captions', 'tracklist') || []; } catch(e) {}
-                        if (tracks.length > 0) {
-                            window.ytPlayer.setOption('captions', 'track', tracks[0]);
-                        }
+                        setTimeout(function() {
+                            try {
+                                var tracks = window.ytPlayer.getOption('captions', 'tracklist') || [];
+                                if (tracks.length > 0) {
+                                    window.ytPlayer.setOption('captions', 'track', tracks[0]);
+                                } else {
+                                    window.ytPlayer.setOption('captions', 'track', {'languageCode': 'en'});
+                                }
+                            } catch(e) {}
+                        }, 500);
                     }
                 } catch(e) {
                     try { window.ytPlayer.unloadModule('captions'); } catch(_) {}
@@ -165,8 +170,8 @@ class YouTubeBridgeInterface(private val onEndedProvider: () -> (() -> Unit)?) {
 @Composable
 fun YouTubePlayerView(
     videoId: String,
-    title: String,
-    onBack: () -> Unit,
+    title: String = "",
+    onBack: (() -> Unit)? = null,
     onNextVideo: (() -> Unit)? = null,
     nextVideoTitle: String? = null,
     onPreviousVideo: (() -> Unit)? = null,
@@ -193,8 +198,16 @@ fun YouTubePlayerView(
                 if (window.ytPlayer) {
                     try {
                         window.ytPlayer.loadModule('captions');
-                        var tracks = window.ytPlayer.getOption('captions', 'tracklist') || [];
-                        if (tracks.length > 0) window.ytPlayer.setOption('captions', 'track', tracks[0]);
+                        setTimeout(function() {
+                            try {
+                                var tracks = window.ytPlayer.getOption('captions', 'tracklist') || [];
+                                if (tracks.length > 0) {
+                                    window.ytPlayer.setOption('captions', 'track', tracks[0]);
+                                } else {
+                                    window.ytPlayer.setOption('captions', 'track', {'languageCode': 'en'});
+                                }
+                            } catch(_) {}
+                        }, 500);
                     } catch(_) {}
                 }
                 """.trimIndent(),
@@ -313,6 +326,27 @@ fun YouTubePlayerView(
                                 var ytPlayer;
                                 function onYouTubeIframeAPIReady() {
                                     var vId = window.pendingVideoId || '$videoId';
+                                    function applyCaptions(player, enable) {
+                                        if (!player) return;
+                                        try {
+                                            if (enable) {
+                                                player.loadModule('captions');
+                                                setTimeout(function() {
+                                                    try {
+                                                        var tr = player.getOption('captions', 'tracklist') || [];
+                                                        if (tr.length > 0) {
+                                                            player.setOption('captions', 'track', tr[0]);
+                                                        } else {
+                                                            player.setOption('captions', 'track', {'languageCode': 'en'});
+                                                        }
+                                                    } catch(_) {}
+                                                }, 600);
+                                            } else {
+                                                player.setOption('captions', 'track', {});
+                                                player.unloadModule('captions');
+                                            }
+                                        } catch(_) {}
+                                    }
                                     ytPlayer = new YT.Player('player', {
                                         videoId: vId,
                                         playerVars: {
@@ -325,12 +359,14 @@ fun YouTubePlayerView(
                                             'enablejsapi': 1,
                                             'origin': 'https://www.youtube-nocookie.com',
                                             'iv_load_policy': 3,
-                                            'cc_load_policy': $ccPolicy
+                                            'cc_load_policy': $ccPolicy,
+                                            'cc_lang_pref': 'en',
+                                            'hl': 'en'
                                         },
                                         events: {
                                             'onReady': function(e) {
                                                 window.ytPlayer = e.target;
-                                                ${if (captionsEnabled) "try { e.target.loadModule('captions'); var tr = e.target.getOption('captions', 'tracklist') || []; if (tr.length > 0) e.target.setOption('captions', 'track', tr[0]); } catch(_) {}" else "try { e.target.setOption('captions', 'track', {}); e.target.unloadModule('captions'); } catch(_) {}"}
+                                                applyCaptions(e.target, ${if (captionsEnabled) "true" else "false"});
                                                 if (window.pendingVideoId) {
                                                     e.target.loadVideoById(window.pendingVideoId);
                                                     window.pendingVideoId = null;
@@ -345,7 +381,7 @@ fun YouTubePlayerView(
                                             },
                                             'onStateChange': function(e) {
                                                 if (e.data === 1) {
-                                                    ${if (captionsEnabled) "try { e.target.loadModule('captions'); } catch(_) {}" else "try { e.target.setOption('captions', 'track', {}); e.target.unloadModule('captions'); } catch(_) {}"}
+                                                    applyCaptions(e.target, ${if (captionsEnabled) "true" else "false"});
                                                 }
                                                 if (e.data === 0) {
                                                     if (window.AndroidBridge && window.AndroidBridge.onVideoEnded) {
@@ -420,18 +456,20 @@ fun YouTubePlayerView(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TvFocusableCard(
-                        onClick = onBack,
-                        modifier = Modifier.size(40.dp),
-                        shape = CircleShape,
-                        backgroundColor = CinemaSurfaceVariant.copy(alpha = 0.8f)
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White
-                            )
+                    if (onBack != null) {
+                        TvFocusableCard(
+                            onClick = onBack,
+                            modifier = Modifier.size(40.dp),
+                            shape = CircleShape,
+                            backgroundColor = CinemaSurfaceVariant.copy(alpha = 0.8f)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
 

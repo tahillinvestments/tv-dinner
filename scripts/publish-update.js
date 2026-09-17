@@ -51,15 +51,17 @@ if (!targetRelease) {
 }
 
 // ── Determine the new versionCode ────────────────────────────────────────────
-// We always use the highest existing code + 1 to guarantee Android accepts it.
+// If targetRelease is already higher than current live production, keep its version.
+// If targetRelease <= currentVersion (e.g. republishing an archived release), bump to max + 1.
+const liveVersionCode = updatesData.currentVersion?.versionCode || 0;
+const alreadyHigher = targetRelease.versionCode > liveVersionCode;
 const maxExisting = Math.max(...updatesData.releases.map(r => r.versionCode || 0));
-const newVersionCode = maxExisting + 1;
-const baseVersionName = targetRelease.versionName.replace(/-r\d+$/, ''); // strip any prior -r suffix
-const newVersionName = newVersionCode === targetRelease.versionCode
-  ? baseVersionName                              // no bump needed, same build
-  : `${baseVersionName}-r${newVersionCode}`;     // republish: add suffix
 
-const isRepublish = newVersionCode !== targetRelease.versionCode;
+const newVersionCode = alreadyHigher ? targetRelease.versionCode : (maxExisting + 1);
+const baseVersionName = targetRelease.versionName.replace(/-r\d+$/, ''); // strip any prior -r suffix
+const newVersionName = alreadyHigher ? targetRelease.versionName : `${baseVersionName}-r${newVersionCode}`;
+
+const isRepublish = !alreadyHigher;
 
 console.log('\n══════════════════════════════════════════════════');
 if (isRepublish) {
@@ -71,7 +73,6 @@ if (isRepublish) {
 console.log('══════════════════════════════════════════════════\n');
 
 // ── Bump versionCode + versionName in build.gradle.kts ──────────────────────
-// This is what actually makes Android accept the APK as an update.
 const gradlePath = path.join(projectRoot, 'android-app', 'app', 'build.gradle.kts');
 let gradleContent = fs.readFileSync(gradlePath, 'utf8');
 
@@ -82,26 +83,31 @@ gradleContent = gradleContent
 fs.writeFileSync(gradlePath, gradleContent, 'utf8');
 console.log(`✅ build.gradle.kts → versionCode = ${newVersionCode}, versionName = "${newVersionName}"`);
 
-// ── Rebuild the APK ──────────────────────────────────────────────────────────
-console.log('🔨 Rebuilding APK with new version code...');
-try {
-  execSync('powershell -Command "cd android-app; ./gradlew.bat assembleRelease"', {
-    cwd: projectRoot,
-    stdio: 'inherit'
-  });
-  console.log('✅ APK rebuilt successfully.');
-} catch (err) {
-  console.error('❌ Gradle build failed. Reverting build.gradle.kts...');
-  // Revert the gradle change so we don't leave things in a broken state
-  gradleContent = gradleContent
-    .replace(/versionCode\s*=\s*\d+/, `versionCode = ${targetRelease.versionCode}`)
-    .replace(/versionName\s*=\s*"[^"]+"/, `versionName = "${targetRelease.versionName}"`);
-  fs.writeFileSync(gradlePath, gradleContent, 'utf8');
-  process.exit(1);
+// ── Rebuild the APK if needed ────────────────────────────────────────────────
+const builtApkPath = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
+const needsRebuild = isRepublish || !fs.existsSync(builtApkPath);
+
+if (needsRebuild) {
+  console.log('🔨 Rebuilding APK with new version code...');
+  try {
+    execSync('powershell -Command "cd android-app; ./gradlew.bat assembleRelease"', {
+      cwd: projectRoot,
+      stdio: 'inherit'
+    });
+    console.log('✅ APK rebuilt successfully.');
+  } catch (err) {
+    console.error('❌ Gradle build failed. Reverting build.gradle.kts...');
+    gradleContent = gradleContent
+      .replace(/versionCode\s*=\s*\d+/, `versionCode = ${targetRelease.versionCode}`)
+      .replace(/versionName\s*=\s*"[^"]+"/, `versionName = "${targetRelease.versionName}"`);
+    fs.writeFileSync(gradlePath, gradleContent, 'utf8');
+    process.exit(1);
+  }
+} else {
+  console.log('✅ Staged release APK is already compiled with matching version — skipping redundant build.');
 }
 
 // ── Copy rebuilt APK to staging-apks/ ───────────────────────────────────────
-const builtApkPath = path.join(projectRoot, 'android-app', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
 if (!fs.existsSync(builtApkPath)) {
   console.error('❌ Built APK not found at expected path after Gradle build.');
   process.exit(1);
@@ -171,7 +177,7 @@ if (fs.existsSync(path.dirname(androidVersionJson))) {
 try {
   console.log('\n📦 Committing and pushing to GitHub...');
   execSync(
-    'git add updates.json public/version.json android-app/app/src/main/assets/version.json android-app/app/build.gradle.kts version-notes.json scripts/',
+    'git add updates.json public/version.json android-app/ update-dashboard.html version-notes.json scripts/',
     { cwd: projectRoot, stdio: 'inherit' }
   );
   const commitMsg = `Publish v${newVersionName} (Build ${newVersionCode}): ${publishedEntry.title}`;

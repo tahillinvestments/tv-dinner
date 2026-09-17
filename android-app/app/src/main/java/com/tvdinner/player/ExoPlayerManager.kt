@@ -83,6 +83,12 @@ class ExoPlayerManager(
     private val _resizeMode = MutableStateFlow(AspectRatioFrameLayout.RESIZE_MODE_FIT)
     val resizeMode: StateFlow<Int> = _resizeMode.asStateFlow()
 
+    private val _seekActionTimestamp = MutableStateFlow(0L)
+    val seekActionTimestamp: StateFlow<Long> = _seekActionTimestamp.asStateFlow()
+
+    private val _seekMagnitudeDisplay = MutableStateFlow("")
+    val seekMagnitudeDisplay: StateFlow<String> = _seekMagnitudeDisplay.asStateFlow()
+
     private val _audioTracks = MutableStateFlow<List<AudioTrackInfo>>(emptyList())
     val audioTracks: StateFlow<List<AudioTrackInfo>> = _audioTracks.asStateFlow()
 
@@ -169,6 +175,8 @@ class ExoPlayerManager(
         _liveRewindOffsetSeconds.value = 0
         _audioTracks.value = emptyList()
         _selectedAudioTrack.value = null
+        _seekActionTimestamp.value = 0L
+        _seekMagnitudeDisplay.value = ""
         currentStreamKey = null
         _currentStreamUrl.value = ""
         _currentTitle.value = ""
@@ -306,32 +314,20 @@ class ExoPlayerManager(
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
 
-        val renderersFactory = object : DefaultRenderersFactory(context) {
-            override fun buildAudioSink(
-                context: Context,
-                enableFloatOutput: Boolean,
-                enableAudioTrackPlaybackParams: Boolean
-            ): androidx.media3.exoplayer.audio.AudioSink {
-                return androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
-                    .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.getCapabilities(context))
-                    .setEnableFloatOutput(false)
-                    .setEnableAudioTrackPlaybackParams(true)
-                    .build()
-            }
-        }.apply {
-            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        val renderersFactory = DefaultRenderersFactory(context).apply {
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
             setEnableDecoderFallback(true)
             setEnableAudioTrackPlaybackParams(true)
             setEnableAudioFloatOutput(false)
         }
 
-        // Buffer durations tuned for instant direct start and zero artificial latency with safe backBuffer retention
+        // Buffer durations tuned for robust, uninterrupted VOD streaming without jitter stalls
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                3000,  // minBufferMs (3s buffer threshold)
-                30000, // maxBufferMs (30s max buffer)
-                500,   // bufferForPlaybackMs (instant startup in 500ms)
-                1000   // bufferForPlaybackAfterRebufferMs (1s recovery)
+                15000, // minBufferMs (15s minimum buffer gives smooth playback on network fluctuations)
+                50000, // maxBufferMs (50s max buffer)
+                1500,  // bufferForPlaybackMs (1.5s startup)
+                3000   // bufferForPlaybackAfterRebufferMs (3s rebuffer recovery)
             )
             .setBackBuffer(20_000, false) // 20s backBuffer prevents 4K VOD OutOfMemory crashes while keeping safe rewind
             .setPrioritizeTimeOverSizeThresholds(true)
@@ -718,6 +714,7 @@ class ExoPlayerManager(
     fun seekTo(posMs: Long) {
         player?.seekTo(posMs)
         _currentPosition.value = posMs
+        _seekActionTimestamp.value = System.currentTimeMillis()
     }
 
     fun seekForward10s() {
@@ -734,12 +731,15 @@ class ExoPlayerManager(
             seekMagnitudeMs = 15_000L
         }
         lastSeekTime = now
+        val label = if (seekMagnitudeMs >= 60_000L) "+${seekMagnitudeMs / 60_000L}m" else "+${seekMagnitudeMs / 1000L}s"
+        _seekMagnitudeDisplay.value = label
 
         player?.let { p ->
             val target = (p.currentPosition + seekMagnitudeMs).coerceAtMost(if (p.duration > 0) p.duration else Long.MAX_VALUE)
             p.seekTo(target)
             _currentPosition.value = target
         }
+        _seekActionTimestamp.value = now
     }
 
     fun seekRewind10s() {
@@ -756,12 +756,15 @@ class ExoPlayerManager(
             seekMagnitudeMs = 15_000L
         }
         lastSeekTime = now
+        val label = if (seekMagnitudeMs >= 60_000L) "-${seekMagnitudeMs / 60_000L}m" else "-${seekMagnitudeMs / 1000L}s"
+        _seekMagnitudeDisplay.value = label
 
         player?.let { p ->
             val target = (p.currentPosition - seekMagnitudeMs).coerceAtLeast(0)
             p.seekTo(target)
             _currentPosition.value = target
         }
+        _seekActionTimestamp.value = now
     }
 
     fun cycleAspectRatio() {

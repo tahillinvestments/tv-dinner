@@ -146,18 +146,22 @@ fun SeriesScreen(
         }
     }
 
-    LaunchedEffect(effectiveFocusSeriesId, sortedAndFilteredSeries, searchQuery) {
-        if (searchQuery.isBlank() && effectiveFocusSeriesId != null && effectiveFocusSeriesId > 0 && sortedAndFilteredSeries.isNotEmpty()) {
+    LaunchedEffect(effectiveFocusSeriesId, sortedAndFilteredSeries, searchQuery, isLoading) {
+        if (!isLoading && searchQuery.isBlank() && effectiveFocusSeriesId != null && effectiveFocusSeriesId > 0 && sortedAndFilteredSeries.isNotEmpty()) {
             val idx = sortedAndFilteredSeries.indexOfFirst { it.seriesId == effectiveFocusSeriesId }
             if (idx >= 0) {
-                gridState.scrollToItem(idx)
-                delay(150)
-                try {
-                    targetSeriesFocusRequester.requestFocus()
-                } catch (_: Exception) {}
+                gridState.scrollToItem((idx - 2).coerceAtLeast(0))
+                for (attempt in 0..4) {
+                    delay(100)
+                    try {
+                        targetSeriesFocusRequester.requestFocus()
+                        break
+                    } catch (_: Exception) {}
+                }
                 if (targetSeriesId != null) {
                     onTargetSeriesConsumed()
                 }
+                delay(600)
                 pendingFocusSeriesId = null
             }
         }
@@ -430,6 +434,14 @@ fun SeriesScreen(
                                     .wrapContentHeight()
                                     .then(if (series.seriesId == effectiveFocusSeriesId) Modifier.focusRequester(targetSeriesFocusRequester) else Modifier)
                             ) {
+                                if (series.seriesId == effectiveFocusSeriesId) {
+                                    LaunchedEffect(Unit) {
+                                        delay(60)
+                                        try {
+                                            targetSeriesFocusRequester.requestFocus()
+                                        } catch (_: Exception) {}
+                                    }
+                                }
                                 Column {
                                     Box(
                                         modifier = Modifier
@@ -681,6 +693,14 @@ fun SeriesScreen(
                                         .wrapContentHeight()
                                         .then(if (series.seriesId == effectiveFocusSeriesId) Modifier.focusRequester(targetSeriesFocusRequester) else Modifier)
                                 ) {
+                                    if (series.seriesId == effectiveFocusSeriesId) {
+                                        LaunchedEffect(Unit) {
+                                            delay(60)
+                                            try {
+                                                targetSeriesFocusRequester.requestFocus()
+                                            } catch (_: Exception) {}
+                                        }
+                                    }
                                     Column {
                                         Box(
                                             modifier = Modifier

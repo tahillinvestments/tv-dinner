@@ -144,7 +144,6 @@ fun SettingsScreen(
 
     // Subtitle & Closed Captions Preferences State
     var musicPodcastsCaptionsEnabled by remember { mutableStateOf(authRepo.isMusicPodcastsCaptionsEnabled()) }
-    var nowPersonalizationEnabled by remember { mutableStateOf(authRepo.isNowPersonalizationEnabled()) }
 
     // History and System Reset Dialog States
     var showClearHistoryDialog by remember { mutableStateOf(false) }
@@ -478,65 +477,6 @@ fun SettingsScreen(
                                 onCheckedChange = {
                                     musicPodcastsCaptionsEnabled = it
                                     authRepo.setMusicPodcastsCaptionsEnabled(it)
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = CinemaAccent,
-                                    uncheckedThumbColor = TextMuted,
-                                    uncheckedTrackColor = CinemaSurfaceLight
-                                ),
-                                modifier = Modifier.scale(0.85f)
-                            )
-                        }
-                    }
-
-                    // Smart Personalization Toggle (Now Tab)
-                    TvFocusableCard(
-                        onClick = {
-                            val next = !nowPersonalizationEnabled
-                            nowPersonalizationEnabled = next
-                            authRepo.setNowPersonalizationEnabled(next)
-                            Toast.makeText(
-                                context,
-                                if (next) "Smart Personalization enabled on 'Now' page" else "Generic trending mode enabled on 'Now' page",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        },
-                        backgroundColor = CinemaSurfaceVariant,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().height(54.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Smart Personalization (Now Tab)",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = if (nowPersonalizationEnabled) "Tailors 'Now' page based on your history, saves & watchlist" else "Shows generic trending movies, series & live TV (Default trending)",
-                                    fontSize = 11.sp,
-                                    color = TextMuted,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            Switch(
-                                checked = nowPersonalizationEnabled,
-                                onCheckedChange = {
-                                    nowPersonalizationEnabled = it
-                                    authRepo.setNowPersonalizationEnabled(it)
-                                    Toast.makeText(
-                                        context,
-                                        if (it) "Smart Personalization enabled on 'Now' page" else "Generic trending mode enabled on 'Now' page",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
@@ -1346,31 +1286,14 @@ fun SettingsScreen(
                                                 catalogManager?.clearAllCaches()
                                             } catch (_: Exception) {}
 
-                                            kotlinx.coroutines.delay(400)
+                                            kotlinx.coroutines.delay(350)
 
-                                            // Step 6: Trigger guaranteed full Android OS application restart
-                                            val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                                            if (launchIntent != null) {
-                                                launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                                                val pendingIntent = android.app.PendingIntent.getActivity(
-                                                    context.applicationContext,
-                                                    9999,
-                                                    launchIntent,
-                                                    android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-                                                )
-                                                val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as? android.app.AlarmManager
-                                                alarmManager?.set(
-                                                    android.app.AlarmManager.RTC,
-                                                    System.currentTimeMillis() + 350,
-                                                    pendingIntent
-                                                )
-                                                (context as? android.app.Activity)?.finishAffinity()
-                                                android.os.Process.killProcess(android.os.Process.myPid())
-                                                kotlin.system.exitProcess(0)
-                                            } else {
+                                            // Step 6: Recycle and reopen app cleanly at restarted state
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                                 isRebooting = false
                                                 showSystemRebootDialog = false
-                                                Toast.makeText(context, "TV Dinner System Reboot Complete: Media engine & caches fully rebuilt.", Toast.LENGTH_LONG).show()
+                                                Toast.makeText(context, "TV Dinner System Reboot Complete: Streaming engines & caches refreshed.", Toast.LENGTH_LONG).show()
+                                                (context as? android.app.Activity)?.recreate()
                                             }
                                         }
                                     },

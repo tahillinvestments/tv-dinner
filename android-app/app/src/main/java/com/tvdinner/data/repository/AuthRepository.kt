@@ -40,6 +40,9 @@ class AuthRepository(context: Context) {
     private val _activePassword = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString(KEY_ACTIVE_PASSWORD, "")?.trim() ?: "")
     val activePasswordState: kotlinx.coroutines.flow.StateFlow<String> = _activePassword
 
+    private val _isMusicPodcastsCaptionsEnabled = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean("music_podcasts_captions_enabled", true))
+    val isMusicPodcastsCaptionsEnabledState: kotlinx.coroutines.flow.StateFlow<Boolean> = _isMusicPodcastsCaptionsEnabled
+
     fun isActivated(): Boolean {
         return true
     }
@@ -511,6 +514,7 @@ class AuthRepository(context: Context) {
 
     fun setMusicPodcastsCaptionsEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("music_podcasts_captions_enabled", enabled).apply()
+        _isMusicPodcastsCaptionsEnabled.value = enabled
     }
 
     // Adult Content (18+) Filter Toggle (Default: OFF)

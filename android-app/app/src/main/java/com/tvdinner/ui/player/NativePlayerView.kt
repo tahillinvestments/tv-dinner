@@ -96,6 +96,20 @@ fun NativePlayerView(
     var showLiveRewindHud by remember { mutableStateOf(false) }
     var lastObservedLiveOffset by remember { mutableIntStateOf(liveRewindOffsetSeconds) }
 
+    val seekActionTimestamp by playerManager.seekActionTimestamp.collectAsState()
+    val seekMagnitudeDisplay by playerManager.seekMagnitudeDisplay.collectAsState()
+    var showSeekHud by remember { mutableStateOf(false) }
+    var lastObservedSeekAction by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(seekActionTimestamp) {
+        if (seekActionTimestamp > 0L && seekActionTimestamp != lastObservedSeekAction) {
+            lastObservedSeekAction = seekActionTimestamp
+            showSeekHud = true
+            delay(3000)
+            showSeekHud = false
+        }
+    }
+
     LaunchedEffect(isLiveRewound, liveRewindOffsetSeconds) {
         if (isLive && (isLiveRewound || liveRewindOffsetSeconds != lastObservedLiveOffset)) {
             lastObservedLiveOffset = liveRewindOffsetSeconds
@@ -259,75 +273,86 @@ fun NativePlayerView(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Buffering / Interrupted Stream Overlay
-        if (isBuffering || isStreamStalled || errorMessage != null) {
+        // Non-Intrusive Buffering Indicator (Preserves Picture Underneath)
+        if (isBuffering && !isStreamStalled && errorMessage == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        if (errorMessage != null || isStreamStalled) Color.Black.copy(alpha = 0.78f)
-                        else Color.Transparent
-                    ),
-                contentAlignment = Alignment.Center
+                    .padding(20.dp),
+                contentAlignment = Alignment.TopEnd
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.padding(24.dp)
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Black.copy(alpha = 0.65f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaAccent.copy(alpha = 0.6f))
                 ) {
-                    if (isBuffering && !isStreamStalled && errorMessage == null) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         CircularProgressIndicator(
                             color = CinemaAccent,
-                            modifier = Modifier.size(52.dp),
-                            strokeWidth = 4.dp
+                            modifier = Modifier.size(12.dp),
+                            strokeWidth = 2.dp
                         )
-                    } else {
-                        CircularProgressIndicator(
-                            color = CinemaAccent,
-                            modifier = Modifier.size(36.dp),
-                            strokeWidth = 3.dp
+                        Text(
+                            text = "Buffering...",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
+                    }
+                }
+            }
+        } else if (isStreamStalled || errorMessage != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                contentAlignment = Alignment.BottomEnd
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.Black.copy(alpha = 0.85f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaPrimary),
+                    modifier = Modifier.padding(bottom = 72.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         Text(
                             text = errorMessage ?: "Stream interrupted. Auto-recovering...",
                             color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
                         )
                         TvFocusableCard(
                             onClick = {
                                 playerManager.reconnectCurrentStream()
                             },
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             backgroundColor = CinemaPrimary,
                             focusedBorderColor = CinemaAccent
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = "Reconnect Stream",
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            Text(
+                                text = "Reconnect",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
                         }
                     }
                 }
             }
         }
 
-        // Player Controls HUD Overlay (Visible when showControls is true or when paused, but hidden during buffering)
+        // Player Controls HUD Overlay (Visible when showControls is true or when paused)
         AnimatedVisibility(
-            visible = (showControls && !isBuffering) || (!isPlaying && !isBuffering && errorMessage == null),
+            visible = showControls || (!isPlaying && errorMessage == null),
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
@@ -595,58 +620,83 @@ fun NativePlayerView(
                     }
                 }
 
-                // Bottom Progress Bar & Time Stamps for VOD
-                if (!isLive) {
-                    Column(
+            }
+        }
+
+        // Bottom Progress Bar & Time Stamps for VOD (Visible on remote seek or controls)
+        androidx.compose.animation.AnimatedVisibility(
+            visible = !isLive && (showControls || showSeekHud || (!isPlaying && errorMessage == null)),
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 24.dp, vertical = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (showSeekHud && seekMagnitudeDisplay.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Black.copy(alpha = 0.85f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaAccent),
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                            .padding(horizontal = 24.dp, vertical = 20.dp)
+                            .align(Alignment.CenterHorizontally)
+                            .padding(bottom = 8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = formatTime(position),
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = if (duration > 0) formatTime(duration) else "--:--",
-                                color = TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        if (duration > 0) {
-                            Slider(
-                                value = position.toFloat().coerceIn(0f, duration.toFloat()),
-                                onValueChange = {
-                                    playerManager.seekTo(it.toLong())
-                                    lastInteractionTime = System.currentTimeMillis()
-                                },
-                                valueRange = 0f..duration.toFloat(),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = CinemaAccent,
-                                    activeTrackColor = CinemaPrimary,
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.25f)
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            LinearProgressIndicator(
-                                color = CinemaPrimary,
-                                trackColor = Color.White.copy(alpha = 0.2f),
-                                modifier = Modifier.fillMaxWidth().height(4.dp)
-                            )
-                        }
+                        Text(
+                            text = seekMagnitudeDisplay,
+                            color = CinemaAccent,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                        )
                     }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formatTime(position),
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (duration > 0) formatTime(duration) else "--:--",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                if (duration > 0) {
+                    Slider(
+                        value = position.toFloat().coerceIn(0f, duration.toFloat()),
+                        onValueChange = {
+                            playerManager.seekTo(it.toLong())
+                            lastInteractionTime = System.currentTimeMillis()
+                        },
+                        valueRange = 0f..duration.toFloat(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = CinemaAccent,
+                            activeTrackColor = CinemaPrimary,
+                            inactiveTrackColor = Color.White.copy(alpha = 0.25f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        color = CinemaPrimary,
+                        trackColor = Color.White.copy(alpha = 0.2f),
+                        modifier = Modifier.fillMaxWidth().height(4.dp)
+                    )
                 }
             }
         }

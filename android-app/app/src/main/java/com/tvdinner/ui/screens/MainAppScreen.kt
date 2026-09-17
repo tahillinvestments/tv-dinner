@@ -80,6 +80,7 @@ fun MainAppScreen(
     // Fullscreen Playback States for VOD and YouTube
     var fullscreenMedia by remember { mutableStateOf<FullscreenMediaState?>(null) }
     var fullscreenYouTube by remember { mutableStateOf<FullscreenYouTubeState?>(null) }
+    val isMusicCaptionsEnabled by authRepo.isMusicPodcastsCaptionsEnabledState.collectAsState()
 
     // Target Navigation States from NowScreen
     var targetChannelId by remember { mutableStateOf<Int?>(null) }
@@ -542,7 +543,7 @@ fun MainAppScreen(
             YouTubePlayerView(
                 videoId = ytState.videoId,
                 title = ytState.title,
-                captionsEnabled = authRepo.isMusicPodcastsCaptionsEnabled(),
+                captionsEnabled = isMusicCaptionsEnabled,
                 onBack = {
                     YouTubeRemoteBridge.activeWebView = null
                     fullscreenYouTube = null

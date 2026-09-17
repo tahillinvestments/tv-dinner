@@ -94,6 +94,7 @@ fun LiveTvScreen(
     var favoriteChannelIds by remember { mutableStateOf(authRepo.getFavoriteChannelIds()) }
 
     val isPlaying by playerManager.isPlaying.collectAsState()
+    val currentStreamUrl by playerManager.currentStreamUrl.collectAsState()
     val currentTitle by playerManager.currentTitle.collectAsState()
     val resizeMode by playerManager.resizeMode.collectAsState()
     val isCcEnabled by playerManager.isClosedCaptionsEnabled.collectAsState()
@@ -1483,7 +1484,8 @@ fun LiveTvScreen(
                             .aspectRatio(16f / 9f)
                             .clip(RoundedCornerShape(16.dp))
                     ) {
-                        if (activeChannel != null || currentTitle.isNotBlank()) {
+                        val hasActivePlayback = currentStreamUrl.isNotBlank() && (isPlaying || currentTitle.isNotBlank())
+                        if (hasActivePlayback) {
                             NativePlayerView(
                                 playerManager = playerManager,
                                 modifier = Modifier.fillMaxSize()
@@ -1506,13 +1508,15 @@ fun LiveTvScreen(
                                         modifier = Modifier.size(48.dp)
                                     )
                                     Text(
-                                        text = "Select a channel on the left to start streaming",
+                                        text = if (activeChannel != null) "Select ${activeChannel?.name} to start streaming" else "Select a channel on the left to start streaming",
                                         color = TextSecondary,
                                         fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
                                     )
                                     Text(
-                                        text = "Click once to preview • Click again for Fullscreen",
+                                        text = "Click to start streaming • Click again for Fullscreen",
                                         color = TextMuted,
                                         fontSize = 12.sp
                                     )

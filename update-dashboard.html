@@ -220,6 +220,19 @@ async function renderDashboard() {
   const current = data.currentVersion || {};
   const releases = data.releases || [];
 
+  function getDownloadUrl(rel, isLive = false) {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const prefix = isLocal ? '' : (window.location.protocol === 'file:' ? 'http://127.0.0.1:3888' : '');
+
+    if (isLocal || window.location.protocol === 'file:') {
+      const code = rel.versionCode || '';
+      const name = rel.versionName || '';
+      const id = rel.id || '';
+      return `${prefix}/api/download-apk?code=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}&id=${encodeURIComponent(id)}`;
+    }
+    return rel.apkUrl || '#';
+  }
+
   // Live banner
   document.getElementById('live-version-title').textContent =
     `v${current.versionName || '—'} (Build ${current.versionCode || '—'}) — ${current.title || 'Current Production Build'}`;
@@ -227,7 +240,7 @@ async function renderDashboard() {
   document.getElementById('live-version-time').textContent =
     current.publishedAt ? `Published: ${new Date(current.publishedAt).toLocaleDateString()}` : '';
   const liveBtn = document.getElementById('btn-download-live-apk');
-  liveBtn.href = current.apkUrl || '#';
+  liveBtn.href = getDownloadUrl(current, true);
   liveBtn.download = `tv-dinner-v${current.versionName || 'latest'}.apk`;
 
   // Staged alert banner
@@ -252,17 +265,8 @@ async function renderDashboard() {
     const isStaged = rel.status === 'STAGED';
 
     // APK download href
-    let downloadHref = rel.apkUrl || '#';
-    let downloadLabel = 'Download APK';
-    if (isStaged && rel.stagedApk) {
-      // Served by dashboard server from /staging-apks/
-      const filename = rel.stagedApk.split('/').pop();
-      downloadHref = `/staging-apks/${filename}`;
-      if (window.location.protocol === 'file:') {
-        downloadHref = `http://127.0.0.1:3888/staging-apks/${filename}`;
-      }
-      downloadLabel = '🧪 Test APK';
-    }
+    const downloadHref = getDownloadUrl(rel, isLive);
+    const downloadLabel = isStaged ? '🧪 Test APK' : 'Download APK';
 
     const adbSrc = rel.stagedApk
       ? rel.stagedApk.replace(/\//g, '\\')
