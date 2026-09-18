@@ -101,9 +101,11 @@ class ExoPlayerManager(
     var authRepo: AuthRepository? = null
     var currentStreamKey: String? = null
 
-    // Scrub Acceleration State
+    // Scrub Acceleration & Debounce State
     private var lastSeekTime = 0L
     private var seekMagnitudeMs = 15_000L
+    private var pendingSeekTargetMs: Long? = null
+    private var pendingSeekJob: Job? = null
     private var liveRecoveryAttempt = 0
     private var vodRecoveryAttempt = 0
 
@@ -244,17 +246,28 @@ class ExoPlayerManager(
         vodRecoveryAttempt++
         var resumePos = _currentPosition.value.coerceAtLeast(0L)
 
+        // If seeking too close to or past duration, clamp to safe resume point to avoid HTTP 416
+        if (_duration.value > 0 && resumePos >= _duration.value - 3000L) {
+            resumePos = (_duration.value - 10_000L).coerceAtLeast(0L)
+        }
+
         if (isDecoderOrContainerError) {
             // Nudge forward past corrupted frame/GOP to prevent repeating the exact same decoder/container crash
             val nudgeMs = (vodRecoveryAttempt * 2_500L)
-            val maxPos = if (_duration.value > 0) _duration.value else Long.MAX_VALUE
+            val maxPos = if (_duration.value > 0) (_duration.value - 3000L).coerceAtLeast(0L) else Long.MAX_VALUE
             resumePos = (resumePos + nudgeMs).coerceAtMost(maxPos)
             Log.w(tag, "Decoder/container error on VOD: nudging past corrupt frame to ${resumePos}ms (attempt $vodRecoveryAttempt)")
         } else {
             Log.w(tag, "Recovering VOD stream: attempt $vodRecoveryAttempt from ${resumePos}ms (url: $currentUrl)")
         }
 
-        // Stop player cleanly without evicting the entire connection pool
+        // Flush in-flight and connection pool sockets to prevent connecting on broken/rate-limited sockets
+        try {
+            mediaOkHttpClient.dispatcher.cancelAll()
+            mediaOkHttpClient.connectionPool.evictAll()
+        } catch (_: Exception) {}
+
+        // Stop player cleanly
         try {
             player?.stop()
             player?.clearMediaItems()
@@ -286,6 +299,35 @@ class ExoPlayerManager(
             streamKey = currentStreamKey,
             recoveryAttempt = vodRecoveryAttempt
         )
+    }
+
+    /**
+     * Last-resort failsafe reboot when the player enters an unending malfunction.
+     * Rebuilds ExoPlayer, OkHttpClient dispatcher, and socket pools from scratch,
+     * and automatically resumes the previous programming at the last saved playback position.
+     */
+    fun failsafeRebootAndResume() {
+        val savedUrl = _currentStreamUrl.value
+        val savedTitle = _currentTitle.value
+        val savedIsLive = _isLiveStream.value
+        val savedPos = _currentPosition.value.coerceAtLeast(0L)
+        val savedKey = currentStreamKey
+
+        if (savedUrl.isBlank()) return
+
+        Log.i(tag, "failsafeRebootAndResume(): Rebuilding media OkHttp and player for: $savedTitle at ${savedPos}ms")
+        reinitialize()
+
+        scope.launch {
+            delay(1000)
+            playStream(
+                url = savedUrl,
+                title = savedTitle,
+                isLive = savedIsLive,
+                startPositionMs = savedPos,
+                streamKey = savedKey
+            )
+        }
     }
 
     fun reconnectCurrentStream() {
@@ -321,16 +363,16 @@ class ExoPlayerManager(
             setEnableAudioFloatOutput(false)
         }
 
-        // Buffer durations tuned for robust, uninterrupted VOD streaming without jitter stalls
+        // Buffer durations tuned for fast startup and robust VOD streaming without jitter stalls
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 15000, // minBufferMs (15s minimum buffer gives smooth playback on network fluctuations)
                 50000, // maxBufferMs (50s max buffer)
-                1500,  // bufferForPlaybackMs (1.5s startup)
-                3000   // bufferForPlaybackAfterRebufferMs (3s rebuffer recovery)
+                800,   // bufferForPlaybackMs (800ms fast startup)
+                1500   // bufferForPlaybackAfterRebufferMs (1.5s rebuffer recovery)
             )
             .setBackBuffer(20_000, false) // 20s backBuffer prevents 4K VOD OutOfMemory crashes while keeping safe rewind
-            .setPrioritizeTimeOverSizeThresholds(true)
+            .setPrioritizeTimeOverSizeThresholds(false)
             .build()
 
         val extractorsFactory = DefaultExtractorsFactory().apply {
@@ -490,12 +532,17 @@ class ExoPlayerManager(
                                 }
                             }
                             return
-                        }
-
-                        _errorMessage.value = if (isBadHttpStatus) {
-                            "Stream disconnected (Server busy/HTTP error). Click Reconnect Stream."
                         } else {
-                            "Playback error: ${error.errorCodeName}. Click Reconnect Stream."
+                            // Failsafe auto-reboot and resume (last resort recovery when in unending malfunction)
+                            Log.e(tag, "Stream in unending malfunction (retries exhausted). Triggering failsafe reboot & resume...")
+                            _errorMessage.value = "Self-recovering stream engine..."
+                            errorRecoveryJob = scope.launch {
+                                delay(2000)
+                                if (currentGen == streamGeneration) {
+                                    failsafeRebootAndResume()
+                                }
+                            }
+                            return
                         }
                     }
                 })
@@ -712,9 +759,20 @@ class ExoPlayerManager(
     }
 
     fun seekTo(posMs: Long) {
-        player?.seekTo(posMs)
-        _currentPosition.value = posMs
+        val p = player ?: return
+        val maxTarget = if (p.duration > 0) (p.duration - 2000L).coerceAtLeast(0L) else Long.MAX_VALUE
+        val target = posMs.coerceIn(0L, maxTarget)
+        pendingSeekTargetMs = target
+        _currentPosition.value = target
         _seekActionTimestamp.value = System.currentTimeMillis()
+
+        pendingSeekJob?.cancel()
+        pendingSeekJob = scope.launch {
+            delay(250)
+            val finalTarget = pendingSeekTargetMs ?: return@launch
+            pendingSeekTargetMs = null
+            player?.seekTo(finalTarget)
+        }
     }
 
     fun seekForward10s() {
@@ -735,9 +793,20 @@ class ExoPlayerManager(
         _seekMagnitudeDisplay.value = label
 
         player?.let { p ->
-            val target = (p.currentPosition + seekMagnitudeMs).coerceAtMost(if (p.duration > 0) p.duration else Long.MAX_VALUE)
-            p.seekTo(target)
+            val currentBase = pendingSeekTargetMs ?: p.currentPosition
+            val maxTarget = if (p.duration > 0) (p.duration - 2000L).coerceAtLeast(0L) else Long.MAX_VALUE
+            val target = (currentBase + seekMagnitudeMs).coerceAtMost(maxTarget)
+            pendingSeekTargetMs = target
             _currentPosition.value = target
+
+            // Debounce actual player seek so rapid clicks don't spam aborted HTTP Range requests to the server
+            pendingSeekJob?.cancel()
+            pendingSeekJob = scope.launch {
+                delay(350)
+                val finalTarget = pendingSeekTargetMs ?: return@launch
+                pendingSeekTargetMs = null
+                player?.seekTo(finalTarget)
+            }
         }
         _seekActionTimestamp.value = now
     }
@@ -760,9 +829,19 @@ class ExoPlayerManager(
         _seekMagnitudeDisplay.value = label
 
         player?.let { p ->
-            val target = (p.currentPosition - seekMagnitudeMs).coerceAtLeast(0)
-            p.seekTo(target)
+            val currentBase = pendingSeekTargetMs ?: p.currentPosition
+            val target = (currentBase - seekMagnitudeMs).coerceAtLeast(0L)
+            pendingSeekTargetMs = target
             _currentPosition.value = target
+
+            // Debounce actual player seek so rapid clicks don't spam aborted HTTP Range requests to the server
+            pendingSeekJob?.cancel()
+            pendingSeekJob = scope.launch {
+                delay(350)
+                val finalTarget = pendingSeekTargetMs ?: return@launch
+                pendingSeekTargetMs = null
+                player?.seekTo(finalTarget)
+            }
         }
         _seekActionTimestamp.value = now
     }
@@ -1129,9 +1208,13 @@ class ExoPlayerManager(
         streamGeneration++
         bufferWatchdogJob?.cancel()
         errorRecoveryJob?.cancel()
+        pendingSeekJob?.cancel()
+        pendingSeekTargetMs = null
         _isStreamStalled.value = false
         _errorMessage.value = null
         flushPositionNow()
+        liveRecoveryAttempt = 0
+        vodRecoveryAttempt = 0
         player?.stop()
         player?.clearMediaItems()
         _currentPosition.value = 0L
@@ -1139,6 +1222,9 @@ class ExoPlayerManager(
         _isPlaying.value = false
         _isBuffering.value = false
         currentStreamKey = null
+        _currentStreamUrl.value = ""
+        _currentTitle.value = ""
+        _isLiveStream.value = false
     }
 
     fun release() {

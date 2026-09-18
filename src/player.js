@@ -80,6 +80,7 @@ export class IPTVPlayer {
     this.volume = 1;
     this.aspectRatio = 'fit'; // 'fit' or 'stretch'
     this.unmuteTimers = [];
+    this.isUserPaused = false; // true only when user explicitly paused via UI
     
     this.initEventListeners();
   }
@@ -457,6 +458,7 @@ export class IPTVPlayer {
 
   playChannel(channel, startPosition = 0) {
     this.resetVideoFrame();
+    this.isUserPaused = false; // reset on every new stream start
     this.currentMediaKey = channel.mediaKey || null;
     
     let rawUrl = channel.url || channel.src || '';
@@ -571,12 +573,21 @@ export class IPTVPlayer {
 
     if (isDirectVideo) {
       this.destroyHls();
+      this.vodErrorRetryCount = 0; // reset retry counter on every new stream
+
+      // Remove any stalled listener registered by a previous direct-video session
+      if (this._directVideoStallHandler) {
+        try { this.video.removeEventListener('stalled', this._directVideoStallHandler); } catch (_) {}
+        this._directVideoStallHandler = null;
+      }
+
       if (this.video) {
         this.video.style.display = 'block';
         this.video.style.width = '100%';
         this.video.style.height = '100%';
         this.video.style.objectFit = 'contain';
         this.video.style.opacity = '1';
+        this.video.autoplay = true;
         this.video.src = this.currentUrl;
         this.video.load();
       }
@@ -584,6 +595,44 @@ export class IPTVPlayer {
         this.poster.style.display = 'none';
         this.poster.classList.add('opacity-0', 'pointer-events-none');
       }
+
+      // Stall recovery: if video pauses unexpectedly (browser autoplay policy or buffer stall)
+      // retry play. Captured url guards against firing after stream is replaced.
+      const capturedUrl = this.currentUrl;
+      const onDirectVideoStall = () => {
+        if (this.video && this.video.paused && !this.isUserPaused && this.currentUrl === capturedUrl) {
+          console.log('[Player] Direct video stalled — retrying play...');
+          this.video.play().then(() => {
+            this.video.muted = false;
+            this.video.volume = 1.0;
+            this.updatePlayPauseUI(false);
+          }).catch(() => {
+            this.video.muted = true;
+            this.video.play().then(() => {
+              this.updatePlayPauseUI(false);
+              const t = setTimeout(() => {
+                if (this.video && !this.video.paused && this.currentUrl === capturedUrl) {
+                  this.video.muted = false;
+                  this.video.volume = 1.0;
+                  this.updateMuteUI();
+                }
+              }, 200);
+              this.unmuteTimers.push(t);
+            }).catch(() => { this.updatePlayPauseUI(true); });
+          });
+        }
+      };
+      this._directVideoStallHandler = onDirectVideoStall;
+      this.video.addEventListener('stalled', onDirectVideoStall);
+
+      // Periodic stall check (post-seek freeze): readyState >= 3 = HAVE_FUTURE_DATA
+      const stallCheckInterval = setInterval(() => {
+        if (!this.currentUrl || this.currentUrl !== capturedUrl) { clearInterval(stallCheckInterval); return; }
+        if (this.video && this.video.paused && !this.isUserPaused && this.video.readyState >= 3) {
+          onDirectVideoStall();
+        }
+      }, 2000);
+      this._directVideoStallInterval = stallCheckInterval;
 
       const onMeta = () => {
         if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
@@ -602,14 +651,31 @@ export class IPTVPlayer {
             this.showToast(`Resumed from ${this.formatTime(resumePos)}`);
           } catch (e) {}
         }
-        this.video.play().then(() => {
-          this.video.muted = false;
-          this.video.volume = 1.0;
-          this.updatePlayPauseUI(false);
-          this.updateVolumeUI();
-        }).catch(() => {
-          this.updatePlayPauseUI(true);
-        });
+        const playPromise = this.video.play();
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            this.video.muted = false;
+            this.video.volume = 1.0;
+            this.updatePlayPauseUI(false);
+            this.updateVolumeUI();
+          }).catch(() => {
+            // Autoplay blocked — retry muted then unmute
+            this.video.muted = true;
+            this.video.play().then(() => {
+              this.updatePlayPauseUI(false);
+              const timer = setTimeout(() => {
+                if (this.video && !this.video.paused && this.currentUrl === capturedUrl) {
+                  this.video.muted = false;
+                  this.video.volume = 1.0;
+                  this.updateMuteUI();
+                }
+              }, 150);
+              this.unmuteTimers.push(timer);
+            }).catch(() => {
+              this.updatePlayPauseUI(true);
+            });
+          });
+        }
       };
 
       this.video.addEventListener('loadedmetadata', onMeta, { once: true });
@@ -618,24 +684,40 @@ export class IPTVPlayer {
         if (this.poster) this.poster.style.display = 'none';
       }, { once: true });
       this.video.addEventListener('error', (e) => {
-        console.warn("[Player] Direct video playback error:", e);
+        if (this.currentUrl !== capturedUrl) return; // stale listener, ignore
+        console.warn('[Player] Direct video playback error:', e);
         if (this.bufferTimeout) clearTimeout(this.bufferTimeout);
-        
-        // VOD Auto-Resume on connectivity / stream drop
+        clearInterval(stallCheckInterval);
+
+        // VOD HTTP error recovery: retry from current position up to 5 times
         if (this.controlMode === 'vod' || (this.video && this.video.currentTime > 0)) {
           this.vodErrorRetryCount = (this.vodErrorRetryCount || 0) + 1;
           if (this.vodErrorRetryCount <= 5) {
             const resumeAt = (this.video && this.video.currentTime > 0) ? this.video.currentTime : (resumePos || 0);
-            console.log(`[Player] VOD auto-recovering from network error (attempt ${this.vodErrorRetryCount}/5 at ${resumeAt}s)...`);
-            this.showToast(`Stream interrupted. Auto-resuming in 2s (attempt ${this.vodErrorRetryCount}/5)...`);
+            console.log(`[Player] VOD HTTP error auto-recover attempt ${this.vodErrorRetryCount}/5 at ${resumeAt}s`);
+            this.showToast(`Stream interrupted. Reconnecting... (${this.vodErrorRetryCount}/5)`);
             this.showLoading(true);
             setTimeout(() => {
-              if (this.currentUrl) {
+              if (this.currentUrl === capturedUrl) {
                 this.playChannel(channel, resumeAt);
               }
-            }, 2000);
+            }, 2000 + (this.vodErrorRetryCount * 500)); // increasing delay
             return;
           }
+          // Exhausted retries — show error with auto-reload failsafe
+          console.warn('[Player] Exhausted VOD error retries. Showing error with reload watchdog.');
+          this.showError(true, 'Connection interrupted. Tap Reload to try again.');
+          // Last-resort watchdog: if the error persists for 12 seconds with no user action,
+          // reload the stream from the beginning to escape the stuck state.
+          if (this._errorWatchdogTimer) clearTimeout(this._errorWatchdogTimer);
+          this._errorWatchdogTimer = setTimeout(() => {
+            if (this.error && !this.error.classList.contains('hidden') && this.currentUrl === capturedUrl) {
+              console.warn('[Player] Error watchdog fired — auto-reloading stream from start.');
+              this.showToast('Auto-reloading stream...');
+              this.playChannel(channel, 0);
+            }
+          }, 12000);
+          return;
         }
 
         this.showLoading(false);
@@ -834,6 +916,7 @@ export class IPTVPlayer {
     if (!this.currentUrl && (!this.video || !this.video.src)) return;
 
     if (this.video.paused) {
+      this.isUserPaused = false;
       if (this.hls && typeof this.hls.startLoad === 'function') {
         this.hls.startLoad();
       }
@@ -844,6 +927,7 @@ export class IPTVPlayer {
         console.warn("Play request failed:", err);
       });
     } else {
+      this.isUserPaused = true;
       this.video.pause();
       this.updatePlayPauseUI(true);
       this.showToast("Playback paused");
@@ -1194,35 +1278,63 @@ export class IPTVPlayer {
 
   handleNativeError(event) {
     if (this.video && this.video.error && this.currentUrl) {
-      console.error("Native HTML5 video error:", this.video.error);
-      
-      // Auto-resume VOD streams on intermittent connection error
+      console.error('[Player] Native HTML5 video error:', this.video.error);
+      const capturedUrl = this.currentUrl;
+
+      // Auto-resume VOD/any stream on intermittent connection error
       if (this.controlMode === 'vod' || (this.video && this.video.currentTime > 0)) {
         this.vodErrorRetryCount = (this.vodErrorRetryCount || 0) + 1;
         if (this.vodErrorRetryCount <= 5) {
           const resumeAt = this.video.currentTime || 0;
-          console.log(`[Player] handleNativeError: VOD auto-recovering in 2s (attempt ${this.vodErrorRetryCount}/5 at ${resumeAt}s)...`);
-          this.showToast(`Stream interrupted. Auto-resuming in 2s (attempt ${this.vodErrorRetryCount}/5)...`);
+          const delay = 2000 + (this.vodErrorRetryCount * 500);
+          console.log(`[Player] handleNativeError: auto-recover attempt ${this.vodErrorRetryCount}/5 at ${resumeAt}s (${delay}ms)`);
+          this.showToast(`Stream interrupted. Reconnecting... (${this.vodErrorRetryCount}/5)`);
           this.showLoading(true);
           setTimeout(() => {
-            if (this.currentUrl) {
-              this.playChannel({ url: this.currentUrl, name: this.channelTitle.textContent, mediaKey: this.currentMediaKey }, resumeAt);
+            if (this.currentUrl === capturedUrl) {
+              this.playChannel({ url: capturedUrl, name: this.channelTitle.textContent, mediaKey: this.currentMediaKey }, resumeAt);
             }
-          }, 2000);
+          }, delay);
           return;
         }
+        // Exhausted retries — error watchdog failsafe
+        this.showError(true, 'Connection interrupted. Tap Reload to try again.');
+        if (this._errorWatchdogTimer) clearTimeout(this._errorWatchdogTimer);
+        this._errorWatchdogTimer = setTimeout(() => {
+          if (this.error && !this.error.classList.contains('hidden') && this.currentUrl === capturedUrl) {
+            console.warn('[Player] Error watchdog fired — auto-reloading from start.');
+            this.showToast('Auto-reloading stream...');
+            this.playChannel({ url: capturedUrl, name: this.channelTitle.textContent, mediaKey: this.currentMediaKey }, 0);
+          }
+        }, 12000);
+        return;
       }
 
       if (typeof this.onStreamError === 'function') {
         const handled = this.onStreamError(this.video.error, this.currentUrl);
         if (handled) return;
       }
-      this.showError(true, `Playback error code: ${this.video.error.code}. Stream might be offline.`);
+      this.showError(true, `Playback error (code ${this.video.error.code}). Stream may be offline.`);
     }
   }
 
   resetVideoFrame() {
     this.clearUnmuteTimers();
+    // Cancel any pending error watchdog
+    if (this._errorWatchdogTimer) {
+      clearTimeout(this._errorWatchdogTimer);
+      this._errorWatchdogTimer = null;
+    }
+    // Clear direct-video stall recovery interval from previous stream
+    if (this._directVideoStallInterval) {
+      clearInterval(this._directVideoStallInterval);
+      this._directVideoStallInterval = null;
+    }
+    // Remove stalled listener registered by previous direct-video session
+    if (this._directVideoStallHandler && this.video) {
+      try { this.video.removeEventListener('stalled', this._directVideoStallHandler); } catch (_) {}
+      this._directVideoStallHandler = null;
+    }
     this.destroyHls();
     this.showError(false);
     this.showLoading(false);
@@ -1233,6 +1345,7 @@ export class IPTVPlayer {
       this.video.removeAttribute('src');
       try { this.video.load(); } catch (e) {}
     }
+    this.vodErrorRetryCount = 0;
     this.currentUrl = '';
   }
 

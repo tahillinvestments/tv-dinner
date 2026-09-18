@@ -631,6 +631,19 @@ function resetPlayerUiToDefaultLiveTv() {
   if (player && typeof player.setControlMode === 'function') {
     player.setControlMode('live');
   }
+
+  // Unconditionally wipe the video frame so no VOD content lingers on screen.
+  // switchTab('live') always nulls currentPlayingUrl before calling this function.
+  if (player && typeof player.resetVideoFrame === 'function') {
+    player.resetVideoFrame();
+  } else {
+    const videoEl = document.getElementById('video-player');
+    if (videoEl) {
+      videoEl.pause();
+      videoEl.removeAttribute('src');
+      try { videoEl.load(); } catch (e) {}
+    }
+  }
 }
 
 // Switch between tabs
@@ -651,8 +664,16 @@ function switchTab(tabName) {
   document.body.style.overflow = '';
 
   // Clean up any playing media from previous context
-  if (tabName !== 'podcasts') {
-    stopAllMediaPlayback({ keepLive: tabName === 'live' });
+  if (tabName === 'live') {
+    // Coming back to Live TV: fully wipe any VOD/podcast state. Do NOT keepLive
+    // because there is no active live stream to preserve — the user left live TV
+    // to watch VOD. Clear currentPlayingUrl so resetPlayerUiToDefaultLiveTv can
+    // unconditionally wipe the video frame.
+    state.currentPlayingUrl = null;
+    state.currentPlayingChannel = null;
+    stopAllMediaPlayback(); // full stop, no keeps
+  } else if (tabName !== 'podcasts') {
+    stopAllMediaPlayback({ keepLive: false });
   } else {
     stopAllMediaPlayback({ keepPodcast: true });
   }

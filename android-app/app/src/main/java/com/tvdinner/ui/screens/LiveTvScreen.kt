@@ -94,6 +94,8 @@ fun LiveTvScreen(
     var favoriteChannelIds by remember { mutableStateOf(authRepo.getFavoriteChannelIds()) }
 
     val isPlaying by playerManager.isPlaying.collectAsState()
+    val isBuffering by playerManager.isBuffering.collectAsState()
+    val isLiveStream by playerManager.isLiveStream.collectAsState()
     val currentStreamUrl by playerManager.currentStreamUrl.collectAsState()
     val currentTitle by playerManager.currentTitle.collectAsState()
     val resizeMode by playerManager.resizeMode.collectAsState()
@@ -207,16 +209,19 @@ fun LiveTvScreen(
                 }
             }
             val lastStreamId = authRepo.getLastLiveStreamId()
-            if (lastStreamId > 0) {
+            if (lastStreamId > 0 && playerManager.isPlaying.value && playerManager.isLiveStream.value) {
                 activeChannel = channels.firstOrNull { it.streamId == lastStreamId }
+            } else {
+                activeChannel = null
             }
             isLoading = false
         }
     }
 
-    // Auto-sync active channel with current title
-    LaunchedEffect(currentTitle, channels) {
-        if (activeChannel != null && activeChannel?.name != currentTitle && currentTitle.isNotBlank()) {
+    // Auto-sync active channel with current title strictly when an active live stream is running
+    LaunchedEffect(currentTitle, channels, isLiveStream, isPlaying) {
+        if (!isLiveStream || !isPlaying || currentTitle.isBlank()) return@LaunchedEffect
+        if (activeChannel != null && activeChannel?.name != currentTitle) {
             val matchingChannel = channels.firstOrNull { it.name == currentTitle }
             if (matchingChannel != null) {
                 activeChannel = matchingChannel
@@ -225,7 +230,7 @@ fun LiveTvScreen(
             }
         }
 
-        if (activeChannel == null && currentTitle.isNotBlank()) {
+        if (activeChannel == null) {
             activeChannel = channels.firstOrNull { it.name == currentTitle }
         }
     }
@@ -647,7 +652,7 @@ fun LiveTvScreen(
                         .aspectRatio(16f / 9f)
                         .background(Color.Black)
                 ) {
-                    if (activeChannel != null || currentTitle.isNotBlank()) {
+                    if (currentStreamUrl.isNotBlank() && (isPlaying || isBuffering) && isLiveStream) {
                         NativePlayerView(
                             playerManager = playerManager,
                             onBack = { onToggleFullscreen(false) },
@@ -868,7 +873,7 @@ fun LiveTvScreen(
                         modifier = Modifier.weight(1f).fillMaxWidth()
                     ) {
                         items(filteredChannels, key = { it.streamId }) { channel ->
-                            val isActive = activeChannel?.streamId == channel.streamId
+                            val isActive = activeChannel?.streamId == channel.streamId && isLiveStream && (isPlaying || isBuffering)
                             var channelEpg by remember(channel.streamId) {
                                 mutableStateOf(catalogManager.getCachedEpg(channel.streamId))
                             }
@@ -1219,7 +1224,11 @@ fun LiveTvScreen(
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 itemsIndexed(filteredChannels, key = { _, channel -> channel.streamId }) { index, channel ->
-                                    val isActive = activeChannel?.streamId == channel.streamId
+                                    val isChannelActivePlaying = activeChannel?.streamId == channel.streamId &&
+                                                                isPlaying &&
+                                                                currentStreamUrl.isNotBlank() &&
+                                                                isLiveStream
+                                    val isActive = activeChannel?.streamId == channel.streamId && isLiveStream && (isPlaying || isBuffering)
                                     val isFirstVisible = index == channelListState.firstVisibleItemIndex
                                     val isFirstChannel = index == 0
                                     val hasActiveInList = remember(filteredChannels, activeChannel) {
@@ -1252,7 +1261,7 @@ fun LiveTvScreen(
                                                     apiClient.buildLiveStreamUrl(portal, user, pswd, channel.streamId)
                                                 }
 
-                                                if (isActive) {
+                                                if (isChannelActivePlaying) {
                                                     onToggleFullscreen(true)
                                                 } else {
                                                     activeChannel = channel
@@ -1484,7 +1493,7 @@ fun LiveTvScreen(
                             .aspectRatio(16f / 9f)
                             .clip(RoundedCornerShape(16.dp))
                     ) {
-                        val hasActivePlayback = currentStreamUrl.isNotBlank() && (isPlaying || currentTitle.isNotBlank())
+                        val hasActivePlayback = currentStreamUrl.isNotBlank() && (isPlaying || isBuffering) && isLiveStream
                         if (hasActivePlayback) {
                             NativePlayerView(
                                 playerManager = playerManager,
@@ -1508,7 +1517,7 @@ fun LiveTvScreen(
                                         modifier = Modifier.size(48.dp)
                                     )
                                     Text(
-                                        text = if (activeChannel != null) "Select ${activeChannel?.name} to start streaming" else "Select a channel on the left to start streaming",
+                                        text = if (activeChannel != null && isLiveStream) "Select ${activeChannel?.name} to start streaming" else "Select a channel on the left to start streaming",
                                         color = TextSecondary,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Medium,
@@ -1587,7 +1596,7 @@ fun LiveTvScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    val rawChTitle = activeChannel?.name ?: currentTitle.ifBlank { "No Channel Selected" }
+                                    val rawChTitle = if (isLiveStream) (activeChannel?.name ?: currentTitle.ifBlank { "No Channel Selected" }) else (activeChannel?.name ?: "No Channel Selected")
                                     val cleanPreviewTitle = remember(rawChTitle) { CatalogManager.cleanChannelDisplayName(rawChTitle) }
                                     val previewQuality = remember(rawChTitle) { CatalogManager.extractChannelQuality(rawChTitle) }
                                     Row(
@@ -1644,7 +1653,7 @@ fun LiveTvScreen(
                                             }
                                         }
                                     }
-                                    if (activeChannel != null || currentTitle.isNotBlank()) {
+                                    if (activeChannel != null && isLiveStream) {
                                         Surface(
                                             shape = RoundedCornerShape(4.dp),
                                             color = CinemaPrimary,
@@ -1671,7 +1680,7 @@ fun LiveTvScreen(
                             }
 
                             // Row 2: Action Controls Bar (Resume/Stop, Favorite, CC, Aspect, Fullscreen) - Icon-Only Symbols
-                            if (activeChannel != null || currentTitle.isNotBlank()) {
+                            if (activeChannel != null && isLiveStream) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -2050,7 +2059,7 @@ fun LiveTvScreen(
                                 }
                             } else {
                                 Text(
-                                    text = if (activeChannel != null || currentTitle.isNotBlank()) "Live Broadcast • HD High Quality Stream" else "Select a channel on the left to view programming details",
+                                    text = if (activeChannel != null && isLiveStream) "Live Broadcast • HD High Quality Stream" else "Select a channel on the left to view programming details",
                                     fontSize = 13.sp,
                                     color = TextSecondary
                                 )
