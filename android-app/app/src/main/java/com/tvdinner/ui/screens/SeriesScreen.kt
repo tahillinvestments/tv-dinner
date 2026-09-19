@@ -55,6 +55,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.tvdinner.player.ExoPlayerManager
+import com.tvdinner.ui.components.UniversalIntegratedPreview
 
 data class EpisodeResumePrompt(
     val title: String,
@@ -70,7 +72,9 @@ fun SeriesScreen(
     authRepo: AuthRepository,
     apiClient: XtreamApiClient,
     catalogManager: CatalogManager,
+    playerManager: ExoPlayerManager,
     onPlayEpisode: (String, String, Long, String, (() -> Unit)?, String?) -> Unit, // (url, title, startPosMs, streamKey, onNext, nextTitle)
+    onExpandPreview: () -> Unit = {},
     isPlayingFullscreen: Boolean = false,
     onOpenSettings: (() -> Unit)? = null,
     targetSeriesId: Int? = null,
@@ -538,21 +542,28 @@ fun SeriesScreen(
         } else {
             // TV / Desktop Layout: Dedicated Left Vertical Category Sidebar + Right Content Grid
             Row(modifier = Modifier.fillMaxSize()) {
-                // Left Column: Categories Vertical Sidebar (Spacious, Vertical Scroll)
+                // Left Column: Categories Vertical Sidebar with Integrated Preview
                 Surface(
                     shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
                     color = CinemaSurface,
                     border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
                     modifier = Modifier
-                        .width(230.dp)
+                        .width(280.dp)
                         .fillMaxHeight()
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(vertical = 16.dp, horizontal = 10.dp),
+                            .padding(vertical = 12.dp, horizontal = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        UniversalIntegratedPreview(
+                            playerManager = playerManager,
+                            onExpand = onExpandPreview,
+                            onClose = { playerManager.stop() },
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+
                         Text(
                             text = "CATEGORIES",
                             fontSize = 13.sp,

@@ -41,11 +41,17 @@ import com.tvdinner.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.lazy.LazyColumn
+import com.tvdinner.player.ExoPlayerManager
+import com.tvdinner.ui.components.UniversalIntegratedPreview
+
 @Composable
 fun MusicScreen(
     authRepo: AuthRepository,
     catalogManager: CatalogManager,
+    playerManager: ExoPlayerManager,
     onPlayYouTubeVideo: (String, String, (() -> Unit)?, String?, (() -> Unit)?) -> Unit,
+    onExpandPreview: () -> Unit = {},
     onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -197,248 +203,378 @@ fun MusicScreen(
                 onOpenSettings = onOpenSettings
             )
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                .padding(if (isMobile) 12.dp else 16.dp),
-            verticalArrangement = Arrangement.spacedBy(if (isMobile) 8.dp else 12.dp)
-        ) {
-            // Top Bar: Title & Search
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = null,
-                        tint = CinemaPrimary,
-                        modifier = Modifier.size(if (isMobile) 22.dp else 28.dp)
-                    )
-                    Text(
-                        text = "MUSIC",
-                        fontSize = if (isMobile) 18.sp else 24.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextPrimary
-                    )
-                }
-
-                AppSearchBar(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = if (isMobile) "Search songs, artists, videos..." else "Search songs, artists, albums, or music videos...",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            // Categories Bar (Trending, History and Genres)
             val allGenres = remember {
                 listOf(
                     com.tvdinner.data.model.MusicGenre("history", "🕒 History", "🕒")
                 ) + com.tvdinner.data.music.MusicData.GENRES
             }
-            androidx.compose.foundation.lazy.LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(allGenres) { genre ->
-                    val isSelected = (debouncedQuery.isBlank() && selectedGenreId == genre.id)
-                    TvFocusableCard(
-                        onClick = {
-                            searchQuery = ""
-                            debouncedQuery = ""
-                            selectedGenreId = genre.id
-                        },
-                        shape = RoundedCornerShape(20.dp),
-                        backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
-                        focusedBorderColor = CinemaFocus,
-                        modifier = Modifier.height(36.dp)
+
+            if (isMobile) {
+                // Mobile Portrait Layout: Top Bar + LazyRow Categories + Grid
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .padding(horizontal = 14.dp),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = null,
+                                tint = CinemaPrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
                             Text(
-                                text = genre.name,
-                                color = if (isSelected) Color.White else TextSecondary,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                text = "MUSIC",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextPrimary
                             )
                         }
+
+                        AppSearchBar(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = "Search songs, artists, videos...",
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                }
-            }
 
-            // Results Header Summary
-            if (debouncedQuery.isNotBlank()) {
-                Text(
-                    text = "Results matching \"$debouncedQuery\"",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-            } else if (selectedGenreId == "history") {
-                Text(
-                    text = "Recently Played Music Videos",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = CinemaAccent
-                )
-            }
-
-            // Main Content: Infinite Scrolling Music Videos Grid
-            if (isLoading) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = CinemaAccent)
-                }
-            } else if (videos.isEmpty()) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.MusicOff,
-                            contentDescription = null,
-                            tint = TextMuted,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Text(
-                            text = if (selectedGenreId == "history") "No recently played music videos" else "No music videos found",
-                            color = TextMuted,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(if (isMobile) 2 else 4),
-                    state = gridState,
-                    horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 14.dp),
-                    modifier = Modifier.weight(1f).fillMaxWidth()
-                ) {
-                    gridItems(videos, key = { it.id }) { video ->
-                        val idx = videos.indexOfFirst { it.id == video.id }
-                        TvFocusableCard(
-                            onClick = {
-                                playVideoAtIndex(if (idx >= 0) idx else 0)
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            backgroundColor = CinemaSurface,
-                            focusedBorderColor = CinemaFocus,
-                            focusedScale = 1.04f,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column {
-                                // 16:9 Thumbnail Box
+                        items(allGenres) { genre ->
+                            val isSelected = (debouncedQuery.isBlank() && selectedGenreId == genre.id)
+                            TvFocusableCard(
+                                onClick = {
+                                    searchQuery = ""
+                                    debouncedQuery = ""
+                                    selectedGenreId = genre.id
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
+                                focusedBorderColor = CinemaFocus,
+                                modifier = Modifier.height(36.dp)
+                            ) {
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .aspectRatio(16f / 9f)
-                                        .background(Color.Black)
-                                ) {
-                                    AsyncImage(
-                                        model = video.thumbnailUrl,
-                                        contentDescription = video.title,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-
-                                    // Play Badge Overlay
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = Color.Black.copy(alpha = 0.65f),
-                                        modifier = Modifier.align(Alignment.Center).size(36.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = Icons.Default.PlayArrow,
-                                                contentDescription = "Play",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(22.dp)
-                                            )
-                                        }
-                                    }
-
-                                    // Duration / Info Badge
-                                    if (video.duration.isNotBlank()) {
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = Color.Black.copy(alpha = 0.8f),
-                                            modifier = Modifier
-                                                .align(Alignment.BottomEnd)
-                                                .padding(6.dp)
-                                        ) {
-                                            Text(
-                                                text = video.duration,
-                                                color = Color.White,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // Video Details
-                                Column(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        .fillMaxHeight()
+                                        .padding(horizontal = 14.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = video.title,
-                                        color = TextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = video.artistName,
-                                        color = CinemaAccent,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "${video.views} • ${video.published}",
-                                        color = TextMuted,
-                                        fontSize = 10.sp,
-                                        maxLines = 1
+                                        text = genre.name,
+                                        color = if (isSelected) Color.White else TextSecondary,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                     )
                                 }
                             }
                         }
                     }
 
-                    // Endless Scrolling Loading Spinner Footer
-                    if (isLoadingMore) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 16.dp),
-                                contentAlignment = Alignment.Center
+                    // Content Grid
+                    MusicContentGrid(
+                        isLoading = isLoading,
+                        isLoadingMore = isLoadingMore,
+                        selectedGenreId = selectedGenreId,
+                        videos = videos,
+                        gridState = gridState,
+                        isMobile = true,
+                        onPlayVideo = { playVideoAtIndex(it) }
+                    )
+                }
+            } else {
+                // TV / Desktop Layout: Dedicated Left Vertical Category Sidebar (280dp) + Right Content Grid
+                Row(modifier = Modifier.fillMaxSize()) {
+                    // Left Column: Genres Vertical Sidebar with Integrated Preview
+                    Surface(
+                        shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
+                        color = CinemaSurface,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                        modifier = Modifier
+                            .width(280.dp)
+                            .fillMaxHeight()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            UniversalIntegratedPreview(
+                                playerManager = playerManager,
+                                onExpand = onExpandPreview,
+                                onClose = { playerManager.stop() },
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+
+                            Text(
+                                text = "GENRES",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = CinemaAccent,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.weight(1f).fillMaxWidth()
                             ) {
-                                CircularProgressIndicator(
-                                    color = CinemaAccent,
-                                    modifier = Modifier.size(32.dp),
-                                    strokeWidth = 3.dp
-                                )
+                                items(allGenres) { genre ->
+                                    val isSelected = (debouncedQuery.isBlank() && selectedGenreId == genre.id)
+                                    TvFocusableCard(
+                                        onClick = {
+                                            searchQuery = ""
+                                            debouncedQuery = ""
+                                            selectedGenreId = genre.id
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
+                                        focusedBorderColor = CinemaFocus,
+                                        focusedScale = 1.04f,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = genre.name,
+                                            color = if (isSelected) Color.White else TextSecondary,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
+                    }
+
+                    // Right Column: Search Bar + Results Header + Music Videos Grid
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // Top Bar: Title & Search
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                text = "MUSIC VIDEOS",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextPrimary
+                            )
+
+                            AppSearchBar(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = "Search songs, artists, albums, or music videos...",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        // Results Header Summary
+                        if (debouncedQuery.isNotBlank()) {
+                            Text(
+                                text = "Results matching \"$debouncedQuery\"",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        } else if (selectedGenreId == "history") {
+                            Text(
+                                text = "Recently Played Music Videos",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CinemaAccent
+                            )
+                        }
+
+                        // Content Grid
+                        MusicContentGrid(
+                            isLoading = isLoading,
+                            isLoadingMore = isLoadingMore,
+                            selectedGenreId = selectedGenreId,
+                            videos = videos,
+                            gridState = gridState,
+                            isMobile = false,
+                            onPlayVideo = { playVideoAtIndex(it) }
+                        )
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun MusicContentGrid(
+    isLoading: Boolean,
+    isLoadingMore: Boolean,
+    selectedGenreId: String,
+    videos: List<MusicVideo>,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    isMobile: Boolean,
+    onPlayVideo: (Int) -> Unit
+) {
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = CinemaAccent)
+        }
+    } else if (videos.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MusicOff,
+                    contentDescription = null,
+                    tint = TextMuted,
+                    modifier = Modifier.size(40.dp)
+                )
+                Text(
+                    text = if (selectedGenreId == "history") "No recently played music videos" else "No music videos found",
+                    color = TextMuted,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(if (isMobile) 2 else 4),
+            state = gridState,
+            horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 14.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 14.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            gridItems(videos, key = { it.id }) { video ->
+                val idx = videos.indexOfFirst { it.id == video.id }
+                TvFocusableCard(
+                    onClick = {
+                        onPlayVideo(if (idx >= 0) idx else 0)
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    backgroundColor = CinemaSurface,
+                    focusedBorderColor = CinemaFocus,
+                    focusedScale = 1.04f,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
+                        // 16:9 Thumbnail Box
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f)
+                                .background(Color.Black)
+                        ) {
+                            AsyncImage(
+                                model = video.thumbnailUrl,
+                                contentDescription = video.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+
+                            // Play Badge Overlay
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Black.copy(alpha = 0.65f),
+                                modifier = Modifier.align(Alignment.Center).size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+
+                            // Duration / Info Badge
+                            if (video.duration.isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color.Black.copy(alpha = 0.8f),
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(6.dp)
+                                ) {
+                                    Text(
+                                        text = video.duration,
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Video Details
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                text = video.title,
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = video.artistName,
+                                color = CinemaAccent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${video.views} • ${video.published}",
+                                color = TextMuted,
+                                fontSize = 10.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Endless Scrolling Loading Spinner Footer
+            if (isLoadingMore) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = CinemaAccent,
+                            modifier = Modifier.size(32.dp),
+                            strokeWidth = 3.dp
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

@@ -44,14 +44,19 @@ import com.tvdinner.ui.components.AppSearchBar
 import com.tvdinner.ui.components.TvFocusableCard
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import kotlinx.coroutines.delay
+import androidx.compose.foundation.lazy.LazyColumn
+import com.tvdinner.player.ExoPlayerManager
+import com.tvdinner.ui.components.UniversalIntegratedPreview
 import com.tvdinner.ui.theme.*
+import kotlinx.coroutines.delay
 
 @Composable
 fun PodcastsScreen(
     authRepo: AuthRepository,
     catalogManager: CatalogManager,
     onPlayYouTubeVideo: (String, String, (() -> Unit)?, String?, (() -> Unit)?) -> Unit,
+    playerManager: ExoPlayerManager? = null,
+    onExpandPreview: () -> Unit = {},
     onOpenSettings: (() -> Unit)? = null,
     targetEpisode: PodcastEpisode? = null,
     onTargetEpisodeConsumed: () -> Unit = {},
@@ -297,384 +302,157 @@ fun PodcastsScreen(
                 onOpenSettings = onOpenSettings
             )
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                .padding(if (isMobile) 12.dp else 16.dp),
-            verticalArrangement = Arrangement.spacedBy(if (isMobile) 8.dp else 12.dp)
-        ) {
-            // Top Bar: Title & Live Search
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Podcasts,
-                        contentDescription = null,
-                        tint = CinemaPrimary,
-                        modifier = Modifier.size(if (isMobile) 22.dp else 28.dp)
-                    )
-                    Text(
-                        text = "PODCASTS",
-                        fontSize = if (isMobile) 18.sp else 24.sp,
-                        fontWeight = FontWeight.Black,
-                        color = TextPrimary
-                    )
-                    if (!isMobile) {
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = CinemaRed.copy(alpha = 0.2f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, CinemaRed.copy(alpha = 0.5f))
-                        ) {
-                            Text(
-                                text = "LIVE FEEDS",
-                                color = CinemaRed,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-
-                AppSearchBar(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = if (isMobile) "Search podcasts..." else "Search podcast channels & shows...",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            // Category Chips Row (Shown when not actively searching and not inside a specific channel view)
-            if (searchQuery.isBlank() && selectedChannel == null) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(categories) { cat ->
-                        val isSelected = selectedCategory == cat
-                        TvFocusableCard(
-                            onClick = {
-                                selectedChannel = null
-                                selectedCategory = cat
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
-                            focusedBorderColor = CinemaFocus,
-                            focusedScale = 1.05f
-                        ) {
-                            Text(
-                                text = cat,
-                                color = if (isSelected) Color.White else TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                            )
-                        }
-                    }
-                }
-            } else if (searchQuery.isNotBlank()) {
-                Text(
-                    text = "Channels matching \"$searchQuery\"",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-            }
-
-            // Channel Header Banner (When a specific channel is selected)
-            if (selectedChannel != null) {
-                val ch = selectedChannel!!
-                val isSubscribed = subscribedIds.contains(ch.id)
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = CinemaSurface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
-                    modifier = Modifier.fillMaxWidth()
+            if (isMobile) {
+                // Mobile Portrait Layout: Top Bar + LazyRow Categories + Content
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        TvFocusableCard(
-                            onClick = { selectedChannel = null },
-                            shape = RoundedCornerShape(8.dp),
-                            backgroundColor = CinemaSurfaceVariant,
-                            focusedBorderColor = CinemaFocus
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text("All Shows", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        if (ch.avatar.isNotBlank()) {
-                            AsyncImage(
-                                model = ch.avatar,
-                                contentDescription = ch.channelName,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.size(48.dp).clip(CircleShape)
-                            )
-                        }
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = ch.channelName,
-                                color = CinemaAccent,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                            Icon(
+                                imageVector = Icons.Default.Podcasts,
+                                contentDescription = null,
+                                tint = CinemaPrimary,
+                                modifier = Modifier.size(22.dp)
                             )
                             Text(
-                                text = "${ch.host} • ${ch.subscribers} • Latest Episodes (Newest to Oldest)",
-                                color = TextMuted,
-                                fontSize = 11.sp,
-                                maxLines = 1
+                                text = "PODCASTS",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextPrimary
                             )
                         }
 
-                        TvFocusableCard(
-                            onClick = {
-                                authRepo.togglePodcastSubscription(ch.id)
-                                subscribedIds = authRepo.getSubscribedPodcastIds()
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            backgroundColor = if (isSubscribed) CinemaPrimary else CinemaSurfaceVariant,
-                            focusedBorderColor = CinemaFocus
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isSubscribed) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                    contentDescription = "Subscribe",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = if (isSubscribed) "Subscribed" else "Subscribe",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                        AppSearchBar(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = "Search podcasts...",
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                }
-            } else if (liveChannels.isNotEmpty()) {
-                // Channels Carousel (Browse channels in category or search)
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(liveChannels, key = { it.id }) { ch ->
-                        val isSelected = selectedChannel?.id == ch.id
-                        val isSubscribed = subscribedIds.contains(ch.id)
-                        TvFocusableCard(
-                            onClick = { selectedChannel = ch },
-                            shape = RoundedCornerShape(10.dp),
-                            backgroundColor = if (isSelected) CinemaSurfaceLight else CinemaSurface,
-                            focusedBorderColor = CinemaFocus,
-                            focusedScale = 1.04f,
-                            modifier = Modifier.width(240.dp).height(68.dp)
+
+                    if (searchQuery.isBlank() && selectedChannel == null) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize().padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                if (ch.avatar.isNotBlank()) {
-                                    AsyncImage(
-                                        model = ch.avatar,
-                                        contentDescription = ch.channelName,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(42.dp)
-                                            .clip(CircleShape)
-                                    )
-                                }
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = ch.channelName,
-                                        color = if (isSelected) CinemaAccent else TextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = ch.host.ifBlank { ch.category },
-                                        color = TextMuted,
-                                        fontSize = 11.sp,
-                                        maxLines = 1
-                                    )
-                                }
-
-                                IconButton(
+                            items(categories) { cat ->
+                                val isSelected = selectedCategory == cat
+                                TvFocusableCard(
                                     onClick = {
-                                        authRepo.togglePodcastSubscription(ch.id)
-                                        subscribedIds = authRepo.getSubscribedPodcastIds()
+                                        selectedChannel = null
+                                        selectedCategory = cat
                                     },
-                                    modifier = Modifier.size(30.dp)
+                                    shape = RoundedCornerShape(8.dp),
+                                    backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
+                                    focusedBorderColor = CinemaFocus,
+                                    focusedScale = 1.05f
                                 ) {
-                                    Icon(
-                                        imageVector = if (isSubscribed) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                        contentDescription = "Subscribe",
-                                        tint = if (isSubscribed) CinemaAccent else TextMuted,
-                                        modifier = Modifier.size(18.dp)
+                                    Text(
+                                        text = cat,
+                                        color = if (isSelected) Color.White else TextSecondary,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                                     )
                                 }
                             }
                         }
                     }
-                }
-            }
 
-            // Episode Grid
-            if (isLoading) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = CinemaAccent)
-                }
-            } else if (liveEpisodes.isEmpty()) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = if (selectedCategory == "⭐ Subscribed") "No subscribed podcasts yet. Click the bookmark icon on any channel to save it here!" else if (selectedCategory == "🕒 History") "No recently played podcast episodes in your history." else "No live podcast episodes found",
-                        color = TextMuted,
-                        fontSize = 14.sp
+                    PodcastContentList(
+                        searchQuery = searchQuery,
+                        selectedChannel = selectedChannel,
+                        liveChannels = liveChannels,
+                        liveEpisodes = liveEpisodes,
+                        subscribedIds = subscribedIds,
+                        isLoading = isLoading,
+                        isFetchingMore = isFetchingMore,
+                        gridState = gridState,
+                        isMobile = true,
+                        selectedCategory = selectedCategory,
+                        targetEpisode = targetEpisode,
+                        targetPodcastFocusRequester = targetPodcastFocusRequester,
+                        onBackToAllShows = { selectedChannel = null },
+                        onToggleSubscription = { id ->
+                            authRepo.togglePodcastSubscription(id)
+                            subscribedIds = authRepo.getSubscribedPodcastIds()
+                        },
+                        onSelectChannel = { selectedChannel = it },
+                        onNavigateToEpisodeChannel = onNavigateToEpisodeChannel,
+                        onPlayEpisodeAtIndex = { playEpisodeAtIndex(it) }
                     )
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = if (isMobile) 160.dp else 220.dp),
-                    state = gridState,
-                    verticalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 12.dp),
-                    modifier = Modifier.weight(1f).fillMaxWidth()
-                ) {
-                    items(liveEpisodes, key = { it.id }) { ep ->
-                        val idx = liveEpisodes.indexOfFirst { it.id == ep.id }
-                        TvFocusableCard(
-                            onClick = { playEpisodeAtIndex(if (idx >= 0) idx else 0) },
-                            shape = RoundedCornerShape(12.dp),
-                            backgroundColor = CinemaSurface,
-                            focusedBorderColor = CinemaFocus,
-                            focusedScale = 1.03f,
+                // TV / Landscape Layout: 280dp Vertical Sidebar with UniversalIntegratedPreview + Right Content
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Surface(
+                        shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
+                        color = CinemaSurface,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                        modifier = Modifier
+                            .width(280.dp)
+                            .fillMaxHeight()
+                    ) {
+                        Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .wrapContentHeight()
-                                .then(if (ep.videoId == targetEpisode?.videoId) Modifier.focusRequester(targetPodcastFocusRequester) else Modifier)
+                                .fillMaxSize()
+                                .padding(vertical = 12.dp, horizontal = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column {
-                                // 16:9 Thumbnail
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .aspectRatio(16f / 9f)
-                                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                                ) {
-                                    AsyncImage(
-                                        model = ep.thumbnailUrl,
-                                        contentDescription = ep.title,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color.Black.copy(alpha = 0.25f)),
-                                        contentAlignment = Alignment.Center
+                            if (playerManager != null) {
+                                UniversalIntegratedPreview(
+                                    playerManager = playerManager,
+                                    onExpand = onExpandPreview,
+                                    onClose = { playerManager.stop() },
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                            }
+
+                            Text(
+                                text = "CATEGORIES",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = CinemaAccent,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.weight(1f).fillMaxWidth()
+                            ) {
+                                items(categories) { cat ->
+                                    val isSelected = (searchQuery.isBlank() && selectedChannel == null && selectedCategory == cat)
+                                    TvFocusableCard(
+                                        onClick = {
+                                            selectedChannel = null
+                                            selectedCategory = cat
+                                            searchQuery = ""
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
+                                        focusedBorderColor = CinemaFocus,
+                                        focusedScale = 1.04f,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = Color.Red,
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.Default.PlayArrow,
-                                                    contentDescription = "Play",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Metadata
-                                Column(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        text = ep.title,
-                                        color = TextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-
-                                    // Action bar: Channel Name & Go to Channel & Date
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        // Channel button to switch to that channel
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = CinemaPrimary.copy(alpha = 0.15f),
-                                            modifier = Modifier
-                                                .weight(1f, fill = false)
-                                                .clickable { onNavigateToEpisodeChannel(ep) }
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.AccountCircle,
-                                                    contentDescription = "Go to Channel",
-                                                    tint = CinemaAccent,
-                                                    modifier = Modifier.size(13.dp)
-                                                )
-                                                Text(
-                                                    text = ep.channelName,
-                                                    color = CinemaAccent,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        }
-
                                         Text(
-                                            text = ep.published,
-                                            color = TextMuted,
-                                            fontSize = 10.sp,
-                                            modifier = Modifier.padding(start = 6.dp)
+                                            text = cat,
+                                            color = if (isSelected) Color.White else TextSecondary,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                                         )
                                     }
                                 }
@@ -682,18 +460,270 @@ fun PodcastsScreen(
                         }
                     }
 
-                    // Bottom pagination loading indicator
-                    if (isFetchingMore) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 16.dp),
-                                contentAlignment = Alignment.Center
+                    // Right Column: Search + Content Area
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                CircularProgressIndicator(
-                                    color = CinemaAccent,
+                                Icon(
+                                    imageVector = Icons.Default.Podcasts,
+                                    contentDescription = null,
+                                    tint = CinemaPrimary,
                                     modifier = Modifier.size(28.dp)
+                                )
+                                Text(
+                                    text = "PODCASTS",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextPrimary
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = CinemaRed.copy(alpha = 0.2f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaRed.copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = "LIVE FEEDS",
+                                        color = CinemaRed,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+
+                            AppSearchBar(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = "Search podcast channels & shows...",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        PodcastContentList(
+                            searchQuery = searchQuery,
+                            selectedChannel = selectedChannel,
+                            liveChannels = liveChannels,
+                            liveEpisodes = liveEpisodes,
+                            subscribedIds = subscribedIds,
+                            isLoading = isLoading,
+                            isFetchingMore = isFetchingMore,
+                            gridState = gridState,
+                            isMobile = false,
+                            selectedCategory = selectedCategory,
+                            targetEpisode = targetEpisode,
+                            targetPodcastFocusRequester = targetPodcastFocusRequester,
+                            onBackToAllShows = { selectedChannel = null },
+                            onToggleSubscription = { id ->
+                                authRepo.togglePodcastSubscription(id)
+                                subscribedIds = authRepo.getSubscribedPodcastIds()
+                            },
+                            onSelectChannel = { selectedChannel = it },
+                            onNavigateToEpisodeChannel = onNavigateToEpisodeChannel,
+                            onPlayEpisodeAtIndex = { playEpisodeAtIndex(it) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PodcastContentList(
+    searchQuery: String,
+    selectedChannel: PodcastChannel?,
+    liveChannels: List<PodcastChannel>,
+    liveEpisodes: List<PodcastEpisode>,
+    subscribedIds: Set<String>,
+    isLoading: Boolean,
+    isFetchingMore: Boolean,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    isMobile: Boolean,
+    selectedCategory: String,
+    targetEpisode: PodcastEpisode?,
+    targetPodcastFocusRequester: FocusRequester,
+    onBackToAllShows: () -> Unit,
+    onToggleSubscription: (String) -> Unit,
+    onSelectChannel: (PodcastChannel) -> Unit,
+    onNavigateToEpisodeChannel: (PodcastEpisode) -> Unit,
+    onPlayEpisodeAtIndex: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(if (isMobile) 8.dp else 12.dp)
+    ) {
+        if (searchQuery.isNotBlank()) {
+            Text(
+                text = "Channels matching \"$searchQuery\"",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+        }
+
+        // Channel Header Banner (When a specific channel is selected)
+        if (selectedChannel != null) {
+            val ch = selectedChannel
+            val isSubscribed = subscribedIds.contains(ch.id)
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = CinemaSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    TvFocusableCard(
+                        onClick = onBackToAllShows,
+                        shape = RoundedCornerShape(8.dp),
+                        backgroundColor = CinemaSurfaceVariant,
+                        focusedBorderColor = CinemaFocus
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text("All Shows", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (ch.avatar.isNotBlank()) {
+                        AsyncImage(
+                            model = ch.avatar,
+                            contentDescription = ch.channelName,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(48.dp).clip(CircleShape)
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = ch.channelName,
+                            color = CinemaAccent,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${ch.host} • ${ch.subscribers} • Latest Episodes (Newest to Oldest)",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+
+                    TvFocusableCard(
+                        onClick = { onToggleSubscription(ch.id) },
+                        shape = RoundedCornerShape(8.dp),
+                        backgroundColor = if (isSubscribed) CinemaPrimary else CinemaSurfaceVariant,
+                        focusedBorderColor = CinemaFocus
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isSubscribed) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                contentDescription = "Subscribe",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = if (isSubscribed) "Subscribed" else "Subscribe",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        } else if (liveChannels.isNotEmpty()) {
+            // Channels Carousel (Browse channels in category or search)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(liveChannels, key = { it.id }) { ch ->
+                    val isSelected = selectedChannel?.id == ch.id
+                    val isSubscribed = subscribedIds.contains(ch.id)
+                    TvFocusableCard(
+                        onClick = { onSelectChannel(ch) },
+                        shape = RoundedCornerShape(10.dp),
+                        backgroundColor = if (isSelected) CinemaSurfaceLight else CinemaSurface,
+                        focusedBorderColor = CinemaFocus,
+                        focusedScale = 1.04f,
+                        modifier = Modifier.width(240.dp).height(68.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (ch.avatar.isNotBlank()) {
+                                AsyncImage(
+                                    model = ch.avatar,
+                                    contentDescription = ch.channelName,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                )
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = ch.channelName,
+                                    color = if (isSelected) CinemaAccent else TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = ch.host.ifBlank { ch.category },
+                                    color = TextMuted,
+                                    fontSize = 11.sp,
+                                    maxLines = 1
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { onToggleSubscription(ch.id) },
+                                modifier = Modifier.size(30.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isSubscribed) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                    contentDescription = "Subscribe",
+                                    tint = if (isSubscribed) CinemaAccent else TextMuted,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
@@ -701,6 +731,156 @@ fun PodcastsScreen(
                 }
             }
         }
+
+        // Episode Grid
+        if (isLoading) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = CinemaAccent)
+            }
+        } else if (liveEpisodes.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = if (selectedCategory == "⭐ Subscribed") "No subscribed podcasts yet. Click the bookmark icon on any channel to save it here!" else if (selectedCategory == "🕒 History") "No recently played podcast episodes in your history." else "No live podcast episodes found",
+                    color = TextMuted,
+                    fontSize = 14.sp
+                )
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = if (isMobile) 160.dp else 220.dp),
+                state = gridState,
+                verticalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 12.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) {
+                items(liveEpisodes, key = { it.id }) { ep ->
+                    val idx = liveEpisodes.indexOfFirst { it.id == ep.id }
+                    TvFocusableCard(
+                        onClick = { onPlayEpisodeAtIndex(if (idx >= 0) idx else 0) },
+                        shape = RoundedCornerShape(12.dp),
+                        backgroundColor = CinemaSurface,
+                        focusedBorderColor = CinemaFocus,
+                        focusedScale = 1.03f,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight()
+                            .then(if (ep.videoId == targetEpisode?.videoId) Modifier.focusRequester(targetPodcastFocusRequester) else Modifier)
+                    ) {
+                        Column {
+                            // 16:9 Thumbnail
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(16f / 9f)
+                                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                            ) {
+                                AsyncImage(
+                                    model = ep.thumbnailUrl,
+                                    contentDescription = ep.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color.Black.copy(alpha = 0.25f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color.Red,
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = "Play",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Metadata
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = ep.title,
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                // Action bar: Channel Name & Go to Channel & Date
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = CinemaPrimary.copy(alpha = 0.15f),
+                                        modifier = Modifier
+                                            .weight(1f, fill = false)
+                                            .clickable { onNavigateToEpisodeChannel(ep) }
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.AccountCircle,
+                                                contentDescription = "Go to Channel",
+                                                tint = CinemaAccent,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Text(
+                                                text = ep.channelName,
+                                                color = CinemaAccent,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = ep.published,
+                                        color = TextMuted,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(start = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom pagination loading indicator
+                if (isFetchingMore) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = CinemaAccent,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
-}
 }

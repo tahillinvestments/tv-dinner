@@ -52,6 +52,7 @@ import com.tvdinner.player.ExoPlayerManager
 import com.tvdinner.ui.components.AccessRestrictedView
 import com.tvdinner.ui.components.AppSearchBar
 import com.tvdinner.ui.components.TvFocusableCard
+import com.tvdinner.ui.components.UniversalIntegratedPreview
 import com.tvdinner.ui.player.NativePlayerView
 import com.tvdinner.ui.theme.*
 import kotlinx.coroutines.delay
@@ -146,18 +147,6 @@ fun LiveTvScreen(
             try {
                 fullscreenFocusRequester.requestFocus()
             } catch (_: Exception) {}
-        }
-    }
-
-    // Fix fullscreen black screen: entering fullscreen destroys the preview NativePlayerView and
-    // mounts a new one, temporarily detaching ExoPlayer's video surface. After the new surface
-    // attaches, recoverLiveStream() re-prepares the codec so video resumes immediately.
-    LaunchedEffect(isFullscreen) {
-        if (isFullscreen) {
-            delay(120)
-            if (playerManager.currentStreamUrl.value.isNotBlank()) {
-                playerManager.recoverLiveStream()
-            }
         }
     }
 
@@ -984,21 +973,28 @@ fun LiveTvScreen(
         } else {
             // Split Guide / Preview View (3-Column Spacious Layout)
             Row(modifier = Modifier.fillMaxSize()) {
-                // Left Column: Categories Vertical Sidebar (Spacious, Vertical Scroll)
+                // Left Column: Categories Vertical Sidebar with Integrated Preview
                 Surface(
                     shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
                     color = CinemaSurface,
                     border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
                     modifier = Modifier
-                        .width(220.dp)
+                        .width(280.dp)
                         .fillMaxHeight()
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(vertical = 16.dp, horizontal = 10.dp),
+                            .padding(vertical = 12.dp, horizontal = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        UniversalIntegratedPreview(
+                            playerManager = playerManager,
+                            onExpand = { onToggleFullscreen(true) },
+                            onClose = { playerManager.stop() },
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+
                         Text(
                             text = "CATEGORIES",
                             fontSize = 13.sp,
@@ -1484,56 +1480,6 @@ fun LiveTvScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Preview Video Player
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.Black,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
-                            .clip(RoundedCornerShape(16.dp))
-                    ) {
-                        val hasActivePlayback = currentStreamUrl.isNotBlank() && (isPlaying || isBuffering) && isLiveStream
-                        if (hasActivePlayback) {
-                            NativePlayerView(
-                                playerManager = playerManager,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(CinemaSurface),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Tv,
-                                        contentDescription = null,
-                                        tint = CinemaPrimary,
-                                        modifier = Modifier.size(48.dp)
-                                    )
-                                    Text(
-                                        text = if (activeChannel != null && isLiveStream) "Select ${activeChannel?.name} to start streaming" else "Select a channel on the left to start streaming",
-                                        color = TextSecondary,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                        modifier = Modifier.padding(horizontal = 16.dp)
-                                    )
-                                    Text(
-                                        text = "Click to start streaming • Click again for Fullscreen",
-                                        color = TextMuted,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-
                     // Rich Comprehensive EPG Card
                     val epgList = activeFullEpg?.epgListings ?: emptyList()
                     val currentEpoch = System.currentTimeMillis() / 1000L

@@ -138,7 +138,8 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            TVDinnerTheme {
+            val currentTheme by authRepository.appThemeState.collectAsState()
+            TVDinnerTheme(themeKey = currentTheme) {
                 MainAppScreen(
                     authRepo = authRepository,
                     apiClient = xtreamApiClient,

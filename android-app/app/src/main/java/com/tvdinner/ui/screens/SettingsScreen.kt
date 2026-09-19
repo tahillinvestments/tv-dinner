@@ -2,8 +2,10 @@ package com.tvdinner.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -65,6 +67,8 @@ fun SettingsScreen(
     val isVerified by authRepo.isCredentialsVerifiedState.collectAsState()
     val activeUserFromRepo by authRepo.activeUsernameState.collectAsState()
     val activePswdFromRepo by authRepo.activePasswordState.collectAsState()
+    val currentTheme by authRepo.appThemeState.collectAsState()
+    val isPersistentPreviewEnabled by authRepo.isPersistentPreviewEnabledState.collectAsState()
     val hasValidCreds = activeUserFromRepo.isNotBlank() && activePswdFromRepo.isNotBlank()
 
     var isAccountActive by remember(isVerified) { mutableStateOf(isVerified) }
@@ -405,7 +409,199 @@ fun SettingsScreen(
                 }
             }
 
-            // 2. Playback & Subtitles Card
+            // 2. Appearance & Themes Card
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = CinemaSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = "Themes",
+                                tint = CinemaAccent,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Appearance & Themes",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Choose your preferred styling, color accents, and preview settings",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    // 4 Theme Options
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Select Theme",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextSecondary
+                        )
+
+                        AVAILABLE_THEMES.chunked(2).forEach { rowThemes ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                rowThemes.forEach { theme ->
+                                    val isSelected = currentTheme.equals(theme.id, ignoreCase = true)
+                                    TvFocusableCard(
+                                        onClick = {
+                                            authRepo.setAppTheme(theme.id)
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        backgroundColor = if (isSelected) CinemaPrimary.copy(alpha = 0.15f) else CinemaSurfaceVariant,
+                                        focusedBorderColor = CinemaAccent,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = theme.name,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = TextPrimary
+                                                )
+
+                                                if (isSelected) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        color = CinemaAccent.copy(alpha = 0.2f),
+                                                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaAccent)
+                                                    ) {
+                                                        Text(
+                                                            text = "ACTIVE",
+                                                            color = CinemaAccent,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Black,
+                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Text(
+                                                text = theme.tagline,
+                                                fontSize = 11.sp,
+                                                color = TextMuted,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+
+                                            // Visual color swatches
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .background(theme.bgColor, CircleShape)
+                                                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .background(theme.cardColor, CircleShape)
+                                                        .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .background(theme.accentColor, CircleShape)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = CinemaSurfaceLight, thickness = 1.dp)
+
+                    // Persistent Preview Window Toggle
+                    TvFocusableCard(
+                        onClick = {
+                            val next = !isPersistentPreviewEnabled
+                            authRepo.setPersistentPreviewEnabled(next)
+                        },
+                        backgroundColor = CinemaSurfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Persistent Preview Window",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = if (isPersistentPreviewEnabled) "Mini player stays visible across all tabs until paused or new content plays" else "Playback stops when switching tabs (Default: ON)",
+                                    fontSize = 11.sp,
+                                    color = TextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Switch(
+                                checked = isPersistentPreviewEnabled,
+                                onCheckedChange = {
+                                    authRepo.setPersistentPreviewEnabled(it)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = CinemaAccent,
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = CinemaSurfaceLight
+                                ),
+                                modifier = Modifier.scale(0.85f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 3. Playback & Subtitles Card
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = CinemaSurface,

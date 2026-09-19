@@ -95,6 +95,23 @@ class ExoPlayerManager(
     private val _selectedAudioTrack = MutableStateFlow<AudioTrackInfo?>(null)
     val selectedAudioTrack: StateFlow<AudioTrackInfo?> = _selectedAudioTrack.asStateFlow()
 
+    private val _activeYouTubeVideoId = MutableStateFlow<String?>(null)
+    val activeYouTubeVideoId: StateFlow<String?> = _activeYouTubeVideoId.asStateFlow()
+
+    private val _activeYouTubeTitle = MutableStateFlow<String?>(null)
+    val activeYouTubeTitle: StateFlow<String?> = _activeYouTubeTitle.asStateFlow()
+
+    fun setYouTubeMedia(videoId: String, title: String) {
+        stop()
+        _activeYouTubeVideoId.value = videoId
+        _activeYouTubeTitle.value = title
+    }
+
+    fun clearYouTubeMedia() {
+        _activeYouTubeVideoId.value = null
+        _activeYouTubeTitle.value = null
+    }
+
     var player: ExoPlayer? = null
         private set
 
@@ -665,6 +682,7 @@ class ExoPlayerManager(
 
         // Flush old stream position if applicable
         flushPositionNow()
+        clearYouTubeMedia()
 
         val effectiveUrl = url
 
@@ -1225,6 +1243,8 @@ class ExoPlayerManager(
         _currentStreamUrl.value = ""
         _currentTitle.value = ""
         _isLiveStream.value = false
+        _activeYouTubeVideoId.value = null
+        _activeYouTubeTitle.value = null
     }
 
     fun release() {

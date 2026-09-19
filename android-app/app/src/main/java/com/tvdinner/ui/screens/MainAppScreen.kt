@@ -81,6 +81,12 @@ fun MainAppScreen(
     var fullscreenMedia by remember { mutableStateOf<FullscreenMediaState?>(null) }
     var fullscreenYouTube by remember { mutableStateOf<FullscreenYouTubeState?>(null) }
     val isMusicCaptionsEnabled by authRepo.isMusicPodcastsCaptionsEnabledState.collectAsState()
+    val isPersistentPreviewEnabled by authRepo.isPersistentPreviewEnabledState.collectAsState()
+    val isPlaying by playerManager.isPlaying.collectAsState()
+    val currentTitle by playerManager.currentTitle.collectAsState()
+    val isLiveStream by playerManager.isLiveStream.collectAsState()
+    val currentStreamUrl by playerManager.currentStreamUrl.collectAsState()
+    val isMediaActive = currentStreamUrl.isNotBlank() || isPlaying
 
     // Target Navigation States from NowScreen
     var targetChannelId by remember { mutableStateOf<Int?>(null) }
@@ -124,15 +130,18 @@ fun MainAppScreen(
 
     fun switchTab(newTab: AppTab) {
         if (activeTab != newTab) {
-            playerManager.stop()
-            YouTubeRemoteBridge.activeWebView?.let { wv ->
-                try {
-                    wv.onPause()
-                    wv.stopLoading()
-                    wv.loadUrl("about:blank")
-                } catch (_: Exception) {}
+            val isPersistent = authRepo.isPersistentPreviewEnabled()
+            if (!isPersistent) {
+                playerManager.stop()
+                YouTubeRemoteBridge.activeWebView?.let { wv ->
+                    try {
+                        wv.onPause()
+                        wv.stopLoading()
+                        wv.loadUrl("about:blank")
+                    } catch (_: Exception) {}
+                }
+                YouTubeRemoteBridge.activeWebView = null
             }
-            YouTubeRemoteBridge.activeWebView = null
             fullscreenYouTube = null
             fullscreenMedia = null
             isLiveTvFullscreen = false
@@ -140,20 +149,30 @@ fun MainAppScreen(
         }
     }
 
+    val expandCurrentMedia: () -> Unit = {
+        if (playerManager.activeYouTubeVideoId.value != null) {
+            fullscreenYouTube = FullscreenYouTubeState(
+                videoId = playerManager.activeYouTubeVideoId.value!!,
+                title = playerManager.activeYouTubeTitle.value ?: "YouTube Media"
+            )
+        } else if (playerManager.currentStreamUrl.value.isNotBlank()) {
+            if (playerManager.isLiveStream.value) {
+                switchTab(AppTab.LIVE)
+                isLiveTvFullscreen = true
+            } else {
+                fullscreenMedia = FullscreenMediaState(
+                    url = playerManager.currentStreamUrl.value,
+                    title = playerManager.currentTitle.value
+                )
+            }
+        }
+    }
+
     // Hierarchical Back Button Handler
     BackHandler(enabled = fullscreenMedia != null || fullscreenYouTube != null || isLiveTvFullscreen || activeTab != AppTab.LIVE) {
         if (fullscreenMedia != null) {
-            playerManager.stop()
             fullscreenMedia = null
         } else if (fullscreenYouTube != null) {
-            YouTubeRemoteBridge.activeWebView?.let { wv ->
-                try {
-                    wv.onPause()
-                    wv.stopLoading()
-                    wv.loadUrl("about:blank")
-                } catch (_: Exception) {}
-            }
-            YouTubeRemoteBridge.activeWebView = null
             fullscreenYouTube = null
         } else if (isLiveTvFullscreen) {
             isLiveTvFullscreen = false
@@ -162,9 +181,10 @@ fun MainAppScreen(
         }
     }
 
-    // Handle tab change: stop playback if leaving Live TV without fullscreen media
+    // Handle tab change: stop playback if persistent preview is disabled
     LaunchedEffect(activeTab) {
-        if (activeTab != AppTab.LIVE && fullscreenMedia == null) {
+        val isPersistent = authRepo.isPersistentPreviewEnabled()
+        if (!isPersistent) {
             playerManager.stop()
         }
     }
@@ -300,6 +320,8 @@ fun MainAppScreen(
                                         authRepo = authRepo,
                                         apiClient = apiClient,
                                         catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenMedia != null),
                                         onPlayMovie = { url, title, startPos, streamKey ->
                                             YouTubeRemoteBridge.activeWebView = null
@@ -325,6 +347,8 @@ fun MainAppScreen(
                                         authRepo = authRepo,
                                         apiClient = apiClient,
                                         catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenMedia != null),
                                         onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
                                             YouTubeRemoteBridge.activeWebView = null
@@ -349,10 +373,12 @@ fun MainAppScreen(
                                     AppTab.MUSIC -> MusicScreen(
                                         authRepo = authRepo,
                                         catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onExpandPreview = expandCurrentMedia,
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                            playerManager.stop()
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
+                                            playerManager.setYouTubeMedia(videoId, title)
                                             fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
                                         },
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) }
@@ -360,10 +386,12 @@ fun MainAppScreen(
                                     AppTab.PODCASTS -> PodcastsScreen(
                                         authRepo = authRepo,
                                         catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onExpandPreview = expandCurrentMedia,
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                            playerManager.stop()
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
+                                            playerManager.setYouTubeMedia(videoId, title)
                                             fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
                                         },
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) },
@@ -444,6 +472,8 @@ fun MainAppScreen(
                                         authRepo = authRepo,
                                         apiClient = apiClient,
                                         catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenMedia != null),
                                         onPlayMovie = { url, title, startPos, streamKey ->
                                             fullscreenYouTube = null
@@ -468,6 +498,8 @@ fun MainAppScreen(
                                         authRepo = authRepo,
                                         apiClient = apiClient,
                                         catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenMedia != null),
                                         onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
                                             fullscreenYouTube = null
@@ -491,10 +523,12 @@ fun MainAppScreen(
                                     AppTab.MUSIC -> MusicScreen(
                                         authRepo = authRepo,
                                         catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onExpandPreview = expandCurrentMedia,
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                            playerManager.stop()
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
+                                            playerManager.setYouTubeMedia(videoId, title)
                                             fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
                                         },
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) }
@@ -502,10 +536,12 @@ fun MainAppScreen(
                                     AppTab.PODCASTS -> PodcastsScreen(
                                         authRepo = authRepo,
                                         catalogManager = catalogManager,
+                                        playerManager = playerManager,
+                                        onExpandPreview = expandCurrentMedia,
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
-                                            playerManager.stop()
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
+                                            playerManager.setYouTubeMedia(videoId, title)
                                             fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
                                         },
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) },
@@ -521,6 +557,7 @@ fun MainAppScreen(
                     }
                 }
             }
+
         }
 
         // Fullscreen Overlays for VOD and YouTube
@@ -529,7 +566,6 @@ fun MainAppScreen(
             NativePlayerView(
                 playerManager = playerManager,
                 onBack = {
-                    playerManager.stop()
                     fullscreenMedia = null
                 },
                 onNextEpisode = mediaState.onNextEpisode,
@@ -545,7 +581,6 @@ fun MainAppScreen(
                 title = ytState.title,
                 captionsEnabled = isMusicCaptionsEnabled,
                 onBack = {
-                    YouTubeRemoteBridge.activeWebView = null
                     fullscreenYouTube = null
                 },
                 onNextVideo = ytState.onNextVideo,

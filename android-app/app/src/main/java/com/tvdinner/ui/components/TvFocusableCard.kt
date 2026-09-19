@@ -34,12 +34,15 @@ fun TvFocusableCard(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     shape: Shape = RoundedCornerShape(12.dp),
-    backgroundColor: Color = CinemaSurfaceVariant,
-    focusedBorderColor: Color = CinemaFocus,
+    backgroundColor: Color = Color.Unspecified,
+    focusedBorderColor: Color = Color.Unspecified,
     focusedScale: Float = 1.05f,
     elevation: Dp = 4.dp,
     content: @Composable BoxScope.(Boolean) -> Unit
 ) {
+    val actualBg = if (backgroundColor != Color.Unspecified) backgroundColor else CinemaSurfaceVariant
+    val actualBorder = if (focusedBorderColor != Color.Unspecified) focusedBorderColor else CinemaFocus
+
     var isFocused by remember { mutableStateOf(false) }
     var isLongPressHandled by remember { mutableStateOf(false) }
     var isKeyDownOnThisCard by remember { mutableStateOf(false) }
@@ -57,8 +60,8 @@ fun TvFocusableCard(
                     Modifier.shadow(
                         elevation = 12.dp,
                         shape = shape,
-                        ambientColor = focusedBorderColor,
-                        spotColor = focusedBorderColor
+                        ambientColor = actualBorder,
+                        spotColor = actualBorder
                     )
                 } else {
                     Modifier.shadow(
@@ -113,10 +116,10 @@ fun TvFocusableCard(
                 onLongClick = onLongClick
             ),
         shape = shape,
-        color = backgroundColor,
+        color = actualBg,
         border = BorderStroke(
             width = if (isFocused) 2.5.dp else 1.dp,
-            color = if (isFocused) focusedBorderColor else Color.White.copy(alpha = 0.08f)
+            color = if (isFocused) actualBorder else Color.White.copy(alpha = 0.08f)
         )
     ) {
         Box {
