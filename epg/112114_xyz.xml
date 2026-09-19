@@ -50187,6 +50187,9 @@
 	<programme channel="newtv金牌综艺" start="20260920030400 +0800" stop="20260920033400 +0800">
 		<title lang="zh">白水杜康好物推荐</title>
 	</programme>
+	<programme channel="newtv金牌综艺" start="20260920033400 +0800" stop="20260920041600 +0800">
+		<title lang="zh">16_欢颜</title>
+	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
 	</channel>
