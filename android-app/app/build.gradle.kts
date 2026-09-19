@@ -11,8 +11,8 @@ android {
         applicationId = "com.tvdinner"
         minSdk = 24
         targetSdk = 36
-        versionCode = 233
-        versionName = "2.3.3"
+        versionCode = 235
+        versionName = "2.3.5"
     }
 
     signingConfigs {

@@ -1,12 +1,12 @@
 {
   "currentVersion": {
-    "versionCode": 235,
-    "versionName": "2.3.5",
-    "title": "Universal Preview Dock & True Black Dark Themes",
-    "releaseNotes": "• Universal Preview Persistence: Hitting Back or Close on any module (Movies, Series, Podcasts) now docks active content into the floating preview window instead of stopping it — no module is master of the preview\n• Podcast Audio-Mode Preview: When a podcast is docked, the preview stage switches to a compact artwork + title + animated waveform display instead of an empty black rectangle\n• Embed VOD Persistence: Embed-based movie and series players (iframe) now transfer into the preview dock when closing details, keeping the stream alive\n• Smart Expand Button: Tapping the expand arrow on a docked podcast reopens the episode in the Podcasts module; VOD content returns to its details view\n• True Black App Background: Midnight Classic, Obsidian Bento, and Cyber Stage themes now use #000000 body background for a deeper, more immersive look",
-    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.3.5/app-release.apk",
+    "versionCode": 233,
+    "versionName": "2.3.3",
+    "title": "Clean Live TV Return, Guaranteed First-Try Channel Play & VOD Seek Engine",
+    "releaseNotes": "• Clean Return to Live TV: Returning to Live TV from Movies, Series, or any other module now cleanly restores the 'Select a channel on the left to start streaming' message on the preview screen, with zero leftover VOD titles or lingering playback frames\n• Guaranteed First-Try Channel Playback: Clicking any channel now immediately begins streaming on the first press — eliminated the issue where the previous channel state blocked playback and required navigating down and up to register\n• Complete Media State Reset: ExoPlayerManager stop() now thoroughly purges stream URLs, titles, and live playback tokens upon leaving modules, ensuring Live TV starts from a pristine preview state\n• Scrubbing Throttle & Debounce: Remote fast-forward and rewind scrubbing now debounces network Range requests by 350ms while keeping real-time UI magnitude feedback (+30s, +1m) — completely preventing the burst of aborted HTTP requests that caused 'Connection interrupted (HTTP error)' crashes when seeking\n• Fast VOD Playback Startup: Optimized loadControl buffer thresholds (800ms initial buffer) for instant startup on Hulu, FX, and high-bitrate series like 'The Drop'\n• Failsafe Auto-Reboot & Resume: If an unrecoverable stream error occurs after all retries, the app automatically executes an internal media engine reboot and seamlessly returns to programming at the exact saved playback position without requiring a manual reboot",
+    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.3.3/app-release.apk",
     "mandatory": false,
-    "publishedAt": "2026-09-19T15:03:23.000Z"
+    "publishedAt": "2026-09-18T03:12:31.094Z"
   },
   "releases": [
     {
@@ -19,20 +19,7 @@
       "stagedApk": "staging-apks/tv-dinner-v2.3.5-b235.apk",
       "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.3.5/app-release.apk",
       "mandatory": false,
-      "createdAt": "2026-09-19T15:03:23.000Z",
-      "publishedAt": null
-    },
-    {
-      "id": "rel-234",
-      "versionCode": 234,
-      "versionName": "2.3.4",
-      "title": "Themes Engine (Bento, Cyber, Light, Classic) & Persistent Preview Window",
-      "status": "STAGED",
-      "releaseNotes": "• 4 Selectable Appearance Themes in Settings: Midnight Classic, Obsidian Bento, Cyber Stage, and Nordic Daybreak Light mode with instant preview swatches and zero layout shift\n• Persistent Floating Preview Window: Uninterrupted playback across all modules with empty-state handling and full mini-player controls\n• Seamless Media Continuation: Browse and search across movies, series, podcasts, and settings while live TV or video continues playing without stopping",
-      "stagedApk": "staging-apks/tv-dinner-v2.3.4-b234.apk",
-      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.3.4/app-release.apk",
-      "mandatory": false,
-      "createdAt": "2026-09-19T14:27:57.637Z",
+      "createdAt": "2026-09-19T15:17:45.765Z",
       "publishedAt": null
     },
     {
@@ -40,13 +27,13 @@
       "versionCode": 233,
       "versionName": "2.3.3",
       "title": "Clean Live TV Return, Guaranteed First-Try Channel Play & VOD Seek Engine",
-      "status": "STAGED",
+      "status": "PUBLISHED",
       "releaseNotes": "• Clean Return to Live TV: Returning to Live TV from Movies, Series, or any other module now cleanly restores the 'Select a channel on the left to start streaming' message on the preview screen, with zero leftover VOD titles or lingering playback frames\n• Guaranteed First-Try Channel Playback: Clicking any channel now immediately begins streaming on the first press — eliminated the issue where the previous channel state blocked playback and required navigating down and up to register\n• Complete Media State Reset: ExoPlayerManager stop() now thoroughly purges stream URLs, titles, and live playback tokens upon leaving modules, ensuring Live TV starts from a pristine preview state\n• Scrubbing Throttle & Debounce: Remote fast-forward and rewind scrubbing now debounces network Range requests by 350ms while keeping real-time UI magnitude feedback (+30s, +1m) — completely preventing the burst of aborted HTTP requests that caused 'Connection interrupted (HTTP error)' crashes when seeking\n• Fast VOD Playback Startup: Optimized loadControl buffer thresholds (800ms initial buffer) for instant startup on Hulu, FX, and high-bitrate series like 'The Drop'\n• Failsafe Auto-Reboot & Resume: If an unrecoverable stream error occurs after all retries, the app automatically executes an internal media engine reboot and seamlessly returns to programming at the exact saved playback position without requiring a manual reboot",
       "stagedApk": "staging-apks/tv-dinner-v2.3.3-b233.apk",
       "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.3.3/app-release.apk",
       "mandatory": false,
-      "createdAt": "2026-09-19T14:08:13.066Z",
-      "publishedAt": null
+      "createdAt": "2026-09-18T02:58:18.451Z",
+      "publishedAt": "2026-09-18T03:12:31.094Z"
     },
     {
       "id": "rel-233",
