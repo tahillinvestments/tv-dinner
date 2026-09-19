@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 object YouTubeRemoteBridge {
     var activeWebView: WebView? = null
+    var activeVideoId: String? = null
 
     private val _scrubBadge = MutableStateFlow<String?>(null)
     val scrubBadge: StateFlow<String?> = _scrubBadge.asStateFlow()
@@ -176,12 +177,13 @@ fun YouTubePlayerView(
     nextVideoTitle: String? = null,
     onPreviousVideo: (() -> Unit)? = null,
     captionsEnabled: Boolean = false,
+    isPreview: Boolean = (onBack == null),
     modifier: Modifier = Modifier
 ) {
     val currentOnNextVideo by rememberUpdatedState(onNextVideo)
     val currentOnPreviousVideo by rememberUpdatedState(onPreviousVideo)
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
-    var showControls by remember { mutableStateOf(true) }
+    var showControls by remember { mutableStateOf(false) }
     var isCcOn by remember(captionsEnabled) { mutableStateOf(captionsEnabled) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val scrubBadge by YouTubeRemoteBridge.scrubBadge.collectAsState()
@@ -234,33 +236,47 @@ fun YouTubePlayerView(
     }
 
     LaunchedEffect(videoId) {
-        webViewInstance?.evaluateJavascript(
-            """
-            if (window.ytPlayer && typeof window.ytPlayer.loadVideoById === 'function') {
-                window.ytPlayer.loadVideoById('$videoId');
-                try { window.ytPlayer.playVideo(); } catch(_) {}
-            } else {
-                window.pendingVideoId = '$videoId';
-            }
-            """.trimIndent(),
-            null
-        )
+        if (YouTubeRemoteBridge.activeVideoId != videoId) {
+            YouTubeRemoteBridge.activeVideoId = videoId
+            webViewInstance?.evaluateJavascript(
+                """
+                if (window.ytPlayer && typeof window.ytPlayer.loadVideoById === 'function') {
+                    window.ytPlayer.loadVideoById('$videoId');
+                    try { window.ytPlayer.playVideo(); } catch(_) {}
+                } else {
+                    window.pendingVideoId = '$videoId';
+                }
+                """.trimIndent(),
+                null
+            )
+        }
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(videoId) {
         onDispose {
-            if (YouTubeRemoteBridge.activeWebView == webViewInstance) {
-                YouTubeRemoteBridge.activeWebView = null
+            val isStillActive = (YouTubeRemoteBridge.activeVideoId == videoId)
+            if (!isStillActive) {
+                if (YouTubeRemoteBridge.activeWebView == webViewInstance) {
+                    YouTubeRemoteBridge.activeWebView = null
+                    YouTubeRemoteBridge.activeVideoId = null
+                }
+                webViewInstance?.let { wv ->
+                    try {
+                        (wv.parent as? ViewGroup)?.removeView(wv)
+                        wv.onPause()
+                        wv.stopLoading()
+                        wv.loadUrl("about:blank")
+                        wv.destroy()
+                    } catch (_: Exception) {}
+                }
+                webViewInstance = null
+            } else {
+                webViewInstance?.let { wv ->
+                    try {
+                        (wv.parent as? ViewGroup)?.removeView(wv)
+                    } catch (_: Exception) {}
+                }
             }
-            webViewInstance?.let { wv ->
-                try {
-                    wv.onPause()
-                    wv.stopLoading()
-                    wv.loadUrl("about:blank")
-                    wv.destroy()
-                } catch (_: Exception) {}
-            }
-            webViewInstance = null
         }
     }
 
@@ -268,47 +284,76 @@ fun YouTubePlayerView(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                showControls = !showControls
-                lastInteractionTime = System.currentTimeMillis()
-            }
+            .then(
+                if (!isPreview) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        showControls = !showControls
+                        lastInteractionTime = System.currentTimeMillis()
+                    }
+                } else Modifier
+            )
     ) {
-        AndroidView(
+        AndroidView<WebView>(
             factory = { context ->
-                WebView(context).apply {
-                    resumeTimers()
-                    layoutParams = FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    settings.apply {
-                        javaScriptEnabled = true
-                        domStorageEnabled = true
-                        mediaPlaybackRequiresUserGesture = false
-                        allowFileAccess = true
-                        allowContentAccess = true
-                        useWideViewPort = true
-                        loadWithOverviewMode = true
-                        cacheMode = WebSettings.LOAD_DEFAULT
-                        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                val existingWv = YouTubeRemoteBridge.activeWebView
+                if (existingWv != null && YouTubeRemoteBridge.activeVideoId == videoId) {
+                    (existingWv.parent as? ViewGroup)?.removeView(existingWv)
+                    existingWv.apply {
+                        isFocusable = !isPreview
+                        isFocusableInTouchMode = !isPreview
+                        resumeTimers()
                     }
-                    webChromeClient = object : WebChromeClient() {
-                        override fun getDefaultVideoPoster(): android.graphics.Bitmap? {
-                            return android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+                    webViewInstance = existingWv
+                    existingWv
+                } else {
+                    YouTubeRemoteBridge.activeWebView?.let { oldWv ->
+                        try {
+                            (oldWv.parent as? ViewGroup)?.removeView(oldWv)
+                            oldWv.onPause()
+                            oldWv.stopLoading()
+                            oldWv.loadUrl("about:blank")
+                            oldWv.destroy()
+                        } catch (_: Exception) {}
+                    }
+                    YouTubeRemoteBridge.activeWebView = null
+                    YouTubeRemoteBridge.activeVideoId = videoId
+
+                    WebView(context).apply {
+                        isFocusable = !isPreview
+                        isFocusableInTouchMode = !isPreview
+                        resumeTimers()
+                        layoutParams = FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            mediaPlaybackRequiresUserGesture = false
+                            allowFileAccess = true
+                            allowContentAccess = true
+                            useWideViewPort = true
+                            loadWithOverviewMode = true
+                            cacheMode = WebSettings.LOAD_DEFAULT
+                            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                         }
-                    }
-                    webViewClient = WebViewClient()
-                    setBackgroundColor(android.graphics.Color.BLACK)
+                        webChromeClient = object : WebChromeClient() {
+                            override fun getDefaultVideoPoster(): android.graphics.Bitmap? {
+                                return android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+                            }
+                        }
+                        webViewClient = WebViewClient()
+                        setBackgroundColor(android.graphics.Color.BLACK)
 
-                    addJavascriptInterface(
-                        YouTubeBridgeInterface { currentOnNextVideo },
-                        "AndroidBridge"
-                    )
+                        addJavascriptInterface(
+                            YouTubeBridgeInterface { currentOnNextVideo },
+                            "AndroidBridge"
+                        )
 
-                    val ccPolicy = if (captionsEnabled) 1 else 0
+                        val ccPolicy = if (captionsEnabled) 1 else 0
                     val html = """
                         <!DOCTYPE html>
                         <html>
@@ -401,16 +446,17 @@ fun YouTubePlayerView(
                     webViewInstance = this
                     YouTubeRemoteBridge.activeWebView = this
                 }
-            },
-            update = { wv ->
-                wv.resumeTimers()
-                YouTubeRemoteBridge.activeWebView = wv
-            },
+            }
+        },
+        update = { wv ->
+            wv.resumeTimers()
+            YouTubeRemoteBridge.activeWebView = wv
+        },
             modifier = Modifier.fillMaxSize()
         )
 
         // Scrub Acceleration Badge
-        if (scrubBadge != null) {
+        if (!isPreview && scrubBadge != null) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = Color.Black.copy(alpha = 0.85f),
@@ -440,7 +486,7 @@ fun YouTubePlayerView(
 
         // Overlay Controls
         AnimatedVisibility(
-            visible = showControls,
+            visible = !isPreview && showControls,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()

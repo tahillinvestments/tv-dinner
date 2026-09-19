@@ -48,6 +48,7 @@ fun NativePlayerView(
     onBack: (() -> Unit)? = null,
     onNextEpisode: (() -> Unit)? = null,
     nextEpisodeTitle: String? = null,
+    isPreview: Boolean = (onBack == null),
     modifier: Modifier = Modifier
 ) {
     val isPlaying by playerManager.isPlaying.collectAsState()
@@ -120,8 +121,8 @@ fun NativePlayerView(
     }
 
     // Request active focus on mount ONLY in standalone / fullscreen mode
-    LaunchedEffect(onBack) {
-        if (onBack != null) {
+    LaunchedEffect(onBack, isPreview) {
+        if (onBack != null && !isPreview) {
             try {
                 focusRequester.requestFocus()
             } catch (_: Exception) {}
@@ -139,104 +140,110 @@ fun NativePlayerView(
     Box(
         modifier = modifier
             .background(Color.Black)
-            .then(if (onBack != null) Modifier.focusRequester(focusRequester).focusable() else Modifier)
-            .onKeyEvent { keyEvent ->
-                val keyCode = keyEvent.nativeKeyEvent.keyCode
-                val isSelectKey = keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
-                                  keyCode == KeyEvent.KEYCODE_ENTER ||
-                                  keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
-                                  keyCode == KeyEvent.KEYCODE_BUTTON_A ||
-                                  keyCode == KeyEvent.KEYCODE_BUTTON_SELECT
+            .then(
+                if (!isPreview && onBack != null) {
+                    Modifier
+                        .focusRequester(focusRequester)
+                        .focusable()
+                        .onKeyEvent { keyEvent ->
+                            val keyCode = keyEvent.nativeKeyEvent.keyCode
+                            val isSelectKey = keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                                              keyCode == KeyEvent.KEYCODE_ENTER ||
+                                              keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                                              keyCode == KeyEvent.KEYCODE_BUTTON_A ||
+                                              keyCode == KeyEvent.KEYCODE_BUTTON_SELECT
 
-                if (keyEvent.type == KeyEventType.KeyDown && isSelectKey) {
-                    centerKeyDownReceived = true
-                    return@onKeyEvent false
-                }
+                            if (keyEvent.type == KeyEventType.KeyDown && isSelectKey) {
+                                centerKeyDownReceived = true
+                                return@onKeyEvent false
+                            }
 
-                if (keyEvent.type == KeyEventType.KeyUp) {
-                    if (isSelectKey) {
-                        val isRecentMount = (System.currentTimeMillis() - mountTimestamp) < 1000L
-                        if (!centerKeyDownReceived || isRecentMount) {
-                            // Stray KeyUp leaked from prior screen or card click: consume and ignore
-                            centerKeyDownReceived = false
-                            return@onKeyEvent true
-                        }
-                        centerKeyDownReceived = false
-                        if (!isBuffering) {
-                            playerManager.togglePlayPause()
-                        }
-                        showControls = true
-                        lastInteractionTime = System.currentTimeMillis()
-                        return@onKeyEvent true
-                    }
-                    when (keyCode) {
-                        KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                            if (!isLive) {
-                                playerManager.seekRewind10s()
-                            } else {
-                                playerManager.rewindLive()
+                            if (keyEvent.type == KeyEventType.KeyUp) {
+                                if (isSelectKey) {
+                                    val isRecentMount = (System.currentTimeMillis() - mountTimestamp) < 1000L
+                                    if (!centerKeyDownReceived || isRecentMount) {
+                                        // Stray KeyUp leaked from prior screen or card click: consume and ignore
+                                        centerKeyDownReceived = false
+                                        return@onKeyEvent true
+                                    }
+                                    centerKeyDownReceived = false
+                                    if (!isBuffering) {
+                                        playerManager.togglePlayPause()
+                                    }
+                                    showControls = true
+                                    lastInteractionTime = System.currentTimeMillis()
+                                    return@onKeyEvent true
+                                }
+                                when (keyCode) {
+                                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                                        if (!isLive) {
+                                            playerManager.seekRewind10s()
+                                        } else {
+                                            playerManager.rewindLive()
+                                        }
+                                        showControls = true
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        return@onKeyEvent true
+                                    }
+                                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                                        if (!isLive) {
+                                            playerManager.seekForward10s()
+                                        } else {
+                                            playerManager.forwardLive()
+                                        }
+                                        showControls = true
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        return@onKeyEvent true
+                                    }
+                                    KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S -> {
+                                        playerManager.toggleClosedCaptions()
+                                        showControls = true
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        return@onKeyEvent true
+                                    }
+                                    KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK, KeyEvent.KEYCODE_A -> {
+                                        playerManager.cycleAudioTrack()
+                                        showControls = true
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        return@onKeyEvent true
+                                    }
+                                    KeyEvent.KEYCODE_MENU,
+                                    KeyEvent.KEYCODE_INFO,
+                                    KeyEvent.KEYCODE_PROG_YELLOW,
+                                    KeyEvent.KEYCODE_PROG_BLUE,
+                                    KeyEvent.KEYCODE_WINDOW,
+                                    228 /* KEYCODE_ASPECT_RATIO */ -> {
+                                        playerManager.cycleAspectRatio()
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        return@onKeyEvent true
+                                    }
+                                    KeyEvent.KEYCODE_DPAD_UP -> {
+                                        if (!isLive) {
+                                            playerManager.cycleAspectRatio()
+                                            lastInteractionTime = System.currentTimeMillis()
+                                            return@onKeyEvent true
+                                        }
+                                    }
+                                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                                        if (!isLive) {
+                                            playerManager.toggleClosedCaptions()
+                                            lastInteractionTime = System.currentTimeMillis()
+                                            return@onKeyEvent true
+                                        }
+                                    }
+                                }
                             }
-                            showControls = true
+                            false
+                        }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            showControls = !showControls
                             lastInteractionTime = System.currentTimeMillis()
-                            return@onKeyEvent true
                         }
-                        KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                            if (!isLive) {
-                                playerManager.seekForward10s()
-                            } else {
-                                playerManager.forwardLive()
-                            }
-                            showControls = true
-                            lastInteractionTime = System.currentTimeMillis()
-                            return@onKeyEvent true
-                        }
-                        KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S -> {
-                            playerManager.toggleClosedCaptions()
-                            showControls = true
-                            lastInteractionTime = System.currentTimeMillis()
-                            return@onKeyEvent true
-                        }
-                        KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK, KeyEvent.KEYCODE_A -> {
-                            playerManager.cycleAudioTrack()
-                            showControls = true
-                            lastInteractionTime = System.currentTimeMillis()
-                            return@onKeyEvent true
-                        }
-                        KeyEvent.KEYCODE_MENU,
-                        KeyEvent.KEYCODE_INFO,
-                        KeyEvent.KEYCODE_PROG_YELLOW,
-                        KeyEvent.KEYCODE_PROG_BLUE,
-                        KeyEvent.KEYCODE_WINDOW,
-                        228 /* KEYCODE_ASPECT_RATIO */ -> {
-                            playerManager.cycleAspectRatio()
-                            lastInteractionTime = System.currentTimeMillis()
-                            return@onKeyEvent true
-                        }
-                        KeyEvent.KEYCODE_DPAD_UP -> {
-                            if (!isLive) {
-                                playerManager.cycleAspectRatio()
-                                lastInteractionTime = System.currentTimeMillis()
-                                return@onKeyEvent true
-                            }
-                        }
-                        KeyEvent.KEYCODE_DPAD_DOWN -> {
-                            if (!isLive) {
-                                playerManager.toggleClosedCaptions()
-                                lastInteractionTime = System.currentTimeMillis()
-                                return@onKeyEvent true
-                            }
-                        }
-                    }
-                }
-                false
-            }
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                showControls = !showControls
-                lastInteractionTime = System.currentTimeMillis()
-            }
+                } else Modifier
+            )
     ) {
         // ExoPlayer View
         AndroidView(
@@ -250,6 +257,7 @@ fun NativePlayerView(
                     this.resizeMode = resizeMode
                     player = playerManager.player
                     setBackgroundColor(android.graphics.Color.BLACK)
+                    onResume()
                     subtitleView?.apply {
                         setApplyEmbeddedStyles(false)
                         setStyle(
@@ -267,8 +275,14 @@ fun NativePlayerView(
                 }
             },
             update = { playerView ->
-                playerView.player = playerManager.player
+                if (playerView.player != playerManager.player) {
+                    playerView.player = playerManager.player
+                }
                 playerView.resizeMode = resizeMode
+                playerView.onResume()
+            },
+            onRelease = { playerView ->
+                playerView.player = null
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -278,11 +292,11 @@ fun NativePlayerView(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp),
-                contentAlignment = Alignment.TopEnd
+                    .padding(if (isPreview) 10.dp else 20.dp),
+                contentAlignment = if (isPreview) Alignment.Center else Alignment.TopEnd
             ) {
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(if (isPreview) 10.dp else 20.dp),
                     color = Color.Black.copy(alpha = 0.65f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, CinemaAccent.copy(alpha = 0.6f))
                 ) {
@@ -305,7 +319,7 @@ fun NativePlayerView(
                     }
                 }
             }
-        } else if (isStreamStalled || errorMessage != null) {
+        } else if (!isPreview && (isStreamStalled || errorMessage != null)) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -350,9 +364,9 @@ fun NativePlayerView(
             }
         }
 
-        // Player Controls HUD Overlay (Visible when showControls is true or when paused)
+        // Player Controls HUD Overlay (Visible when not in preview and (showControls is true or when paused))
         AnimatedVisibility(
-            visible = showControls || (!isPlaying && errorMessage == null),
+            visible = !isPreview && (showControls || (!isPlaying && errorMessage == null)),
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize()
@@ -625,7 +639,7 @@ fun NativePlayerView(
 
         // Bottom Progress Bar & Time Stamps for VOD (Visible on remote seek or controls)
         androidx.compose.animation.AnimatedVisibility(
-            visible = !isLive && (showControls || showSeekHud || (!isPlaying && errorMessage == null)),
+            visible = !isPreview && !isLive && (showControls || showSeekHud || (!isPlaying && errorMessage == null)),
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
@@ -703,7 +717,7 @@ fun NativePlayerView(
 
         // Live TV Rewind / Catchup HUD Pill Overlay (Animated on remote left/right rewind actions)
         androidx.compose.animation.AnimatedVisibility(
-            visible = isLive && (isLiveRewound || showLiveRewindHud),
+            visible = !isPreview && isLive && (isLiveRewound || showLiveRewindHud),
             enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
             modifier = Modifier
@@ -752,7 +766,7 @@ fun NativePlayerView(
 
         // Aspect Ratio HUD Pill Overlay (Animated on remote aspect toggles)
         androidx.compose.animation.AnimatedVisibility(
-            visible = showAspectHud,
+            visible = !isPreview && showAspectHud,
             enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
             modifier = Modifier
@@ -791,7 +805,7 @@ fun NativePlayerView(
 
         // Closed Captions / Subtitles HUD Pill Overlay
         androidx.compose.animation.AnimatedVisibility(
-            visible = showCcHud,
+            visible = !isPreview && showCcHud,
             enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
             exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
             modifier = Modifier

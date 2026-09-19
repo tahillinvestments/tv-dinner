@@ -347,12 +347,10 @@ fun LiveTvScreen(
             }
             delay(35)
             var moved = false
-            if (activeIdx >= 0) {
-                try {
-                    activeCardFocusRequester.requestFocus()
-                    moved = true
-                } catch (_: Exception) {}
-            }
+            try {
+                activeCardFocusRequester.requestFocus()
+                moved = true
+            } catch (_: Exception) {}
             if (!moved) {
                 try {
                     visibleChannelFocusRequester.requestFocus()
@@ -1070,12 +1068,10 @@ fun LiveTvScreen(
                                                                     } catch (_: Exception) {}
                                                                 }
                                                             }
-                                                            if (activeIdx >= 0) {
-                                                                try {
-                                                                    activeCardFocusRequester.requestFocus()
-                                                                    moved = true
-                                                                } catch (_: Exception) {}
-                                                            }
+                                                            try {
+                                                                activeCardFocusRequester.requestFocus()
+                                                                moved = true
+                                                            } catch (_: Exception) {}
                                                             if (!moved) {
                                                                 try {
                                                                     visibleChannelFocusRequester.requestFocus()
@@ -1096,11 +1092,9 @@ fun LiveTvScreen(
                                                                 for (attempt in 1..8) {
                                                                     delay(40L * attempt)
                                                                     try {
-                                                                        if (activeIdx >= 0) {
-                                                                            activeCardFocusRequester.requestFocus()
-                                                                            moved = true
-                                                                            break
-                                                                        }
+                                                                        activeCardFocusRequester.requestFocus()
+                                                                        moved = true
+                                                                        break
                                                                     } catch (_: Exception) {}
                                                                     try {
                                                                         visibleChannelFocusRequester.requestFocus()
@@ -1230,7 +1224,7 @@ fun LiveTvScreen(
                                     val hasActiveInList = remember(filteredChannels, activeChannel) {
                                         filteredChannels.any { it.streamId == activeChannel?.streamId }
                                     }
-                                    val isTargetFocus = if (hasActiveInList) isActive else (index == lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0)))
+                                    val isTargetFocus = if (hasActiveInList) (channel.streamId == activeChannel?.streamId) else (index == lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0)))
 
                                     var channelEpg by remember(channel.streamId) {
                                         mutableStateOf(catalogManager.getCachedEpg(channel.streamId))
@@ -1552,7 +1546,7 @@ fun LiveTvScreen(
                                     ) {
                                         Text(
                                             text = cleanPreviewTitle,
-                                            fontSize = 18.sp,
+                                            fontSize = 20.sp,
                                             fontWeight = FontWeight.Black,
                                             color = TextPrimary,
                                             maxLines = 1,
@@ -1581,23 +1575,6 @@ fun LiveTvScreen(
                                                 )
                                             }
                                         }
-                                        if (!activeCatName.isNullOrBlank()) {
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = CinemaSurfaceVariant,
-                                                border = androidx.compose.foundation.BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f))
-                                            ) {
-                                                Text(
-                                                    text = CatalogManager.cleanCategoryDisplayName(activeCatName),
-                                                    color = CinemaAccent,
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                                )
-                                            }
-                                        }
                                     }
                                     if (activeChannel != null && isLiveStream) {
                                         Surface(
@@ -1615,14 +1592,37 @@ fun LiveTvScreen(
                                         }
                                     }
                                 }
-                                val chNum = activeChannel?.num ?: 0
-                                val catSubtitle = if (!activeCatName.isNullOrBlank()) " • " + CatalogManager.cleanCategoryDisplayName(activeCatName) else ""
-                                Text(
-                                    text = if (chNum > 0) "Channel $chNum • 1080p 60fps Live$catSubtitle" else "Live Broadcast • HD High Quality Stream$catSubtitle",
-                                    fontSize = 12.sp,
-                                    color = TextSecondary,
-                                    modifier = Modifier.padding(top = 2.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (!activeCatName.isNullOrBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = CinemaSurfaceVariant,
+                                            border = androidx.compose.foundation.BorderStroke(0.5.dp, CinemaAccent.copy(alpha = 0.6f))
+                                        ) {
+                                            Text(
+                                                text = CatalogManager.cleanCategoryDisplayName(activeCatName),
+                                                color = CinemaAccent,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    val chNum = activeChannel?.num ?: 0
+                                    Text(
+                                        text = if (chNum > 0) "Channel $chNum • 1080p 60fps Live" else "Live Broadcast • HD High Quality Stream",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
 
                             // Row 2: Action Controls Bar (Resume/Stop, Favorite, CC, Aspect, Fullscreen) - Icon-Only Symbols
