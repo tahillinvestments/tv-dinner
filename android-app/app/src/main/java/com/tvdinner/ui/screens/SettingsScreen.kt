@@ -68,7 +68,6 @@ fun SettingsScreen(
     val activeUserFromRepo by authRepo.activeUsernameState.collectAsState()
     val activePswdFromRepo by authRepo.activePasswordState.collectAsState()
     val currentTheme by authRepo.appThemeState.collectAsState()
-    val isPersistentPreviewEnabled by authRepo.isPersistentPreviewEnabledState.collectAsState()
     val hasValidCreds = activeUserFromRepo.isNotBlank() && activePswdFromRepo.isNotBlank()
 
     var isAccountActive by remember(isVerified) { mutableStateOf(isVerified) }
@@ -550,55 +549,6 @@ fun SettingsScreen(
                                     Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
-                        }
-                    }
-
-                    HorizontalDivider(color = CinemaSurfaceLight, thickness = 1.dp)
-
-                    // Persistent Preview Window Toggle
-                    TvFocusableCard(
-                        onClick = {
-                            val next = !isPersistentPreviewEnabled
-                            authRepo.setPersistentPreviewEnabled(next)
-                        },
-                        backgroundColor = CinemaSurfaceVariant,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().height(56.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Persistent Preview Window",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = if (isPersistentPreviewEnabled) "Mini player stays visible across all tabs until paused or new content plays" else "Playback stops when switching tabs (Default: ON)",
-                                    fontSize = 11.sp,
-                                    color = TextMuted,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            Switch(
-                                checked = isPersistentPreviewEnabled,
-                                onCheckedChange = {
-                                    authRepo.setPersistentPreviewEnabled(it)
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = CinemaAccent,
-                                    uncheckedThumbColor = TextMuted,
-                                    uncheckedTrackColor = CinemaSurfaceLight
-                                ),
-                                modifier = Modifier.scale(0.85f)
-                            )
                         }
                     }
                 }

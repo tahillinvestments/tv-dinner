@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var musicService: YouTubeMusicService
     private lateinit var catalogManager: CatalogManager
     private lateinit var playerManager: ExoPlayerManager
+    private var fullscreenCenterKeyDown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -157,21 +158,24 @@ class MainActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
-            val isYouTubeFullscreen = isYouTubeFullscreenActive && YouTubeRemoteBridge.activeWebView != null
             val isYouTubeActive = YouTubeRemoteBridge.activeWebView != null
 
             when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                    if (isYouTubeFullscreen) {
-                        YouTubeRemoteBridge.togglePlayPause()
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_SELECT -> {
+                    if (isYouTubeFullscreenActive) {
+                        // YouTube: WebView steals Compose focus, so dispatchKeyEvent must handle it
+                        fullscreenCenterKeyDown = true
                         return true
+                    } else if (isLiveFullscreenActive || isVODFullscreenActive) {
+                        // Native: Compose NativePlayerView's onKeyEvent handles play/pause.
+                        // Just consume ACTION_DOWN to prevent double-propagation, but don't act on it.
+                        fullscreenCenterKeyDown = true
+                        return super.dispatchKeyEvent(event) // let Compose get this
                     }
-                    // For VOD and Live TV, NativePlayerView and LiveTvScreen handle DPAD_CENTER / ENTER
-                    // natively on KeyUp with 1000ms recent-mount debouncing.
-                    // Do NOT intercept ACTION_DOWN here, which would pause newly started streams immediately.
                 }
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    if (isYouTubeFullscreen) {
+                    if (isYouTubeFullscreenActive) {
                         onPreviousYouTubeCallback?.invoke()
                         return true
                     } else if (isVODFullscreenActive) {
@@ -180,7 +184,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    if (isYouTubeFullscreen) {
+                    if (isYouTubeFullscreenActive) {
                         onNextYouTubeCallback?.invoke()
                         return true
                     } else if (isVODFullscreenActive) {
@@ -189,7 +193,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (isYouTubeFullscreen) {
+                    if (isYouTubeFullscreenActive) {
                         YouTubeRemoteBridge.seekRewind()
                         return true
                     } else if (isVODFullscreenActive) {
@@ -201,7 +205,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (isYouTubeFullscreen) {
+                    if (isYouTubeFullscreenActive) {
                         YouTubeRemoteBridge.seekForward()
                         return true
                     } else if (isVODFullscreenActive) {
@@ -213,7 +217,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.togglePlayPause()
                     } else {
                         playerManager.togglePlayPause()
@@ -221,7 +225,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.play()
                     } else {
                         playerManager.play()
@@ -229,7 +233,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.pause()
                     } else {
                         playerManager.pause()
@@ -237,7 +241,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.seekForward()
                     } else if (isLiveFullscreenActive) {
                         playerManager.forwardLive()
@@ -247,7 +251,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S -> {
-                    if (isYouTubeFullscreen) {
+                    if (isYouTubeFullscreenActive) {
                         YouTubeRemoteBridge.toggleClosedCaptions()
                         return true
                     } else if (isVODFullscreenActive || isLiveFullscreenActive) {
@@ -262,7 +266,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.seekRewind()
                     } else if (isLiveFullscreenActive) {
                         playerManager.rewindLive()
@@ -271,18 +275,33 @@ class MainActivity : ComponentActivity() {
                     }
                     return true
                 }
-                KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_P, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
-                    if (isYouTubeFullscreen) {
+                KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_P -> {
+                    if (isYouTubeFullscreenActive) {
                         onPreviousYouTubeCallback?.invoke()
                         return true
                     }
                 }
-                KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_FORWARD -> {
-                    if (isYouTubeFullscreen) {
+                KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_FORWARD -> {
+                    if (isYouTubeFullscreenActive) {
                         onNextYouTubeCallback?.invoke()
                         return true
                     } else if (isVODFullscreenActive) {
                         onNextEpisodeCallback?.invoke()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_CHANNEL_UP -> {
+                    if (isYouTubeFullscreenActive) {
+                        onNextYouTubeCallback?.invoke()
+                        return true
+                    } else if (isVODFullscreenActive) {
+                        onNextEpisodeCallback?.invoke()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                    if (isYouTubeFullscreenActive) {
+                        onPreviousYouTubeCallback?.invoke()
                         return true
                     }
                 }
@@ -299,17 +318,60 @@ class MainActivity : ComponentActivity() {
                 }
             }
         } else if (event.action == KeyEvent.ACTION_UP) {
-            val isYouTubeFullscreen = isYouTubeFullscreenActive && YouTubeRemoteBridge.activeWebView != null
-            if (isYouTubeFullscreen) {
-                when (event.keyCode) {
-                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
-                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
-                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
-                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE,
-                    KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_MEDIA_REWIND,
-                    KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_P, KeyEvent.KEYCODE_CHANNEL_DOWN,
-                    KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_FORWARD,
-                    KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S -> {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
+                KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_SELECT -> {
+                    if (fullscreenCenterKeyDown) {
+                        fullscreenCenterKeyDown = false
+                        if (isYouTubeFullscreenActive) {
+                            // YouTube: WebView blocks Compose, so we toggle play/pause here
+                            YouTubeRemoteBridge.togglePlayPause()
+                            return true
+                        } else if (isLiveFullscreenActive || isVODFullscreenActive) {
+                            // Native: Compose NativePlayerView.onKeyEvent handles this.
+                            // Pass through so Compose receives the ACTION_UP and toggles once.
+                            return super.dispatchKeyEvent(event)
+                        }
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (isYouTubeFullscreenActive || isVODFullscreenActive) {
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (isYouTubeFullscreenActive || isVODFullscreenActive || isLiveFullscreenActive) {
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE,
+                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_P,
+                KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_FORWARD -> {
+                    if (isYouTubeFullscreenActive || isVODFullscreenActive) {
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                    if (isYouTubeFullscreenActive || isVODFullscreenActive) {
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S,
+                KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK, KeyEvent.KEYCODE_A -> {
+                    if (isYouTubeFullscreenActive || isVODFullscreenActive || isLiveFullscreenActive) {
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_MENU,
+                KeyEvent.KEYCODE_INFO,
+                KeyEvent.KEYCODE_PROG_YELLOW,
+                KeyEvent.KEYCODE_PROG_BLUE,
+                KeyEvent.KEYCODE_WINDOW,
+                228 /* KEYCODE_ASPECT_RATIO */ -> {
+                    if (isVODFullscreenActive || isLiveFullscreenActive) {
                         return true
                     }
                 }

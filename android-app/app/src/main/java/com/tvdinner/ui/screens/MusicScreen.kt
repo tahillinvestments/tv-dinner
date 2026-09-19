@@ -52,6 +52,7 @@ fun MusicScreen(
     playerManager: ExoPlayerManager,
     onPlayYouTubeVideo: (String, String, (() -> Unit)?, String?, (() -> Unit)?) -> Unit,
     onExpandPreview: () -> Unit = {},
+    isPlayingFullscreen: Boolean = false,
     onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -315,6 +316,7 @@ fun MusicScreen(
                                 playerManager = playerManager,
                                 onExpand = onExpandPreview,
                                 onClose = { playerManager.stop() },
+                                isPlayingFullscreen = isPlayingFullscreen,
                                 modifier = Modifier.padding(bottom = 4.dp)
                             )
 

@@ -567,6 +567,7 @@ fun MoviesScreen(
                             playerManager = playerManager,
                             onExpand = onExpandPreview,
                             onClose = { playerManager.stop() },
+                            isPlayingFullscreen = isPlayingFullscreen,
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
 

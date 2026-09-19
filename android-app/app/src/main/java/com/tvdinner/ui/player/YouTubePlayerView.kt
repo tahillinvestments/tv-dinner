@@ -17,6 +17,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -188,6 +190,16 @@ fun YouTubePlayerView(
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val scrubBadge by YouTubeRemoteBridge.scrubBadge.collectAsState()
 
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        if (!isPreview) {
+            try {
+                focusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
     LaunchedEffect(isCcOn) {
         if (!isCcOn) {
             webViewInstance?.evaluateJavascript(
@@ -223,6 +235,11 @@ fun YouTubePlayerView(
         if (showControls) {
             delay(4000)
             showControls = false
+            if (!isPreview) {
+                try {
+                    focusRequester.requestFocus()
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -252,30 +269,12 @@ fun YouTubePlayerView(
         }
     }
 
-    DisposableEffect(videoId) {
+    DisposableEffect(Unit) {
         onDispose {
-            val isStillActive = (YouTubeRemoteBridge.activeVideoId == videoId)
-            if (!isStillActive) {
-                if (YouTubeRemoteBridge.activeWebView == webViewInstance) {
-                    YouTubeRemoteBridge.activeWebView = null
-                    YouTubeRemoteBridge.activeVideoId = null
-                }
-                webViewInstance?.let { wv ->
-                    try {
-                        (wv.parent as? ViewGroup)?.removeView(wv)
-                        wv.onPause()
-                        wv.stopLoading()
-                        wv.loadUrl("about:blank")
-                        wv.destroy()
-                    } catch (_: Exception) {}
-                }
-                webViewInstance = null
-            } else {
-                webViewInstance?.let { wv ->
-                    try {
-                        (wv.parent as? ViewGroup)?.removeView(wv)
-                    } catch (_: Exception) {}
-                }
+            webViewInstance?.let { wv ->
+                try {
+                    (wv.parent as? ViewGroup)?.removeView(wv)
+                } catch (_: Exception) {}
             }
         }
     }
@@ -286,25 +285,63 @@ fun YouTubePlayerView(
             .background(Color.Black)
             .then(
                 if (!isPreview) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        showControls = !showControls
-                        lastInteractionTime = System.currentTimeMillis()
-                    }
+                    Modifier
+                        .focusRequester(focusRequester)
+                        .focusable()
+                        .onKeyEvent { keyEvent ->
+                            if (keyEvent.type == KeyEventType.KeyUp) {
+                                when (keyEvent.nativeKeyEvent.keyCode) {
+                                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                                    android.view.KeyEvent.KEYCODE_ENTER,
+                                    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
+                                    android.view.KeyEvent.KEYCODE_BUTTON_A,
+                                    android.view.KeyEvent.KEYCODE_BUTTON_SELECT -> {
+                                        YouTubeRemoteBridge.togglePlayPause()
+                                        showControls = true
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        true
+                                    }
+                                    android.view.KeyEvent.KEYCODE_DPAD_UP,
+                                    android.view.KeyEvent.KEYCODE_CHANNEL_UP,
+                                    android.view.KeyEvent.KEYCODE_PAGE_UP -> {
+                                        currentOnPreviousVideo?.invoke()
+                                        true
+                                    }
+                                    android.view.KeyEvent.KEYCODE_DPAD_DOWN,
+                                    android.view.KeyEvent.KEYCODE_CHANNEL_DOWN,
+                                    android.view.KeyEvent.KEYCODE_PAGE_DOWN -> {
+                                        currentOnNextVideo?.invoke()
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            } else false
+                        }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            showControls = !showControls
+                            lastInteractionTime = System.currentTimeMillis()
+                        }
                 } else Modifier
             )
     ) {
         AndroidView<WebView>(
             factory = { context ->
                 val existingWv = YouTubeRemoteBridge.activeWebView
-                if (existingWv != null && YouTubeRemoteBridge.activeVideoId == videoId) {
+                if (existingWv != null && (YouTubeRemoteBridge.activeVideoId == videoId || videoId.isEmpty())) {
                     (existingWv.parent as? ViewGroup)?.removeView(existingWv)
                     existingWv.apply {
-                        isFocusable = !isPreview
-                        isFocusableInTouchMode = !isPreview
+                        isFocusable = false
+                        isFocusableInTouchMode = false
                         resumeTimers()
+                        post {
+                            evaluateJavascript(
+                                "if (window.ytPlayer && typeof window.ytPlayer.playVideo === 'function') { try { window.ytPlayer.playVideo(); } catch(_) {} }",
+                                null
+                            )
+                        }
                     }
                     webViewInstance = existingWv
                     existingWv
@@ -322,8 +359,8 @@ fun YouTubePlayerView(
                     YouTubeRemoteBridge.activeVideoId = videoId
 
                     WebView(context).apply {
-                        isFocusable = !isPreview
-                        isFocusableInTouchMode = !isPreview
+                        isFocusable = false
+                        isFocusableInTouchMode = false
                         resumeTimers()
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -451,6 +488,12 @@ fun YouTubePlayerView(
         update = { wv ->
             wv.resumeTimers()
             YouTubeRemoteBridge.activeWebView = wv
+            wv.post {
+                wv.evaluateJavascript(
+                    "if (window.ytPlayer && typeof window.ytPlayer.playVideo === 'function') { try { window.ytPlayer.playVideo(); } catch(_) {} }",
+                    null
+                )
+            }
         },
             modifier = Modifier.fillMaxSize()
         )

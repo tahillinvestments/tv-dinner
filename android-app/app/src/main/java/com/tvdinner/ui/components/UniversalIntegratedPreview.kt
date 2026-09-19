@@ -29,6 +29,7 @@ fun UniversalIntegratedPreview(
     onExpand: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    isPlayingFullscreen: Boolean = false,
     activeYouTubeVideoId: String? = null,
     activeYouTubeTitle: String? = null,
     onCloseYouTube: (() -> Unit)? = null
@@ -42,7 +43,9 @@ fun UniversalIntegratedPreview(
     val effectiveYtId = activeYouTubeVideoId ?: playerYtId
     val effectiveYtTitle = activeYouTubeTitle ?: playerYtTitle
 
-    val isNativeActive = currentStreamUrl.isNotBlank() || isPlaying || isBuffering
+    // isNativeActive requires a real stream URL — transient isPlaying/isBuffering flags alone
+    // won't override YouTube preview when the URL has been cleared (e.g. after stop())
+    val isNativeActive = currentStreamUrl.isNotBlank()
     val isYouTubeActive = !effectiveYtId.isNullOrBlank()
 
     val focusManager = LocalFocusManager.current
@@ -96,7 +99,8 @@ fun UniversalIntegratedPreview(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Avoid dual PlayerView surface contention or duplicate WebView when any fullscreen overlay is showing
-            val isFullscreenShowing = MainActivity.isVODFullscreenActive ||
+            val isFullscreenShowing = isPlayingFullscreen ||
+                                      MainActivity.isVODFullscreenActive ||
                                       MainActivity.isLiveFullscreenActive ||
                                       MainActivity.isYouTubeFullscreenActive
 
@@ -161,8 +165,8 @@ fun UniversalIntegratedPreview(
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black))
             }
 
-            // Non-intrusive Buffering Card: Only visible when actively buffering
-            if (isBuffering && isNativeActive) {
+            // Non-intrusive Buffering Card: visible when actively buffering a native stream
+            if (isBuffering && (isNativeActive || currentStreamUrl.isNotBlank())) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = Color.Black.copy(alpha = 0.75f),

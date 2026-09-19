@@ -31,6 +31,7 @@ import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
 import com.tvdinner.player.ExoPlayerManager
 import com.tvdinner.ui.components.TvFocusableCard
+import com.tvdinner.ui.components.UniversalIntegratedPreview
 import com.tvdinner.ui.player.NativePlayerView
 import com.tvdinner.ui.player.YouTubePlayerView
 import com.tvdinner.ui.player.YouTubeRemoteBridge
@@ -86,6 +87,8 @@ fun MainAppScreen(
     val currentTitle by playerManager.currentTitle.collectAsState()
     val isLiveStream by playerManager.isLiveStream.collectAsState()
     val currentStreamUrl by playerManager.currentStreamUrl.collectAsState()
+    val activeYouTubeVideoId by playerManager.activeYouTubeVideoId.collectAsState()
+    val activeYouTubeTitle by playerManager.activeYouTubeTitle.collectAsState()
     val isMediaActive = currentStreamUrl.isNotBlank() || isPlaying
 
     // Target Navigation States from NowScreen
@@ -97,8 +100,8 @@ fun MainAppScreen(
     var targetSeriesCategoryId by remember { mutableStateOf<String?>(null) }
     var targetPodcastEpisode by remember { mutableStateOf<PodcastEpisode?>(null) }
 
-    // Sync VOD, YouTube and Live TV fullscreen states and next-item callbacks with MainActivity for remote key interception
-    LaunchedEffect(fullscreenMedia, isLiveTvFullscreen, fullscreenYouTube) {
+    // Immediately sync VOD, YouTube and Live TV fullscreen states and next-item callbacks with MainActivity for remote key interception
+    SideEffect {
         MainActivity.isVODFullscreenActive = (fullscreenMedia != null)
         MainActivity.isLiveFullscreenActive = isLiveTvFullscreen
         MainActivity.isYouTubeFullscreenActive = (fullscreenYouTube != null)
@@ -131,18 +134,18 @@ fun MainAppScreen(
 
     fun switchTab(newTab: AppTab) {
         if (activeTab != newTab) {
-            val isPersistent = authRepo.isPersistentPreviewEnabled()
-            if (!isPersistent) {
+            val wasNativeTab = activeTab in listOf(AppTab.LIVE, AppTab.MOVIES, AppTab.SERIES)
+            val isNowYouTubeTab = newTab in listOf(AppTab.MUSIC, AppTab.PODCASTS)
+
+            // When switching from a native (ExoPlayer) tab to a YouTube tab:
+            // stop ExoPlayer so the preview doesn't display a stale native stream on the YouTube tab
+            if (wasNativeTab && isNowYouTubeTab && playerManager.currentStreamUrl.value.isNotBlank()) {
                 playerManager.stop()
-                YouTubeRemoteBridge.activeWebView?.let { wv ->
-                    try {
-                        wv.onPause()
-                        wv.stopLoading()
-                        wv.loadUrl("about:blank")
-                    } catch (_: Exception) {}
-                }
-                YouTubeRemoteBridge.activeWebView = null
             }
+            // NOTE: We intentionally do NOT clear YouTube media on tab switch.
+            // This allows YouTube audio to persist and be visible in the preview
+            // even when browsing Movies/Series, ensuring seamless cross-tab continuity.
+
             fullscreenYouTube = null
             fullscreenMedia = null
             isLiveTvFullscreen = false
@@ -179,14 +182,6 @@ fun MainAppScreen(
             isLiveTvFullscreen = false
         } else if (activeTab != AppTab.LIVE) {
             switchTab(AppTab.LIVE)
-        }
-    }
-
-    // Handle tab change: stop playback if persistent preview is disabled
-    LaunchedEffect(activeTab) {
-        val isPersistent = authRepo.isPersistentPreviewEnabled()
-        if (!isPersistent) {
-            playerManager.stop()
         }
     }
 
@@ -376,6 +371,7 @@ fun MainAppScreen(
                                         catalogManager = catalogManager,
                                         playerManager = playerManager,
                                         onExpandPreview = expandCurrentMedia,
+                                        isPlayingFullscreen = (fullscreenYouTube != null),
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
@@ -389,6 +385,7 @@ fun MainAppScreen(
                                         catalogManager = catalogManager,
                                         playerManager = playerManager,
                                         onExpandPreview = expandCurrentMedia,
+                                        isPlayingFullscreen = (fullscreenYouTube != null),
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
@@ -526,6 +523,7 @@ fun MainAppScreen(
                                         catalogManager = catalogManager,
                                         playerManager = playerManager,
                                         onExpandPreview = expandCurrentMedia,
+                                        isPlayingFullscreen = (fullscreenYouTube != null),
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
@@ -539,6 +537,7 @@ fun MainAppScreen(
                                         catalogManager = catalogManager,
                                         playerManager = playerManager,
                                         onExpandPreview = expandCurrentMedia,
+                                        isPlayingFullscreen = (fullscreenYouTube != null),
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false

@@ -209,7 +209,7 @@ object MusicData {
         // Country
         MusicArtist(
             id = "morgan_wallen",
-            artistName = "Country & Americana",
+            artistName = "Morgan Wallen",
             genre = "Country & Americana",
             avatar = "https://i.ytimg.com/vi/d_q4t6jB8h0/hqdefault.jpg",
             subscribers = "3.8M subscribers",
@@ -291,6 +291,64 @@ object MusicData {
             subscribers = "6.5M subscribers",
             bio = "Mexican sensation leading the global explosion of Corridos Tumbados.",
             ytChannelId = "UC3yV1g6_y0G7V9q3L5F1k89"
+        ),
+
+        // Electronic & Dance
+        MusicArtist(
+            id = "calvin_harris",
+            artistName = "Calvin Harris",
+            genre = "Electronic & Dance",
+            avatar = "https://i.ytimg.com/vi/ebXbLfLAC34/hqdefault.jpg",
+            subscribers = "19.2M subscribers",
+            bio = "Scottish DJ, record producer, singer, and songwriter behind record-breaking EDM anthems.",
+            ytChannelId = "UCYbmff210a_604q_Y06A4vA"
+        ),
+        MusicArtist(
+            id = "david_guetta",
+            artistName = "David Guetta",
+            genre = "Electronic & Dance",
+            avatar = "https://i.ytimg.com/vi/JRfuAukYTKg/hqdefault.jpg",
+            subscribers = "26.5M subscribers",
+            bio = "French DJ and music producer crowned multiple times as the world's #1 DJ.",
+            ytChannelId = "UC-J-KZfRV8c13fGA264aggQ"
+        ),
+        MusicArtist(
+            id = "tiesto",
+            artistName = "Tiësto",
+            genre = "Electronic & Dance",
+            avatar = "https://i.ytimg.com/vi/2vjPBrBU-TM/hqdefault.jpg",
+            subscribers = "5.8M subscribers",
+            bio = "The Godfather of EDM with global festival headlining anthems spanning three decades.",
+            ytChannelId = "UC5w-71Y5iLp_hP_1sI4yXzg"
+        ),
+
+        // Jazz & Blues
+        MusicArtist(
+            id = "miles_davis",
+            artistName = "Miles Davis",
+            genre = "Jazz & Blues",
+            avatar = "https://i.ytimg.com/vi/zqNTltOGh5c/hqdefault.jpg",
+            subscribers = "650K subscribers",
+            bio = "Visionary trumpeter, bandleader, and composer who revolutionized jazz history.",
+            ytChannelId = "UCf8tD1g0V5LhZ1z_08G4Lsw"
+        ),
+        MusicArtist(
+            id = "norah_jones",
+            artistName = "Norah Jones",
+            genre = "Jazz & Blues",
+            avatar = "https://i.ytimg.com/vi/tO4dxvguQDk/hqdefault.jpg",
+            subscribers = "1.9M subscribers",
+            bio = "9-time Grammy-winning jazz and soul singer-songwriter and pianist.",
+            ytChannelId = "UC3yV1g6_y0G7V9q3L5F1k89"
+        ),
+        MusicArtist(
+            id = "bb_king",
+            artistName = "B.B. King",
+            genre = "Jazz & Blues",
+            avatar = "https://i.ytimg.com/vi/4fk2prKnYnI/hqdefault.jpg",
+            subscribers = "850K subscribers",
+            bio = "The King of the Blues whose expressive guitar vibrato defined electric blues.",
+            ytChannelId = "UCEuOwB9vSL1oPKGNdONB4ig"
         )
     )
 }

@@ -26,14 +26,37 @@ class YouTubePodcastService(
 
     private val defaultUserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
+    companion object {
+        fun matchesPodcastCategory(channelCat: String, targetCategory: String): Boolean {
+            val cleanTarget = targetCategory.lowercase().replace(Regex("[^a-z0-9]"), "").trim()
+            if (cleanTarget.contains("trending") || cleanTarget == "all" || cleanTarget.isBlank()) return true
+
+            val cleanChan = channelCat.lowercase().replace(Regex("[^a-z0-9]"), "").trim()
+            if (cleanChan.contains(cleanTarget) || cleanTarget.contains(cleanChan)) return true
+
+            return when {
+                cleanTarget.contains("tech") || cleanTarget.contains("ai") ->
+                    cleanChan.contains("tech") || cleanChan.contains("ai")
+                cleanTarget.contains("business") || cleanTarget.contains("idea") ->
+                    cleanChan.contains("business") || cleanChan.contains("idea")
+                cleanTarget.contains("science") || cleanTarget.contains("health") ->
+                    cleanChan.contains("science") || cleanChan.contains("health")
+                cleanTarget.contains("culture") || cleanTarget.contains("talk") || cleanTarget.contains("comedy") ->
+                    cleanChan.contains("culture") || cleanChan.contains("talk") || cleanChan.contains("comedy")
+                cleanTarget.contains("news") || cleanTarget.contains("politics") ->
+                    cleanChan.contains("news") || cleanChan.contains("politics")
+                else -> false
+            }
+        }
+    }
+
     /**
      * Pings real live video podcast channels combining curated roster + real-time YouTube channel search.
      */
     suspend fun fetchLivePodcastChannels(category: String): List<PodcastChannel> = withContext(Dispatchers.IO) {
         val catClean = category.replace(Regex("[^a-zA-Z &]"), "").trim().lowercase()
         val curated = com.tvdinner.data.podcasts.PodcastsData.CHANNELS.filter {
-            if (catClean == "trending" || catClean == "all" || catClean.isBlank()) true
-            else it.category.lowercase().contains(catClean) || catClean.contains(it.category.lowercase().replace(Regex("[^a-zA-Z &]"), "").trim())
+            matchesPodcastCategory(it.category, category)
         }
 
         val searchTerm = when (catClean) {
@@ -274,8 +297,7 @@ class YouTubePodcastService(
         // Guaranteed fallback: If live search returned few results, fetch from curated channel RSS feeds
         if (allEpisodes.size < 12) {
             val curatedChannels = com.tvdinner.data.podcasts.PodcastsData.CHANNELS.filter {
-                if (catClean == "trending" || catClean == "all" || catClean.isBlank()) true
-                else it.category.lowercase().contains(catClean) || catClean.contains(it.category.lowercase().replace(Regex("[^a-zA-Z &]"), "").trim())
+                matchesPodcastCategory(it.category, categoryOrQuery)
             }
             for (ch in curatedChannels) {
                 if (ch.ytChannelId.isNotBlank()) {

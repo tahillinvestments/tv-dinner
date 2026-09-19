@@ -36,6 +36,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.tvdinner.MainActivity
 import com.tvdinner.player.ExoPlayerManager
 import com.tvdinner.ui.components.TvFocusableCard
 import com.tvdinner.ui.theme.*
@@ -134,6 +135,11 @@ fun NativePlayerView(
         if (showControls && isPlaying) {
             delay(4000)
             showControls = false
+            if (!isPreview && onBack != null) {
+                try {
+                    focusRequester.requestFocus()
+                } catch (_: Exception) {}
+            }
         }
     }
 
@@ -256,8 +262,11 @@ fun NativePlayerView(
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
                     useController = false
+                    isFocusable = false
+                    isFocusableInTouchMode = false
                     this.resizeMode = resizeMode
-                    player = playerManager.player
+                    val isFullscreenActive = MainActivity.isVODFullscreenActive || MainActivity.isLiveFullscreenActive
+                    player = if (isPreview && isFullscreenActive) null else playerManager.player
                     setBackgroundColor(android.graphics.Color.BLACK)
                     onResume()
                     subtitleView?.apply {
@@ -277,8 +286,24 @@ fun NativePlayerView(
                 }
             },
             update = { playerView ->
-                if (playerView.player != playerManager.player) {
-                    playerView.player = playerManager.player
+                val isFullscreenActive = MainActivity.isVODFullscreenActive || MainActivity.isLiveFullscreenActive
+                if (isPreview && isFullscreenActive) {
+                    // Preview must release the player surface when fullscreen is active
+                    if (playerView.player != null) {
+                        playerView.player = null
+                    }
+                } else if (!isPreview) {
+                    // Fullscreen always claims the player surface immediately
+                    if (playerView.player !== playerManager.player) {
+                        playerView.player = null // detach first to force surface re-bind
+                        playerView.player = playerManager.player
+                    }
+                    playerView.onResume()
+                } else {
+                    // Preview with no fullscreen — attach player if not already
+                    if (playerView.player != playerManager.player) {
+                        playerView.player = playerManager.player
+                    }
                 }
                 playerView.resizeMode = resizeMode
                 playerView.onResume()

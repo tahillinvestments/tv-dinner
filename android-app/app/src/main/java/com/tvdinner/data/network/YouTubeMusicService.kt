@@ -25,14 +25,47 @@ class YouTubeMusicService(
     private val gson = Gson()
     private val defaultUserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
+    companion object {
+        fun matchesGenre(artistGenre: String, targetGenreTagOrName: String): Boolean {
+            val cleanTarget = targetGenreTagOrName.lowercase().replace(Regex("[^a-z0-9]"), "").trim()
+            if (cleanTarget.contains("trending") || cleanTarget == "all" || cleanTarget.isBlank()) return true
+
+            val cleanArtist = artistGenre.lowercase().replace(Regex("[^a-z0-9]"), "").trim()
+
+            // Check direct normalized substring containment
+            if (cleanArtist.contains(cleanTarget) || cleanTarget.contains(cleanArtist)) return true
+
+            // Specialized genre alias mappings
+            return when {
+                cleanTarget.contains("hiphop") || cleanTarget.contains("rap") ->
+                    cleanArtist.contains("hiphop") || cleanArtist.contains("rap")
+                cleanTarget.contains("rnb") || cleanTarget.contains("soul") ->
+                    cleanArtist.contains("rnb") || cleanArtist.contains("soul") || cleanArtist.contains("rb")
+                cleanTarget.contains("pop") || cleanTarget.contains("top40") ->
+                    cleanArtist.contains("pop")
+                cleanTarget.contains("rock") || cleanTarget.contains("alt") ->
+                    cleanArtist.contains("rock") || cleanArtist.contains("alt")
+                cleanTarget.contains("country") || cleanTarget.contains("americana") ->
+                    cleanArtist.contains("country") || cleanArtist.contains("americana")
+                cleanTarget.contains("afro") || cleanTarget.contains("global") ->
+                    cleanArtist.contains("afro") || cleanArtist.contains("global")
+                cleanTarget.contains("latin") || cleanTarget.contains("reggaeton") ->
+                    cleanArtist.contains("latin") || cleanArtist.contains("reggaeton")
+                cleanTarget.contains("electronic") || cleanTarget.contains("dance") || cleanTarget.contains("edm") ->
+                    cleanArtist.contains("electronic") || cleanArtist.contains("dance") || cleanArtist.contains("edm")
+                cleanTarget.contains("jazz") || cleanTarget.contains("blues") ->
+                    cleanArtist.contains("jazz") || cleanArtist.contains("blues")
+                else -> false
+            }
+        }
+    }
+
     /**
      * Fetches artists for a specific music genre.
      */
     suspend fun fetchArtistsForGenre(genreTagOrName: String): List<MusicArtist> = withContext(Dispatchers.IO) {
-        val clean = genreTagOrName.replace(Regex("[^a-zA-Z &]"), "").trim().lowercase()
         val curated = MusicData.ARTISTS.filter {
-            if (clean == "trending" || clean == "all" || clean.isBlank() || clean.contains("trending")) true
-            else it.genre.lowercase().contains(clean) || clean.contains(it.genre.lowercase().replace(Regex("[^a-zA-Z &]"), "").trim())
+            matchesGenre(it.genre, genreTagOrName)
         }
 
         if (curated.isNotEmpty()) {
@@ -223,14 +256,20 @@ class YouTubeMusicService(
         }
 
         // Guaranteed RSS fallback: If live query returned fewer than 10 videos (or was rate limited / blocked),
-        // immediately fetch directly from curated channel RSS feeds. Official YouTube RSS feeds NEVER get blocked!
+        // fetch directly from matching curated channel RSS feeds. Official YouTube RSS feeds NEVER get blocked!
         if (allVideos.size < 10) {
             val genreArtists = MusicData.ARTISTS.filter {
-                if (clean.contains("trending") || clean == "all" || clean.isBlank()) true
-                else it.genre.lowercase().contains(clean) || clean.contains(it.genre.lowercase().replace(Regex("[^a-zA-Z &]"), "").trim())
-            }.ifEmpty { MusicData.ARTISTS }
+                matchesGenre(it.genre, genreTagOrName)
+            }
 
-            val candidateArtists = genreArtists.shuffled().take(4)
+            val candidateArtists = if (genreArtists.isNotEmpty()) {
+                genreArtists.shuffled().take(4)
+            } else if (clean.contains("trending") || clean == "all" || clean.isBlank()) {
+                MusicData.ARTISTS.shuffled().take(4)
+            } else {
+                emptyList()
+            }
+
             for (art in candidateArtists) {
                 if (art.ytChannelId.isNotBlank()) {
                     val rssVideos = fetchVideosViaRss(art.ytChannelId, art.artistName)

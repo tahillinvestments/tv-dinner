@@ -57,6 +57,7 @@ fun PodcastsScreen(
     onPlayYouTubeVideo: (String, String, (() -> Unit)?, String?, (() -> Unit)?) -> Unit,
     playerManager: ExoPlayerManager? = null,
     onExpandPreview: () -> Unit = {},
+    isPlayingFullscreen: Boolean = false,
     onOpenSettings: (() -> Unit)? = null,
     targetEpisode: PodcastEpisode? = null,
     onTargetEpisodeConsumed: () -> Unit = {},
@@ -415,6 +416,7 @@ fun PodcastsScreen(
                                     playerManager = playerManager,
                                     onExpand = onExpandPreview,
                                     onClose = { playerManager.stop() },
+                                    isPlayingFullscreen = isPlayingFullscreen,
                                     modifier = Modifier.padding(bottom = 4.dp)
                                 )
                             }

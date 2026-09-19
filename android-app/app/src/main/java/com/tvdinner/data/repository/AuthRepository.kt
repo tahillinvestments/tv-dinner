@@ -46,7 +46,7 @@ class AuthRepository(context: Context) {
     private val _appTheme = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString("app_theme", "light") ?: "light")
     val appThemeState: kotlinx.coroutines.flow.StateFlow<String> = _appTheme
 
-    private val _isPersistentPreviewEnabled = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean("persistent_preview_enabled", true))
+    private val _isPersistentPreviewEnabled = kotlinx.coroutines.flow.MutableStateFlow(true)
     val isPersistentPreviewEnabledState: kotlinx.coroutines.flow.StateFlow<Boolean> = _isPersistentPreviewEnabled
 
     fun getAppTheme(): String = prefs.getString("app_theme", "light") ?: "light"
@@ -56,11 +56,11 @@ class AuthRepository(context: Context) {
         _appTheme.value = theme
     }
 
-    fun isPersistentPreviewEnabled(): Boolean = prefs.getBoolean("persistent_preview_enabled", true)
+    fun isPersistentPreviewEnabled(): Boolean = true
 
     fun setPersistentPreviewEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean("persistent_preview_enabled", enabled).apply()
-        _isPersistentPreviewEnabled.value = enabled
+        prefs.edit().putBoolean("persistent_preview_enabled", true).apply()
+        _isPersistentPreviewEnabled.value = true
     }
 
     fun isActivated(): Boolean {

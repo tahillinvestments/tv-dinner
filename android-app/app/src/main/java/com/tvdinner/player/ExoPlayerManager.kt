@@ -1253,8 +1253,9 @@ class ExoPlayerManager(
         _currentStreamUrl.value = ""
         _currentTitle.value = ""
         _isLiveStream.value = false
-        _activeYouTubeVideoId.value = null
-        _activeYouTubeTitle.value = null
+        // NOTE: intentionally NOT clearing _activeYouTubeVideoId/_activeYouTubeTitle here.
+        // YouTube is a separate independent playback system. stop() only stops the ExoPlayer
+        // native stream. Use clearYouTubeMedia() to explicitly stop YouTube playback.
     }
 
     fun release() {
