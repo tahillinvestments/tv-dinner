@@ -35,8 +35,9 @@ import okhttp3.Request
 
 class MainActivity : ComponentActivity() {
     companion object {
-        var isVODFullscreenActive = false
-        var isLiveFullscreenActive = false
+        var isVODFullscreenActive by mutableStateOf(false)
+        var isLiveFullscreenActive by mutableStateOf(false)
+        var isYouTubeFullscreenActive by mutableStateOf(false)
         var onNextEpisodeCallback: (() -> Unit)? = null
         var onNextYouTubeCallback: (() -> Unit)? = null
         var onPreviousYouTubeCallback: (() -> Unit)? = null
@@ -156,21 +157,21 @@ class MainActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
+            val isYouTubeFullscreen = isYouTubeFullscreenActive && YouTubeRemoteBridge.activeWebView != null
             val isYouTubeActive = YouTubeRemoteBridge.activeWebView != null
 
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen) {
                         YouTubeRemoteBridge.togglePlayPause()
                         return true
                     }
-                    if (isVODFullscreenActive || isLiveFullscreenActive) {
-                        playerManager.togglePlayPause()
-                        return true
-                    }
+                    // For VOD and Live TV, NativePlayerView and LiveTvScreen handle DPAD_CENTER / ENTER
+                    // natively on KeyUp with 1000ms recent-mount debouncing.
+                    // Do NOT intercept ACTION_DOWN here, which would pause newly started streams immediately.
                 }
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen) {
                         onPreviousYouTubeCallback?.invoke()
                         return true
                     } else if (isVODFullscreenActive) {
@@ -179,7 +180,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen) {
                         onNextYouTubeCallback?.invoke()
                         return true
                     } else if (isVODFullscreenActive) {
@@ -188,7 +189,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen) {
                         YouTubeRemoteBridge.seekRewind()
                         return true
                     } else if (isVODFullscreenActive) {
@@ -200,7 +201,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen) {
                         YouTubeRemoteBridge.seekForward()
                         return true
                     } else if (isVODFullscreenActive) {
@@ -212,7 +213,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.togglePlayPause()
                     } else {
                         playerManager.togglePlayPause()
@@ -220,7 +221,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.play()
                     } else {
                         playerManager.play()
@@ -228,7 +229,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.pause()
                     } else {
                         playerManager.pause()
@@ -236,7 +237,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.seekForward()
                     } else if (isLiveFullscreenActive) {
                         playerManager.forwardLive()
@@ -246,7 +247,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_CAPTIONS, KeyEvent.KEYCODE_C, KeyEvent.KEYCODE_S -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen) {
                         YouTubeRemoteBridge.toggleClosedCaptions()
                         return true
                     } else if (isVODFullscreenActive || isLiveFullscreenActive) {
@@ -261,7 +262,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen || (isYouTubeActive && !playerManager.isPlaying.value)) {
                         YouTubeRemoteBridge.seekRewind()
                     } else if (isLiveFullscreenActive) {
                         playerManager.rewindLive()
@@ -271,13 +272,13 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_PREVIOUS, KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_P, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen) {
                         onPreviousYouTubeCallback?.invoke()
                         return true
                     }
                 }
                 KeyEvent.KEYCODE_MEDIA_NEXT, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_N, KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_FORWARD -> {
-                    if (isYouTubeActive) {
+                    if (isYouTubeFullscreen) {
                         onNextYouTubeCallback?.invoke()
                         return true
                     } else if (isVODFullscreenActive) {
@@ -298,8 +299,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
         } else if (event.action == KeyEvent.ACTION_UP) {
-            val isYouTubeActive = YouTubeRemoteBridge.activeWebView != null
-            if (isYouTubeActive) {
+            val isYouTubeFullscreen = isYouTubeFullscreenActive && YouTubeRemoteBridge.activeWebView != null
+            if (isYouTubeFullscreen) {
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
                     KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,

@@ -248,7 +248,9 @@ fun NativePlayerView(
         // ExoPlayer View
         AndroidView(
             factory = { context ->
-                PlayerView(context).apply {
+                val inflater = android.view.LayoutInflater.from(context)
+                val playerView = inflater.inflate(com.tvdinner.R.layout.media_player_view, null) as PlayerView
+                playerView.apply {
                     layoutParams = FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT
@@ -282,7 +284,9 @@ fun NativePlayerView(
                 playerView.onResume()
             },
             onRelease = { playerView ->
-                playerView.player = null
+                if (!playerManager.isPlaying.value && !playerManager.isBuffering.value && playerManager.currentStreamUrl.value.isBlank()) {
+                    playerView.player = null
+                }
             },
             modifier = Modifier.fillMaxSize()
         )

@@ -95,67 +95,70 @@ fun UniversalIntegratedPreview(
             }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            when {
-                isNativeActive -> {
-                    // Avoid dual PlayerView surface contention when a fullscreen overlay is showing
-                    val isFullscreenShowing = MainActivity.isVODFullscreenActive || MainActivity.isLiveFullscreenActive
-                    if (!isFullscreenShowing) {
+            // Avoid dual PlayerView surface contention or duplicate WebView when any fullscreen overlay is showing
+            val isFullscreenShowing = MainActivity.isVODFullscreenActive ||
+                                      MainActivity.isLiveFullscreenActive ||
+                                      MainActivity.isYouTubeFullscreenActive
+
+            if (!isFullscreenShowing) {
+                when {
+                    isNativeActive -> {
                         NativePlayerView(
                             playerManager = playerManager,
                             onBack = null,
                             isPreview = true,
                             modifier = Modifier.fillMaxSize()
                         )
-                    } else {
-                        Box(modifier = Modifier.fillMaxSize().background(Color.Black))
                     }
-                }
 
-                isYouTubeActive -> {
-                    YouTubePlayerView(
-                        videoId = effectiveYtId!!,
-                        title = effectiveYtTitle ?: "YouTube Media",
-                        onBack = null,
-                        isPreview = true,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                    isYouTubeActive -> {
+                        YouTubePlayerView(
+                            videoId = effectiveYtId,
+                            title = effectiveYtTitle ?: "YouTube Media",
+                            onBack = null,
+                            isPreview = true,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
 
-                else -> {
-                    // Idle state: Clean Universal TV DINNER Preview
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(CinemaSurfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                    else -> {
+                        // Idle state: Clean Universal TV DINNER Preview
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(CinemaSurfaceVariant),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Tv,
-                                contentDescription = "TV DINNER Preview",
-                                tint = CinemaAccent,
-                                modifier = Modifier.size(30.dp)
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "TV DINNER Preview",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Select any content to play",
-                                fontSize = 10.sp,
-                                color = TextMuted
-                            )
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Tv,
+                                    contentDescription = "TV DINNER Preview",
+                                    tint = CinemaAccent,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "TV DINNER Preview",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Select any content to play",
+                                    fontSize = 10.sp,
+                                    color = TextMuted
+                                )
+                            }
                         }
                     }
                 }
+            } else {
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black))
             }
 
             // Non-intrusive Buffering Card: Only visible when actively buffering

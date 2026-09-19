@@ -110,6 +110,16 @@ class ExoPlayerManager(
     fun clearYouTubeMedia() {
         _activeYouTubeVideoId.value = null
         _activeYouTubeTitle.value = null
+        com.tvdinner.ui.player.YouTubeRemoteBridge.activeWebView?.let { wv ->
+            try {
+                wv.onPause()
+                wv.stopLoading()
+                wv.loadUrl("about:blank")
+                wv.destroy()
+            } catch (_: Exception) {}
+        }
+        com.tvdinner.ui.player.YouTubeRemoteBridge.activeWebView = null
+        com.tvdinner.ui.player.YouTubeRemoteBridge.activeVideoId = null
     }
 
     var player: ExoPlayer? = null

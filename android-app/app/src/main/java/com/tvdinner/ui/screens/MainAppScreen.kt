@@ -101,6 +101,7 @@ fun MainAppScreen(
     LaunchedEffect(fullscreenMedia, isLiveTvFullscreen, fullscreenYouTube) {
         MainActivity.isVODFullscreenActive = (fullscreenMedia != null)
         MainActivity.isLiveFullscreenActive = isLiveTvFullscreen
+        MainActivity.isYouTubeFullscreenActive = (fullscreenYouTube != null)
         MainActivity.onNextEpisodeCallback = fullscreenMedia?.onNextEpisode
         MainActivity.onNextYouTubeCallback = fullscreenYouTube?.onNextVideo
         MainActivity.onPreviousYouTubeCallback = fullscreenYouTube?.onPreviousVideo
