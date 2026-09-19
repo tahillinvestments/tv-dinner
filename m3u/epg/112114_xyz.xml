@@ -58845,6 +58845,9 @@
 	<programme channel="newtv超级电影" start="20260919211900 +0800" stop="20260919225900 +0800">
 		<title lang="zh">东北警察故事3</title>
 	</programme>
+	<programme channel="newtv超级电影" start="20260919225900 +0800" stop="20260919002800 +0800">
+		<title lang="zh">解决专家</title>
+	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
 	</channel>
