@@ -352,6 +352,8 @@ async function initApp() {
   setupSearch();
   setupDetailsView();
   setupSettingsScreen();
+  initTheme();
+  initPreviewDock();
 
   // Setup US-Only Toggle & Channel Switcher listeners
   setupLiveChannelControls();
@@ -587,6 +589,10 @@ function stopAllMediaPlayback(options = {}) {
   if (loadingEl) loadingEl.classList.add('hidden');
   const playerErr = document.getElementById('player-error');
   if (playerErr) playerErr.classList.add('hidden');
+
+  if (typeof updatePreviewDockUI === 'function') {
+    updatePreviewDockUI();
+  }
 }
 
 function stopActiveLiveTVFeed() {
@@ -663,19 +669,29 @@ function switchTab(tabName) {
   }
   document.body.style.overflow = '';
 
-  // Clean up any playing media from previous context
-  if (tabName === 'live') {
-    // Coming back to Live TV: fully wipe any VOD/podcast state. Do NOT keepLive
-    // because there is no active live stream to preserve — the user left live TV
-    // to watch VOD. Clear currentPlayingUrl so resetPlayerUiToDefaultLiveTv can
-    // unconditionally wipe the video frame.
-    state.currentPlayingUrl = null;
-    state.currentPlayingChannel = null;
-    stopAllMediaPlayback(); // full stop, no keeps
-  } else if (tabName !== 'podcasts') {
-    stopAllMediaPlayback({ keepLive: false });
+  // Clean up or relocate active media
+  const currentlyPlaying = isMediaPlaying();
+
+  if (previewDockState.enabled && currentlyPlaying) {
+    if (tabName === 'live') {
+      // Switching to Live TV: dock player into liveContainer if a live channel is active
+      dockPlayerInLive();
+    } else {
+      // Navigating to other modules: dock player into persistent floating preview window
+      dockPlayerInPreview();
+    }
   } else {
-    stopAllMediaPlayback({ keepPodcast: true });
+    // Normal cleanup when nothing is playing or preview dock is disabled
+    if (tabName === 'live') {
+      state.currentPlayingUrl = null;
+      state.currentPlayingChannel = null;
+      stopAllMediaPlayback();
+    } else if (tabName !== 'podcasts') {
+      stopAllMediaPlayback({ keepLive: false });
+    } else {
+      stopAllMediaPlayback({ keepPodcast: true });
+    }
+    updatePreviewDockUI();
   }
   
   // Update buttons state
@@ -703,12 +719,15 @@ function switchTab(tabName) {
   const holder = document.getElementById('shared-player-holder');
 
   if (tabName === 'live') {
-    // Purge carry-over podcast/VOD player state
-    resetPlayerUiToDefaultLiveTv();
+    // If not already playing a live channel, reset to default live TV UI
+    if (!state.currentPlayingChannel) {
+      resetPlayerUiToDefaultLiveTv();
+    }
 
     // Append player to live TV panel
-    if (liveContainer && playerSection) {
+    if (liveContainer && playerSection && playerSection.parentElement !== liveContainer) {
       liveContainer.appendChild(playerSection);
+      previewDockState.isFloating = false;
     }
     if (player && typeof player.setControlMode === 'function') {
       player.setControlMode('live');
@@ -726,13 +745,24 @@ function switchTab(tabName) {
     }
   } else if (tabName === 'now') {
     loadNowDashboard();
-    if (state.selectedMedia === null && holder && playerSection) {
-      holder.appendChild(playerSection);
+    if (state.selectedMedia === null && playerSection) {
+      if (previewDockState.enabled && isMediaPlaying()) {
+        dockPlayerInPreview();
+      } else if (holder) {
+        holder.appendChild(playerSection);
+      }
     }
   } else if (tabName === 'home') {
     if (!isLiveTvActive()) {
       const homeStatusText = document.getElementById('home-status-text');
       if (homeStatusText) homeStatusText.textContent = 'Sign In Required';
+    }
+    if (state.selectedMedia === null && playerSection) {
+      if (previewDockState.enabled && isMediaPlaying()) {
+        dockPlayerInPreview();
+      } else if (holder) {
+        holder.appendChild(playerSection);
+      }
     }
   } else {
     if (tabName === 'movies') {
@@ -745,8 +775,12 @@ function switchTab(tabName) {
       renderLibraryScreen();
     }
 
-    if (state.selectedMedia === null && holder && playerSection) {
-      holder.appendChild(playerSection);
+    if (state.selectedMedia === null && playerSection) {
+      if (previewDockState.enabled && isMediaPlaying()) {
+        dockPlayerInPreview();
+      } else if (holder) {
+        holder.appendChild(playerSection);
+      }
     }
   }
 
@@ -3351,9 +3385,16 @@ function resetPlayerWindow() {
 
 // Open HD Video Player Modal (Podcast Episode)
 async function openPodcastModal(podcast) {
+  // If there's something already docked in the preview, note what it was.
+  // We'll let the episode take over the modal area but preserve dock integrity.
+  const hadDockedContent = previewDockState.isFloating && previewDockState.activeMedia;
+
   stopActiveLiveTVFeed();
   resetPlayerWindow();
   state.selectedMedia = podcast;
+
+  // Capture artwork immediately for potential dock use
+  previewDockState.activeArtwork = podcast.thumbnail || podcast.avatar || null;
 
   // Add to history + mark as played
   const epId = podcast.id || podcast.youtubeId;
@@ -5136,37 +5177,56 @@ function checkAndShowVodResumeBanner(mediaKey, title, onChoice) {
 // Close details overlay modal
 function closeDetailsView() {
   saveCurrentVodPosition();
-  stopVodPlaybackTracking();
   closeActiveSse();
 
-  state.selectedMedia = null;
-  state.resolvedSources = [];
-  state.currentVodMediaKey = null;
-  state.currentVodTitle = null;
-  state.vodPlayStartTime = null;
-  state.resumePlaybackTime = 0;
+  const isPlaying = isMediaPlaying();
 
-  const embedIframe = document.getElementById('embed-iframe');
-  const embedWrapper = document.getElementById('embed-player-wrapper');
-  const playerWrapper = document.querySelector('.player-wrapper');
-  const playerErr = document.getElementById('player-error');
-  if (playerErr) playerErr.classList.add('hidden');
+  if (previewDockState.enabled && isPlaying) {
+    // Capture rich metadata for the dock BEFORE we hide the overlay
+    if (state.selectedMedia) {
+      previewDockState.activeMedia = state.selectedMedia;
+      // Capture artwork for audio-mode display
+      const m = state.selectedMedia;
+      previewDockState.activeArtwork = m.thumbnail || m.poster || m.avatar || m.backdrop || null;
+    }
+    // Preserve podcast audio state too
+    if (typeof pocketcastsState !== 'undefined' && pocketcastsState?.currentEpisode) {
+      const ep = pocketcastsState.currentEpisode;
+      if (!previewDockState.activeArtwork) {
+        previewDockState.activeArtwork = ep.thumbnail || ep.avatar || null;
+      }
+    }
+  } else {
+    stopVodPlaybackTracking();
+    state.selectedMedia = null;
+    state.resolvedSources = [];
+    state.currentVodMediaKey = null;
+    state.currentVodTitle = null;
+    state.vodPlayStartTime = null;
+    state.resumePlaybackTime = 0;
 
-  if (embedIframe) embedIframe.src = 'about:blank';
-  if (embedWrapper) embedWrapper.style.display = 'none';
-  if (playerWrapper) {
-    playerWrapper.classList.remove('embed-active');
-    playerWrapper.classList.remove('podcast-mode');
-  }
+    const embedIframe = document.getElementById('embed-iframe');
+    const embedWrapper = document.getElementById('embed-player-wrapper');
+    const playerWrapper = document.querySelector('.player-wrapper');
+    const playerErr = document.getElementById('player-error');
+    if (playerErr) playerErr.classList.add('hidden');
 
-  const videoEl = document.getElementById('video-player');
-  if (player && typeof player.resetVideoFrame === 'function') {
-    player.resetVideoFrame();
-  } else if (videoEl) {
-    videoEl.pause();
-    videoEl.removeAttribute('src');
-    try { videoEl.load(); } catch (e) {}
-    videoEl.style.display = '';
+    if (embedIframe) embedIframe.src = 'about:blank';
+    if (embedWrapper) embedWrapper.style.display = 'none';
+    if (playerWrapper) {
+      playerWrapper.classList.remove('embed-active');
+      playerWrapper.classList.remove('podcast-mode');
+    }
+
+    const videoEl = document.getElementById('video-player');
+    if (player && typeof player.resetVideoFrame === 'function') {
+      player.resetVideoFrame();
+    } else if (videoEl) {
+      videoEl.pause();
+      videoEl.removeAttribute('src');
+      try { videoEl.load(); } catch (e) {}
+      videoEl.style.display = '';
+    }
   }
 
   // Restore live indicators
@@ -5184,18 +5244,21 @@ function closeDetailsView() {
   }
   document.body.style.overflow = '';
 
-  // Relocate player to live container or hidden holder
+  // Relocate player to live container or preview dock or hidden holder
   const playerSection = document.getElementById('player-section');
   const liveContainer = document.getElementById('live-player-container');
   const holder = document.getElementById('shared-player-holder');
   if (playerSection) {
     if (state.activeTab === 'live' && liveContainer) {
       liveContainer.appendChild(playerSection);
+    } else if (previewDockState.enabled && isPlaying) {
+      dockPlayerInPreview();
     } else if (holder) {
       holder.appendChild(playerSection);
     }
   }
 
+  updatePreviewDockUI();
   setTimeout(() => spatialNav.resetFocus(), 80);
 }
 
@@ -5241,6 +5304,448 @@ function getProxyUrl(targetUrl) {
 
 function renderUnactivatedState() {
   return;
+}
+
+// ── Theme Manager ──
+const THEMES = {
+  classic: { name: 'Midnight Classic', badgeClass: 'bg-red-500/20 text-red-400 border-red-500/40' },
+  bento: { name: 'Obsidian Bento', badgeClass: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
+  cyber: { name: 'Cyber Stage', badgeClass: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' },
+  light: { name: 'Nordic Daybreak', badgeClass: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40' }
+};
+
+function applyTheme(themeKey) {
+  if (!THEMES[themeKey]) themeKey = 'classic';
+  
+  // Remove existing theme classes
+  document.body.classList.remove('theme-classic', 'theme-bento', 'theme-cyber', 'theme-light');
+  document.body.classList.add(`theme-${themeKey}`);
+
+  if (themeKey === 'light') {
+    document.body.classList.remove('dark-theme');
+    document.body.classList.add('light-theme');
+  } else {
+    document.body.classList.remove('light-theme');
+    document.body.classList.add('dark-theme');
+  }
+
+  try {
+    localStorage.setItem('tvdinner_theme', themeKey);
+  } catch (e) {}
+
+  // Update Settings UI
+  const activePill = document.getElementById('settings-active-theme-pill');
+  if (activePill) {
+    activePill.textContent = THEMES[themeKey].name;
+    activePill.className = `px-2.5 py-0.5 rounded-full text-xs font-bold border ${THEMES[themeKey].badgeClass}`;
+  }
+
+  document.querySelectorAll('.theme-card-option').forEach(btn => {
+    if (btn.getAttribute('data-theme') === themeKey) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  console.log(`[Theme Manager] Applied theme: ${themeKey}`);
+}
+
+function initTheme() {
+  let saved = 'classic';
+  try {
+    saved = localStorage.getItem('tvdinner_theme') || 'classic';
+  } catch (e) {}
+  applyTheme(saved);
+}
+
+// ── Persistent Preview Dock Controller ──
+const previewDockState = {
+  enabled: true,
+  isFloating: false,
+  activeTitle: 'TV DINNER Preview',
+  activeMedia: null,
+  activeMediaType: null,   // 'live' | 'vod-stream' | 'vod-embed' | 'podcast' | null
+  activeArtwork: null,     // artwork/thumbnail URL for audio-mode display
+  activeEmbedSrc: null,    // saved embed iframe src when docking embed-based content
+};
+
+function isMediaPlaying() {
+  const videoEl = document.getElementById('video-player');
+  const isVideoPlaying = videoEl && !videoEl.paused && videoEl.currentTime > 0 && !videoEl.ended && videoEl.readyState > 1;
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const isEmbedPlaying = embedWrapper && embedWrapper.style.display !== 'none';
+  const isPodcastPlaying = typeof pocketcastsState !== 'undefined' && pocketcastsState && pocketcastsState.isPlaying;
+  const hasLiveStream = typeof state !== 'undefined' && state.currentPlayingUrl !== null;
+  return Boolean(isVideoPlaying || isEmbedPlaying || isPodcastPlaying || hasLiveStream);
+}
+
+function updatePreviewDockUI() {
+  const dock = document.getElementById('persistent-preview-dock');
+  if (!dock) return;
+
+  if (!previewDockState.enabled) {
+    dock.classList.add('hidden');
+    return;
+  }
+
+  // If in Live TV tab and not floating, hide floating dock since main stage is visible
+  if (state.activeTab === 'live' && !previewDockState.isFloating) {
+    dock.classList.add('hidden');
+    return;
+  }
+
+  dock.classList.remove('hidden');
+
+  const titleEl = document.getElementById('preview-dock-title');
+  const dotEl = document.getElementById('preview-live-dot');
+  const emptyStateEl = document.getElementById('preview-empty-state');
+  const playIcon = document.getElementById('preview-dock-playpause-icon');
+  const stage = document.getElementById('preview-dock-stage');
+
+  const playing = isMediaPlaying();
+
+  if (playing) {
+    if (emptyStateEl) emptyStateEl.style.display = 'none';
+    if (dotEl) dotEl.classList.add('active');
+
+    // Build type-aware title
+    let title = 'Playing Media';
+    if (state.currentPlayingChannel && state.currentPlayingChannel.name) {
+      title = `Live: ${state.currentPlayingChannel.name}`;
+    } else if (previewDockState.activeMediaType === 'podcast'
+        || (typeof pocketcastsState !== 'undefined' && pocketcastsState?.isPlaying)) {
+      const ep = (typeof pocketcastsState !== 'undefined' && pocketcastsState?.currentEpisode)
+        || previewDockState.activeMedia;
+      title = ep ? (ep.title || ep.name || 'Podcast') : 'Podcast';
+    } else if (previewDockState.activeMedia && (previewDockState.activeMedia.title || previewDockState.activeMedia.name)) {
+      title = previewDockState.activeMedia.title || previewDockState.activeMedia.name;
+    } else if (state.selectedMedia && (state.selectedMedia.title || state.selectedMedia.name)) {
+      title = state.selectedMedia.title || state.selectedMedia.name;
+    }
+    if (titleEl) titleEl.textContent = title;
+    if (playIcon) playIcon.setAttribute('data-lucide', 'pause');
+
+    // Sync audio-mode waveform paused state with actual playback
+    if (stage && stage.classList.contains('audio-mode')) {
+      const isPodcastPaused = typeof pocketcastsState !== 'undefined'
+        && pocketcastsState && !pocketcastsState.isPlaying;
+      if (isPodcastPaused) {
+        stage.classList.add('audio-paused');
+      } else {
+        stage.classList.remove('audio-paused');
+      }
+    }
+  } else {
+    if (emptyStateEl) emptyStateEl.style.display = 'flex';
+    if (dotEl) dotEl.classList.remove('active');
+    if (titleEl) titleEl.textContent = 'TV DINNER Preview';
+    if (playIcon) playIcon.setAttribute('data-lucide', 'play');
+    // Freeze waveform when nothing is playing
+    if (stage && stage.classList.contains('audio-mode')) {
+      stage.classList.add('audio-paused');
+    }
+  }
+
+  createIcons(iconConfig);
+}
+
+function dockPlayerInPreview() {
+  if (!previewDockState.enabled) return;
+  const previewStage = document.getElementById('preview-dock-stage');
+  const dock = document.getElementById('persistent-preview-dock');
+  if (!previewStage || !dock) return;
+
+  // ── Determine what kind of content is active ──
+  const embedWrapper = document.getElementById('embed-player-wrapper');
+  const embedIframe = document.getElementById('embed-iframe');
+  const videoEl = document.getElementById('video-player');
+  const isPodcastAudio = typeof pocketcastsState !== 'undefined'
+    && pocketcastsState
+    && pocketcastsState.isPlaying
+    && embedWrapper
+    && embedWrapper.style.display === 'none'
+    && !(videoEl && videoEl.src && !videoEl.paused);
+
+  const isEmbedActive = embedWrapper && embedWrapper.style.display !== 'none'
+    && embedIframe && embedIframe.src && embedIframe.src !== 'about:blank' && embedIframe.src !== '';
+
+  // ── Embed-based VOD / Podcast Video ──
+  // Move the embed iframe into the preview stage so video keeps playing
+  if (isEmbedActive && !isPodcastAudio) {
+    // Save the current embed src in case the iframe gets reset
+    previewDockState.activeEmbedSrc = embedIframe.src;
+    previewDockState.activeMediaType = 'vod-embed';
+
+    // Move the player section (which contains the embed) into the preview stage
+    const playerSection = document.getElementById('player-section');
+    if (playerSection && playerSection.parentElement !== previewStage) {
+      previewStage.appendChild(playerSection);
+    }
+    previewStage.classList.remove('audio-mode', 'audio-paused');
+    const emptyStateEl = document.getElementById('preview-empty-state');
+    if (emptyStateEl) emptyStateEl.style.display = 'none';
+
+  // ── Audio-only content (Podcast audio element, no visual embed) ──
+  } else if (isPodcastAudio) {
+    previewDockState.activeMediaType = 'podcast';
+    const artwork = pocketcastsState.currentEpisode
+      ? (pocketcastsState.currentEpisode.thumbnail || pocketcastsState.currentEpisode.avatar || null)
+      : null;
+    previewDockState.activeArtwork = artwork;
+    previewStage.classList.add('audio-mode');
+    previewStage.classList.remove('audio-paused');
+    renderPreviewAudioInfo();
+
+  // ── Live TV / native video stream ──
+  } else {
+    previewDockState.activeMediaType = state.currentPlayingChannel ? 'live' : 'vod-stream';
+    previewDockState.activeEmbedSrc = null;
+    const playerSection = document.getElementById('player-section');
+    if (playerSection && playerSection.parentElement !== previewStage) {
+      previewStage.appendChild(playerSection);
+    }
+    previewStage.classList.remove('audio-mode', 'audio-paused');
+    const emptyStateEl = document.getElementById('preview-empty-state');
+    if (emptyStateEl) emptyStateEl.style.display = 'none';
+  }
+
+  previewDockState.isFloating = true;
+  dock.classList.remove('hidden');
+  updatePreviewDockUI();
+}
+
+/** Render audio artwork + title + waveform into the audio-mode stage */
+function renderPreviewAudioInfo() {
+  const stage = document.getElementById('preview-dock-stage');
+  if (!stage) return;
+
+  // Remove any existing audio info element
+  const existing = stage.querySelector('.preview-audio-info-wrap');
+  if (existing) existing.remove();
+
+  const title = previewDockState.activeMedia
+    ? (previewDockState.activeMedia.title || previewDockState.activeMedia.name || 'Audio')
+    : (typeof pocketcastsState !== 'undefined' && pocketcastsState?.currentEpisode
+        ? (pocketcastsState.currentEpisode.title || 'Podcast')
+        : 'Podcast');
+
+  const channel = typeof pocketcastsState !== 'undefined' && pocketcastsState?.currentEpisode
+    ? (pocketcastsState.currentEpisode.channelName || '')
+    : '';
+
+  const artwork = previewDockState.activeArtwork;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'preview-audio-info-wrap';
+  wrap.style.cssText = 'display:flex;align-items:center;gap:0.65rem;width:100%;min-width:0;';
+
+  if (artwork) {
+    const img = document.createElement('img');
+    img.className = 'preview-audio-artwork';
+    img.src = artwork;
+    img.alt = '';
+    img.onerror = () => {
+      img.replaceWith(buildAudioArtFallback());
+    };
+    wrap.appendChild(img);
+  } else {
+    wrap.appendChild(buildAudioArtFallback());
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'preview-audio-meta';
+  meta.innerHTML = `
+    <div class="preview-audio-title">${title}</div>
+    ${channel ? `<div class="preview-audio-sub">${channel}</div>` : ''}
+    <div class="preview-audio-wave">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  `;
+  wrap.appendChild(meta);
+  stage.appendChild(wrap);
+
+  // Hide the empty state placeholder
+  const emptyStateEl = document.getElementById('preview-empty-state');
+  if (emptyStateEl) emptyStateEl.style.display = 'none';
+}
+
+function buildAudioArtFallback() {
+  const fb = document.createElement('div');
+  fb.className = 'preview-audio-artwork-fallback';
+  fb.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>';
+  return fb;
+}
+
+function dockPlayerInLive() {
+  const playerSection = document.getElementById('player-section');
+  const liveContainer = document.getElementById('live-player-container');
+  const dock = document.getElementById('persistent-preview-dock');
+
+  if (playerSection && liveContainer && playerSection.parentElement !== liveContainer) {
+    liveContainer.appendChild(playerSection);
+  }
+
+  previewDockState.isFloating = false;
+  previewDockState.activeMediaType = null;
+  if (dock) dock.classList.add('hidden');
+}
+
+function togglePreviewPlayPause() {
+  const videoEl = document.getElementById('video-player');
+  const stage = document.getElementById('preview-dock-stage');
+  if (videoEl && videoEl.src) {
+    if (videoEl.paused) {
+      videoEl.play().catch(() => {});
+      if (stage) stage.classList.remove('audio-paused');
+    } else {
+      videoEl.pause();
+      if (stage) stage.classList.add('audio-paused');
+    }
+  } else if (typeof pocketcastsState !== 'undefined' && pocketcastsState && pocketcastsState.audioElement) {
+    if (pocketcastsState.isPlaying) {
+      pocketcastsState.audioElement.pause();
+      pocketcastsState.isPlaying = false;
+      if (stage) stage.classList.add('audio-paused');
+    } else {
+      pocketcastsState.audioElement.play().catch(() => {});
+      pocketcastsState.isPlaying = true;
+      if (stage) stage.classList.remove('audio-paused');
+    }
+  }
+  setTimeout(updatePreviewDockUI, 100);
+}
+
+function togglePreviewMute() {
+  const videoEl = document.getElementById('video-player');
+  const muteIcon = document.getElementById('preview-dock-mute-icon');
+  if (videoEl) {
+    videoEl.muted = !videoEl.muted;
+    if (muteIcon) {
+      muteIcon.setAttribute('data-lucide', videoEl.muted ? 'volume-x' : 'volume-2');
+      createIcons(iconConfig);
+    }
+  }
+}
+
+function expandPreviewPlayer() {
+  // If Live channel, switch to Live TV
+  if (state.currentPlayingChannel || previewDockState.activeMediaType === 'live') {
+    switchTab('live');
+  } else if (previewDockState.activeMediaType === 'podcast') {
+    // Podcast: switch to podcasts tab and reopen episode details
+    switchTab('podcasts');
+    const ep = previewDockState.activeMedia
+      || (typeof pocketcastsState !== 'undefined' && pocketcastsState?.currentEpisode)
+      || null;
+    if (ep) {
+      setTimeout(() => openPodcastModal(ep), 80);
+    }
+  } else if (previewDockState.activeMedia || state.selectedMedia) {
+    // VOD: Reopen VOD details view
+    openDetailsView(previewDockState.activeMedia || state.selectedMedia);
+  } else {
+    // Fallback: Trigger fullscreen on player section
+    const elem = document.querySelector('.player-wrapper') || document.getElementById('player-section');
+    if (elem) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      } else {
+        if (elem.requestFullscreen) elem.requestFullscreen();
+        else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+      }
+    }
+  }
+}
+
+function stopPreviewPlayback() {
+  stopAllMediaPlayback({ resetState: true });
+  previewDockState.activeMedia = null;
+  previewDockState.activeMediaType = null;
+  previewDockState.activeArtwork = null;
+  previewDockState.activeEmbedSrc = null;
+  // Clean up audio-mode stage state
+  const stage = document.getElementById('preview-dock-stage');
+  if (stage) {
+    stage.classList.remove('audio-mode', 'audio-paused');
+    const audioWrap = stage.querySelector('.preview-audio-info-wrap');
+    if (audioWrap) audioWrap.remove();
+  }
+  updatePreviewDockUI();
+}
+
+function hidePreviewDock() {
+  const dock = document.getElementById('persistent-preview-dock');
+  if (dock) dock.classList.add('hidden');
+}
+
+function initPreviewDock() {
+  try {
+    const saved = localStorage.getItem('tvdinner_preview_dock_enabled');
+    previewDockState.enabled = saved !== null ? saved === 'true' : true;
+  } catch (e) {}
+
+  const toggle = document.getElementById('settings-preview-toggle');
+  if (toggle) {
+    toggle.checked = previewDockState.enabled;
+    toggle.addEventListener('change', (e) => {
+      previewDockState.enabled = e.target.checked;
+      try {
+        localStorage.setItem('tvdinner_preview_dock_enabled', previewDockState.enabled ? 'true' : 'false');
+      } catch (_) {}
+      if (!previewDockState.enabled) {
+        hidePreviewDock();
+      } else {
+        updatePreviewDockUI();
+      }
+    });
+  }
+
+  // Setup preview dock buttons
+  const playPauseBtn = document.getElementById('preview-dock-playpause-btn');
+  const muteBtn = document.getElementById('preview-dock-mute-btn');
+  const expandBtn = document.getElementById('preview-dock-expand-btn');
+  const closeBtn = document.getElementById('preview-dock-close-btn');
+
+  if (playPauseBtn) {
+    playPauseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePreviewPlayPause();
+    });
+  }
+
+  if (muteBtn) {
+    muteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePreviewMute();
+    });
+  }
+
+  if (expandBtn) {
+    expandBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      expandPreviewPlayer();
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      stopPreviewPlayback();
+    });
+  }
+
+  // Clicking on preview dock stage expands to full view
+  const previewStage = document.getElementById('preview-dock-stage');
+  if (previewStage) {
+    previewStage.addEventListener('click', () => {
+      if (isMediaPlaying()) {
+        expandPreviewPlayer();
+      }
+    });
+  }
+
+  updatePreviewDockUI();
 }
 
 // Load settings form credentials
@@ -5538,6 +6043,14 @@ function setupSettingsScreen() {
       }
     });
   }
+
+  // Wire Theme selector cards in Settings
+  document.querySelectorAll('.theme-card-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const theme = btn.getAttribute('data-theme');
+      if (theme) applyTheme(theme);
+    });
+  });
 }
 
 // Parallel proxy racer for sub-second IPTV channel and category data retrieval
