@@ -10,6 +10,19 @@
   },
   "releases": [
     {
+      "id": "rel-238",
+      "versionCode": 238,
+      "versionName": "2.3.8",
+      "title": "Live TV & VOD Surface Fix, Series Auto-Play & YouTube Remote Integration",
+      "status": "STAGED",
+      "releaseNotes": "• Live TV & VOD Transitions (Black Screen Fix): Configured ExoPlayer with TextureView to eliminate black screen on fullscreen toggles and prevented unmounting views from detaching the active video surface\n• Series & Movies Auto-Play: Resolved issue where series required pushing play to start and played without picture; selections now play immediately in fullscreen with video\n• YouTube Remote Navigation: Fixed TV remote lockup across Music and Podcasts by restricting D-pad key interception strictly to fullscreen playback\n• Universal Preview Integration: Seamless transition between fullscreen and sidebar preview for both native streams and YouTube media without audio dropouts or blank screens",
+      "stagedApk": "staging-apks/tv-dinner-v2.3.8-b238.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.3.8/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-19T21:00:16.601Z",
+      "publishedAt": null
+    },
+    {
       "id": "rel-236",
       "versionCode": 236,
       "versionName": "2.3.6",
