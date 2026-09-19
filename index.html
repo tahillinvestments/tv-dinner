@@ -1192,6 +1192,108 @@
           </div>
         </div>
 
+        <!-- Appearance & Themes Section -->
+        <div class="settings-form-section">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <i data-lucide="sparkles" class="w-5 h-5 text-amber-400"></i>
+              <h3 class="text-white font-bold text-base">Appearance &amp; Themes</h3>
+            </div>
+            <span id="settings-active-theme-pill" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/40">
+              Midnight Classic
+            </span>
+          </div>
+          <p class="section-desc">Choose a design aesthetic for colors, accents, and visual overlays across all views.</p>
+
+          <div class="theme-picker-grid">
+            <!-- 1. Midnight Classic (Default) -->
+            <button type="button" class="theme-card-option active" data-theme="classic" id="theme-btn-classic">
+              <div class="theme-card-preview theme-preview-classic">
+                <div class="theme-swatch-bar">
+                  <span class="theme-swatch bg-swatch-classic-bg" title="Background"></span>
+                  <span class="theme-swatch bg-swatch-classic-card" title="Card Surface"></span>
+                  <span class="theme-swatch bg-swatch-classic-accent" title="Accent Red"></span>
+                </div>
+              </div>
+              <div class="theme-card-meta">
+                <div class="theme-card-title-row">
+                  <span class="theme-card-name">Midnight Classic</span>
+                  <span class="theme-check-badge"><i data-lucide="check" class="w-3.5 h-3.5"></i></span>
+                </div>
+                <p class="theme-card-tagline">Streambert dark slate &amp; ruby red accent</p>
+              </div>
+            </button>
+
+            <!-- 2. Obsidian Bento (Option 1) -->
+            <button type="button" class="theme-card-option" data-theme="bento" id="theme-btn-bento">
+              <div class="theme-card-preview theme-preview-bento">
+                <div class="theme-swatch-bar">
+                  <span class="theme-swatch bg-swatch-bento-bg" title="Obsidian Background"></span>
+                  <span class="theme-swatch bg-swatch-bento-card" title="Frosted Acrylic"></span>
+                  <span class="theme-swatch bg-swatch-bento-accent" title="Warm Amber Glow"></span>
+                </div>
+              </div>
+              <div class="theme-card-meta">
+                <div class="theme-card-title-row">
+                  <span class="theme-card-name">Obsidian Bento</span>
+                  <span class="theme-check-badge"><i data-lucide="check" class="w-3.5 h-3.5"></i></span>
+                </div>
+                <p class="theme-card-tagline">Deep obsidian, frosted glass &amp; amber glow</p>
+              </div>
+            </button>
+
+            <!-- 3. Cyber Stage (Option 4) -->
+            <button type="button" class="theme-card-option" data-theme="cyber" id="theme-btn-cyber">
+              <div class="theme-card-preview theme-preview-cyber">
+                <div class="theme-swatch-bar">
+                  <span class="theme-swatch bg-swatch-cyber-bg" title="Cockpit Slate"></span>
+                  <span class="theme-swatch bg-swatch-cyber-card" title="Tactile Surface"></span>
+                  <span class="theme-swatch bg-swatch-cyber-accent" title="Electric Cyan"></span>
+                </div>
+              </div>
+              <div class="theme-card-meta">
+                <div class="theme-card-title-row">
+                  <span class="theme-card-name">Cyber Stage</span>
+                  <span class="theme-check-badge"><i data-lucide="check" class="w-3.5 h-3.5"></i></span>
+                </div>
+                <p class="theme-card-tagline">Tactile cockpit dark slate &amp; electric cyan</p>
+              </div>
+            </button>
+
+            <!-- 4. Nordic Daybreak (Light) -->
+            <button type="button" class="theme-card-option" data-theme="light" id="theme-btn-light">
+              <div class="theme-card-preview theme-preview-light">
+                <div class="theme-swatch-bar">
+                  <span class="theme-swatch bg-swatch-light-bg" title="Porcelain White"></span>
+                  <span class="theme-swatch bg-swatch-light-card" title="Pure White Card"></span>
+                  <span class="theme-swatch bg-swatch-light-accent" title="Electric Indigo"></span>
+                </div>
+              </div>
+              <div class="theme-card-meta">
+                <div class="theme-card-title-row">
+                  <span class="theme-card-name">Nordic Daybreak</span>
+                  <span class="theme-check-badge"><i data-lucide="check" class="w-3.5 h-3.5"></i></span>
+                </div>
+                <p class="theme-card-tagline">Clean porcelain light mode &amp; electric indigo</p>
+              </div>
+            </button>
+          </div>
+
+          <!-- Persistent Preview Window Toggle -->
+          <div class="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
+            <div>
+              <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="monitor" class="w-3.5 h-3.5 text-cyan-400"></i> Persistent Preview Window
+              </h4>
+              <p class="text-[11px] text-slate-400 mt-0.5">Keep live TV, movies, or series playing in a floating mini-player while browsing and searching across modules.</p>
+            </div>
+            <label class="theme-switch-wrap">
+              <input type="checkbox" id="settings-preview-toggle" checked>
+              <span class="theme-switch-slider"></span>
+            </label>
+          </div>
+        </div>
+
         <div class="settings-form-actions" style="display: none;">
           <button id="settings-save-btn" class="btn btn-primary btn-save flex items-center gap-2">
             <i data-lucide="settings"></i> Save Configuration
@@ -1363,6 +1465,49 @@
       </div>
     </section>
   </div>
+
+  <!-- Persistent Floating Preview Window (Picture-in-Picture across all modules) -->
+  <aside id="persistent-preview-dock" class="persistent-preview-dock" aria-label="Media Preview Window">
+    <div class="preview-dock-container">
+      
+      <!-- Dock Header Bar (Title & Quick Controls) -->
+      <div class="preview-dock-header">
+        <div class="preview-dock-status">
+          <span class="preview-live-dot" id="preview-live-dot"></span>
+          <span id="preview-dock-title" class="preview-dock-title">TV DINNER Preview</span>
+        </div>
+        <div class="preview-dock-actions">
+          <button id="preview-dock-playpause-btn" class="preview-dock-btn" title="Play / Pause" aria-label="Play or pause">
+            <i data-lucide="play" id="preview-dock-playpause-icon" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="preview-dock-mute-btn" class="preview-dock-btn" title="Mute / Unmute" aria-label="Mute audio">
+            <i data-lucide="volume-2" id="preview-dock-mute-icon" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="preview-dock-expand-btn" class="preview-dock-btn" title="Expand / Return to Media" aria-label="Expand player">
+            <i data-lucide="maximize" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="preview-dock-close-btn" class="preview-dock-btn preview-dock-close" title="Stop & Close Preview" aria-label="Stop playback">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Video Mount Stage -->
+      <div id="preview-dock-stage" class="preview-dock-stage">
+        <!-- #player-section will be appended here dynamically when floating -->
+
+        <!-- Clean Idle / Empty State (Shown when nothing is playing) -->
+        <div id="preview-empty-state" class="preview-empty-state">
+          <div class="preview-empty-icon-wrap">
+            <i data-lucide="tv" class="w-5 h-5 text-slate-400"></i>
+          </div>
+          <h4 class="preview-empty-title">Select content to play</h4>
+          <p class="preview-empty-subtitle">Live TV, Movies, Series, or Podcasts</p>
+        </div>
+      </div>
+
+    </div>
+  </aside>
 
   <!-- Fullscreen VOD Details Modal Overlay -->
   <div id="details-overlay" class="details-overlay hidden">
