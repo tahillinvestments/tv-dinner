@@ -277,7 +277,16 @@ class YouTubePodcastService(
                 )
                 2 -> listOf("$categoryOrQuery full episode video", "$categoryOrQuery show podcast")
                 3 -> listOf("$categoryOrQuery latest podcast", "$categoryOrQuery video episodes")
-                else -> listOf("$categoryOrQuery podcast episode $page")
+                else -> {
+                    val seeds = listOf(
+                        "full episode interview podcast", "deep dive discussion podcast", "guest interview podcast",
+                        "weekly analysis podcast full", "special edition podcast episode", "conversations podcast episode",
+                        "roundtable podcast full episode", "keynote talk podcast full"
+                    )
+                    val s = seeds[page % seeds.size]
+                    val cleanQ = if (categoryOrQuery.contains("podcast", ignoreCase = true)) categoryOrQuery else "$categoryOrQuery podcast"
+                    listOf("$cleanQ $s", "$cleanQ full episode $page")
+                }
             }
         }
 

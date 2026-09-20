@@ -4,9 +4,8 @@ import android.view.KeyEvent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -19,15 +18,19 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tvdinner.ui.theme.CinemaFocus
 import com.tvdinner.ui.theme.CinemaSurfaceVariant
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+object TvCardGlobalState {
+    var isLongPressActive: Boolean = false
+    var lastLongPressTimestamp: Long = 0L
+    var suppressUntilTimestamp: Long = 0L
+}
+
 @Composable
 fun TvFocusableCard(
     onClick: () -> Unit,
@@ -46,6 +49,19 @@ fun TvFocusableCard(
     var isFocused by remember { mutableStateOf(false) }
     var isLongPressHandled by remember { mutableStateOf(false) }
     var isKeyDownOnThisCard by remember { mutableStateOf(false) }
+    var lastLongClickTimestamp by remember { mutableLongStateOf(0L) }
+
+    val triggerLongClick: () -> Unit = {
+        val now = System.currentTimeMillis()
+        if (now - lastLongClickTimestamp > 800L && now - TvCardGlobalState.lastLongPressTimestamp > 800L) {
+            lastLongClickTimestamp = now
+            TvCardGlobalState.lastLongPressTimestamp = now
+            TvCardGlobalState.isLongPressActive = true
+            TvCardGlobalState.suppressUntilTimestamp = now + 1200L
+            onLongClick?.invoke()
+        }
+    }
+
     val scale by animateFloatAsState(
         targetValue = if (isFocused) focusedScale else 1.0f,
         animationSpec = tween(durationMillis = 150),
@@ -77,7 +93,7 @@ fun TvFocusableCard(
                     isLongPressHandled = false
                 }
             }
-            .onKeyEvent { keyEvent ->
+            .onPreviewKeyEvent { keyEvent ->
                 val code = keyEvent.nativeKeyEvent.keyCode
                 val isSelectKey = code == KeyEvent.KEYCODE_DPAD_CENTER ||
                         code == KeyEvent.KEYCODE_ENTER ||
@@ -85,36 +101,66 @@ fun TvFocusableCard(
                         code == KeyEvent.KEYCODE_BUTTON_A ||
                         code == KeyEvent.KEYCODE_BUTTON_SELECT
 
-                if (keyEvent.type == KeyEventType.KeyDown && isSelectKey) {
-                    if (onLongClick != null && (keyEvent.nativeKeyEvent.isLongPress || keyEvent.nativeKeyEvent.repeatCount >= 1)) {
-                        isLongPressHandled = true
-                        onLongClick()
-                        return@onKeyEvent true
+                if (!isSelectKey) return@onPreviewKeyEvent false
+
+                val now = System.currentTimeMillis()
+                val isGlobalSuppressed = TvCardGlobalState.isLongPressActive || (now < TvCardGlobalState.suppressUntilTimestamp)
+
+                if (keyEvent.type == KeyEventType.KeyDown) {
+                    if (isGlobalSuppressed) {
+                        return@onPreviewKeyEvent true
                     }
-                    isKeyDownOnThisCard = true
-                    return@onKeyEvent true
-                } else if (keyEvent.type == KeyEventType.KeyUp && isSelectKey) {
+                    if (onLongClick != null && !isLongPressHandled && (keyEvent.nativeKeyEvent.isLongPress || keyEvent.nativeKeyEvent.repeatCount >= 1)) {
+                        isLongPressHandled = true
+                        triggerLongClick()
+                        return@onPreviewKeyEvent true
+                    }
+                    if (isLongPressHandled) {
+                        return@onPreviewKeyEvent true
+                    }
+                    if (keyEvent.nativeKeyEvent.repeatCount == 0) {
+                        isKeyDownOnThisCard = true
+                    }
+                    return@onPreviewKeyEvent true
+                } else if (keyEvent.type == KeyEventType.KeyUp) {
+                    if (TvCardGlobalState.isLongPressActive) {
+                        TvCardGlobalState.isLongPressActive = false
+                        TvCardGlobalState.suppressUntilTimestamp = System.currentTimeMillis() + 800L
+                    }
                     if (isLongPressHandled) {
                         isLongPressHandled = false
                         isKeyDownOnThisCard = false
-                        return@onKeyEvent true
+                        return@onPreviewKeyEvent true
+                    }
+                    if (isGlobalSuppressed || now < TvCardGlobalState.suppressUntilTimestamp) {
+                        isKeyDownOnThisCard = false
+                        return@onPreviewKeyEvent true
                     }
                     if (!isKeyDownOnThisCard) {
-                        // Stray KeyUp leaked from a prior screen or focus transition: consume and ignore
-                        return@onKeyEvent true
+                        return@onPreviewKeyEvent true
                     }
                     isKeyDownOnThisCard = false
                     onClick()
-                    return@onKeyEvent true
+                    return@onPreviewKeyEvent true
                 }
                 false
             }
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
+            .focusable(
+                interactionSource = remember { MutableInteractionSource() }
+            )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = {
+                        val now = System.currentTimeMillis()
+                        if (!TvCardGlobalState.isLongPressActive && now >= TvCardGlobalState.suppressUntilTimestamp) {
+                            onClick()
+                        }
+                    },
+                    onLongPress = if (onLongClick != null) { _ ->
+                        triggerLongClick()
+                    } else null
+                )
+            },
         shape = shape,
         color = actualBg,
         border = BorderStroke(

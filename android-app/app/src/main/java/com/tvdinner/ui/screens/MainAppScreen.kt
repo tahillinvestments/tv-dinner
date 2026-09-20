@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,8 +31,10 @@ import com.tvdinner.data.network.XtreamApiClient
 import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
 import com.tvdinner.player.ExoPlayerManager
+import com.tvdinner.ui.components.SystemRebootDialog
 import com.tvdinner.ui.components.TvFocusableCard
 import com.tvdinner.ui.components.UniversalIntegratedPreview
+import com.tvdinner.ui.components.performSystemReboot
 import com.tvdinner.ui.player.NativePlayerView
 import com.tvdinner.ui.player.YouTubePlayerView
 import com.tvdinner.ui.player.YouTubeRemoteBridge
@@ -69,11 +72,28 @@ fun MainAppScreen(
     playerManager: ExoPlayerManager,
     onSignOut: () -> Unit
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var activeTab by remember { mutableStateOf(AppTab.LIVE) }
     var credentialsRevision by remember { mutableIntStateOf(0) }
     val liveTabFocusRequester = remember { FocusRequester() }
-    val liveContentFocusRequester = remember { FocusRequester() }
+    val livePreviewFocusRequester = remember { FocusRequester() }
+    val moviesPreviewFocusRequester = remember { FocusRequester() }
+    val seriesPreviewFocusRequester = remember { FocusRequester() }
+    val musicPreviewFocusRequester = remember { FocusRequester() }
+    val podcastsPreviewFocusRequester = remember { FocusRequester() }
+    val sidebarTabFocusRequesters = remember { AppTab.values().associateWith { FocusRequester() } }
+
+    // Quick System Reboot State
+    var showRebootDialog by remember { mutableStateOf(false) }
+    var isRebooting by remember { mutableStateOf(false) }
+
+    // Persistent playback callbacks for preview -> fullscreen restoration
+    var lastYouTubeOnNext by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var lastYouTubeOnPrev by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var lastYouTubeNextTitle by remember { mutableStateOf<String?>(null) }
+    var lastVodOnNext by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var lastVodNextTitle by remember { mutableStateOf<String?>(null) }
 
     // Live TV In-Place Fullscreen State
     var isLiveTvFullscreen by remember { mutableStateOf(false) }
@@ -91,7 +111,7 @@ fun MainAppScreen(
     val activeYouTubeTitle by playerManager.activeYouTubeTitle.collectAsState()
     val isMediaActive = currentStreamUrl.isNotBlank() || isPlaying
 
-    // Target Navigation States from NowScreen
+    // Target Navigation States (Cleaned up - NowScreen removed)
     var targetChannelId by remember { mutableStateOf<Int?>(null) }
     var targetLiveCategoryId by remember { mutableStateOf<String?>(null) }
     var targetMovieId by remember { mutableStateOf<Int?>(null) }
@@ -105,9 +125,9 @@ fun MainAppScreen(
         MainActivity.isVODFullscreenActive = (fullscreenMedia != null)
         MainActivity.isLiveFullscreenActive = isLiveTvFullscreen
         MainActivity.isYouTubeFullscreenActive = (fullscreenYouTube != null)
-        MainActivity.onNextEpisodeCallback = fullscreenMedia?.onNextEpisode
-        MainActivity.onNextYouTubeCallback = fullscreenYouTube?.onNextVideo
-        MainActivity.onPreviousYouTubeCallback = fullscreenYouTube?.onPreviousVideo
+        MainActivity.onNextEpisodeCallback = fullscreenMedia?.onNextEpisode ?: lastVodOnNext
+        MainActivity.onNextYouTubeCallback = fullscreenYouTube?.onNextVideo ?: lastYouTubeOnNext
+        MainActivity.onPreviousYouTubeCallback = fullscreenYouTube?.onPreviousVideo ?: lastYouTubeOnPrev
     }
 
     // Auto-vet credentials against the 4 approved portals on app startup
@@ -151,7 +171,10 @@ fun MainAppScreen(
         if (playerManager.activeYouTubeVideoId.value != null) {
             fullscreenYouTube = FullscreenYouTubeState(
                 videoId = playerManager.activeYouTubeVideoId.value!!,
-                title = playerManager.activeYouTubeTitle.value ?: "YouTube Media"
+                title = playerManager.activeYouTubeTitle.value ?: "YouTube Media",
+                onNextVideo = lastYouTubeOnNext ?: MainActivity.onNextYouTubeCallback,
+                nextVideoTitle = lastYouTubeNextTitle,
+                onPreviousVideo = lastYouTubeOnPrev ?: MainActivity.onPreviousYouTubeCallback
             )
         } else if (playerManager.currentStreamUrl.value.isNotBlank()) {
             if (playerManager.isLiveStream.value) {
@@ -160,7 +183,9 @@ fun MainAppScreen(
             } else {
                 fullscreenMedia = FullscreenMediaState(
                     url = playerManager.currentStreamUrl.value,
-                    title = playerManager.currentTitle.value
+                    title = playerManager.currentTitle.value,
+                    onNextEpisode = lastVodOnNext ?: MainActivity.onNextEpisodeCallback,
+                    nextEpisodeTitle = lastVodNextTitle
                 )
             }
         }
@@ -230,17 +255,20 @@ fun MainAppScreen(
                                         focusedScale = 1.08f,
                                         modifier = Modifier
                                             .size(52.dp)
-                                            .then(if (tab == AppTab.LIVE) Modifier.focusRequester(liveTabFocusRequester) else Modifier)
+                                            .focusRequester(sidebarTabFocusRequesters[tab] ?: liveTabFocusRequester)
                                             .onPreviewKeyEvent { keyEvent ->
                                                 if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionRight) {
-                                                    if (activeTab == AppTab.LIVE) {
-                                                        try {
-                                                            liveContentFocusRequester.requestFocus()
-                                                            true
-                                                        } catch (_: Exception) {
-                                                            false
+                                                    try {
+                                                        when (activeTab) {
+                                                            AppTab.LIVE -> livePreviewFocusRequester.requestFocus()
+                                                            AppTab.MOVIES -> moviesPreviewFocusRequester.requestFocus()
+                                                            AppTab.SERIES -> seriesPreviewFocusRequester.requestFocus()
+                                                            AppTab.MUSIC -> musicPreviewFocusRequester.requestFocus()
+                                                            AppTab.PODCASTS -> podcastsPreviewFocusRequester.requestFocus()
+                                                            AppTab.SETTINGS -> return@onPreviewKeyEvent false
                                                         }
-                                                    } else {
+                                                        true
+                                                    } catch (_: Exception) {
                                                         false
                                                     }
                                                 } else {
@@ -259,6 +287,30 @@ fun MainAppScreen(
                                                 modifier = Modifier.size(24.dp)
                                             )
                                         }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.weight(1f, fill = false))
+
+                                // Quick System Reboot Button (below Settings in left-most column)
+                                TvFocusableCard(
+                                    onClick = { showRebootDialog = true },
+                                    shape = RoundedCornerShape(12.dp),
+                                    backgroundColor = CinemaSurfaceVariant,
+                                    focusedBorderColor = CinemaYellow,
+                                    focusedScale = 1.08f,
+                                    modifier = Modifier.size(52.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = "System Reboot",
+                                            tint = CinemaYellow,
+                                            modifier = Modifier.size(24.dp)
+                                        )
                                     }
                                 }
                             }
@@ -293,12 +345,12 @@ fun MainAppScreen(
                                         isFullscreen = isLiveTvFullscreen,
                                         onToggleFullscreen = { isLiveTvFullscreen = it },
                                         onExpandPreview = expandCurrentMedia,
-                                        contentFocusRequester = liveContentFocusRequester,
                                         onRequestFocusSidebar = {
                                             try {
-                                                liveTabFocusRequester.requestFocus()
+                                                sidebarTabFocusRequesters[AppTab.LIVE]?.requestFocus()
                                             } catch (_: Exception) {}
                                         },
+                                        previewFocusRequester = livePreviewFocusRequester,
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) },
                                         targetChannelId = targetChannelId,
                                         targetCategoryId = targetLiveCategoryId,
@@ -314,7 +366,15 @@ fun MainAppScreen(
                                         playerManager = playerManager,
                                         onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenMedia != null),
+                                        onRequestFocusSidebar = {
+                                            try {
+                                                sidebarTabFocusRequesters[AppTab.MOVIES]?.requestFocus()
+                                            } catch (_: Exception) {}
+                                        },
+                                        previewFocusRequester = moviesPreviewFocusRequester,
                                         onPlayMovie = { url, title, startPos, streamKey ->
+                                            lastVodOnNext = null
+                                            lastVodNextTitle = null
                                             YouTubeRemoteBridge.activeWebView = null
                                             fullscreenYouTube = null
                                             isLiveTvFullscreen = false
@@ -341,7 +401,15 @@ fun MainAppScreen(
                                         playerManager = playerManager,
                                         onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenMedia != null),
+                                        onRequestFocusSidebar = {
+                                            try {
+                                                sidebarTabFocusRequesters[AppTab.SERIES]?.requestFocus()
+                                            } catch (_: Exception) {}
+                                        },
+                                        previewFocusRequester = seriesPreviewFocusRequester,
                                         onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
+                                            lastVodOnNext = onNext
+                                            lastVodNextTitle = nextTitle
                                             YouTubeRemoteBridge.activeWebView = null
                                             fullscreenYouTube = null
                                             isLiveTvFullscreen = false
@@ -367,7 +435,16 @@ fun MainAppScreen(
                                         playerManager = playerManager,
                                         onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenYouTube != null),
+                                        onRequestFocusSidebar = {
+                                            try {
+                                                sidebarTabFocusRequesters[AppTab.MUSIC]?.requestFocus()
+                                            } catch (_: Exception) {}
+                                        },
+                                        previewFocusRequester = musicPreviewFocusRequester,
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            lastYouTubeOnNext = onNext
+                                            lastYouTubeOnPrev = onPrev
+                                            lastYouTubeNextTitle = nextTitle
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
                                             playerManager.setYouTubeMedia(videoId, title)
@@ -381,7 +458,16 @@ fun MainAppScreen(
                                         playerManager = playerManager,
                                         onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenYouTube != null),
+                                        onRequestFocusSidebar = {
+                                            try {
+                                                sidebarTabFocusRequesters[AppTab.PODCASTS]?.requestFocus()
+                                            } catch (_: Exception) {}
+                                        },
+                                        previewFocusRequester = podcastsPreviewFocusRequester,
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            lastYouTubeOnNext = onNext
+                                            lastYouTubeOnPrev = onPrev
+                                            lastYouTubeNextTitle = nextTitle
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
                                             playerManager.setYouTubeMedia(videoId, title)
@@ -470,6 +556,8 @@ fun MainAppScreen(
                                         onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenMedia != null),
                                         onPlayMovie = { url, title, startPos, streamKey ->
+                                            lastVodOnNext = null
+                                            lastVodNextTitle = null
                                             fullscreenYouTube = null
                                             isLiveTvFullscreen = false
                                             playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
@@ -496,6 +584,8 @@ fun MainAppScreen(
                                         onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenMedia != null),
                                         onPlayEpisode = { url, title, startPos, streamKey, onNext, nextTitle ->
+                                            lastVodOnNext = onNext
+                                            lastVodNextTitle = nextTitle
                                             fullscreenYouTube = null
                                             isLiveTvFullscreen = false
                                             playerManager.playStream(url, title, isLive = false, startPositionMs = startPos, streamKey = streamKey)
@@ -521,6 +611,9 @@ fun MainAppScreen(
                                         onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenYouTube != null),
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            lastYouTubeOnNext = onNext
+                                            lastYouTubeOnPrev = onPrev
+                                            lastYouTubeNextTitle = nextTitle
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
                                             playerManager.setYouTubeMedia(videoId, title)
@@ -535,6 +628,9 @@ fun MainAppScreen(
                                         onExpandPreview = expandCurrentMedia,
                                         isPlayingFullscreen = (fullscreenYouTube != null),
                                         onPlayYouTubeVideo = { videoId, title, onNext, nextTitle, onPrev ->
+                                            lastYouTubeOnNext = onNext
+                                            lastYouTubeOnPrev = onPrev
+                                            lastYouTubeNextTitle = nextTitle
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
                                             playerManager.setYouTubeMedia(videoId, title)
@@ -583,6 +679,22 @@ fun MainAppScreen(
                 nextVideoTitle = ytState.nextVideoTitle,
                 onPreviousVideo = ytState.onPreviousVideo,
                 modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        // Shared System Reboot Dialog
+        if (showRebootDialog) {
+            SystemRebootDialog(
+                onDismissRequest = { if (!isRebooting) showRebootDialog = false },
+                onConfirmReboot = {
+                    isRebooting = true
+                    coroutineScope.launch {
+                        performSystemReboot(context, playerManager, apiClient, catalogManager)
+                        isRebooting = false
+                        showRebootDialog = false
+                    }
+                },
+                isRebooting = isRebooting
             )
         }
     }

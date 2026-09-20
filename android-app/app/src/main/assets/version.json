@@ -1,9 +1,9 @@
 {
-  "versionCode": 233,
-  "versionName": "2.3.3",
-  "title": "Clean Live TV Return, Guaranteed First-Try Channel Play & VOD Seek Engine",
-  "releaseNotes": "• Clean Return to Live TV: Returning to Live TV from Movies, Series, or any other module now cleanly restores the 'Select a channel on the left to start streaming' message on the preview screen, with zero leftover VOD titles or lingering playback frames\n• Guaranteed First-Try Channel Playback: Clicking any channel now immediately begins streaming on the first press — eliminated the issue where the previous channel state blocked playback and required navigating down and up to register\n• Complete Media State Reset: ExoPlayerManager stop() now thoroughly purges stream URLs, titles, and live playback tokens upon leaving modules, ensuring Live TV starts from a pristine preview state\n• Scrubbing Throttle & Debounce: Remote fast-forward and rewind scrubbing now debounces network Range requests by 350ms while keeping real-time UI magnitude feedback (+30s, +1m) — completely preventing the burst of aborted HTTP requests that caused 'Connection interrupted (HTTP error)' crashes when seeking\n• Fast VOD Playback Startup: Optimized loadControl buffer thresholds (800ms initial buffer) for instant startup on Hulu, FX, and high-bitrate series like 'The Drop'\n• Failsafe Auto-Reboot & Resume: If an unrecoverable stream error occurs after all retries, the app automatically executes an internal media engine reboot and seamlessly returns to programming at the exact saved playback position without requiring a manual reboot",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.3.3/app-release.apk",
+  "versionCode": 246,
+  "versionName": "2.4.6",
+  "title": "Decoupled Clickable & Focus Isolation, Category Scroll Lock, Safe Watchlist & Podcast Channel Transitions",
+  "releaseNotes": "• Elimination of Ghost Clicks (Decoupled Clickable): Replaced Compose combinedClickable on TvFocusableCard with pure focusable + onPreviewKeyEvent + pointerInput, eliminating Compose's internal DPAD_CENTER key listener that was erroneously triggering clicks on leaked focus nodes (e.g. AppTab.LIVE)\n• Strict 1200ms Global Key Suppression: Any long-press globally swallows all KeyDown and KeyUp events for 1200ms across all focusable cards in the application, guaranteeing key release cannot trigger unintended actions\n• Category Up-Scroll Containment: Added focusProperties { up = FocusRequester.Cancel } directly to the category LazyColumn across Live TV, Movies, Series, Music, and Podcasts, locking upward scroll strictly within the category list and completely preventing focus escape to the preview screen\n• Safe Watchlist & Channel Transitions: Focus safely transitions to adjacent items before updating list state, preventing focus from dropping to the sidebar when removing items or opening podcast channels",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.6/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-18T03:12:31.094Z"
+  "publishedAt": "2026-09-20T04:57:59.937Z"
 }

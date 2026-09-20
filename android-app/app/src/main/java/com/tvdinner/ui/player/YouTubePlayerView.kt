@@ -186,9 +186,11 @@ fun YouTubePlayerView(
     val currentOnPreviousVideo by rememberUpdatedState(onPreviousVideo)
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     var showControls by remember { mutableStateOf(false) }
-    var isCcOn by remember(captionsEnabled) { mutableStateOf(captionsEnabled) }
+    var isCcOn by remember(captionsEnabled, isPreview) { mutableStateOf(if (isPreview) false else captionsEnabled) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val scrubBadge by YouTubeRemoteBridge.scrubBadge.collectAsState()
+    val mountTimestamp = remember { System.currentTimeMillis() }
+    var centerKeyDownReceived by remember { mutableStateOf(false) }
 
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
 
@@ -200,8 +202,8 @@ fun YouTubePlayerView(
         }
     }
 
-    LaunchedEffect(isCcOn) {
-        if (!isCcOn) {
+    LaunchedEffect(isCcOn, isPreview) {
+        if (isPreview || !isCcOn) {
             webViewInstance?.evaluateJavascript(
                 "if (window.ytPlayer) { try { window.ytPlayer.setOption('captions', 'track', {}); } catch(_) {} try { window.ytPlayer.unloadModule('captions'); } catch(_) {} }",
                 null
@@ -289,18 +291,31 @@ fun YouTubePlayerView(
                         .focusRequester(focusRequester)
                         .focusable()
                         .onKeyEvent { keyEvent ->
+                            val keyCode = keyEvent.nativeKeyEvent.keyCode
+                            val isSelectKey = keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                                    keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+                                    keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                                    keyCode == android.view.KeyEvent.KEYCODE_BUTTON_A ||
+                                    keyCode == android.view.KeyEvent.KEYCODE_BUTTON_SELECT
+
+                            if (keyEvent.type == KeyEventType.KeyDown && isSelectKey) {
+                                centerKeyDownReceived = true
+                                return@onKeyEvent false
+                            }
+
                             if (keyEvent.type == KeyEventType.KeyUp) {
-                                when (keyEvent.nativeKeyEvent.keyCode) {
-                                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
-                                    android.view.KeyEvent.KEYCODE_ENTER,
-                                    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER,
-                                    android.view.KeyEvent.KEYCODE_BUTTON_A,
-                                    android.view.KeyEvent.KEYCODE_BUTTON_SELECT -> {
+                                if (isSelectKey) {
+                                    val wasKeyDown = centerKeyDownReceived
+                                    centerKeyDownReceived = false
+                                    val isPastMountDebounce = (System.currentTimeMillis() - mountTimestamp) > 350L
+                                    if (wasKeyDown && isPastMountDebounce) {
                                         YouTubeRemoteBridge.togglePlayPause()
                                         showControls = true
                                         lastInteractionTime = System.currentTimeMillis()
-                                        true
                                     }
+                                    return@onKeyEvent true
+                                }
+                                when (keyCode) {
                                     android.view.KeyEvent.KEYCODE_DPAD_UP,
                                     android.view.KeyEvent.KEYCODE_CHANNEL_UP,
                                     android.view.KeyEvent.KEYCODE_PAGE_UP -> {
@@ -390,7 +405,7 @@ fun YouTubePlayerView(
                             "AndroidBridge"
                         )
 
-                        val ccPolicy = if (captionsEnabled) 1 else 0
+                        val ccPolicy = if (!isPreview && captionsEnabled) 1 else 0
                     val html = """
                         <!DOCTYPE html>
                         <html>
@@ -448,7 +463,7 @@ fun YouTubePlayerView(
                                         events: {
                                             'onReady': function(e) {
                                                 window.ytPlayer = e.target;
-                                                applyCaptions(e.target, ${if (captionsEnabled) "true" else "false"});
+                                                applyCaptions(e.target, ${if (!isPreview && captionsEnabled) "true" else "false"});
                                                 if (window.pendingVideoId) {
                                                     e.target.loadVideoById(window.pendingVideoId);
                                                     window.pendingVideoId = null;

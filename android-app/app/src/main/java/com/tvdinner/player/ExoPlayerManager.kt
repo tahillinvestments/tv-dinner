@@ -703,6 +703,10 @@ class ExoPlayerManager(
         _liveRewindOffsetSeconds.value = 0
         _currentPosition.value = if (!isLive) startPositionMs else 0L
         _duration.value = 0L
+        _seekActionTimestamp.value = 0L
+        _seekMagnitudeDisplay.value = ""
+        pendingSeekTargetMs = null
+        pendingSeekJob?.cancel()
         currentStreamKey = streamKey
         _errorMessage.value = null
         _isBuffering.value = true
@@ -734,7 +738,7 @@ class ExoPlayerManager(
             val mediaItem = mediaItemBuilder.build()
             setMediaItem(mediaItem)
             if (startPositionMs > 0 && !isLive) {
-                seekTo(startPositionMs)
+                seekTo(startPositionMs, showHud = false)
             }
             if (!isLive && authRepo?.isVodSubtitlesEnabled() == true) {
                 _isClosedCaptionsEnabled.value = true
@@ -743,6 +747,7 @@ class ExoPlayerManager(
             prepare()
             playWhenReady = true
         }
+        _isBuffering.value = true
     }
 
     fun togglePlayPause() {
@@ -786,13 +791,18 @@ class ExoPlayerManager(
         }
     }
 
-    fun seekTo(posMs: Long) {
+    fun seekTo(posMs: Long, showHud: Boolean = true) {
         val p = player ?: return
         val maxTarget = if (p.duration > 0) (p.duration - 2000L).coerceAtLeast(0L) else Long.MAX_VALUE
         val target = posMs.coerceIn(0L, maxTarget)
         pendingSeekTargetMs = target
         _currentPosition.value = target
-        _seekActionTimestamp.value = System.currentTimeMillis()
+        if (showHud) {
+            _seekActionTimestamp.value = System.currentTimeMillis()
+        } else {
+            _seekActionTimestamp.value = 0L
+            _seekMagnitudeDisplay.value = ""
+        }
 
         pendingSeekJob?.cancel()
         pendingSeekJob = scope.launch {

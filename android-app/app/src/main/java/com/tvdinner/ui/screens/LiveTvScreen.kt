@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -73,6 +74,7 @@ fun LiveTvScreen(
     onToggleFullscreen: (Boolean) -> Unit = {},
     onExpandPreview: (() -> Unit)? = null,
     contentFocusRequester: FocusRequester? = null,
+    previewFocusRequester: FocusRequester? = null,
     onRequestFocusSidebar: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     targetChannelId: Int? = null,
@@ -122,6 +124,7 @@ fun LiveTvScreen(
     val fullscreenControlFocusRequester = remember { FocusRequester() }
     val fullscreenFocusRequester = remember { FocusRequester() }
     val searchBarFocusRequester = remember { FocusRequester() }
+    val livePreviewFocusRequester = remember { FocusRequester() }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -988,6 +991,7 @@ fun LiveTvScreen(
                             .padding(vertical = 12.dp, horizontal = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        val effectivePreviewFocus = previewFocusRequester ?: livePreviewFocusRequester
                         UniversalIntegratedPreview(
                             playerManager = playerManager,
                             onExpand = { onExpandPreview?.invoke() ?: onToggleFullscreen(true) },
@@ -996,7 +1000,20 @@ fun LiveTvScreen(
                                 playerManager.clearYouTubeMedia()
                             },
                             isPlayingFullscreen = isFullscreen || MainActivity.isVODFullscreenActive || MainActivity.isYouTubeFullscreenActive,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            onMoveLeft = { onRequestFocusSidebar?.invoke() },
+                            onMoveRight = {
+                                try {
+                                    selectedCategoryFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
+                            },
+                            onMoveDown = {
+                                try {
+                                    selectedCategoryFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
+                            },
+                            modifier = Modifier
+                                .padding(bottom = 4.dp)
+                                .focusRequester(effectivePreviewFocus)
                         )
 
                         Text(
@@ -1010,7 +1027,12 @@ fun LiveTvScreen(
                         LazyColumn(
                             state = categoryListState,
                             verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.weight(1f).fillMaxWidth()
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .focusProperties {
+                                    up = FocusRequester.Cancel
+                                }
                         ) {
                             itemsIndexed(categories, key = { _, cat -> cat.categoryId }) { catIndex, cat ->
                                 val isSelected = selectedCategoryId == cat.categoryId
@@ -1026,6 +1048,11 @@ fun LiveTvScreen(
                                     focusedScale = 1.04f,
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .focusProperties {
+                                            if (isFirstCat || catIndex == 0) {
+                                                up = FocusRequester.Cancel
+                                            }
+                                        }
                                         .then(
                                             if (isSelected || (selectedCategoryId == null && isFirstCat)) {
                                                 if (contentFocusRequester != null) Modifier.focusRequester(selectedCategoryFocusRequester).focusRequester(contentFocusRequester)
@@ -1039,88 +1066,28 @@ fun LiveTvScreen(
                                             }
                                         }
                                         .onPreviewKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                            if (keyEvent.key == Key.DirectionUp && (isFirstCat || catIndex == 0 || cat.categoryId == "favorites")) {
+                                                true
+                                            } else if (keyEvent.type == KeyEventType.KeyDown) {
                                                 when (keyEvent.key) {
-                                                    Key.DirectionUp -> {
-                                                        if (isFirstCat || catIndex == 0 || cat.categoryId == "favorites") {
-                                                            // Hard ceiling focus: favorites / top category blocks upward navigation to search
-                                                            true
-                                                        } else {
-                                                            false
-                                                        }
-                                                    }
                                                     Key.DirectionLeft -> {
-                                                        if (onRequestFocusSidebar != null) {
-                                                            onRequestFocusSidebar()
-                                                        } else {
-                                                            try {
-                                                                focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
-                                                            } catch (_: Exception) {}
+                                                        try {
+                                                            effectivePreviewFocus.requestFocus()
+                                                            true
+                                                        } catch (_: Exception) {
+                                                            onRequestFocusSidebar?.invoke()
+                                                            true
                                                         }
-                                                        true
                                                     }
                                                     Key.DirectionRight -> {
                                                         selectedCategoryId = cat.categoryId
                                                         authRepo.setLastLiveCategoryId(cat.categoryId)
-                                                        val activeIdx = if (activeChannel != null) filteredChannels.indexOfFirst { it.streamId == activeChannel?.streamId } else -1
-                                                        val targetIdx = if (activeIdx >= 0) activeIdx else lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0))
-                                                        var moved = false
-
-                                                        if (filteredChannels.isNotEmpty()) {
-                                                            if (targetIdx > 0) {
-                                                                coroutineScope.launch {
-                                                                    try {
-                                                                        channelListState.scrollToItem((targetIdx - 1).coerceAtLeast(0))
-                                                                    } catch (_: Exception) {}
-                                                                }
-                                                            }
-                                                            try {
-                                                                activeCardFocusRequester.requestFocus()
-                                                                moved = true
-                                                            } catch (_: Exception) {}
-                                                            if (!moved) {
-                                                                try {
-                                                                    visibleChannelFocusRequester.requestFocus()
-                                                                    moved = true
-                                                                } catch (_: Exception) {}
-                                                            }
-                                                            if (!moved) {
-                                                                try {
-                                                                    firstChannelFocusRequester.requestFocus()
-                                                                    moved = true
-                                                                } catch (_: Exception) {}
-                                                            }
+                                                        try {
+                                                            searchBarFocusRequester.requestFocus()
+                                                            true
+                                                        } catch (_: Exception) {
+                                                            false
                                                         }
-
-                                                        if (!moved) {
-                                                            pendingFocusChannels = true
-                                                            coroutineScope.launch {
-                                                                for (attempt in 1..8) {
-                                                                    delay(40L * attempt)
-                                                                    try {
-                                                                        activeCardFocusRequester.requestFocus()
-                                                                        moved = true
-                                                                        break
-                                                                    } catch (_: Exception) {}
-                                                                    try {
-                                                                        visibleChannelFocusRequester.requestFocus()
-                                                                        moved = true
-                                                                        break
-                                                                    } catch (_: Exception) {}
-                                                                    try {
-                                                                        firstChannelFocusRequester.requestFocus()
-                                                                        moved = true
-                                                                        break
-                                                                    } catch (_: Exception) {}
-                                                                }
-                                                                if (!moved) {
-                                                                    try {
-                                                                        focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
-                                                                    } catch (_: Exception) {}
-                                                                }
-                                                            }
-                                                        }
-                                                        true
                                                     }
                                                     else -> false
                                                 }
@@ -1144,295 +1111,328 @@ fun LiveTvScreen(
                     }
                 }
 
-                // Middle Column: Search & Channels List with Live EPG
+                // Right Section: Channels (Top 2/3) and Info & Controls (Bottom 1/3)
                 Column(
                     modifier = Modifier
-                        .weight(1.15f)
+                        .weight(1f)
                         .fillMaxHeight()
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Header & Search
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    // Top 2/3: Search & Channels List with Live EPG
+                    Column(
+                        modifier = Modifier
+                            .weight(2f)
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "LIVE TV",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Black,
-                            color = TextPrimary
-                        )
+                        // Header & Search
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "LIVE TV",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Black,
+                                color = TextPrimary
+                            )
 
-                        AppSearchBar(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = "Search channels...",
-                            showOkBadge = false,
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(searchBarFocusRequester),
-                            onMoveDown = {
-                                try {
-                                    if (activeChannel != null && filteredChannels.any { it.streamId == activeChannel?.streamId }) {
-                                        activeCardFocusRequester.requestFocus()
-                                    } else {
-                                        firstChannelFocusRequester.requestFocus()
-                                    }
-                                } catch (_: Exception) {
+                            AppSearchBar(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = "Search channels...",
+                                showOkBadge = false,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(searchBarFocusRequester),
+                                onMoveDown = {
                                     try {
-                                        visibleChannelFocusRequester.requestFocus()
+                                        if (activeChannel != null && filteredChannels.any { it.streamId == activeChannel?.streamId }) {
+                                            activeCardFocusRequester.requestFocus()
+                                        } else {
+                                            firstChannelFocusRequester.requestFocus()
+                                        }
                                     } catch (_: Exception) {
                                         try {
-                                            focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
-                                        } catch (_: Exception) {}
-                                    }
-                                }
-                            },
-                            onMoveLeft = {
-                                try {
-                                    selectedCategoryFocusRequester.requestFocus()
-                                } catch (_: Exception) {
-                                    try {
-                                        focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
-                                    } catch (_: Exception) {}
-                                }
-                            },
-                            onMoveRight = {
-                                try {
-                                    playControlFocusRequester.requestFocus()
-                                } catch (_: Exception) {
-                                    try {
-                                        favoriteControlFocusRequester.requestFocus()
-                                    } catch (_: Exception) {}
-                                }
-                            }
-                        )
-                    }
-
-                    // Channels List with Real-Time EPG Information
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        if (filteredChannels.isNotEmpty()) {
-                            LazyColumn(
-                                state = channelListState,
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxSize()
-                            ) {
-                                itemsIndexed(filteredChannels, key = { _, channel -> channel.streamId }) { index, channel ->
-                                    val isChannelActivePlaying = activeChannel?.streamId == channel.streamId &&
-                                                                isPlaying &&
-                                                                currentStreamUrl.isNotBlank() &&
-                                                                isLiveStream
-                                    val isActive = activeChannel?.streamId == channel.streamId && isLiveStream && (isPlaying || isBuffering)
-                                    val isFirstVisible = index == channelListState.firstVisibleItemIndex
-                                    val isFirstChannel = index == 0
-                                    val hasActiveInList = remember(filteredChannels, activeChannel) {
-                                        filteredChannels.any { it.streamId == activeChannel?.streamId }
-                                    }
-                                    val isTargetFocus = if (hasActiveInList) (channel.streamId == activeChannel?.streamId) else (index == lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0)))
-
-                                    var channelEpg by remember(channel.streamId) {
-                                        mutableStateOf(catalogManager.getCachedEpg(channel.streamId))
-                                    }
-
-                                    LaunchedEffect(channel.streamId) {
-                                        if (channelEpg == null && channel.streamId > 0) {
-                                            channelEpg = catalogManager.getEpgTitleForChannel(channel.streamId)
+                                            visibleChannelFocusRequester.requestFocus()
+                                        } catch (_: Exception) {
+                                            try {
+                                                focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
+                                            } catch (_: Exception) {}
                                         }
                                     }
-
-                                    TvFocusableCard(
-                                        onClick = {
+                                },
+                                onMoveLeft = {
+                                    try {
+                                        selectedCategoryFocusRequester.requestFocus()
+                                    } catch (_: Exception) {
+                                        try {
+                                            focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
+                                        } catch (_: Exception) {}
+                                    }
+                                },
+                                onMoveRight = {
+                                    try {
+                                        if (activeChannel != null && filteredChannels.any { it.streamId == activeChannel?.streamId }) {
+                                            activeCardFocusRequester.requestFocus()
+                                        } else {
+                                            firstChannelFocusRequester.requestFocus()
+                                        }
+                                    } catch (_: Exception) {
+                                        try {
+                                            visibleChannelFocusRequester.requestFocus()
+                                        } catch (_: Exception) {
                                             try {
-                                                keyboardController?.hide()
+                                                focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
                                             } catch (_: Exception) {}
-                                            try {
-                                                val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
-                                                val user = channel.streamUser ?: authRepo.getActiveUsername()
-                                                val pswd = channel.streamPassword ?: authRepo.getActivePassword()
-                                                val streamUrl = if (!channel.directStreamUrl.isNullOrBlank()) {
-                                                    channel.directStreamUrl
-                                                } else {
-                                                    apiClient.buildLiveStreamUrl(portal, user, pswd, channel.streamId)
-                                                }
+                                        }
+                                    }
+                                }
+                            )
+                        }
 
-                                                if (isChannelActivePlaying) {
-                                                    onToggleFullscreen(true)
-                                                } else {
-                                                    activeChannel = channel
-                                                    authRepo.setLastLiveStreamId(channel.streamId)
-                                                    authRepo.addChannelToHistory(channel.streamId)
-                                                    playerManager.playStream(streamUrl, channel.name, isLive = true)
-                                                }
-                                            } catch (e: Exception) {
-                                                android.util.Log.e("LiveTvScreen", "Error launching channel: ${e.message}", e)
+                        // Channels List with Real-Time EPG Information
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            if (filteredChannels.isNotEmpty()) {
+                                LazyColumn(
+                                    state = channelListState,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    itemsIndexed(filteredChannels, key = { _, channel -> channel.streamId }) { index, channel ->
+                                        val isChannelActivePlaying = activeChannel?.streamId == channel.streamId &&
+                                                                    isPlaying &&
+                                                                    currentStreamUrl.isNotBlank() &&
+                                                                    isLiveStream
+                                        val isActive = activeChannel?.streamId == channel.streamId && isLiveStream && (isPlaying || isBuffering)
+                                        val isFirstVisible = index == channelListState.firstVisibleItemIndex
+                                        val isFirstChannel = index == 0
+                                        val hasActiveInList = remember(filteredChannels, activeChannel) {
+                                            filteredChannels.any { it.streamId == activeChannel?.streamId }
+                                        }
+                                        val isTargetFocus = if (hasActiveInList) (channel.streamId == activeChannel?.streamId) else (index == lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0)))
+
+                                        var channelEpg by remember(channel.streamId) {
+                                            mutableStateOf(catalogManager.getCachedEpg(channel.streamId))
+                                        }
+
+                                        LaunchedEffect(channel.streamId) {
+                                            if (channelEpg == null && channel.streamId > 0) {
+                                                channelEpg = catalogManager.getEpgTitleForChannel(channel.streamId)
                                             }
-                                        },
-                                        shape = RoundedCornerShape(10.dp),
-                                        backgroundColor = if (isActive) CinemaSurfaceLight else CinemaSurface,
-                                        focusedBorderColor = CinemaFocus,
-                                        focusedScale = 1.02f,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .onFocusChanged { if (it.isFocused) lastFocusedChannelIndex = index }
-                                            .then(if (isTargetFocus) Modifier.focusRequester(activeCardFocusRequester) else Modifier)
-                                            .then(if (isFirstVisible) Modifier.focusRequester(visibleChannelFocusRequester) else Modifier)
-                                            .then(if (isFirstChannel) Modifier.focusRequester(firstChannelFocusRequester) else Modifier)
-                                            .onPreviewKeyEvent { keyEvent ->
-                                                if (keyEvent.type == KeyEventType.KeyDown) {
-                                                    when (keyEvent.key) {
-                                                        Key.DirectionUp -> {
-                                                            if (index == 0) {
+                                        }
+
+                                        TvFocusableCard(
+                                            onClick = {
+                                                try {
+                                                    keyboardController?.hide()
+                                                } catch (_: Exception) {}
+                                                try {
+                                                    val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
+                                                    val user = channel.streamUser ?: authRepo.getActiveUsername()
+                                                    val pswd = channel.streamPassword ?: authRepo.getActivePassword()
+                                                    val streamUrl = if (!channel.directStreamUrl.isNullOrBlank()) {
+                                                        channel.directStreamUrl
+                                                    } else {
+                                                        apiClient.buildLiveStreamUrl(portal, user, pswd, channel.streamId)
+                                                    }
+
+                                                    if (isChannelActivePlaying) {
+                                                        onToggleFullscreen(true)
+                                                    } else {
+                                                        activeChannel = channel
+                                                        authRepo.setLastLiveStreamId(channel.streamId)
+                                                        authRepo.addChannelToHistory(channel.streamId)
+                                                        playerManager.playStream(streamUrl, channel.name, isLive = true)
+                                                    }
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("LiveTvScreen", "Error launching channel: ${e.message}", e)
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            backgroundColor = if (isActive) CinemaSurfaceLight else CinemaSurface,
+                                            focusedBorderColor = CinemaFocus,
+                                            focusedScale = 1.02f,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .onFocusChanged { if (it.isFocused) lastFocusedChannelIndex = index }
+                                                .then(if (isTargetFocus) Modifier.focusRequester(activeCardFocusRequester) else Modifier)
+                                                .then(if (isFirstVisible) Modifier.focusRequester(visibleChannelFocusRequester) else Modifier)
+                                                .then(if (isFirstChannel) Modifier.focusRequester(firstChannelFocusRequester) else Modifier)
+                                                .onPreviewKeyEvent { keyEvent ->
+                                                    if (keyEvent.type == KeyEventType.KeyDown) {
+                                                        when (keyEvent.key) {
+                                                            Key.DirectionUp -> {
+                                                                if (index == 0) {
+                                                                    try {
+                                                                        searchBarFocusRequester.requestFocus()
+                                                                    } catch (_: Exception) {
+                                                                        try {
+                                                                            focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Up)
+                                                                        } catch (_: Exception) {}
+                                                                    }
+                                                                    true
+                                                                } else {
+                                                                    false
+                                                                }
+                                                            }
+                                                            Key.DirectionDown -> {
+                                                                if (index == filteredChannels.size - 1) {
+                                                                    var moved = false
+                                                                    try {
+                                                                        playControlFocusRequester.requestFocus()
+                                                                        moved = true
+                                                                    } catch (_: Exception) {}
+                                                                    moved
+                                                                } else {
+                                                                    false
+                                                                }
+                                                            }
+                                                            Key.DirectionLeft -> {
+                                                                var moved = false
                                                                 try {
                                                                     searchBarFocusRequester.requestFocus()
-                                                                } catch (_: Exception) {
+                                                                    moved = true
+                                                                } catch (_: Exception) {}
+                                                                if (!moved) {
                                                                     try {
-                                                                        focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Up)
+                                                                        selectedCategoryFocusRequester.requestFocus()
+                                                                        moved = true
                                                                     } catch (_: Exception) {}
                                                                 }
-                                                                true
-                                                            } else {
-                                                                false
+                                                                if (!moved) {
+                                                                    try {
+                                                                        moved = focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
+                                                                    } catch (_: Exception) {}
+                                                                }
+                                                                moved
                                                             }
-                                                        }
-                                                        Key.DirectionLeft -> {
+                                                        Key.DirectionRight -> {
                                                             var moved = false
                                                             try {
-                                                                selectedCategoryFocusRequester.requestFocus()
+                                                                playControlFocusRequester.requestFocus()
                                                                 moved = true
                                                             } catch (_: Exception) {}
                                                             if (!moved) {
                                                                 try {
-                                                                    moved = focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
+                                                                    favoriteControlFocusRequester.requestFocus()
+                                                                    moved = true
+                                                                } catch (_: Exception) {}
+                                                            }
+                                                            if (!moved) {
+                                                                try {
+                                                                    ccControlFocusRequester.requestFocus()
+                                                                    moved = true
+                                                                } catch (_: Exception) {}
+                                                            }
+                                                            if (!moved) {
+                                                                try {
+                                                                    aspectControlFocusRequester.requestFocus()
+                                                                    moved = true
+                                                                } catch (_: Exception) {}
+                                                            }
+                                                            if (!moved) {
+                                                                try {
+                                                                    fullscreenControlFocusRequester.requestFocus()
+                                                                    moved = true
+                                                                } catch (_: Exception) {}
+                                                            }
+                                                            if (!moved) {
+                                                                try {
+                                                                    moved = focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
                                                                 } catch (_: Exception) {}
                                                             }
                                                             moved
                                                         }
-                                                    Key.DirectionRight -> {
-                                                        var moved = false
-                                                        try {
-                                                            playControlFocusRequester.requestFocus()
-                                                            moved = true
-                                                        } catch (_: Exception) {}
-                                                        if (!moved) {
-                                                            try {
-                                                                favoriteControlFocusRequester.requestFocus()
-                                                                moved = true
-                                                            } catch (_: Exception) {}
-                                                        }
-                                                        if (!moved) {
-                                                            try {
-                                                                ccControlFocusRequester.requestFocus()
-                                                                moved = true
-                                                            } catch (_: Exception) {}
-                                                        }
-                                                        if (!moved) {
-                                                            try {
-                                                                aspectControlFocusRequester.requestFocus()
-                                                                moved = true
-                                                            } catch (_: Exception) {}
-                                                        }
-                                                        if (!moved) {
-                                                            try {
-                                                                fullscreenControlFocusRequester.requestFocus()
-                                                                moved = true
-                                                            } catch (_: Exception) {}
-                                                        }
-                                                        if (!moved) {
-                                                            try {
-                                                                moved = focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
-                                                            } catch (_: Exception) {}
-                                                        }
-                                                        moved
+                                                        else -> false
                                                     }
-                                                    else -> false
+                                                } else {
+                                                    false
                                                 }
-                                            } else {
-                                                false
                                             }
-                                        }
-                                ) { isCardFocused ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        ChannelQualityBadge(
-                                            channelName = channel.name
-                                        )
+                                    ) { isCardFocused ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            ChannelQualityBadge(
+                                                channelName = channel.name
+                                            )
 
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                if (favoriteChannelIds.contains(channel.streamId)) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Star,
-                                                        contentDescription = "Favorite",
-                                                        tint = CinemaAccent,
-                                                        modifier = Modifier.size(13.dp)
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    if (favoriteChannelIds.contains(channel.streamId)) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Star,
+                                                            contentDescription = "Favorite",
+                                                            tint = CinemaAccent,
+                                                            modifier = Modifier.size(13.dp)
+                                                        )
+                                                    }
+                                                    val cleanChName = remember(channel.name) { CatalogManager.cleanChannelDisplayName(channel.name) }
+                                                    Text(
+                                                        text = cleanChName,
+                                                        color = if (isActive) CinemaAccent else TextPrimary,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        overflow = if (isCardFocused) TextOverflow.Clip else TextOverflow.Ellipsis,
+                                                        modifier = Modifier
+                                                            .weight(1f, fill = false)
+                                                            .then(if (isCardFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier)
                                                     )
                                                 }
-                                                val cleanChName = remember(channel.name) { CatalogManager.cleanChannelDisplayName(channel.name) }
-                                                Text(
-                                                    text = cleanChName,
-                                                    color = if (isActive) CinemaAccent else TextPrimary,
-                                                    fontSize = 14.sp,
-                                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                                                    maxLines = 1,
-                                                    overflow = if (isCardFocused) TextOverflow.Clip else TextOverflow.Ellipsis,
-                                                    modifier = Modifier
-                                                        .weight(1f, fill = false)
-                                                        .then(if (isCardFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier)
-                                                )
+
+                                                if (!channelEpg.isNullOrBlank()) {
+                                                    Text(
+                                                        text = "▶ $channelEpg",
+                                                        color = if (isActive) CinemaAccent else CinemaAccent.copy(alpha = 0.85f),
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        maxLines = 1,
+                                                        overflow = if (isCardFocused) TextOverflow.Clip else TextOverflow.Ellipsis,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .then(if (isCardFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier)
+                                                    )
+                                                } else {
+                                                    Text(
+                                                        text = if (channel.num > 0) "CH ${channel.num} • Live" else "Live • ${channel.categoryId ?: "Broadcast"}",
+                                                        color = TextMuted,
+                                                        fontSize = 11.sp,
+                                                        maxLines = 1
+                                                    )
+                                                }
                                             }
 
-                                            if (!channelEpg.isNullOrBlank()) {
-                                                Text(
-                                                    text = "▶ $channelEpg",
-                                                    color = if (isActive) CinemaAccent else CinemaAccent.copy(alpha = 0.85f),
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    maxLines = 1,
-                                                    overflow = if (isCardFocused) TextOverflow.Clip else TextOverflow.Ellipsis,
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .then(if (isCardFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier)
-                                                )
-                                            } else {
-                                                Text(
-                                                    text = if (channel.num > 0) "CH ${channel.num} • Live" else "Live • ${channel.categoryId ?: "Broadcast"}",
-                                                    color = TextMuted,
-                                                    fontSize = 11.sp,
-                                                    maxLines = 1
-                                                )
-                                            }
-                                        }
-
-                                        if (isActive) {
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = CinemaPrimary
-                                            ) {
-                                                Text(
-                                                    text = "PLAYING",
-                                                    color = Color.White,
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
+                                            if (isActive) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = CinemaPrimary
+                                                ) {
+                                                    Text(
+                                                        text = "PLAYING",
+                                                        color = Color.White,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
                         if (isLoading && filteredChannels.isEmpty()) {
                             CircularProgressIndicator(
@@ -1470,17 +1470,10 @@ fun LiveTvScreen(
                             }
                         }
                     }
+                    // End of Top 2/3 Channels Column
                 }
 
-                // Right Column: Live Stream Preview & Rich Comprehensive EPG Info
-                Column(
-                    modifier = Modifier
-                        .weight(1.45f)
-                        .fillMaxHeight()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Rich Comprehensive EPG Card
+                    // Bottom 1/3: Stream Info & Controls Bar
                     val epgList = activeFullEpg?.epgListings ?: emptyList()
                     val currentEpoch = System.currentTimeMillis() / 1000L
 
@@ -1655,7 +1648,7 @@ fun LiveTvScreen(
                                             .onPreviewKeyEvent { keyEvent ->
                                                 if (keyEvent.type == KeyEventType.KeyDown) {
                                                     when (keyEvent.key) {
-                                                        Key.DirectionLeft, Key.Back, Key.Escape -> {
+                                                        Key.DirectionLeft, Key.DirectionUp, Key.Back, Key.Escape -> {
                                                             navigateBackToChannels()
                                                         }
                                                         Key.DirectionRight -> {
@@ -1705,6 +1698,9 @@ fun LiveTvScreen(
                                                 .onPreviewKeyEvent { keyEvent ->
                                                     if (keyEvent.type == KeyEventType.KeyDown) {
                                                         when (keyEvent.key) {
+                                                            Key.DirectionUp -> {
+                                                                navigateBackToChannels()
+                                                            }
                                                             Key.DirectionLeft -> {
                                                                 try {
                                                                     playControlFocusRequester.requestFocus()
@@ -1758,6 +1754,9 @@ fun LiveTvScreen(
                                             .onPreviewKeyEvent { keyEvent ->
                                                 if (keyEvent.type == KeyEventType.KeyDown) {
                                                     when (keyEvent.key) {
+                                                        Key.DirectionUp -> {
+                                                            navigateBackToChannels()
+                                                        }
                                                         Key.DirectionLeft -> {
                                                             try {
                                                                 if (activeChannel != null) {
@@ -1814,63 +1813,12 @@ fun LiveTvScreen(
                                             .onPreviewKeyEvent { keyEvent ->
                                                 if (keyEvent.type == KeyEventType.KeyDown) {
                                                     when (keyEvent.key) {
+                                                        Key.DirectionUp -> {
+                                                            navigateBackToChannels()
+                                                        }
                                                         Key.DirectionLeft -> {
                                                             try {
                                                                 ccControlFocusRequester.requestFocus()
-                                                                true
-                                                            } catch (_: Exception) {
-                                                                navigateBackToChannels()
-                                                            }
-                                                        }
-                                                        Key.DirectionRight -> {
-                                                            try {
-                                                                reconnectControlFocusRequester.requestFocus()
-                                                                true
-                                                            } catch (_: Exception) {
-                                                                false
-                                                            }
-                                                        }
-                                                        Key.Back, Key.Escape -> {
-                                                            navigateBackToChannels()
-                                                        }
-                                                        else -> false
-                                                    }
-                                                } else {
-                                                    false
-                                                }
-                                            }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.AspectRatio,
-                                                contentDescription = "Aspect Ratio",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
-
-                                    // 5. Reconnect Button (Icon only)
-                                    TvFocusableCard(
-                                        onClick = {
-                                            Toast.makeText(context, "Reconnecting stream...", Toast.LENGTH_SHORT).show()
-                                            playerManager.reconnectCurrentStream()
-                                        },
-                                        backgroundColor = CinemaPrimary.copy(alpha = 0.85f),
-                                        focusedBorderColor = CinemaAccent,
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .focusRequester(reconnectControlFocusRequester)
-                                            .onPreviewKeyEvent { keyEvent ->
-                                                if (keyEvent.type == KeyEventType.KeyDown) {
-                                                    when (keyEvent.key) {
-                                                        Key.DirectionLeft -> {
-                                                            try {
-                                                                aspectControlFocusRequester.requestFocus()
                                                                 true
                                                             } catch (_: Exception) {
                                                                 navigateBackToChannels()
@@ -1899,15 +1847,15 @@ fun LiveTvScreen(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Refresh,
-                                                contentDescription = "Reconnect Stream",
+                                                imageVector = Icons.Default.AspectRatio,
+                                                contentDescription = "Aspect Ratio",
                                                 tint = Color.White,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
                                     }
 
-                                    // 6. Fullscreen Button (Icon only)
+                                    // 5. Fullscreen Button (Icon only)
                                     TvFocusableCard(
                                         onClick = {
                                             onToggleFullscreen(true)
@@ -1920,9 +1868,12 @@ fun LiveTvScreen(
                                             .onPreviewKeyEvent { keyEvent ->
                                                 if (keyEvent.type == KeyEventType.KeyDown) {
                                                     when (keyEvent.key) {
+                                                        Key.DirectionUp -> {
+                                                            navigateBackToChannels()
+                                                        }
                                                         Key.DirectionLeft -> {
                                                             try {
-                                                                reconnectControlFocusRequester.requestFocus()
+                                                                aspectControlFocusRequester.requestFocus()
                                                                 true
                                                             } catch (_: Exception) {
                                                                 false
@@ -2028,7 +1979,7 @@ fun LiveTvScreen(
                                         .fillMaxWidth()
                                         .padding(top = 4.dp)
                                         .onPreviewKeyEvent { keyEvent ->
-                                            if (keyEvent.type == KeyEventType.KeyDown && (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.Back || keyEvent.key == Key.Escape)) {
+                                            if (keyEvent.type == KeyEventType.KeyDown && (keyEvent.key == Key.DirectionLeft || keyEvent.key == Key.DirectionUp || keyEvent.key == Key.Back || keyEvent.key == Key.Escape)) {
                                                 navigateBackToChannels()
                                             } else {
                                                 false
@@ -2083,21 +2034,13 @@ fun LiveTvScreen(
     }
 }
 
-fun formatEpgTimeLocal(rawTimestamp: String?, rawDateStr: String?): String {
-    val localTz = TimeZone.getDefault()
-    val outFormat = SimpleDateFormat("h:mm a", Locale.US).apply {
-        timeZone = localTz
+private val liveEpgOutFormat = ThreadLocal.withInitial {
+    SimpleDateFormat("h:mm a", Locale.US).apply {
+        timeZone = TimeZone.getDefault()
     }
+}
 
-    val epoch = rawTimestamp?.toLongOrNull() ?: rawDateStr?.toLongOrNull()
-    if (epoch != null) {
-        val ms = if (epoch > 100000000000L) epoch else epoch * 1000L
-        return outFormat.format(Date(ms))
-    }
-
-    val str = rawDateStr?.trim() ?: rawTimestamp?.trim() ?: return ""
-    if (str.isBlank()) return ""
-
+private val liveEpgInFormats = ThreadLocal.withInitial {
     val patterns = arrayOf(
         "yyyy-MM-dd'T'HH:mm:ssXXX",
         "yyyy-MM-dd'T'HH:mm:ss'Z'",
@@ -2107,12 +2050,27 @@ fun formatEpgTimeLocal(rawTimestamp: String?, rawDateStr: String?): String {
         "yyyy-MM-dd HH:mm:ss",
         "yyyyMMddHHmmss"
     )
+    patterns.map { p ->
+        SimpleDateFormat(p, Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+    }
+}
 
-    for (p in patterns) {
+fun formatEpgTimeLocal(rawTimestamp: String?, rawDateStr: String?): String {
+    val epoch = rawTimestamp?.toLongOrNull() ?: rawDateStr?.toLongOrNull()
+    if (epoch != null) {
+        val ms = if (epoch > 100000000000L) epoch else epoch * 1000L
+        return liveEpgOutFormat.get()?.format(Date(ms)) ?: ""
+    }
+
+    val str = rawDateStr?.trim() ?: rawTimestamp?.trim() ?: return ""
+    if (str.isBlank()) return ""
+
+    val parsers = liveEpgInFormats.get() ?: return str
+    val outFormat = liveEpgOutFormat.get() ?: return str
+    for (sdf in parsers) {
         try {
-            val sdf = SimpleDateFormat(p, Locale.US).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }
             val parsed = sdf.parse(str)
             if (parsed != null) {
                 return outFormat.format(parsed)

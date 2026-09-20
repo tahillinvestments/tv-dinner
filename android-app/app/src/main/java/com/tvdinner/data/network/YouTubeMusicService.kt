@@ -304,7 +304,15 @@ class YouTubeMusicService(
             4 -> listOf("$q songs playlist", "$q essential music video", "$q music hd", "$q vevo official")
             5 -> listOf("$q greatest hits video", "$q live acoustic official", "$q music collection", "$q singles video")
             6 -> listOf("$q live performance 2026", "$q audio tracks official", "$q best songs video", "$q concert live")
-            else -> listOf("$q official music video mix $page", "$q song collection $page", "$q music video hd $page")
+            else -> {
+                val seeds = listOf(
+                    "official music video", "live concert video", "acoustic version",
+                    "remix official video", "greatest hits video", "album track video",
+                    "studio performance", "vevo official video"
+                )
+                val s = seeds[page % seeds.size]
+                listOf("$q $s", "$q song $page", "$q video hd $page")
+            }
         }
 
         val targetQuery = queries.firstOrNull() ?: "$q official music video"

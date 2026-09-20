@@ -64,6 +64,7 @@ fun NativePlayerView(
     val isStreamStalled by playerManager.isStreamStalled.collectAsState()
     val resizeMode by playerManager.resizeMode.collectAsState()
     val isCcEnabled by playerManager.isClosedCaptionsEnabled.collectAsState()
+    val currentStreamUrl by playerManager.currentStreamUrl.collectAsState()
 
     var showControls by remember { mutableStateOf(false) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -166,12 +167,14 @@ fun NativePlayerView(
 
                             if (keyEvent.type == KeyEventType.KeyUp) {
                                 if (isSelectKey) {
+                                    val wasKeyDown = centerKeyDownReceived
                                     centerKeyDownReceived = false
-                                    if (!isBuffering) {
+                                    val isPastMountDebounce = (System.currentTimeMillis() - mountTimestamp) > 350L
+                                    if (wasKeyDown && isPastMountDebounce && !isBuffering) {
                                         playerManager.togglePlayPause()
+                                        showControls = true
+                                        lastInteractionTime = System.currentTimeMillis()
                                     }
-                                    showControls = true
-                                    lastInteractionTime = System.currentTimeMillis()
                                     return@onKeyEvent true
                                 }
                                 when (keyCode) {
@@ -276,6 +279,8 @@ fun NativePlayerView(
                             )
                         )
                         setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 22f)
+                        visibility = if (isPreview) android.view.View.GONE else android.view.View.VISIBLE
+                        alpha = if (isPreview) 0f else 1f
                     }
                 }
             },
@@ -299,6 +304,10 @@ fun NativePlayerView(
                         playerView.player = playerManager.player
                     }
                 }
+                playerView.subtitleView?.apply {
+                    visibility = if (isPreview) android.view.View.GONE else android.view.View.VISIBLE
+                    alpha = if (isPreview) 0f else 1f
+                }
                 playerView.resizeMode = resizeMode
                 playerView.onResume()
             },
@@ -310,8 +319,9 @@ fun NativePlayerView(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Non-Intrusive Buffering Indicator (Preserves Picture Underneath)
-        if (isBuffering && !isStreamStalled && errorMessage == null) {
+        // Non-Intrusive Loading Indicator (Preserves Picture Underneath)
+        val showLoading = (isBuffering || (!isPlaying && currentStreamUrl.isNotBlank() && errorMessage == null && !isStreamStalled)) && errorMessage == null
+        if (showLoading) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -334,7 +344,7 @@ fun NativePlayerView(
                             strokeWidth = 2.dp
                         )
                         Text(
-                            text = "Buffering...",
+                            text = "Loading...",
                             color = Color.White,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
@@ -511,69 +521,14 @@ fun NativePlayerView(
                                 )
                             }
                         }
-
-                        // Reconnect Stream Button in HUD
-                        TvFocusableCard(
-                            onClick = {
-                                playerManager.reconnectCurrentStream()
-                                lastInteractionTime = System.currentTimeMillis()
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            backgroundColor = CinemaPrimary,
-                            focusedBorderColor = CinemaAccent,
-                            modifier = Modifier.height(36.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxHeight().padding(horizontal = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Reconnect Stream",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = "Reconnect",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
                     }
                 }
 
-                // Center Play/Pause & Skip Controls
-                Row(
+                // Center Play/Pause Control
+                Box(
                     modifier = Modifier.align(Alignment.Center),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    contentAlignment = Alignment.Center
                 ) {
-                    TvFocusableCard(
-                        onClick = {
-                            if (!isLive) {
-                                playerManager.seekRewind10s()
-                            } else {
-                                playerManager.rewindLive()
-                            }
-                            lastInteractionTime = System.currentTimeMillis()
-                        },
-                        modifier = Modifier.size(52.dp),
-                        shape = CircleShape,
-                        backgroundColor = CinemaSurfaceVariant.copy(alpha = 0.8f)
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.FastRewind,
-                                contentDescription = "Rewind",
-                                tint = Color.White,
-                                modifier = Modifier.size(30.dp)
-                            )
-                        }
-                    }
-
                     TvFocusableCard(
                         onClick = {
                             if (!isBuffering) {
@@ -591,29 +546,6 @@ fun NativePlayerView(
                                 contentDescription = if (isPlaying) "Pause" else "Play",
                                 tint = Color.White,
                                 modifier = Modifier.size(38.dp)
-                            )
-                        }
-                    }
-
-                    TvFocusableCard(
-                        onClick = {
-                            if (!isLive) {
-                                playerManager.seekForward10s()
-                            } else {
-                                playerManager.forwardLive()
-                            }
-                            lastInteractionTime = System.currentTimeMillis()
-                        },
-                        modifier = Modifier.size(52.dp),
-                        shape = CircleShape,
-                        backgroundColor = if (isLive && !isLiveRewound) CinemaSurfaceVariant.copy(alpha = 0.35f) else CinemaSurfaceVariant.copy(alpha = 0.8f)
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.FastForward,
-                                contentDescription = "Forward",
-                                tint = if (isLive && !isLiveRewound) Color.White.copy(alpha = 0.4f) else Color.White,
-                                modifier = Modifier.size(30.dp)
                             )
                         }
                     }

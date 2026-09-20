@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,7 +59,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.*
 
 import com.tvdinner.player.ExoPlayerManager
 import com.tvdinner.ui.components.UniversalIntegratedPreview
@@ -73,6 +78,8 @@ fun MoviesScreen(
     onExpandPreview: () -> Unit = {},
     isPlayingFullscreen: Boolean = false,
     onOpenSettings: (() -> Unit)? = null,
+    onRequestFocusSidebar: (() -> Unit)? = null,
+    previewFocusRequester: FocusRequester? = null,
     targetMovieId: Int? = null,
     targetCategoryId: String? = null,
     onTargetMovieConsumed: () -> Unit = {},
@@ -125,6 +132,11 @@ fun MoviesScreen(
     var pendingFocusMovieId by remember { mutableStateOf<Int?>(null) }
     val effectiveFocusMovieId = targetMovieId ?: pendingFocusMovieId
     val targetMovieFocusRequester = remember { FocusRequester() }
+    val moviesPreviewFocus = previewFocusRequester ?: remember { FocusRequester() }
+    val selectedCategoryFocusRequester = remember { FocusRequester() }
+    val searchBarFocusRequester = remember { FocusRequester() }
+    val firstMovieFocusRequester = remember { FocusRequester() }
+    val visibleMovieFocusRequester = remember { FocusRequester() }
 
     // Deep navigation: switch category if needed and scroll/focus target movie
     LaunchedEffect(targetMovieId, targetCategoryId) {
@@ -376,29 +388,20 @@ fun MoviesScreen(
                                     try {
                                         keyboardController?.hide()
                                     } catch (_: Exception) {}
-                                    if (searchQuery.isNotBlank()) {
-                                        val targetCatId = movie.categoryId?.ifBlank { null }
-                                        pendingFocusMovieId = movie.streamId
-                                        if (!targetCatId.isNullOrBlank()) {
-                                            selectCategory(targetCatId)
-                                        }
-                                        searchQuery = ""
+                                    val currentPortal = authRepo.getVodPortalUrl()
+                                    val currentUser = authRepo.getVodUsername()
+                                    val currentPswd = authRepo.getVodPassword()
+                                    val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
+                                    val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
+                                    val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
+                                    val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
+                                    lastPlayedMovieId = movie.streamId
+                                    authRepo.setLastMovieStreamId(movie.streamId)
+                                    authRepo.addMovieToHistory(movie.streamId)
+                                    if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
+                                        resumePromptMovie = movie
                                     } else {
-                                        val currentPortal = authRepo.getVodPortalUrl()
-                                        val currentUser = authRepo.getVodUsername()
-                                        val currentPswd = authRepo.getVodPassword()
-                                        val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
-                                        val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
-                                        val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
-                                        val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
-                                        lastPlayedMovieId = movie.streamId
-                                        authRepo.setLastMovieStreamId(movie.streamId)
-                                        authRepo.addMovieToHistory(movie.streamId)
-                                        if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
-                                            resumePromptMovie = movie
-                                        } else {
-                                            onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
-                                        }
+                                        onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
                                     }
                                 },
                                 onLongClick = {
@@ -410,8 +413,23 @@ fun MoviesScreen(
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     if (selectedCategoryId == "watchlist") {
+                                        val currentIdx = sortedAndFilteredMovies.indexOfFirst { it.streamId == movie.streamId }
+                                        val nextMovie = if (currentIdx >= 0 && sortedAndFilteredMovies.size > 1) {
+                                            if (currentIdx + 1 < sortedAndFilteredMovies.size) sortedAndFilteredMovies[currentIdx + 1]
+                                            else sortedAndFilteredMovies[currentIdx - 1]
+                                        } else null
                                         coroutineScope.launch {
                                             movies = catalogManager.getWatchlistMovies()
+                                            if (nextMovie != null) {
+                                                pendingFocusMovieId = nextMovie.streamId
+                                            } else {
+                                                delay(60)
+                                                try {
+                                                    selectedCategoryFocusRequester.requestFocus()
+                                                } catch (_: Exception) {
+                                                    try { searchBarFocusRequester.requestFocus() } catch (_: Exception) {}
+                                                }
+                                            }
                                         }
                                     }
                                 },
@@ -568,7 +586,20 @@ fun MoviesScreen(
                             onExpand = onExpandPreview,
                             onClose = { playerManager.stop() },
                             isPlayingFullscreen = isPlayingFullscreen,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            onMoveLeft = { onRequestFocusSidebar?.invoke() },
+                            onMoveRight = {
+                                try {
+                                    selectedCategoryFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
+                            },
+                            onMoveDown = {
+                                try {
+                                    selectedCategoryFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
+                            },
+                            modifier = Modifier
+                                .padding(bottom = 4.dp)
+                                .focusRequester(moviesPreviewFocus)
                         )
 
                         Text(
@@ -582,17 +613,54 @@ fun MoviesScreen(
                         LazyColumn(
                             state = categoryListState,
                             verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.weight(1f).fillMaxWidth()
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .focusProperties {
+                                    up = FocusRequester.Cancel
+                                }
                         ) {
-                            items(categories, key = { it.categoryId }) { cat ->
+                            itemsIndexed(categories, key = { _, cat -> cat.categoryId }) { catIndex, cat ->
                                 val isSelected = selectedCategoryId == cat.categoryId
+                                val isFirstCat = catIndex == 0
                                 TvFocusableCard(
                                     onClick = { selectCategory(cat.categoryId) },
                                     shape = RoundedCornerShape(10.dp),
                                     backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
                                     focusedBorderColor = CinemaFocus,
                                     focusedScale = 1.04f,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusProperties {
+                                            if (isFirstCat || catIndex == 0) {
+                                                up = FocusRequester.Cancel
+                                            }
+                                        }
+                                        .then(if (isSelected || (selectedCategoryId == null && isFirstCat)) Modifier.focusRequester(selectedCategoryFocusRequester) else Modifier)
+                                        .onPreviewKeyEvent { keyEvent ->
+                                            if (keyEvent.key == Key.DirectionUp && (isFirstCat || catIndex == 0)) {
+                                                true
+                                            } else if (keyEvent.type == KeyEventType.KeyDown) {
+                                                when (keyEvent.key) {
+                                                    Key.DirectionLeft -> {
+                                                        try {
+                                                            moviesPreviewFocus.requestFocus()
+                                                            true
+                                                        } catch (_: Exception) {
+                                                            onRequestFocusSidebar?.invoke()
+                                                            true
+                                                        }
+                                                    }
+                                                    Key.DirectionRight -> {
+                                                        try {
+                                                            searchBarFocusRequester.requestFocus()
+                                                            true
+                                                        } catch (_: Exception) { false }
+                                                    }
+                                                    else -> false
+                                                }
+                                            } else false
+                                        }
                                 ) {
                                     Text(
                                         text = cat.categoryName,
@@ -634,7 +702,40 @@ fun MoviesScreen(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             placeholder = "Search movies catalog...",
-                            modifier = Modifier.weight(1f)
+                            onMoveLeft = {
+                                try {
+                                    selectedCategoryFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
+                            },
+                            onMoveRight = {
+                                try {
+                                    visibleMovieFocusRequester.requestFocus()
+                                } catch (_: Exception) {
+                                    try {
+                                        firstMovieFocusRequester.requestFocus()
+                                    } catch (_: Exception) {
+                                        try {
+                                            focusManager.moveFocus(FocusDirection.Down)
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                            },
+                            onMoveDown = {
+                                try {
+                                    visibleMovieFocusRequester.requestFocus()
+                                } catch (_: Exception) {
+                                    try {
+                                        firstMovieFocusRequester.requestFocus()
+                                    } catch (_: Exception) {
+                                        try {
+                                            focusManager.moveFocus(FocusDirection.Down)
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(searchBarFocusRequester)
                         )
                     }
 
@@ -669,7 +770,7 @@ fun MoviesScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             modifier = Modifier.weight(1f).fillMaxWidth()
                         ) {
-                    items(sortedAndFilteredMovies, key = { it.streamId }) { movie ->
+                    itemsIndexed(sortedAndFilteredMovies, key = { _, movie -> movie.streamId }) { index, movie ->
                         val streamKey = "movie_${movie.streamId}"
                         val savedPos = authRepo.getPlaybackPosition(streamKey)
                         val savedDur = authRepo.getPlaybackDuration(streamKey)
@@ -680,30 +781,21 @@ fun MoviesScreen(
                                 try {
                                     keyboardController?.hide()
                                 } catch (_: Exception) {}
-                                if (searchQuery.isNotBlank()) {
-                                    val targetCatId = movie.categoryId?.ifBlank { null }
-                                    pendingFocusMovieId = movie.streamId
-                                    if (!targetCatId.isNullOrBlank()) {
-                                        selectCategory(targetCatId)
-                                    }
-                                    searchQuery = ""
+                                val currentPortal = authRepo.getVodPortalUrl()
+                                val currentUser = authRepo.getVodUsername()
+                                val currentPswd = authRepo.getVodPassword()
+                                val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
+                                val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
+                                val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
+                                val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
+                                lastPlayedMovieId = movie.streamId
+                                authRepo.setLastMovieStreamId(movie.streamId)
+                                authRepo.addMovieToHistory(movie.streamId)
+                                if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
+                                    resumePromptMovie = movie
                                 } else {
-                                    val currentPortal = authRepo.getVodPortalUrl()
-                                    val currentUser = authRepo.getVodUsername()
-                                    val currentPswd = authRepo.getVodPassword()
-                                    val currentSavedPos = authRepo.getPlaybackPosition(streamKey)
-                                    val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
-                                    val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
-                                    val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
-                                    lastPlayedMovieId = movie.streamId
-                                    authRepo.setLastMovieStreamId(movie.streamId)
-                                    authRepo.addMovieToHistory(movie.streamId)
-                                    if (currentSavedPos >= 5_000L && (currentSavedDur <= 0L || currentSavedPos < currentSavedDur - 15_000L)) {
-                                        resumePromptMovie = movie
-                                    } else {
-                                        // Automatic direct playback for new/unwatched movies
-                                        onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
-                                    }
+                                    // Automatic direct playback for new/unwatched movies
+                                    onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
                                 }
                             },
                             onLongClick = {
@@ -715,7 +807,22 @@ fun MoviesScreen(
                                     Toast.LENGTH_SHORT
                                 ).show()
                                 if (selectedCategoryId == "watchlist") {
+                                    val currentIdx = sortedAndFilteredMovies.indexOfFirst { it.streamId == movie.streamId }
+                                    val nextMovie = if (currentIdx >= 0 && sortedAndFilteredMovies.size > 1) {
+                                        if (currentIdx + 1 < sortedAndFilteredMovies.size) sortedAndFilteredMovies[currentIdx + 1]
+                                        else sortedAndFilteredMovies[currentIdx - 1]
+                                    } else null
                                     coroutineScope.launch {
+                                        if (nextMovie != null) {
+                                            pendingFocusMovieId = nextMovie.streamId
+                                        } else {
+                                            try {
+                                                selectedCategoryFocusRequester.requestFocus()
+                                            } catch (_: Exception) {
+                                                try { searchBarFocusRequester.requestFocus() } catch (_: Exception) {}
+                                            }
+                                        }
+                                        delay(50)
                                         movies = catalogManager.getWatchlistMovies()
                                     }
                                 }
@@ -727,7 +834,44 @@ fun MoviesScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .wrapContentHeight()
+                                .then(if (index == 0) Modifier.focusRequester(firstMovieFocusRequester) else Modifier)
+                                .then(if (index == gridState.firstVisibleItemIndex) Modifier.focusRequester(visibleMovieFocusRequester) else Modifier)
                                 .then(if (movie.streamId == effectiveFocusMovieId) Modifier.focusRequester(targetMovieFocusRequester) else Modifier)
+                                .onPreviewKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyDown) {
+                                        when (keyEvent.key) {
+                                            Key.DirectionLeft -> {
+                                                try {
+                                                    val moved = focusManager.moveFocus(FocusDirection.Left)
+                                                    if (!moved) {
+                                                        searchBarFocusRequester.requestFocus()
+                                                        true
+                                                    } else true
+                                                } catch (_: Exception) {
+                                                    try {
+                                                        searchBarFocusRequester.requestFocus()
+                                                        true
+                                                    } catch (_: Exception) { false }
+                                                }
+                                            }
+                                            Key.DirectionUp -> {
+                                                try {
+                                                    val moved = focusManager.moveFocus(FocusDirection.Up)
+                                                    if (!moved) {
+                                                        searchBarFocusRequester.requestFocus()
+                                                        true
+                                                    } else true
+                                                } catch (_: Exception) {
+                                                    try {
+                                                        searchBarFocusRequester.requestFocus()
+                                                        true
+                                                    } catch (_: Exception) { false }
+                                                }
+                                            }
+                                            else -> false
+                                        }
+                                    } else false
+                                }
                         ) {
                             if (movie.streamId == effectiveFocusMovieId) {
                                 LaunchedEffect(Unit) {

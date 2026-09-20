@@ -43,10 +43,16 @@ import com.tvdinner.ui.components.AccessRestrictedView
 import com.tvdinner.ui.components.AppSearchBar
 import com.tvdinner.ui.components.TvFocusableCard
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.lazy.LazyColumn
 import com.tvdinner.player.ExoPlayerManager
 import com.tvdinner.ui.components.UniversalIntegratedPreview
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalFocusManager
 import com.tvdinner.ui.theme.*
 import kotlinx.coroutines.delay
 
@@ -59,6 +65,8 @@ fun PodcastsScreen(
     onExpandPreview: () -> Unit = {},
     isPlayingFullscreen: Boolean = false,
     onOpenSettings: (() -> Unit)? = null,
+    onRequestFocusSidebar: (() -> Unit)? = null,
+    previewFocusRequester: FocusRequester? = null,
     targetEpisode: PodcastEpisode? = null,
     onTargetEpisodeConsumed: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -69,6 +77,12 @@ fun PodcastsScreen(
     val isAccessAllowed = activeUsername.isNotBlank() && activePassword.isNotBlank() && isCredentialsVerified
 
     val targetPodcastFocusRequester = remember { FocusRequester() }
+    val podcastsPreviewFocus = previewFocusRequester ?: remember { FocusRequester() }
+    val selectedCategoryFocusRequester = remember { FocusRequester() }
+    val searchBarFocusRequester = remember { FocusRequester() }
+    val firstContentFocusRequester = remember { FocusRequester() }
+    val visiblePodcastFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
 
     val categories = listOf(
         "🔥 Trending",
@@ -209,11 +223,17 @@ fun PodcastsScreen(
                 }
             }
             liveChannels = allChannels
+            selectedChannel = null
             if (allChannels.isNotEmpty()) {
-                selectedChannel = allChannels.first()
-                val eps = catalogManager.getPodcastEpisodesForChannel(allChannels.first())
-                mainFeedEpisodes = eps
-                liveEpisodes = eps
+                val allEpisodes = mutableListOf<PodcastEpisode>()
+                for (ch in allChannels.take(5)) {
+                    try {
+                        val eps = catalogManager.getPodcastEpisodesForChannel(ch)
+                        allEpisodes.addAll(eps.take(6))
+                    } catch (_: Exception) {}
+                }
+                mainFeedEpisodes = allEpisodes
+                liveEpisodes = allEpisodes
             } else {
                 mainFeedEpisodes = emptyList()
                 liveEpisodes = emptyList()
@@ -259,37 +279,34 @@ fun PodcastsScreen(
         }.collect { (total, last) ->
             if (total > 0 && last >= total - 8 && !isLoading && !isFetchingMore && canLoadMore) {
                 isFetchingMore = true
-                val nextPage = currentPage + 1
-                val nextBatch = if (selectedChannel != null) {
-                    catalogManager.getPodcastEpisodesForChannelNextPage(selectedChannel!!, page = nextPage)
-                } else {
-                    val queryParam = if (searchQuery.isNotBlank()) searchQuery else selectedCategory.replace(Regex("[^a-zA-Z &]"), "").trim()
-                    catalogManager.getLivePodcastEpisodesNextPage(queryParam, page = nextPage)
-                }
-                if (nextBatch.isNotEmpty()) {
-                    val currentIds = liveEpisodes.map { it.id }.toSet()
-                    val uniqueNew = nextBatch.filter { !currentIds.contains(it.id) }
-                    if (uniqueNew.isNotEmpty()) {
-                        liveEpisodes = liveEpisodes + uniqueNew
-                        currentPage = nextPage
+                var targetPage = currentPage + 1
+                var freshBatch = emptyList<PodcastEpisode>()
+                val currentIds = liveEpisodes.map { it.id }.toSet()
+
+                // Try up to 3 consecutive pages to find fresh, non-duplicate episodes
+                for (attempt in 0..2) {
+                    val nextBatch = if (selectedChannel != null) {
+                        catalogManager.getPodcastEpisodesForChannelNextPage(selectedChannel!!, page = targetPage)
                     } else {
-                        val fallbackPage = nextPage + 1
-                        val fallbackBatch = if (selectedChannel != null) {
-                            catalogManager.getPodcastEpisodesForChannelNextPage(selectedChannel!!, page = fallbackPage)
-                        } else {
-                            val queryParam = if (searchQuery.isNotBlank()) searchQuery else selectedCategory.replace(Regex("[^a-zA-Z &]"), "").trim()
-                            catalogManager.getLivePodcastEpisodesNextPage(queryParam, page = fallbackPage)
-                        }
-                        val uniqueFallback = fallbackBatch.filter { !currentIds.contains(it.id) }
-                        if (uniqueFallback.isNotEmpty()) {
-                            liveEpisodes = liveEpisodes + uniqueFallback
-                            currentPage = fallbackPage
-                        } else {
-                            canLoadMore = false
-                        }
+                        val queryParam = if (searchQuery.isNotBlank()) searchQuery else selectedCategory.replace(Regex("[^a-zA-Z &]"), "").trim()
+                        catalogManager.getLivePodcastEpisodesNextPage(queryParam, page = targetPage)
                     }
+                    val unique = nextBatch.filter { !currentIds.contains(it.id) }
+                    if (unique.isNotEmpty()) {
+                        freshBatch = unique
+                        break
+                    }
+                    targetPage++
+                }
+
+                if (freshBatch.isNotEmpty()) {
+                    liveEpisodes = liveEpisodes + freshBatch
+                    currentPage = targetPage
                 } else {
-                    canLoadMore = false
+                    currentPage = targetPage
+                    if (currentPage > 60) {
+                        canLoadMore = false
+                    }
                 }
                 isFetchingMore = false
             }
@@ -417,7 +434,20 @@ fun PodcastsScreen(
                                     onExpand = onExpandPreview,
                                     onClose = { playerManager.stop() },
                                     isPlayingFullscreen = isPlayingFullscreen,
-                                    modifier = Modifier.padding(bottom = 4.dp)
+                                    onMoveLeft = { onRequestFocusSidebar?.invoke() },
+                                    onMoveRight = {
+                                        try {
+                                            selectedCategoryFocusRequester.requestFocus()
+                                        } catch (_: Exception) {}
+                                    },
+                                    onMoveDown = {
+                                        try {
+                                            selectedCategoryFocusRequester.requestFocus()
+                                        } catch (_: Exception) {}
+                                    },
+                                    modifier = Modifier
+                                        .padding(bottom = 4.dp)
+                                        .focusRequester(podcastsPreviewFocus)
                                 )
                             }
 
@@ -431,10 +461,16 @@ fun PodcastsScreen(
 
                             LazyColumn(
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.weight(1f).fillMaxWidth()
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .focusProperties {
+                                        up = FocusRequester.Cancel
+                                    }
                             ) {
-                                items(categories) { cat ->
+                                itemsIndexed(categories) { catIndex, cat ->
                                     val isSelected = (searchQuery.isBlank() && selectedChannel == null && selectedCategory == cat)
+                                    val isFirstCat = catIndex == 0
                                     TvFocusableCard(
                                         onClick = {
                                             selectedChannel = null
@@ -445,7 +481,38 @@ fun PodcastsScreen(
                                         backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
                                         focusedBorderColor = CinemaFocus,
                                         focusedScale = 1.04f,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .focusProperties {
+                                                if (isFirstCat || catIndex == 0) {
+                                                    up = FocusRequester.Cancel
+                                                }
+                                            }
+                                            .then(if (isSelected || (searchQuery.isBlank() && selectedChannel == null && isFirstCat)) Modifier.focusRequester(selectedCategoryFocusRequester) else Modifier)
+                                            .onPreviewKeyEvent { keyEvent ->
+                                                if (keyEvent.key == Key.DirectionUp && (isFirstCat || catIndex == 0)) {
+                                                    true
+                                                } else if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    when (keyEvent.key) {
+                                                        Key.DirectionLeft -> {
+                                                            try {
+                                                                podcastsPreviewFocus.requestFocus()
+                                                                true
+                                                            } catch (_: Exception) {
+                                                                onRequestFocusSidebar?.invoke()
+                                                                true
+                                                            }
+                                                        }
+                                                        Key.DirectionRight -> {
+                                                            try {
+                                                                searchBarFocusRequester.requestFocus()
+                                                                true
+                                                            } catch (_: Exception) { false }
+                                                        }
+                                                        else -> false
+                                                    }
+                                                } else false
+                                            }
                                     ) {
                                         Text(
                                             text = cat,
@@ -510,7 +577,40 @@ fun PodcastsScreen(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
                                 placeholder = "Search podcast channels & shows...",
-                                modifier = Modifier.weight(1f)
+                                onMoveLeft = {
+                                    try {
+                                        selectedCategoryFocusRequester.requestFocus()
+                                    } catch (_: Exception) {}
+                                },
+                                onMoveRight = {
+                                    try {
+                                        visiblePodcastFocusRequester.requestFocus()
+                                    } catch (_: Exception) {
+                                        try {
+                                            firstContentFocusRequester.requestFocus()
+                                        } catch (_: Exception) {
+                                            try {
+                                                focusManager.moveFocus(FocusDirection.Down)
+                                            } catch (_: Exception) {}
+                                        }
+                                    }
+                                },
+                                onMoveDown = {
+                                    try {
+                                        visiblePodcastFocusRequester.requestFocus()
+                                    } catch (_: Exception) {
+                                        try {
+                                            firstContentFocusRequester.requestFocus()
+                                        } catch (_: Exception) {
+                                            try {
+                                                focusManager.moveFocus(FocusDirection.Down)
+                                            } catch (_: Exception) {}
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(searchBarFocusRequester)
                             )
                         }
 
@@ -527,6 +627,9 @@ fun PodcastsScreen(
                             selectedCategory = selectedCategory,
                             targetEpisode = targetEpisode,
                             targetPodcastFocusRequester = targetPodcastFocusRequester,
+                            firstContentFocusRequester = firstContentFocusRequester,
+                            visiblePodcastFocusRequester = visiblePodcastFocusRequester,
+                            searchBarFocusRequester = searchBarFocusRequester,
                             onBackToAllShows = { selectedChannel = null },
                             onToggleSubscription = { id ->
                                 authRepo.togglePodcastSubscription(id)
@@ -558,6 +661,9 @@ private fun PodcastContentList(
     selectedCategory: String,
     targetEpisode: PodcastEpisode?,
     targetPodcastFocusRequester: FocusRequester,
+    firstContentFocusRequester: FocusRequester? = null,
+    visiblePodcastFocusRequester: FocusRequester? = null,
+    searchBarFocusRequester: FocusRequester? = null,
     onBackToAllShows: () -> Unit,
     onToggleSubscription: (String) -> Unit,
     onSelectChannel: (PodcastChannel) -> Unit,
@@ -565,6 +671,18 @@ private fun PodcastContentList(
     onPlayEpisodeAtIndex: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val focusManager = LocalFocusManager.current
+    val channelHeaderFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(selectedChannel) {
+        if (selectedChannel != null) {
+            delay(100)
+            try {
+                channelHeaderFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(if (isMobile) 8.dp else 12.dp)
@@ -597,7 +715,8 @@ private fun PodcastContentList(
                         onClick = onBackToAllShows,
                         shape = RoundedCornerShape(8.dp),
                         backgroundColor = CinemaSurfaceVariant,
-                        focusedBorderColor = CinemaFocus
+                        focusedBorderColor = CinemaFocus,
+                        modifier = Modifier.focusRequester(channelHeaderFocusRequester)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -673,7 +792,7 @@ private fun PodcastContentList(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(liveChannels, key = { it.id }) { ch ->
+                itemsIndexed(liveChannels, key = { _, it -> it.id }) { chIdx, ch ->
                     val isSelected = selectedChannel?.id == ch.id
                     val isSubscribed = subscribedIds.contains(ch.id)
                     TvFocusableCard(
@@ -682,7 +801,27 @@ private fun PodcastContentList(
                         backgroundColor = if (isSelected) CinemaSurfaceLight else CinemaSurface,
                         focusedBorderColor = CinemaFocus,
                         focusedScale = 1.04f,
-                        modifier = Modifier.width(240.dp).height(68.dp)
+                        modifier = Modifier
+                            .width(240.dp)
+                            .height(68.dp)
+                            .then(if (chIdx == 0 && firstContentFocusRequester != null) Modifier.focusRequester(firstContentFocusRequester) else Modifier)
+                            .onPreviewKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                    when (keyEvent.key) {
+                                        Key.DirectionUp -> {
+                                            searchBarFocusRequester?.requestFocus()
+                                            true
+                                        }
+                                        Key.DirectionLeft -> {
+                                            if (chIdx == 0) {
+                                                searchBarFocusRequester?.requestFocus()
+                                                true
+                                            } else false
+                                        }
+                                        else -> false
+                                    }
+                                } else false
+                            }
                     ) {
                         Row(
                             modifier = Modifier.fillMaxSize().padding(8.dp),
@@ -755,10 +894,11 @@ private fun PodcastContentList(
                 horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 12.dp),
                 modifier = Modifier.weight(1f).fillMaxWidth()
             ) {
-                items(liveEpisodes, key = { it.id }) { ep ->
-                    val idx = liveEpisodes.indexOfFirst { it.id == ep.id }
+                itemsIndexed(liveEpisodes, key = { _, it -> it.id }) { index, ep ->
+                    val idx = index
                     TvFocusableCard(
                         onClick = { onPlayEpisodeAtIndex(if (idx >= 0) idx else 0) },
+                        onLongClick = { onNavigateToEpisodeChannel(ep) },
                         shape = RoundedCornerShape(12.dp),
                         backgroundColor = CinemaSurface,
                         focusedBorderColor = CinemaFocus,
@@ -766,7 +906,44 @@ private fun PodcastContentList(
                         modifier = Modifier
                             .fillMaxWidth()
                             .wrapContentHeight()
+                            .then(if (index == 0 && liveChannels.isEmpty() && selectedChannel == null && firstContentFocusRequester != null) Modifier.focusRequester(firstContentFocusRequester) else Modifier)
+                            .then(if (index == gridState.firstVisibleItemIndex && visiblePodcastFocusRequester != null) Modifier.focusRequester(visiblePodcastFocusRequester) else Modifier)
                             .then(if (ep.videoId == targetEpisode?.videoId) Modifier.focusRequester(targetPodcastFocusRequester) else Modifier)
+                            .onPreviewKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                    when (keyEvent.key) {
+                                        Key.DirectionLeft -> {
+                                            try {
+                                                val moved = focusManager.moveFocus(FocusDirection.Left)
+                                                if (!moved && searchBarFocusRequester != null) {
+                                                    searchBarFocusRequester.requestFocus()
+                                                    true
+                                                } else true
+                                            } catch (_: Exception) {
+                                                try {
+                                                    searchBarFocusRequester?.requestFocus()
+                                                    true
+                                                } catch (_: Exception) { false }
+                                            }
+                                        }
+                                        Key.DirectionUp -> {
+                                            try {
+                                                val moved = focusManager.moveFocus(FocusDirection.Up)
+                                                if (!moved && searchBarFocusRequester != null) {
+                                                    searchBarFocusRequester.requestFocus()
+                                                    true
+                                                } else true
+                                            } catch (_: Exception) {
+                                                try {
+                                                    searchBarFocusRequester?.requestFocus()
+                                                    true
+                                                } catch (_: Exception) { false }
+                                            }
+                                        }
+                                        else -> false
+                                    }
+                                } else false
+                            }
                     ) {
                         Column {
                             // 16:9 Thumbnail

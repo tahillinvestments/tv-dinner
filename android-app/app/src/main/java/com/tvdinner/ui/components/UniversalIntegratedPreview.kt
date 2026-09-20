@@ -32,7 +32,11 @@ fun UniversalIntegratedPreview(
     isPlayingFullscreen: Boolean = false,
     activeYouTubeVideoId: String? = null,
     activeYouTubeTitle: String? = null,
-    onCloseYouTube: (() -> Unit)? = null
+    onCloseYouTube: (() -> Unit)? = null,
+    onMoveLeft: (() -> Unit)? = null,
+    onMoveRight: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
+    onMoveUp: (() -> Unit)? = null
 ) {
     val isPlaying by playerManager.isPlaying.collectAsState()
     val isBuffering by playerManager.isBuffering.collectAsState()
@@ -65,28 +69,48 @@ fun UniversalIntegratedPreview(
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     when (keyEvent.key) {
                         Key.DirectionDown -> {
-                            try {
-                                focusManager.moveFocus(FocusDirection.Down)
+                            if (onMoveDown != null) {
+                                onMoveDown()
                                 true
-                            } catch (_: Exception) { false }
+                            } else {
+                                try {
+                                    focusManager.moveFocus(FocusDirection.Down)
+                                    true
+                                } catch (_: Exception) { false }
+                            }
                         }
                         Key.DirectionRight -> {
-                            try {
-                                focusManager.moveFocus(FocusDirection.Right)
+                            if (onMoveRight != null) {
+                                onMoveRight()
                                 true
-                            } catch (_: Exception) { false }
+                            } else {
+                                try {
+                                    focusManager.moveFocus(FocusDirection.Right)
+                                    true
+                                } catch (_: Exception) { false }
+                            }
                         }
                         Key.DirectionLeft -> {
-                            try {
-                                focusManager.moveFocus(FocusDirection.Left)
+                            if (onMoveLeft != null) {
+                                onMoveLeft()
                                 true
-                            } catch (_: Exception) { false }
+                            } else {
+                                try {
+                                    focusManager.moveFocus(FocusDirection.Left)
+                                    true
+                                } catch (_: Exception) { false }
+                            }
                         }
                         Key.DirectionUp -> {
-                            try {
-                                focusManager.moveFocus(FocusDirection.Up)
+                            if (onMoveUp != null) {
+                                onMoveUp()
                                 true
-                            } catch (_: Exception) { false }
+                            } else {
+                                try {
+                                    focusManager.moveFocus(FocusDirection.Up)
+                                    true
+                                } catch (_: Exception) { false }
+                            }
                         }
                         Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
                             onExpand()
@@ -163,36 +187,6 @@ fun UniversalIntegratedPreview(
                 }
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black))
-            }
-
-            // Non-intrusive Buffering Card: visible when actively buffering a native stream
-            if (isBuffering && (isNativeActive || currentStreamUrl.isNotBlank())) {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color.Black.copy(alpha = 0.75f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaAccent.copy(alpha = 0.6f)),
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            color = CinemaAccent,
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Text(
-                            text = "Buffering...",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
             }
         }
     }

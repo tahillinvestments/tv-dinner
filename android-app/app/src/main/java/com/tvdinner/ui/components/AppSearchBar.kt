@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -45,6 +46,7 @@ import com.tvdinner.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun AppSearchBar(
     value: String,
@@ -61,9 +63,12 @@ fun AppSearchBar(
     val focusManager = LocalFocusManager.current
     val textFieldFocusRequester = remember { FocusRequester() }
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var isEditing by remember { mutableStateOf(false) }
     var isCardFocused by remember { mutableStateOf(false) }
+    var isLongPressHandled by remember { mutableStateOf(false) }
+    var isKeyDownOnSearch by remember { mutableStateOf(false) }
 
     val isPreSelectFocused = isCardFocused && !isEditing
 
@@ -155,33 +160,57 @@ fun AppSearchBar(
                                   code == android.view.KeyEvent.KEYCODE_ENTER ||
                                   code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
                 if (!isEditing && isSelectKey) {
-                    if (keyEvent.type == KeyEventType.KeyUp) {
-                        isEditing = true
-                        coroutineScope.launch {
-                            delay(50)
-                            try {
-                                textFieldFocusRequester.requestFocus()
-                                keyboardController?.show()
-                            } catch (_: Exception) {}
+                    if (keyEvent.type == KeyEventType.KeyDown) {
+                        if (keyEvent.nativeKeyEvent.repeatCount >= 1 || keyEvent.nativeKeyEvent.isLongPress) {
+                            if (!isLongPressHandled) {
+                                isLongPressHandled = true
+                                onValueChange("")
+                                android.widget.Toast.makeText(context, "Search cleared", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                            return@onKeyEvent true
+                        }
+                        isKeyDownOnSearch = true
+                        return@onKeyEvent true
+                    } else if (keyEvent.type == KeyEventType.KeyUp) {
+                        if (isLongPressHandled) {
+                            isLongPressHandled = false
+                            isKeyDownOnSearch = false
+                            return@onKeyEvent true
+                        }
+                        if (isKeyDownOnSearch) {
+                            isKeyDownOnSearch = false
+                            isEditing = true
+                            coroutineScope.launch {
+                                delay(50)
+                                try {
+                                    textFieldFocusRequester.requestFocus()
+                                    keyboardController?.show()
+                                } catch (_: Exception) {}
+                            }
+                            return@onKeyEvent true
                         }
                     }
-                    return@onKeyEvent true
                 }
                 false
             }
-            .clickable(
+            .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                isEditing = true
-                coroutineScope.launch {
-                    delay(50)
-                    try {
-                        textFieldFocusRequester.requestFocus()
-                        keyboardController?.show()
-                    } catch (_: Exception) {}
+                indication = null,
+                onClick = {
+                    isEditing = true
+                    coroutineScope.launch {
+                        delay(50)
+                        try {
+                            textFieldFocusRequester.requestFocus()
+                            keyboardController?.show()
+                        } catch (_: Exception) {}
+                    }
+                },
+                onLongClick = {
+                    onValueChange("")
+                    android.widget.Toast.makeText(context, "Search cleared", android.widget.Toast.LENGTH_SHORT).show()
                 }
-            }
+            )
     ) {
         Icon(
             imageVector = Icons.Default.Search,
@@ -198,7 +227,7 @@ fun AppSearchBar(
                 modifier = Modifier.padding(end = 8.dp)
             ) {
                 Text(
-                    text = "PRESS OK TO SEARCH",
+                    text = if (value.isNotEmpty()) "OK: SEARCH • HOLD: CLEAR" else "PRESS OK TO SEARCH",
                     color = Color.Black,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Black,

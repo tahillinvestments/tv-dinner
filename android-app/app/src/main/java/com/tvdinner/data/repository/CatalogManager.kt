@@ -38,6 +38,7 @@ class CatalogManager(
     private val cachedEpgByStreamId = java.util.concurrent.ConcurrentHashMap<Int, String>()
     private val cachedFullEpgByStreamId = java.util.concurrent.ConcurrentHashMap<Int, ShortEpgResponse>()
 
+
     fun parseEpgEpoch(rawTimestamp: String?, rawDateStr: String?): Long? {
         val num = rawTimestamp?.toLongOrNull() ?: rawDateStr?.toLongOrNull()
         if (num != null) {
@@ -46,20 +47,9 @@ class CatalogManager(
         }
         val str = rawDateStr?.trim() ?: rawTimestamp?.trim() ?: return null
         if (str.isBlank()) return null
-        val patterns = arrayOf(
-            "yyyy-MM-dd HH:mm:ss",
-            "yyyy-MM-dd'T'HH:mm:ss",
-            "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-            "yyyy-MM-dd'T'HH:mm:ssXXX",
-            "yyyyMMddHHmmss",
-            "yyyyMMddHHmmss Z"
-        )
-        for (p in patterns) {
+        val parsers = epgDateParsers.get() ?: return null
+        for (sdf in parsers) {
             try {
-                val sdf = java.text.SimpleDateFormat(p, java.util.Locale.US).apply {
-                    timeZone = java.util.TimeZone.getTimeZone("UTC")
-                }
                 val d = sdf.parse(str)
                 if (d != null) return d.time / 1000L
             } catch (_: Exception) {}
@@ -289,6 +279,24 @@ class CatalogManager(
     private val cachedPodcastEpisodesByCat = mutableMapOf<String, List<PodcastEpisode>>()
 
     companion object {
+        private val EPG_PATTERNS = arrayOf(
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyyMMddHHmmss",
+            "yyyyMMddHHmmss Z"
+        )
+
+        private val epgDateParsers = ThreadLocal.withInitial {
+            EPG_PATTERNS.map { p ->
+                java.text.SimpleDateFormat(p, java.util.Locale.US).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }
+            }
+        }
+
         fun cleanChannelName(name: String): String {
             return name
                 .replace(Regex("""^\s*\|?\s*[A-Z]{2,4}\s*\|\s*""", RegexOption.IGNORE_CASE), "")

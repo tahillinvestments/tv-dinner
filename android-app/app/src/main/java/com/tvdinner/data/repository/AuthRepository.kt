@@ -43,13 +43,13 @@ class AuthRepository(context: Context) {
     private val _isMusicPodcastsCaptionsEnabled = kotlinx.coroutines.flow.MutableStateFlow(prefs.getBoolean("music_podcasts_captions_enabled", true))
     val isMusicPodcastsCaptionsEnabledState: kotlinx.coroutines.flow.StateFlow<Boolean> = _isMusicPodcastsCaptionsEnabled
 
-    private val _appTheme = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString("app_theme", "light") ?: "light")
+    private val _appTheme = kotlinx.coroutines.flow.MutableStateFlow(prefs.getString("app_theme", "bento") ?: "bento")
     val appThemeState: kotlinx.coroutines.flow.StateFlow<String> = _appTheme
 
     private val _isPersistentPreviewEnabled = kotlinx.coroutines.flow.MutableStateFlow(true)
     val isPersistentPreviewEnabledState: kotlinx.coroutines.flow.StateFlow<Boolean> = _isPersistentPreviewEnabled
 
-    fun getAppTheme(): String = prefs.getString("app_theme", "light") ?: "light"
+    fun getAppTheme(): String = prefs.getString("app_theme", "bento") ?: "bento"
 
     fun setAppTheme(theme: String) {
         prefs.edit().putString("app_theme", theme).apply()
@@ -294,11 +294,23 @@ class AuthRepository(context: Context) {
         return rawSet.mapNotNull { it.toIntOrNull() }.toSet()
     }
 
+    private var lastMovieWatchlistToggleTime = 0L
+    private var lastMovieWatchlistToggleId = -1
+    private var lastMovieWatchlistResult = false
+
+    private var lastSeriesWatchlistToggleTime = 0L
+    private var lastSeriesWatchlistToggleId = -1
+    private var lastSeriesWatchlistResult = false
+
     fun isMovieInWatchlist(streamId: Int): Boolean {
         return getMovieWatchlistIds().contains(streamId)
     }
 
     fun toggleMovieWatchlist(streamId: Int): Boolean {
+        val now = System.currentTimeMillis()
+        if (streamId == lastMovieWatchlistToggleId && now - lastMovieWatchlistToggleTime < 600L) {
+            return lastMovieWatchlistResult
+        }
         val current = getMovieWatchlistIds().toMutableSet()
         val willAdd = !current.contains(streamId)
         if (willAdd) {
@@ -307,6 +319,9 @@ class AuthRepository(context: Context) {
             current.remove(streamId)
         }
         prefs.edit().putStringSet("movie_watchlist", current.map { it.toString() }.toSet()).apply()
+        lastMovieWatchlistToggleTime = now
+        lastMovieWatchlistToggleId = streamId
+        lastMovieWatchlistResult = willAdd
         return willAdd
     }
 
@@ -321,6 +336,10 @@ class AuthRepository(context: Context) {
     }
 
     fun toggleSeriesWatchlist(seriesId: Int): Boolean {
+        val now = System.currentTimeMillis()
+        if (seriesId == lastSeriesWatchlistToggleId && now - lastSeriesWatchlistToggleTime < 600L) {
+            return lastSeriesWatchlistResult
+        }
         val current = getSeriesWatchlistIds().toMutableSet()
         val willAdd = !current.contains(seriesId)
         if (willAdd) {
@@ -329,6 +348,9 @@ class AuthRepository(context: Context) {
             current.remove(seriesId)
         }
         prefs.edit().putStringSet("series_watchlist", current.map { it.toString() }.toSet()).apply()
+        lastSeriesWatchlistToggleTime = now
+        lastSeriesWatchlistToggleId = seriesId
+        lastSeriesWatchlistResult = willAdd
         return willAdd
     }
 

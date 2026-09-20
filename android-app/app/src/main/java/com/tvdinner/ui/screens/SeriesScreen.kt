@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +56,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.input.key.*
 import com.tvdinner.player.ExoPlayerManager
 import com.tvdinner.ui.components.UniversalIntegratedPreview
 
@@ -77,6 +82,8 @@ fun SeriesScreen(
     onExpandPreview: () -> Unit = {},
     isPlayingFullscreen: Boolean = false,
     onOpenSettings: (() -> Unit)? = null,
+    onRequestFocusSidebar: (() -> Unit)? = null,
+    previewFocusRequester: FocusRequester? = null,
     targetSeriesId: Int? = null,
     targetCategoryId: String? = null,
     onTargetSeriesConsumed: () -> Unit = {},
@@ -142,6 +149,11 @@ fun SeriesScreen(
     var pendingFocusSeriesId by remember { mutableStateOf<Int?>(null) }
     val effectiveFocusSeriesId = targetSeriesId ?: pendingFocusSeriesId
     val targetSeriesFocusRequester = remember { FocusRequester() }
+    val seriesPreviewFocus = previewFocusRequester ?: remember { FocusRequester() }
+    val selectedCategoryFocusRequester = remember { FocusRequester() }
+    val searchBarFocusRequester = remember { FocusRequester() }
+    val firstSeriesFocusRequester = remember { FocusRequester() }
+    val visibleSeriesFocusRequester = remember { FocusRequester() }
 
     // Deep navigation: switch category if needed and scroll/focus target series
     LaunchedEffect(targetSeriesId, targetCategoryId) {
@@ -402,18 +414,9 @@ fun SeriesScreen(
                                     try {
                                         keyboardController?.hide()
                                     } catch (_: Exception) {}
-                                    if (searchQuery.isNotBlank()) {
-                                        val targetCatId = series.categoryId?.ifBlank { null }
-                                        pendingFocusSeriesId = series.seriesId
-                                        if (!targetCatId.isNullOrBlank()) {
-                                            selectCategory(targetCatId)
-                                        }
-                                        searchQuery = ""
-                                    } else {
-                                        selectedSeries = series
-                                        lastSelectedSeriesId = series.seriesId
-                                        authRepo.setLastSeriesId(series.seriesId)
-                                    }
+                                    selectedSeries = series
+                                    lastSelectedSeriesId = series.seriesId
+                                    authRepo.setLastSeriesId(series.seriesId)
                                 },
                                 onLongClick = {
                                     val added = authRepo.toggleSeriesWatchlist(series.seriesId)
@@ -424,8 +427,23 @@ fun SeriesScreen(
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     if (selectedCategoryId == "watchlist") {
+                                        val currentIdx = sortedAndFilteredSeries.indexOfFirst { it.seriesId == series.seriesId }
+                                        val nextSeries = if (currentIdx >= 0 && sortedAndFilteredSeries.size > 1) {
+                                            if (currentIdx + 1 < sortedAndFilteredSeries.size) sortedAndFilteredSeries[currentIdx + 1]
+                                            else sortedAndFilteredSeries[currentIdx - 1]
+                                        } else null
                                         coroutineScope.launch {
                                             seriesList = catalogManager.getWatchlistSeries()
+                                            if (nextSeries != null) {
+                                                pendingFocusSeriesId = nextSeries.seriesId
+                                            } else {
+                                                delay(60)
+                                                try {
+                                                    selectedCategoryFocusRequester.requestFocus()
+                                                } catch (_: Exception) {
+                                                    try { searchBarFocusRequester.requestFocus() } catch (_: Exception) {}
+                                                }
+                                            }
                                         }
                                     }
                                 },
@@ -562,7 +580,20 @@ fun SeriesScreen(
                             onExpand = onExpandPreview,
                             onClose = { playerManager.stop() },
                             isPlayingFullscreen = isPlayingFullscreen,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            onMoveLeft = { onRequestFocusSidebar?.invoke() },
+                            onMoveRight = {
+                                try {
+                                    selectedCategoryFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
+                            },
+                            onMoveDown = {
+                                try {
+                                    selectedCategoryFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
+                            },
+                            modifier = Modifier
+                                .padding(bottom = 4.dp)
+                                .focusRequester(seriesPreviewFocus)
                         )
 
                         Text(
@@ -576,17 +607,54 @@ fun SeriesScreen(
                         LazyColumn(
                             state = categoryListState,
                             verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.weight(1f).fillMaxWidth()
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .focusProperties {
+                                    up = FocusRequester.Cancel
+                                }
                         ) {
-                            items(categories, key = { it.categoryId }) { cat ->
+                            itemsIndexed(categories, key = { _, cat -> cat.categoryId }) { catIndex, cat ->
                                 val isSelected = selectedCategoryId == cat.categoryId
+                                val isFirstCat = catIndex == 0
                                 TvFocusableCard(
                                     onClick = { selectCategory(cat.categoryId) },
                                     shape = RoundedCornerShape(10.dp),
                                     backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
                                     focusedBorderColor = CinemaFocus,
                                     focusedScale = 1.04f,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusProperties {
+                                            if (isFirstCat || catIndex == 0) {
+                                                up = FocusRequester.Cancel
+                                            }
+                                        }
+                                        .then(if (isSelected || (selectedCategoryId == null && isFirstCat)) Modifier.focusRequester(selectedCategoryFocusRequester) else Modifier)
+                                        .onPreviewKeyEvent { keyEvent ->
+                                            if (keyEvent.key == Key.DirectionUp && (isFirstCat || catIndex == 0)) {
+                                                true
+                                            } else if (keyEvent.type == KeyEventType.KeyDown) {
+                                                when (keyEvent.key) {
+                                                    Key.DirectionLeft -> {
+                                                        try {
+                                                            seriesPreviewFocus.requestFocus()
+                                                            true
+                                                        } catch (_: Exception) {
+                                                            onRequestFocusSidebar?.invoke()
+                                                            true
+                                                        }
+                                                    }
+                                                    Key.DirectionRight -> {
+                                                        try {
+                                                            searchBarFocusRequester.requestFocus()
+                                                            true
+                                                        } catch (_: Exception) { false }
+                                                    }
+                                                    else -> false
+                                                }
+                                            } else false
+                                        }
                                 ) {
                                     Text(
                                         text = cat.categoryName,
@@ -628,7 +696,40 @@ fun SeriesScreen(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             placeholder = "Search series catalog...",
-                            modifier = Modifier.weight(1f)
+                            onMoveLeft = {
+                                try {
+                                    selectedCategoryFocusRequester.requestFocus()
+                                } catch (_: Exception) {}
+                            },
+                            onMoveRight = {
+                                try {
+                                    visibleSeriesFocusRequester.requestFocus()
+                                } catch (_: Exception) {
+                                    try {
+                                        firstSeriesFocusRequester.requestFocus()
+                                    } catch (_: Exception) {
+                                        try {
+                                            focusManager.moveFocus(FocusDirection.Down)
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                            },
+                            onMoveDown = {
+                                try {
+                                    visibleSeriesFocusRequester.requestFocus()
+                                } catch (_: Exception) {
+                                    try {
+                                        firstSeriesFocusRequester.requestFocus()
+                                    } catch (_: Exception) {
+                                        try {
+                                            focusManager.moveFocus(FocusDirection.Down)
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(searchBarFocusRequester)
                         )
                     }
 
@@ -663,24 +764,15 @@ fun SeriesScreen(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
                             modifier = Modifier.weight(1f).fillMaxWidth()
                         ) {
-                            items(sortedAndFilteredSeries, key = { it.seriesId }) { series ->
+                            itemsIndexed(sortedAndFilteredSeries, key = { _, series -> series.seriesId }) { index, series ->
                                 TvFocusableCard(
                                     onClick = {
                                         try {
                                             keyboardController?.hide()
                                         } catch (_: Exception) {}
-                                        if (searchQuery.isNotBlank()) {
-                                            val targetCatId = series.categoryId?.ifBlank { null }
-                                            pendingFocusSeriesId = series.seriesId
-                                            if (!targetCatId.isNullOrBlank()) {
-                                                selectCategory(targetCatId)
-                                            }
-                                            searchQuery = ""
-                                        } else {
-                                            selectedSeries = series
-                                            lastSelectedSeriesId = series.seriesId
-                                            authRepo.setLastSeriesId(series.seriesId)
-                                        }
+                                        selectedSeries = series
+                                        lastSelectedSeriesId = series.seriesId
+                                        authRepo.setLastSeriesId(series.seriesId)
                                     },
                                     onLongClick = {
                                         val added = authRepo.toggleSeriesWatchlist(series.seriesId)
@@ -691,7 +783,22 @@ fun SeriesScreen(
                                             Toast.LENGTH_SHORT
                                         ).show()
                                         if (selectedCategoryId == "watchlist") {
+                                            val currentIdx = sortedAndFilteredSeries.indexOfFirst { it.seriesId == series.seriesId }
+                                            val nextSeries = if (currentIdx >= 0 && sortedAndFilteredSeries.size > 1) {
+                                                if (currentIdx + 1 < sortedAndFilteredSeries.size) sortedAndFilteredSeries[currentIdx + 1]
+                                                else sortedAndFilteredSeries[currentIdx - 1]
+                                            } else null
                                             coroutineScope.launch {
+                                                if (nextSeries != null) {
+                                                    pendingFocusSeriesId = nextSeries.seriesId
+                                                } else {
+                                                    try {
+                                                        selectedCategoryFocusRequester.requestFocus()
+                                                    } catch (_: Exception) {
+                                                        try { searchBarFocusRequester.requestFocus() } catch (_: Exception) {}
+                                                    }
+                                                }
+                                                delay(50)
                                                 seriesList = catalogManager.getWatchlistSeries()
                                             }
                                         }
@@ -703,7 +810,44 @@ fun SeriesScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .wrapContentHeight()
+                                        .then(if (index == 0) Modifier.focusRequester(firstSeriesFocusRequester) else Modifier)
+                                        .then(if (index == gridState.firstVisibleItemIndex) Modifier.focusRequester(visibleSeriesFocusRequester) else Modifier)
                                         .then(if (series.seriesId == effectiveFocusSeriesId) Modifier.focusRequester(targetSeriesFocusRequester) else Modifier)
+                                        .onPreviewKeyEvent { keyEvent ->
+                                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                                when (keyEvent.key) {
+                                                    Key.DirectionLeft -> {
+                                                        try {
+                                                            val moved = focusManager.moveFocus(FocusDirection.Left)
+                                                            if (!moved) {
+                                                                searchBarFocusRequester.requestFocus()
+                                                                true
+                                                            } else true
+                                                        } catch (_: Exception) {
+                                                            try {
+                                                                searchBarFocusRequester.requestFocus()
+                                                                true
+                                                            } catch (_: Exception) { false }
+                                                        }
+                                                    }
+                                                    Key.DirectionUp -> {
+                                                        try {
+                                                            val moved = focusManager.moveFocus(FocusDirection.Up)
+                                                            if (!moved) {
+                                                                searchBarFocusRequester.requestFocus()
+                                                                true
+                                                            } else true
+                                                        } catch (_: Exception) {
+                                                            try {
+                                                                searchBarFocusRequester.requestFocus()
+                                                                true
+                                                            } catch (_: Exception) { false }
+                                                        }
+                                                    }
+                                                    else -> false
+                                                }
+                                            } else false
+                                        }
                                 ) {
                                     if (series.seriesId == effectiveFocusSeriesId) {
                                         LaunchedEffect(Unit) {
