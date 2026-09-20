@@ -134,17 +134,11 @@ fun MainAppScreen(
 
     fun switchTab(newTab: AppTab) {
         if (activeTab != newTab) {
-            val wasNativeTab = activeTab in listOf(AppTab.LIVE, AppTab.MOVIES, AppTab.SERIES)
-            val isNowYouTubeTab = newTab in listOf(AppTab.MUSIC, AppTab.PODCASTS)
-
-            // When switching from a native (ExoPlayer) tab to a YouTube tab:
-            // stop ExoPlayer so the preview doesn't display a stale native stream on the YouTube tab
-            if (wasNativeTab && isNowYouTubeTab && playerManager.currentStreamUrl.value.isNotBlank()) {
+            val isPersistent = authRepo.isPersistentPreviewEnabled()
+            if (!isPersistent) {
                 playerManager.stop()
+                playerManager.clearYouTubeMedia()
             }
-            // NOTE: We intentionally do NOT clear YouTube media on tab switch.
-            // This allows YouTube audio to persist and be visible in the preview
-            // even when browsing Movies/Series, ensuring seamless cross-tab continuity.
 
             fullscreenYouTube = null
             fullscreenMedia = null
@@ -298,6 +292,7 @@ fun MainAppScreen(
                                         playerManager = playerManager,
                                         isFullscreen = isLiveTvFullscreen,
                                         onToggleFullscreen = { isLiveTvFullscreen = it },
+                                        onExpandPreview = expandCurrentMedia,
                                         contentFocusRequester = liveContentFocusRequester,
                                         onRequestFocusSidebar = {
                                             try {
@@ -458,6 +453,7 @@ fun MainAppScreen(
                                         playerManager = playerManager,
                                         isFullscreen = isLiveTvFullscreen,
                                         onToggleFullscreen = { isLiveTvFullscreen = it },
+                                        onExpandPreview = expandCurrentMedia,
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) },
                                         targetChannelId = targetChannelId,
                                         targetCategoryId = targetLiveCategoryId,

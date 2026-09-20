@@ -166,12 +166,6 @@ fun NativePlayerView(
 
                             if (keyEvent.type == KeyEventType.KeyUp) {
                                 if (isSelectKey) {
-                                    val isRecentMount = (System.currentTimeMillis() - mountTimestamp) < 1000L
-                                    if (!centerKeyDownReceived || isRecentMount) {
-                                        // Stray KeyUp leaked from prior screen or card click: consume and ignore
-                                        centerKeyDownReceived = false
-                                        return@onKeyEvent true
-                                    }
                                     centerKeyDownReceived = false
                                     if (!isBuffering) {
                                         playerManager.togglePlayPause()

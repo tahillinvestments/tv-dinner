@@ -271,11 +271,11 @@ fun YouTubePlayerView(
 
     DisposableEffect(Unit) {
         onDispose {
-            webViewInstance?.let { wv ->
-                try {
-                    (wv.parent as? ViewGroup)?.removeView(wv)
-                } catch (_: Exception) {}
-            }
+            // Intentionally do NOT call removeView(wv) on the shared singleton YouTubeRemoteBridge.activeWebView.
+            // When transitioning between preview and fullscreen or across tabs, the incoming container's
+            // factory safely reparents existingWv using (existingWv.parent as? ViewGroup)?.removeView(existingWv).
+            // Detaching here would trigger a race condition where the outgoing view's onDispose detaches
+            // the WebView from the newly mounted container, resulting in a black preview window.
         }
     }
 
@@ -330,32 +330,32 @@ fun YouTubePlayerView(
         AndroidView<WebView>(
             factory = { context ->
                 val existingWv = YouTubeRemoteBridge.activeWebView
-                if (existingWv != null && (YouTubeRemoteBridge.activeVideoId == videoId || videoId.isEmpty())) {
+                if (existingWv != null) {
                     (existingWv.parent as? ViewGroup)?.removeView(existingWv)
                     existingWv.apply {
                         isFocusable = false
                         isFocusableInTouchMode = false
                         resumeTimers()
-                        post {
-                            evaluateJavascript(
-                                "if (window.ytPlayer && typeof window.ytPlayer.playVideo === 'function') { try { window.ytPlayer.playVideo(); } catch(_) {} }",
-                                null
-                            )
+                        if (videoId.isNotBlank() && YouTubeRemoteBridge.activeVideoId != videoId) {
+                            YouTubeRemoteBridge.activeVideoId = videoId
+                            post {
+                                evaluateJavascript(
+                                    "if (window.ytPlayer && typeof window.ytPlayer.loadVideoById === 'function') { window.ytPlayer.loadVideoById('$videoId'); try { window.ytPlayer.playVideo(); } catch(_) {} } else { window.pendingVideoId = '$videoId'; }",
+                                    null
+                                )
+                            }
+                        } else {
+                            post {
+                                evaluateJavascript(
+                                    "if (window.ytPlayer && typeof window.ytPlayer.playVideo === 'function') { try { window.ytPlayer.playVideo(); } catch(_) {} }",
+                                    null
+                                )
+                            }
                         }
                     }
                     webViewInstance = existingWv
                     existingWv
                 } else {
-                    YouTubeRemoteBridge.activeWebView?.let { oldWv ->
-                        try {
-                            (oldWv.parent as? ViewGroup)?.removeView(oldWv)
-                            oldWv.onPause()
-                            oldWv.stopLoading()
-                            oldWv.loadUrl("about:blank")
-                            oldWv.destroy()
-                        } catch (_: Exception) {}
-                    }
-                    YouTubeRemoteBridge.activeWebView = null
                     YouTubeRemoteBridge.activeVideoId = videoId
 
                     WebView(context).apply {
@@ -488,11 +488,21 @@ fun YouTubePlayerView(
         update = { wv ->
             wv.resumeTimers()
             YouTubeRemoteBridge.activeWebView = wv
-            wv.post {
-                wv.evaluateJavascript(
-                    "if (window.ytPlayer && typeof window.ytPlayer.playVideo === 'function') { try { window.ytPlayer.playVideo(); } catch(_) {} }",
-                    null
-                )
+            if (videoId.isNotBlank() && YouTubeRemoteBridge.activeVideoId != videoId) {
+                YouTubeRemoteBridge.activeVideoId = videoId
+                wv.post {
+                    wv.evaluateJavascript(
+                        "if (window.ytPlayer && typeof window.ytPlayer.loadVideoById === 'function') { window.ytPlayer.loadVideoById('$videoId'); try { window.ytPlayer.playVideo(); } catch(_) {} } else { window.pendingVideoId = '$videoId'; }",
+                        null
+                    )
+                }
+            } else {
+                wv.post {
+                    wv.evaluateJavascript(
+                        "if (window.ytPlayer && typeof window.ytPlayer.playVideo === 'function') { try { window.ytPlayer.playVideo(); } catch(_) {} }",
+                        null
+                    )
+                }
             }
         },
             modifier = Modifier.fillMaxSize()

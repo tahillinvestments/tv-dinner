@@ -158,20 +158,14 @@ class MainActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
-            val isYouTubeActive = YouTubeRemoteBridge.activeWebView != null
+            val isYouTubeActive = YouTubeRemoteBridge.activeWebView != null && !playerManager.activeYouTubeVideoId.value.isNullOrBlank()
 
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
                 KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_SELECT -> {
-                    if (isYouTubeFullscreenActive) {
-                        // YouTube: WebView steals Compose focus, so dispatchKeyEvent must handle it
+                    if (isYouTubeFullscreenActive || isVODFullscreenActive || isLiveFullscreenActive) {
                         fullscreenCenterKeyDown = true
                         return true
-                    } else if (isLiveFullscreenActive || isVODFullscreenActive) {
-                        // Native: Compose NativePlayerView's onKeyEvent handles play/pause.
-                        // Just consume ACTION_DOWN to prevent double-propagation, but don't act on it.
-                        fullscreenCenterKeyDown = true
-                        return super.dispatchKeyEvent(event) // let Compose get this
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_UP -> {
@@ -217,7 +211,13 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive) {
+                        YouTubeRemoteBridge.togglePlayPause()
+                    } else if (isVODFullscreenActive || isLiveFullscreenActive) {
+                        playerManager.togglePlayPause()
+                    } else if (playerManager.currentStreamUrl.value.isNotBlank()) {
+                        playerManager.togglePlayPause()
+                    } else if (isYouTubeActive) {
                         YouTubeRemoteBridge.togglePlayPause()
                     } else {
                         playerManager.togglePlayPause()
@@ -225,7 +225,13 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive) {
+                        YouTubeRemoteBridge.play()
+                    } else if (isVODFullscreenActive || isLiveFullscreenActive) {
+                        playerManager.play()
+                    } else if (playerManager.currentStreamUrl.value.isNotBlank()) {
+                        playerManager.play()
+                    } else if (isYouTubeActive) {
                         YouTubeRemoteBridge.play()
                     } else {
                         playerManager.play()
@@ -233,7 +239,13 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive) {
+                        YouTubeRemoteBridge.pause()
+                    } else if (isVODFullscreenActive || isLiveFullscreenActive) {
+                        playerManager.pause()
+                    } else if (playerManager.currentStreamUrl.value.isNotBlank()) {
+                        playerManager.pause()
+                    } else if (isYouTubeActive) {
                         YouTubeRemoteBridge.pause()
                     } else {
                         playerManager.pause()
@@ -241,12 +253,16 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive) {
                         YouTubeRemoteBridge.seekForward()
                     } else if (isLiveFullscreenActive) {
                         playerManager.forwardLive()
-                    } else {
+                    } else if (isVODFullscreenActive) {
                         playerManager.seekForward10s()
+                    } else if (playerManager.currentStreamUrl.value.isNotBlank()) {
+                        if (playerManager.isLiveStream.value) playerManager.forwardLive() else playerManager.seekForward10s()
+                    } else if (isYouTubeActive) {
+                        YouTubeRemoteBridge.seekForward()
                     }
                     return true
                 }
@@ -266,12 +282,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    if (isYouTubeFullscreenActive || (isYouTubeActive && !playerManager.isPlaying.value)) {
+                    if (isYouTubeFullscreenActive) {
                         YouTubeRemoteBridge.seekRewind()
                     } else if (isLiveFullscreenActive) {
                         playerManager.rewindLive()
-                    } else {
+                    } else if (isVODFullscreenActive) {
                         playerManager.seekRewind10s()
+                    } else if (playerManager.currentStreamUrl.value.isNotBlank()) {
+                        if (playerManager.isLiveStream.value) playerManager.rewindLive() else playerManager.seekRewind10s()
+                    } else if (isYouTubeActive) {
+                        YouTubeRemoteBridge.seekRewind()
                     }
                     return true
                 }
@@ -327,10 +347,12 @@ class MainActivity : ComponentActivity() {
                             // YouTube: WebView blocks Compose, so we toggle play/pause here
                             YouTubeRemoteBridge.togglePlayPause()
                             return true
-                        } else if (isLiveFullscreenActive || isVODFullscreenActive) {
-                            // Native: Compose NativePlayerView.onKeyEvent handles this.
-                            // Pass through so Compose receives the ACTION_UP and toggles once.
-                            return super.dispatchKeyEvent(event)
+                        } else if (isVODFullscreenActive) {
+                            playerManager.togglePlayPause()
+                            return true
+                        } else if (isLiveFullscreenActive) {
+                            playerManager.togglePlayPause()
+                            return true
                         }
                     }
                 }

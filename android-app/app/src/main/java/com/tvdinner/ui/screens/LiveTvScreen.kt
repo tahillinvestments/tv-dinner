@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.tvdinner.MainActivity
 import com.tvdinner.data.model.Channel
 import com.tvdinner.data.model.LiveCategory
 import com.tvdinner.data.model.ShortEpgResponse
@@ -70,6 +71,7 @@ fun LiveTvScreen(
     playerManager: ExoPlayerManager,
     isFullscreen: Boolean = false,
     onToggleFullscreen: (Boolean) -> Unit = {},
+    onExpandPreview: (() -> Unit)? = null,
     contentFocusRequester: FocusRequester? = null,
     onRequestFocusSidebar: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
@@ -988,8 +990,12 @@ fun LiveTvScreen(
                     ) {
                         UniversalIntegratedPreview(
                             playerManager = playerManager,
-                            onExpand = { onToggleFullscreen(true) },
-                            onClose = { playerManager.stop() },
+                            onExpand = { onExpandPreview?.invoke() ?: onToggleFullscreen(true) },
+                            onClose = {
+                                playerManager.stop()
+                                playerManager.clearYouTubeMedia()
+                            },
+                            isPlayingFullscreen = isFullscreen || MainActivity.isVODFullscreenActive || MainActivity.isYouTubeFullscreenActive,
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
 
