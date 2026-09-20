@@ -24,6 +24,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tvdinner.ui.theme.CinemaFocus
 import com.tvdinner.ui.theme.CinemaSurfaceVariant
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 object TvCardGlobalState {
     var isLongPressActive: Boolean = false
@@ -50,14 +53,16 @@ fun TvFocusableCard(
     var isLongPressHandled by remember { mutableStateOf(false) }
     var isKeyDownOnThisCard by remember { mutableStateOf(false) }
     var lastLongClickTimestamp by remember { mutableLongStateOf(0L) }
+    val coroutineScope = rememberCoroutineScope()
+    var longPressJob by remember { mutableStateOf<Job?>(null) }
 
     val triggerLongClick: () -> Unit = {
         val now = System.currentTimeMillis()
-        if (now - lastLongClickTimestamp > 800L && now - TvCardGlobalState.lastLongPressTimestamp > 800L) {
+        if (now - lastLongClickTimestamp > 500L && now - TvCardGlobalState.lastLongPressTimestamp > 500L) {
             lastLongClickTimestamp = now
             TvCardGlobalState.lastLongPressTimestamp = now
             TvCardGlobalState.isLongPressActive = true
-            TvCardGlobalState.suppressUntilTimestamp = now + 1200L
+            TvCardGlobalState.suppressUntilTimestamp = now + 400L
             onLongClick?.invoke()
         }
     }
@@ -89,6 +94,8 @@ fun TvFocusableCard(
             .onFocusChanged { state ->
                 isFocused = state.isFocused
                 if (!state.isFocused) {
+                    longPressJob?.cancel()
+                    longPressJob = null
                     isKeyDownOnThisCard = false
                     isLongPressHandled = false
                 }
@@ -111,6 +118,8 @@ fun TvFocusableCard(
                         return@onPreviewKeyEvent true
                     }
                     if (onLongClick != null && !isLongPressHandled && (keyEvent.nativeKeyEvent.isLongPress || keyEvent.nativeKeyEvent.repeatCount >= 1)) {
+                        longPressJob?.cancel()
+                        longPressJob = null
                         isLongPressHandled = true
                         triggerLongClick()
                         return@onPreviewKeyEvent true
@@ -120,12 +129,24 @@ fun TvFocusableCard(
                     }
                     if (keyEvent.nativeKeyEvent.repeatCount == 0) {
                         isKeyDownOnThisCard = true
+                        if (onLongClick != null) {
+                            longPressJob?.cancel()
+                            longPressJob = coroutineScope.launch {
+                                delay(500L)
+                                if (isKeyDownOnThisCard) {
+                                    isLongPressHandled = true
+                                    triggerLongClick()
+                                }
+                            }
+                        }
                     }
                     return@onPreviewKeyEvent true
                 } else if (keyEvent.type == KeyEventType.KeyUp) {
+                    longPressJob?.cancel()
+                    longPressJob = null
                     if (TvCardGlobalState.isLongPressActive) {
                         TvCardGlobalState.isLongPressActive = false
-                        TvCardGlobalState.suppressUntilTimestamp = System.currentTimeMillis() + 800L
+                        TvCardGlobalState.suppressUntilTimestamp = System.currentTimeMillis() + 300L
                     }
                     if (isLongPressHandled) {
                         isLongPressHandled = false

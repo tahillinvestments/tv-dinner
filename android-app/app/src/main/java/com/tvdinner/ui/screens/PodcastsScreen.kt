@@ -173,18 +173,25 @@ fun PodcastsScreen(
 
     // Helper to switch to any episode's channel
     val onNavigateToEpisodeChannel: (PodcastEpisode) -> Unit = { ep ->
-        val matching = liveChannels.find { it.channelName.equals(ep.channelName, ignoreCase = true) }
-            ?: PodcastsData.CHANNELS.find { it.channelName.equals(ep.channelName, ignoreCase = true) }
-            ?: PodcastChannel(
-                id = ep.channelId,
-                channelName = ep.channelName,
-                host = ep.channelName,
-                category = selectedCategory,
-                subscribers = "YouTube Podcast Channel",
-                avatar = ep.thumbnailUrl,
-                description = "Episodes from ${ep.channelName}",
-                ytChannelId = ""
-            )
+        val cleanEpChan = ep.channelName.trim()
+        val matching = liveChannels.find {
+            it.channelName.equals(cleanEpChan, ignoreCase = true) ||
+            it.channelName.contains(cleanEpChan, ignoreCase = true) ||
+            cleanEpChan.contains(it.channelName, ignoreCase = true)
+        } ?: PodcastsData.CHANNELS.find {
+            it.channelName.equals(cleanEpChan, ignoreCase = true) ||
+            it.channelName.contains(cleanEpChan, ignoreCase = true) ||
+            cleanEpChan.contains(it.channelName, ignoreCase = true)
+        } ?: PodcastChannel(
+            id = ep.channelId.ifBlank { "chan_${cleanEpChan.replace(" ", "_").lowercase()}" },
+            channelName = cleanEpChan,
+            host = cleanEpChan,
+            category = selectedCategory,
+            subscribers = "YouTube Podcast Channel",
+            avatar = ep.thumbnailUrl,
+            description = "Episodes from $cleanEpChan",
+            ytChannelId = ""
+        )
         selectedChannel = matching
     }
 
@@ -256,9 +263,21 @@ fun PodcastsScreen(
             isLoading = true
             currentPage = 1
             canLoadMore = true
-            val eps = catalogManager.getPodcastEpisodesForChannel(selectedChannel!!)
+            try {
+                gridState.scrollToItem(0)
+            } catch (_: Exception) {}
+            val targetChannel = selectedChannel!!
+            val eps = catalogManager.getPodcastEpisodesForChannel(targetChannel)
             if (eps.isNotEmpty()) {
                 liveEpisodes = eps
+            } else {
+                // Fallback: show episodes from main feed that match this channel name
+                val fallbackEps = mainFeedEpisodes.filter {
+                    it.channelName.equals(targetChannel.channelName, ignoreCase = true) ||
+                    it.channelName.contains(targetChannel.channelName, ignoreCase = true) ||
+                    targetChannel.channelName.contains(it.channelName, ignoreCase = true)
+                }
+                liveEpisodes = fallbackEps
             }
             isLoading = false
         } else {

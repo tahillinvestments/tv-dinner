@@ -1,9 +1,9 @@
 {
-  "versionCode": 246,
-  "versionName": "2.4.6",
-  "title": "Decoupled Clickable & Focus Isolation, Category Scroll Lock, Safe Watchlist & Podcast Channel Transitions",
-  "releaseNotes": "• Elimination of Ghost Clicks (Decoupled Clickable): Replaced Compose combinedClickable on TvFocusableCard with pure focusable + onPreviewKeyEvent + pointerInput, eliminating Compose's internal DPAD_CENTER key listener that was erroneously triggering clicks on leaked focus nodes (e.g. AppTab.LIVE)\n• Strict 1200ms Global Key Suppression: Any long-press globally swallows all KeyDown and KeyUp events for 1200ms across all focusable cards in the application, guaranteeing key release cannot trigger unintended actions\n• Category Up-Scroll Containment: Added focusProperties { up = FocusRequester.Cancel } directly to the category LazyColumn across Live TV, Movies, Series, Music, and Podcasts, locking upward scroll strictly within the category list and completely preventing focus escape to the preview screen\n• Safe Watchlist & Channel Transitions: Focus safely transitions to adjacent items before updating list state, preventing focus from dropping to the sidebar when removing items or opening podcast channels",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.6/app-release.apk",
+  "versionCode": 247,
+  "versionName": "2.4.7",
+  "title": "TV Remote Long-Press Timer, Live TV Category Focus & Channel Surfing Touch Controls",
+  "releaseNotes": "• Long-Press Timer for Remote Controls: Added a reliable 500ms coroutine timer on DPAD Center / Enter KeyDown in TvFocusableCard, ensuring onLongClick triggers properly on Android TV remotes that do not send continuous repeat events\n• Live TV Category Navigation & Up-Scroll Containment: Fixed category card Right and Click navigation to route directly to the channels selection row, and strictly locked UP navigation at the top category (favorites) to prevent escaping to the preview screen\n• Podcasts Episode-to-Channel Navigation: Enabled fuzzy and substring channel matching when long-pressing podcast episodes, with graceful fallback to matching feed episodes and resetting scroll to the top\n• Fullscreen Touch Channel Surfing: Added floating touch Up and Down buttons on fullscreen Live TV for phone and touch users to navigate previous and next channels seamlessly",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.7/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-20T04:57:59.937Z"
+  "publishedAt": "2026-09-20T06:33:33.062Z"
 }
