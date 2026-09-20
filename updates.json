@@ -10,6 +10,19 @@
   },
   "releases": [
     {
+      "id": "rel-241",
+      "versionCode": 241,
+      "versionName": "2.4.1",
+      "title": "Seamless Cross-Module Preview & Consistent VOD Fullscreen Play/Pause",
+      "status": "STAGED",
+      "releaseNotes": "• Cross-Module Preview Continuity: Fixed YouTube player teardown so Music and Podcasts preview smoothly across all modules without blank screens or audio loss\n• In-Place Video Loading: Reused active YouTube WebView with loadVideoById for instant, fluid song and episode transitions\n• Universal Live TV Preview: Preview card in Live TV now expands whichever media is currently active (Music, Podcasts, VOD, or Live TV)\n• VOD Fullscreen Play/Pause Fix: Direct DPAD Center, Enter, and Select interception on key-down prevents focus loss to HUD overlay cards, ensuring rock-solid play/pause toggling\n• Prioritized Remote Media Keys: Dedicated play/pause and seek keys consistently control active VOD and Live streams without misrouting to dormant YouTube WebViews\n• Debounce Lockout Removal: Removed initial 1-second key lockout on native player mount for immediate remote responsiveness",
+      "stagedApk": "staging-apks/tv-dinner-v2.4.1-b241.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.1/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-20T00:27:12.144Z",
+      "publishedAt": null
+    },
+    {
       "id": "rel-240",
       "versionCode": 240,
       "versionName": "2.4.0",
