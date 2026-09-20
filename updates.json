@@ -1,20 +1,46 @@
 {
   "currentVersion": {
-    "versionCode": 247,
-    "versionName": "2.4.7",
-    "title": "TV Remote Long-Press Timer, Live TV Category Focus & Channel Surfing Touch Controls",
-    "releaseNotes": "• Long-Press Timer for Remote Controls: Added a reliable 500ms coroutine timer on DPAD Center / Enter KeyDown in TvFocusableCard, ensuring onLongClick triggers properly on Android TV remotes that do not send continuous repeat events\n• Live TV Category Navigation & Up-Scroll Containment: Fixed category card Right and Click navigation to route directly to the channels selection row, and strictly locked UP navigation at the top category (favorites) to prevent escaping to the preview screen\n• Podcasts Episode-to-Channel Navigation: Enabled fuzzy and substring channel matching when long-pressing podcast episodes, with graceful fallback to matching feed episodes and resetting scroll to the top\n• Fullscreen Touch Channel Surfing: Added floating touch Up and Down buttons on fullscreen Live TV for phone and touch users to navigate previous and next channels seamlessly",
-    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.7/app-release.apk",
+    "versionCode": 248,
+    "versionName": "2.4.8",
+    "title": "Stream Recovery & Buffer Optimization, Fullscreen TV Surfing Arrows Removal & Live TV Scroll Ceiling",
+    "releaseNotes": "• Streaming Engine & Recovery Optimization: Tuned DefaultLoadControl buffer parameters (8s min buffer, 500ms initial playback buffer, 1000ms rebuffer) to prevent chunk starvation, added a 15-second HTTP socket read timeout to detect and reconnect dead/hung streams, tightened the live stream watchdog to 4s, and configured live target offset (4s target, 2s min, 10s max) to eliminate live-edge chasing\n• Fullscreen Live TV Arrows Removal: Automatically hid on-screen channel surfing up/down buttons during fullscreen Live TV on Google TV, Firestick, and non-touch displays while retaining them on touchscreen devices\n• Live TV Category Scroll Ceiling: Permanently fixed focus escaping from Live TV categories into the preview screen when holding D-pad UP, matching Movies and Series behavior; guarded asynchronous scroll updates and debounced category selection",
+    "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.8/app-release.apk",
     "mandatory": false,
-    "publishedAt": "2026-09-20T06:33:33.062Z"
+    "publishedAt": "2026-09-20T16:11:44.969Z"
   },
   "releases": [
+    {
+      "id": "rel-248",
+      "versionCode": 248,
+      "versionName": "2.4.8",
+      "title": "Stream Recovery & Buffer Optimization, Fullscreen TV Surfing Arrows Removal & Live TV Scroll Ceiling",
+      "status": "PUBLISHED",
+      "releaseNotes": "• Streaming Engine & Recovery Optimization: Tuned DefaultLoadControl buffer parameters (8s min buffer, 500ms initial playback buffer, 1000ms rebuffer) to prevent chunk starvation, added a 15-second HTTP socket read timeout to detect and reconnect dead/hung streams, tightened the live stream watchdog to 4s, and configured live target offset (4s target, 2s min, 10s max) to eliminate live-edge chasing\n• Fullscreen Live TV Arrows Removal: Automatically hid on-screen channel surfing up/down buttons during fullscreen Live TV on Google TV, Firestick, and non-touch displays while retaining them on touchscreen devices\n• Live TV Category Scroll Ceiling: Permanently fixed focus escaping from Live TV categories into the preview screen when holding D-pad UP, matching Movies and Series behavior; guarded asynchronous scroll updates and debounced category selection",
+      "stagedApk": "staging-apks/tv-dinner-v2.4.8-b248.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.8/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-20T15:58:19.186Z",
+      "publishedAt": "2026-09-20T16:11:44.969Z"
+    },
+    {
+      "id": "rel-248",
+      "versionCode": 248,
+      "versionName": "2.4.8",
+      "title": "Stream Recovery & Buffer Optimization, Fullscreen TV Surfing Arrows Removal & Live TV Scroll Ceiling",
+      "status": "ARCHIVED",
+      "releaseNotes": "• Streaming Engine & Recovery Optimization: Tuned DefaultLoadControl buffer parameters (8s min buffer, 500ms initial playback buffer, 1000ms rebuffer) to prevent chunk starvation, added a 15-second HTTP socket read timeout to detect and reconnect dead/hung streams, tightened the live stream watchdog to 4s, and configured live target offset (4s target, 2s min, 10s max) to eliminate live-edge chasing\n• Fullscreen Live TV Arrows Removal: Automatically hid on-screen channel surfing up/down buttons during fullscreen Live TV on Google TV, Firestick, and non-touch displays while retaining them on touchscreen devices\n• Live TV Category Scroll Ceiling: Permanently fixed focus escaping from Live TV categories into the preview screen when holding D-pad UP, matching Movies and Series behavior; guarded asynchronous scroll updates and debounced category selection",
+      "stagedApk": "staging-apks/tv-dinner-v2.4.8-b248.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.8/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-20T15:58:19.186Z",
+      "publishedAt": null
+    },
     {
       "id": "rel-247",
       "versionCode": 247,
       "versionName": "2.4.7",
       "title": "TV Remote Long-Press Timer, Live TV Category Focus & Channel Surfing Touch Controls",
-      "status": "PUBLISHED",
+      "status": "ARCHIVED",
       "releaseNotes": "• Long-Press Timer for Remote Controls: Added a reliable 500ms coroutine timer on DPAD Center / Enter KeyDown in TvFocusableCard, ensuring onLongClick triggers properly on Android TV remotes that do not send continuous repeat events\n• Live TV Category Navigation & Up-Scroll Containment: Fixed category card Right and Click navigation to route directly to the channels selection row, and strictly locked UP navigation at the top category (favorites) to prevent escaping to the preview screen\n• Podcasts Episode-to-Channel Navigation: Enabled fuzzy and substring channel matching when long-pressing podcast episodes, with graceful fallback to matching feed episodes and resetting scroll to the top\n• Fullscreen Touch Channel Surfing: Added floating touch Up and Down buttons on fullscreen Live TV for phone and touch users to navigate previous and next channels seamlessly",
       "stagedApk": "staging-apks/tv-dinner-v2.4.7-b247.apk",
       "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.7/app-release.apk",

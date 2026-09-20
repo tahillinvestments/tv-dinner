@@ -2,6 +2,7 @@ package com.tvdinner.ui.screens
 
 import android.app.UiModeManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.widget.Toast
 import android.view.KeyEvent as AndroidKeyEvent
@@ -11,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -29,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -65,6 +68,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun LiveTvScreen(
     authRepo: AuthRepository,
@@ -137,7 +141,13 @@ fun LiveTvScreen(
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val uiModeManager = remember { context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager }
-    val isTv = remember { uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION }
+    val hasTouchScreen = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN) }
+    val isTv = remember {
+        uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION) ||
+        !hasTouchScreen
+    }
     val isPortrait = configuration.orientation == Configuration.ORIENTATION_PORTRAIT
     val isCompactWidth = configuration.screenWidthDp < 600
     val isMobileLayout = !isTv && (isPortrait || isCompactWidth)
@@ -235,6 +245,7 @@ fun LiveTvScreen(
     LaunchedEffect(selectedCategoryId, isAccessAllowed) {
         if (!isAccessAllowed) return@LaunchedEffect
         if (selectedCategoryId != null && categories.isNotEmpty()) {
+            delay(150) // Debounce rapid D-pad browsing while scrolling categories
             isLoading = true
             authRepo.setLastLiveCategoryId(selectedCategoryId ?: "672")
             channels = when (selectedCategoryId) {
@@ -316,11 +327,13 @@ fun LiveTvScreen(
         }
     }
 
-    // Auto-scroll selected category into view in the sidebar
+    // Auto-scroll selected category into view in the sidebar ONLY when not actively navigating with focus
     LaunchedEffect(selectedCategoryId, categories) {
-        val catIdx = categories.indexOfFirst { it.categoryId == selectedCategoryId }
-        if (catIdx >= 0) {
-            categoryListState.animateScrollToItem((catIdx - 2).coerceAtLeast(0))
+        if (!isFocusOnCategories) {
+            val catIdx = categories.indexOfFirst { it.categoryId == selectedCategoryId }
+            if (catIdx >= 0) {
+                categoryListState.animateScrollToItem((catIdx - 2).coerceAtLeast(0))
+            }
         }
     }
 
@@ -647,49 +660,52 @@ fun LiveTvScreen(
                 }
 
                 // Touch Channel Surfing Buttons (Up / Down) for Phone / Touch Users to go to previous and next channels
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(end = 20.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                // Hidden on TV / Firestick / non-touch displays
+                if (!isTv && hasTouchScreen) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(end = 20.dp),
+                        contentAlignment = Alignment.CenterEnd
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color.Black.copy(alpha = 0.65f),
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, CinemaAccent.copy(alpha = 0.85f)),
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clickable { tuneChannel(-1) }
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowUp,
-                                    contentDescription = "Previous Channel",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(34.dp)
-                                )
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Black.copy(alpha = 0.65f),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, CinemaAccent.copy(alpha = 0.85f)),
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clickable { tuneChannel(-1) }
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowUp,
+                                        contentDescription = "Previous Channel",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(34.dp)
+                                    )
+                                }
                             }
-                        }
 
-                        Surface(
-                            shape = CircleShape,
-                            color = Color.Black.copy(alpha = 0.65f),
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, CinemaAccent.copy(alpha = 0.85f)),
-                            modifier = Modifier
-                                .size(52.dp)
-                                .clickable { tuneChannel(1) }
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = "Next Channel",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(34.dp)
-                                )
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Black.copy(alpha = 0.65f),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, CinemaAccent.copy(alpha = 0.85f)),
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clickable { tuneChannel(1) }
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = "Next Channel",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(34.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -1072,6 +1088,11 @@ fun LiveTvScreen(
                             },
                             modifier = Modifier
                                 .padding(bottom = 4.dp)
+                                .focusProperties {
+                                    enter = { direction ->
+                                        if (direction == FocusDirection.Up) FocusRequester.Cancel else FocusRequester.Default
+                                    }
+                                }
                                 .focusRequester(effectivePreviewFocus)
                         )
 
@@ -1089,6 +1110,7 @@ fun LiveTvScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
+                                .focusGroup()
                                 .focusProperties {
                                     up = FocusRequester.Cancel
                                 }
@@ -1129,7 +1151,7 @@ fun LiveTvScreen(
                                         .onPreviewKeyEvent { keyEvent ->
                                             val isUp = keyEvent.key == Key.DirectionUp || keyEvent.nativeKeyEvent.keyCode == AndroidKeyEvent.KEYCODE_DPAD_UP
                                             if (isUp && (isFirstCat || catIndex == 0)) {
-                                                true
+                                                return@onPreviewKeyEvent true
                                             } else if (keyEvent.type == KeyEventType.KeyDown) {
                                                 when (keyEvent.key) {
                                                     Key.DirectionLeft -> {

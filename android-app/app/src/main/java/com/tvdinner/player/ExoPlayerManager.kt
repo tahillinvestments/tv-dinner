@@ -148,7 +148,7 @@ class ExoPlayerManager(
             })
             .connectionPool(okhttp3.ConnectionPool(8, 2, java.util.concurrent.TimeUnit.MINUTES))
             .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
             .addInterceptor { chain ->
                 val response = chain.proceed(chain.request())
                 // Prevent HTML error pages (e.g. HTTP 200 with HTML body returned by IPTV middleboxes / Cloudflare / expired tokens)
@@ -390,13 +390,13 @@ class ExoPlayerManager(
             setEnableAudioFloatOutput(false)
         }
 
-        // Buffer durations tuned for fast startup and robust VOD streaming without jitter stalls
+        // Buffer durations tuned for fast startup and robust live/VOD streaming without jitter stalls
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                15000, // minBufferMs (15s minimum buffer gives smooth playback on network fluctuations)
+                8000,  // minBufferMs (8s buffer prevents live stream starvation while giving smooth playback on network fluctuations)
                 50000, // maxBufferMs (50s max buffer)
-                800,   // bufferForPlaybackMs (800ms fast startup)
-                1500   // bufferForPlaybackAfterRebufferMs (1.5s rebuffer recovery)
+                500,   // bufferForPlaybackMs (500ms fast startup)
+                1000   // bufferForPlaybackAfterRebufferMs (1.0s fast rebuffer recovery)
             )
             .setBackBuffer(20_000, false) // 20s backBuffer prevents 4K VOD OutOfMemory crashes while keeping safe rewind
             .setPrioritizeTimeOverSizeThresholds(false)
@@ -445,15 +445,15 @@ class ExoPlayerManager(
                                 val currentGen = streamGeneration
                                 bufferWatchdogJob = scope.launch {
                                     if (_isLiveStream.value) {
-                                        delay(3500)
+                                        delay(3000)
                                         if (currentGen != streamGeneration) return@launch
                                         if (_isBuffering.value && _isLiveStream.value) {
                                             _isStreamStalled.value = true
                                         }
-                                        delay(1500)
+                                        delay(1000)
                                         if (currentGen != streamGeneration) return@launch
                                         if (_isBuffering.value && _isLiveStream.value && player != null) {
-                                            Log.w(tag, "Live stream stalled in buffering for 5s. Auto-recovering...")
+                                            Log.w(tag, "Live stream stalled in buffering for 4s. Auto-recovering...")
                                             recoverLiveStream(forceFailover = liveRecoveryAttempt >= 1)
                                         }
                                     } else {
@@ -723,6 +723,9 @@ class ExoPlayerManager(
             if (isLive) {
                 mediaItemBuilder.setLiveConfiguration(
                     MediaItem.LiveConfiguration.Builder()
+                        .setTargetOffsetMs(4000L)
+                        .setMinOffsetMs(2000L)
+                        .setMaxOffsetMs(10000L)
                         .setMaxPlaybackSpeed(1.02f)
                         .setMinPlaybackSpeed(0.98f)
                         .build()

@@ -279,6 +279,19 @@ class SpatialNavigationEngine {
       }
     }
 
+    // Live TV Categories Sidebar: enforce scroll ceiling (do not escape UP into the preview player)
+    if (direction === 'up' && (current.classList.contains('category-btn') || current.closest('#categories-container, .live-sidebar'))) {
+      const catContainer = document.getElementById('categories-container');
+      if (catContainer) {
+        const categories = Array.from(catContainer.querySelectorAll('.category-btn'));
+        const currentIndex = categories.indexOf(current);
+        if (currentIndex <= 0) {
+          // At top category ceiling: do not allow moving UP into the player/preview screen
+          return true;
+        }
+      }
+    }
+
     // Zone 2 -> Zone 1: Live Categories Sidebar -> Main Sidebar Nav
     if (direction === 'left' && (current.classList.contains('category-btn') || current.closest('.live-sidebar'))) {
       const mainSidebarLiveBtn = document.querySelector('#tab-btn-live, [data-tab="live"], #sidebar button');

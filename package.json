@@ -1,7 +1,7 @@
 {
   "name": "joyful-iptv-player",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.4.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,8 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "android:sync": "vite build && node scratch/build_apk_assets.js",
-    "android:build:debug": "npm run android:sync && powershell -Command \"cd android-app; ./gradlew.bat assembleDebug\"",
-    "android:build:release": "npm run android:sync && powershell -Command \"cd android-app; ./gradlew.bat assembleRelease\"",
+    "android:build:debug": "powershell -Command \"cd android-app; ./gradlew.bat assembleDebug\"",
+    "android:build:release": "powershell -Command \"cd android-app; ./gradlew.bat assembleRelease\"",
     "proxy:server": "node proxy-server.js",
     "start:proxy": "node proxy-server.js",
     "sources:build": "tsup",
