@@ -17850,6 +17850,9 @@
 	<programme channel="咪咕综合体育" start="20260920121000 +0800" stop="20260920131500 +0800">
 		<title lang="zh">国球荣耀-2026WTT美国大满贯 女单决赛 孙颖莎-蒯曼</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20260920132000 +0800" stop="20260920150000 +0800">
+		<title lang="zh">足球世界-26/27赛季 法甲 第3轮 巴黎圣日耳曼-摩纳哥</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>
@@ -17912,6 +17915,9 @@
 	</programme>
 	<programme channel="咪咕足球" start="20260920121000 +0800" stop="20260920134000 +0800">
 		<title lang="zh">中国篮球时刻-2027男篮世预赛亚洲区第二阶段 中国-黎巴嫩</title>
+	</programme>
+	<programme channel="咪咕足球" start="20260920135000 +0800" stop="20260920144000 +0800">
+		<title lang="zh">最后之舞</title>
 	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
@@ -59055,6 +59061,9 @@
 	<programme channel="newtv超级综艺" start="20260920112400 +0800" stop="20260920125800 +0800">
 		<title lang="zh">乐在旅途 第三季</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260920125800 +0800" stop="20260920141500 +0800">
+		<title lang="zh">全民畅舞</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -59115,6 +59124,9 @@
 	<programme channel="newtv超级电影" start="20260920102900 +0800" stop="20260920124200 +0800">
 		<title lang="zh">雄狮少年2</title>
 	</programme>
+	<programme channel="newtv超级电影" start="20260920124200 +0800" stop="20260920141700 +0800">
+		<title lang="zh">燕赤霞猎妖传</title>
+	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
 	</channel>
@@ -59171,6 +59183,12 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260920121700 +0800" stop="20260920130300 +0800">
 		<title lang="zh">11_莫离</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260920130300 +0800" stop="20260920134400 +0800">
+		<title lang="zh">30_叛逆者</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260920134400 +0800" stop="20260920142600 +0800">
+		<title lang="zh">31_叛逆者</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -59774,6 +59792,15 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260920120600 +0800" stop="20260920124100 +0800">
 		<title lang="zh">RINEWANN经典蚝式钻石机械腕表-渠道（右）</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260920124100 +0800" stop="20260920132500 +0800">
+		<title lang="zh">39_谍战深海之惊蛰[DVD版]</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260920132500 +0800" stop="20260920140000 +0800">
+		<title lang="zh">Baclayon巴康洋聚合钛凝胶缓压枕-渠道（右）</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260920140000 +0800" stop="20260920144400 +0800">
+		<title lang="zh">40_谍战深海之惊蛰[DVD版]</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
