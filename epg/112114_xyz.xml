@@ -17919,6 +17919,9 @@
 	<programme channel="咪咕足球" start="20260920135000 +0800" stop="20260920144000 +0800">
 		<title lang="zh">最后之舞</title>
 	</programme>
+	<programme channel="咪咕足球" start="20260920144500 +0800" stop="20260920154500 +0800">
+		<title lang="zh">超级三对三-2026超三联赛</title>
+	</programme>
 	<channel id="四大名著剧场">
 		<display-name lang="zh">四大名著剧场</display-name>
 	</channel>
@@ -59064,6 +59067,9 @@
 	<programme channel="newtv超级综艺" start="20260920125800 +0800" stop="20260920141500 +0800">
 		<title lang="zh">全民畅舞</title>
 	</programme>
+	<programme channel="newtv超级综艺" start="20260920141500 +0800" stop="20260920152500 +0800">
+		<title lang="zh">沧海运河谣</title>
+	</programme>
 	<channel id="newtv超级体育">
 		<display-name lang="zh">NEWTV超级体育</display-name>
 	</channel>
@@ -59127,6 +59133,9 @@
 	<programme channel="newtv超级电影" start="20260920124200 +0800" stop="20260920141700 +0800">
 		<title lang="zh">燕赤霞猎妖传</title>
 	</programme>
+	<programme channel="newtv超级电影" start="20260920141700 +0800" stop="20260920154600 +0800">
+		<title lang="zh">让我过过瘾</title>
+	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
 	</channel>
@@ -59189,6 +59198,9 @@
 	</programme>
 	<programme channel="newtv超级电视剧" start="20260920134400 +0800" stop="20260920142600 +0800">
 		<title lang="zh">31_叛逆者</title>
+	</programme>
+	<programme channel="newtv超级电视剧" start="20260920142600 +0800" stop="20260920150700 +0800">
+		<title lang="zh">32_叛逆者</title>
 	</programme>
 	<channel id="newtv精品大剧">
 		<display-name lang="zh">NEWTV精品大剧</display-name>
@@ -59801,6 +59813,9 @@
 	</programme>
 	<programme channel="newtv金牌综艺" start="20260920140000 +0800" stop="20260920144400 +0800">
 		<title lang="zh">40_谍战深海之惊蛰[DVD版]</title>
+	</programme>
+	<programme channel="newtv金牌综艺" start="20260920144400 +0800" stop="20260920151900 +0800">
+		<title lang="zh">泰国进口KAVAGOOD睡眠香膏-渠道（右）</title>
 	</programme>
 	<channel id="newtv精品体育">
 		<display-name lang="zh">NEWTV精品体育</display-name>
