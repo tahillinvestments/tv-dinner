@@ -20,8 +20,8 @@
       localStorage.setItem('debug_error_stack', e.reason ? e.reason.stack : '');
     });
   </script>
-  <script type="module" crossorigin src="/assets/index-CPQGSVIm.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-dJSpn9TU.css">
+  <script type="module" crossorigin src="/assets/index-D-22B7q-.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-D6VKQRC4.css">
 </head>
 <body class="dark-theme">
   
@@ -1320,6 +1320,12 @@
           ></iframe>
         </div>
 
+        <!-- Floating Fullscreen Exit Button for Pseudo-Fullscreen Embeds -->
+        <button id="embed-exit-fs-btn" class="embed-exit-fs-btn hidden" title="Exit Fullscreen" aria-label="Exit Fullscreen">
+          <i data-lucide="minimize-2"></i>
+          <span>Exit Fullscreen</span>
+        </button>
+
         <!-- Video Player Overlay: No Stream Active Poster -->
         <div id="player-poster" class="player-overlay poster-overlay">
           <div class="poster-play-badge">
@@ -1335,7 +1341,7 @@
             <div class="spinner-track"></div>
             <div class="spinner-head"></div>
           </div>
-          <span>Buffering Stream...</span>
+          <span id="player-loading-text">Buffering Stream...</span>
         </div>
 
         <!-- Toast overlay -->
@@ -1494,6 +1500,14 @@
 
       <!-- Video Mount Stage -->
       <div id="preview-dock-stage" class="preview-dock-stage">
+        <!-- Interactive Touch / Click Overlay to directly Expand Preview to Fullscreen -->
+        <div id="preview-touch-overlay" class="preview-touch-overlay" title="Tap to expand fullscreen" aria-label="Expand player to fullscreen">
+          <div id="preview-paused-pill" class="preview-paused-pill hidden">
+            <i data-lucide="pause" class="w-3 h-3"></i>
+            <span>PAUSED</span>
+          </div>
+        </div>
+
         <!-- #player-section will be appended here dynamically when floating -->
 
         <!-- Clean Idle / Empty State (Shown when nothing is playing) -->
@@ -1703,8 +1717,8 @@
       </form>
     </div>
   <!-- VOD Resume Playback Choice Modal Overlay -->
-  <div id="vod-resume-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-[110] flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800/90 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 text-center transform transition-all scale-100 animate-in fade-in zoom-in duration-200">
+  <div id="vod-resume-modal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md hidden z-[2147483647] flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800/90 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 text-center transform transition-all scale-100 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto m-auto">
       <div class="w-12 h-12 mx-auto rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
         <i data-lucide="play-circle" class="w-6 h-6"></i>
       </div>
@@ -1715,10 +1729,10 @@
         </p>
       </div>
       <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-        <button id="resume-modal-start-over-btn" class="w-full sm:w-1/2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors border border-slate-700/60">
+        <button id="resume-modal-start-over-btn" class="w-full sm:w-1/2 min-h-[44px] px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-2 transition-colors border border-slate-700/60 cursor-pointer">
           <i data-lucide="rotate-ccw" class="w-4 h-4 text-slate-400"></i> Start Over
         </button>
-        <button id="resume-modal-resume-btn" class="w-full sm:w-1/2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25">
+        <button id="resume-modal-resume-btn" class="w-full sm:w-1/2 min-h-[44px] px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/25 cursor-pointer">
           <i data-lucide="play" class="w-4 h-4 fill-white"></i> <span id="resume-modal-btn-text">Resume</span>
         </button>
       </div>
