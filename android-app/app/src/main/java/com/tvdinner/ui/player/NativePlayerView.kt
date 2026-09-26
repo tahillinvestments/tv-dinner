@@ -49,6 +49,7 @@ fun NativePlayerView(
     onBack: (() -> Unit)? = null,
     onNextEpisode: (() -> Unit)? = null,
     nextEpisodeTitle: String? = null,
+    onExpandPreview: (() -> Unit)? = null,
     isPreview: Boolean = (onBack == null),
     modifier: Modifier = Modifier
 ) {
@@ -265,6 +266,16 @@ fun NativePlayerView(
                     val isFullscreenActive = MainActivity.isVODFullscreenActive || MainActivity.isLiveFullscreenActive
                     player = if (isPreview && isFullscreenActive) null else playerManager.player
                     setBackgroundColor(android.graphics.Color.BLACK)
+                    if (isPreview) {
+                        setOnTouchListener { _, event ->
+                            if (event.action == android.view.MotionEvent.ACTION_UP) {
+                                onExpandPreview?.invoke()
+                            }
+                            true
+                        }
+                    } else {
+                        setOnTouchListener(null)
+                    }
                     onResume()
                     subtitleView?.apply {
                         setApplyEmbeddedStyles(false)
@@ -286,6 +297,16 @@ fun NativePlayerView(
             },
             update = { playerView ->
                 val isFullscreenActive = MainActivity.isVODFullscreenActive || MainActivity.isLiveFullscreenActive
+                if (isPreview) {
+                    playerView.setOnTouchListener { _, event ->
+                        if (event.action == android.view.MotionEvent.ACTION_UP) {
+                            onExpandPreview?.invoke()
+                        }
+                        true
+                    }
+                } else {
+                    playerView.setOnTouchListener(null)
+                }
                 if (isPreview && isFullscreenActive) {
                     // Preview must release the player surface when fullscreen is active
                     if (playerView.player != null) {

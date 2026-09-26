@@ -100,6 +100,8 @@ fun LiveTvScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var activeChannel by remember { mutableStateOf<Channel?>(null) }
     var activeFullEpg by remember { mutableStateOf<ShortEpgResponse?>(null) }
+    var focusedChannel by remember { mutableStateOf<Channel?>(null) }
+    var focusedFullEpg by remember { mutableStateOf<ShortEpgResponse?>(null) }
     var channelBannerChannel by remember { mutableStateOf<Channel?>(null) }
     var favoriteChannelIds by remember { mutableStateOf(authRepo.getFavoriteChannelIds()) }
 
@@ -278,6 +280,17 @@ fun LiveTvScreen(
                 activeFullEpg = catalogManager.getFullEpgForChannel(ch.streamId)
             } else {
                 activeFullEpg = null
+            }
+        }
+    }
+
+    // Fetch Full EPG for Focused Channel during Remote Navigation
+    LaunchedEffect(focusedChannel) {
+        focusedChannel?.let { ch ->
+            if (ch.streamId > 0) {
+                focusedFullEpg = catalogManager.getFullEpgForChannel(ch.streamId)
+            } else {
+                focusedFullEpg = null
             }
         }
     }
@@ -540,6 +553,28 @@ fun LiveTvScreen(
         return true
     }
 
+    fun playChannel(channel: Channel) {
+        try {
+            keyboardController?.hide()
+        } catch (_: Exception) {}
+        try {
+            val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
+            val user = channel.streamUser ?: authRepo.getActiveUsername()
+            val pswd = channel.streamPassword ?: authRepo.getActivePassword()
+            val streamUrl = if (!channel.directStreamUrl.isNullOrBlank()) {
+                channel.directStreamUrl
+            } else {
+                apiClient.buildLiveStreamUrl(portal, user, pswd, channel.streamId)
+            }
+            activeChannel = channel
+            authRepo.setLastLiveStreamId(channel.streamId)
+            authRepo.addChannelToHistory(channel.streamId)
+            playerManager.playStream(streamUrl, channel.name, isLive = true)
+        } catch (e: Exception) {
+            android.util.Log.e("LiveTvScreen", "Error launching channel: ${e.message}", e)
+        }
+    }
+
     // Return to channels selection row if Back is pressed while browsing categories
     BackHandler(enabled = !isFullscreen && isFocusOnCategories && filteredChannels.isNotEmpty()) {
         isFocusOnCategories = false
@@ -714,81 +749,31 @@ fun LiveTvScreen(
         } else if (isMobileLayout) {
             // Mobile Phone Layout (Portrait / Compact View)
             Column(modifier = Modifier.fillMaxSize()) {
-                // 1. Top Section: 16:9 Video Player
+                // 1. Top Section: 16:9 Video Player / Integrated Preview
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(16f / 9f)
                         .background(Color.Black)
                 ) {
-                    if (currentStreamUrl.isNotBlank() && (isPlaying || isBuffering) && isLiveStream) {
-                        NativePlayerView(
-                            playerManager = playerManager,
-                            onBack = { onToggleFullscreen(false) },
-                            modifier = Modifier.fillMaxSize()
-                        )
-
-                        // Floating Overlay: LIVE Badge & Fullscreen Button
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp)
-                                .align(Alignment.TopEnd),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = CinemaPrimary,
-                                modifier = Modifier.padding(start = 4.dp)
-                            ) {
-                                Text(
-                                    text = "● LIVE",
-                                    color = Color.White,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-
-                            IconButton(
-                                onClick = { onToggleFullscreen(true) },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Fullscreen,
-                                    contentDescription = "Fullscreen",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                    } else {
-                        Box(
-                            modifier = Modifier.fillMaxSize().background(CinemaSurface),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Tv,
-                                    contentDescription = null,
-                                    tint = CinemaAccent,
-                                    modifier = Modifier.size(36.dp)
-                                )
-                                Text(
-                                    text = "Select a channel below to watch",
-                                    color = TextSecondary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        }
+                    val mobileTargetChannel = focusedChannel ?: activeChannel
+                    val mobileTargetEpg = if (focusedChannel != null) focusedFullEpg else activeFullEpg
+                    val mobileNowProgram = remember(mobileTargetEpg) {
+                        catalogManager.resolveCurrentProgram(mobileTargetEpg?.epgListings)?.decodedTitle
                     }
+                    UniversalIntegratedPreview(
+                        playerManager = playerManager,
+                        onExpand = { onExpandPreview?.invoke() ?: onToggleFullscreen(true) },
+                        onClose = {
+                            playerManager.stop()
+                            playerManager.clearYouTubeMedia()
+                            catalogManager.clearYouTubeQueue()
+                        },
+                        isPlayingFullscreen = isFullscreen,
+                        focusedTitle = mobileTargetChannel?.let { CatalogManager.cleanChannelDisplayName(it.name) },
+                        focusedSubtitle = mobileNowProgram?.let { "▶ $it" } ?: mobileTargetChannel?.let { "CH ${it.num} • Live" },
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
                 // 2. Active Channel Info Strip
@@ -1069,14 +1054,34 @@ fun LiveTvScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val effectivePreviewFocus = previewFocusRequester ?: livePreviewFocusRequester
+                        val previewTargetChannel = focusedChannel ?: activeChannel
+                        val previewTargetEpg = if (focusedChannel != null) focusedFullEpg else activeFullEpg
+                        val previewNowProgram = remember(previewTargetEpg) {
+                            catalogManager.resolveCurrentProgram(previewTargetEpg?.epgListings)?.decodedTitle
+                        }
                         UniversalIntegratedPreview(
                             playerManager = playerManager,
                             onExpand = { onExpandPreview?.invoke() ?: onToggleFullscreen(true) },
                             onClose = {
                                 playerManager.stop()
                                 playerManager.clearYouTubeMedia()
+                                catalogManager.clearYouTubeQueue()
                             },
                             isPlayingFullscreen = isFullscreen || MainActivity.isVODFullscreenActive || MainActivity.isYouTubeFullscreenActive,
+                            focusedTitle = previewTargetChannel?.let { CatalogManager.cleanChannelDisplayName(it.name) },
+                            focusedSubtitle = previewNowProgram?.let { "▶ $it" } ?: previewTargetChannel?.let { "CH ${it.num} • Live" },
+                            onNextVideo = {
+                                val nextItem = catalogManager.advanceYouTubeQueue()
+                                if (nextItem != null) {
+                                    playerManager.setYouTubeMedia(nextItem.videoId, nextItem.title)
+                                }
+                            },
+                            onPreviousVideo = {
+                                val prevItem = catalogManager.retreatYouTubeQueue()
+                                if (prevItem != null) {
+                                    playerManager.setYouTubeMedia(prevItem.videoId, prevItem.title)
+                                }
+                            },
                             onMoveLeft = { onRequestFocusSidebar?.invoke() },
                             onMoveRight = {
                                 navigateBackToChannels()
@@ -1344,6 +1349,7 @@ fun LiveTvScreen(
                                                     if (it.isFocused) {
                                                         isFocusOnCategories = false
                                                         lastFocusedChannelIndex = index
+                                                        focusedChannel = channel
                                                     }
                                                 }
                                                 .then(if (isTargetFocus) Modifier.focusRequester(activeCardFocusRequester) else Modifier)
@@ -1538,7 +1544,9 @@ fun LiveTvScreen(
                 }
 
                     // Bottom 1/3: Stream Info & Controls Bar
-                    val epgList = activeFullEpg?.epgListings ?: emptyList()
+                    val displayChannel = focusedChannel ?: activeChannel
+                    val effectiveFullEpg = if (focusedChannel != null) focusedFullEpg else activeFullEpg
+                    val epgList = effectiveFullEpg?.epgListings ?: emptyList()
                     val currentEpoch = System.currentTimeMillis() / 1000L
 
                     val currentProgram = remember(epgList, currentEpoch) {
@@ -1593,13 +1601,13 @@ fun LiveTvScreen(
                         ) {
                             // Row 1: Channel Name & Number Header (Spacious, full width, no truncation)
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                val activeCatName = activeChannel?.categoryId?.let { categoryNameMap[it] }
+                                val activeCatName = displayChannel?.categoryId?.let { categoryNameMap[it] }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    val rawChTitle = if (isLiveStream) (activeChannel?.name ?: currentTitle.ifBlank { "No Channel Selected" }) else (activeChannel?.name ?: "No Channel Selected")
+                                    val rawChTitle = displayChannel?.name ?: (if (isLiveStream) currentTitle.ifBlank { "No Channel Selected" } else "No Channel Selected")
                                     val cleanPreviewTitle = remember(rawChTitle) { CatalogManager.cleanChannelDisplayName(rawChTitle) }
                                     val previewQuality = remember(rawChTitle) { CatalogManager.extractChannelQuality(rawChTitle) }
                                     Row(
@@ -1639,14 +1647,15 @@ fun LiveTvScreen(
                                             }
                                         }
                                     }
-                                    if (activeChannel != null && isLiveStream) {
+                                    if (displayChannel != null) {
+                                        val isDisplayChannelPlaying = displayChannel.streamId == activeChannel?.streamId && isLiveStream && (isPlaying || isBuffering)
                                         Surface(
                                             shape = RoundedCornerShape(4.dp),
-                                            color = CinemaPrimary,
+                                            color = if (isDisplayChannelPlaying) CinemaPrimary else CinemaSurfaceVariant,
                                             modifier = Modifier.padding(start = 8.dp)
                                         ) {
                                             Text(
-                                                text = "● LIVE",
+                                                text = if (isDisplayChannelPlaying) "● LIVE" else "EPG GUIDE",
                                                 color = Color.White,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
@@ -1677,7 +1686,7 @@ fun LiveTvScreen(
                                             )
                                         }
                                     }
-                                    val chNum = activeChannel?.num ?: 0
+                                    val chNum = displayChannel?.num ?: 0
                                     Text(
                                         text = if (chNum > 0) "Channel $chNum • 1080p 60fps Live" else "Live Broadcast • HD High Quality Stream",
                                         fontSize = 12.sp,
@@ -1688,8 +1697,9 @@ fun LiveTvScreen(
                                 }
                             }
 
-                            // Row 2: Action Controls Bar (Resume/Stop, Favorite, CC, Aspect, Fullscreen) - Icon-Only Symbols
-                            if (activeChannel != null && isLiveStream) {
+                            // Row 2: Action Controls Bar (Resume/Stop, Favorite, CC, Aspect, Fullscreen) or Quick Watch Button
+                            val isDisplayChannelPlaying = displayChannel != null && displayChannel.streamId == activeChannel?.streamId && isLiveStream
+                            if (isDisplayChannelPlaying) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1961,6 +1971,106 @@ fun LiveTvScreen(
                                                 imageVector = Icons.Default.Fullscreen,
                                                 contentDescription = "Fullscreen",
                                                 tint = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            } else if (displayChannel != null) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    val isFocusedFavorited = remember(displayChannel.streamId, favoriteChannelIds) {
+                                        favoriteChannelIds.contains(displayChannel.streamId)
+                                    }
+                                    TvFocusableCard(
+                                        onClick = {
+                                            playChannel(displayChannel)
+                                        },
+                                        backgroundColor = CinemaPrimary,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .height(38.dp)
+                                            .focusRequester(playControlFocusRequester)
+                                            .onPreviewKeyEvent { keyEvent ->
+                                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    when (keyEvent.key) {
+                                                        Key.DirectionUp, Key.Back, Key.Escape -> {
+                                                            navigateBackToChannels()
+                                                        }
+                                                        Key.DirectionRight -> {
+                                                            try {
+                                                                favoriteControlFocusRequester.requestFocus()
+                                                                true
+                                                            } catch (_: Exception) {
+                                                                false
+                                                            }
+                                                        }
+                                                        else -> false
+                                                    }
+                                                } else false
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = "Watch Channel",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Text(
+                                                text = "Watch Channel",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+
+                                    // Favorite button for focused channel
+                                    TvFocusableCard(
+                                        onClick = {
+                                            authRepo.toggleFavoriteChannel(displayChannel.streamId)
+                                            favoriteChannelIds = authRepo.getFavoriteChannelIds()
+                                        },
+                                        backgroundColor = if (isFocusedFavorited) CinemaAccent.copy(alpha = 0.25f) else CinemaSurfaceVariant,
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .focusRequester(favoriteControlFocusRequester)
+                                            .onPreviewKeyEvent { keyEvent ->
+                                                if (keyEvent.type == KeyEventType.KeyDown) {
+                                                    when (keyEvent.key) {
+                                                        Key.DirectionUp, Key.Back, Key.Escape -> {
+                                                            navigateBackToChannels()
+                                                        }
+                                                        Key.DirectionLeft -> {
+                                                            try {
+                                                                playControlFocusRequester.requestFocus()
+                                                                true
+                                                            } catch (_: Exception) {
+                                                                navigateBackToChannels()
+                                                            }
+                                                        }
+                                                        else -> false
+                                                    }
+                                                } else false
+                                            }
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isFocusedFavorited) Icons.Default.Star else Icons.Default.StarBorder,
+                                                contentDescription = "Favorite",
+                                                tint = if (isFocusedFavorited) CinemaAccent else Color.White,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }

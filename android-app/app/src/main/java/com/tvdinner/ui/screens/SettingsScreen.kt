@@ -35,6 +35,8 @@ import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
 import com.tvdinner.player.ExoPlayerManager
 import com.tvdinner.ui.components.TvFocusableCard
+import com.tvdinner.ui.components.AdultPinDialog
+import com.tvdinner.ui.components.AdultPinMode
 import com.tvdinner.ui.player.YouTubeRemoteBridge
 import com.tvdinner.ui.theme.*
 import com.tvdinner.update.UpdateManifest
@@ -155,6 +157,8 @@ fun SettingsScreen(
 
     // Content Filtering State
     var adultContentEnabled by remember { mutableStateOf(authRepo.isAdultContentEnabled()) }
+    var hasAdultPin by remember { mutableStateOf(authRepo.hasAdultPin()) }
+    var activePinMode by remember { mutableStateOf<AdultPinMode?>(null) }
 
     // Update Management State
     var isCheckingUpdate by remember { mutableStateOf(false) }
@@ -1031,10 +1035,17 @@ fun SettingsScreen(
                     // Adult Content (18+) Toggle
                     TvFocusableCard(
                         onClick = {
-                            val next = !adultContentEnabled
-                            adultContentEnabled = next
-                            authRepo.setAdultContentEnabled(next)
-                            catalogManager?.clearAllCaches()
+                            if (!adultContentEnabled) {
+                                if (hasAdultPin) {
+                                    activePinMode = AdultPinMode.VERIFY
+                                } else {
+                                    activePinMode = AdultPinMode.SET
+                                }
+                            } else {
+                                adultContentEnabled = false
+                                authRepo.setAdultContentEnabled(false)
+                                catalogManager?.clearAllCaches()
+                            }
                         },
                         backgroundColor = CinemaSurfaceVariant,
                         shape = RoundedCornerShape(8.dp),
@@ -1063,10 +1074,18 @@ fun SettingsScreen(
 
                             Switch(
                                 checked = adultContentEnabled,
-                                onCheckedChange = {
-                                    adultContentEnabled = it
-                                    authRepo.setAdultContentEnabled(it)
-                                    catalogManager?.clearAllCaches()
+                                onCheckedChange = { willEnable ->
+                                    if (willEnable) {
+                                        if (hasAdultPin) {
+                                            activePinMode = AdultPinMode.VERIFY
+                                        } else {
+                                            activePinMode = AdultPinMode.SET
+                                        }
+                                    } else {
+                                        adultContentEnabled = false
+                                        authRepo.setAdultContentEnabled(false)
+                                        catalogManager?.clearAllCaches()
+                                    }
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
@@ -1076,6 +1095,75 @@ fun SettingsScreen(
                                 ),
                                 modifier = Modifier.scale(0.85f)
                             )
+                        }
+                    }
+
+                    // Adult PIN Security Setting Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(CinemaSurfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = if (hasAdultPin) Icons.Default.Lock else Icons.Default.LockOpen,
+                                contentDescription = null,
+                                tint = if (hasAdultPin) CinemaAccent else TextMuted,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Adult Content PIN Security",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = if (hasAdultPin) "4-digit PIN active in local memory" else "No PIN set — anyone can enable adult content",
+                                    fontSize = 11.sp,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (hasAdultPin) {
+                                Button(
+                                    onClick = { activePinMode = AdultPinMode.CHANGE },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaSurfaceLight),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(34.dp)
+                                ) {
+                                    Text("Change PIN", fontSize = 11.sp, color = TextPrimary)
+                                }
+                                Button(
+                                    onClick = { activePinMode = AdultPinMode.REMOVE },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaRed.copy(alpha = 0.2f)),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(34.dp)
+                                ) {
+                                    Text("Remove PIN", fontSize = 11.sp, color = CinemaRed)
+                                }
+                            } else {
+                                Button(
+                                    onClick = { activePinMode = AdultPinMode.SET },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CinemaAccent),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                    modifier = Modifier.height(34.dp)
+                                ) {
+                                    Text("Set PIN", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }
@@ -1456,6 +1544,34 @@ fun SettingsScreen(
                     }
                 }
             }
+        }
+
+        if (activePinMode != null) {
+            AdultPinDialog(
+                mode = activePinMode!!,
+                authRepo = authRepo,
+                onDismissRequest = { activePinMode = null },
+                onSuccess = {
+                    val finishedMode = activePinMode
+                    activePinMode = null
+                    hasAdultPin = authRepo.hasAdultPin()
+                    if (finishedMode == AdultPinMode.VERIFY) {
+                        adultContentEnabled = true
+                        authRepo.setAdultContentEnabled(true)
+                        catalogManager?.clearAllCaches()
+                        Toast.makeText(context, "Adult Content Enabled", Toast.LENGTH_SHORT).show()
+                    } else if (finishedMode == AdultPinMode.SET) {
+                        adultContentEnabled = true
+                        authRepo.setAdultContentEnabled(true)
+                        catalogManager?.clearAllCaches()
+                        Toast.makeText(context, "PIN Set — Adult Content Enabled", Toast.LENGTH_SHORT).show()
+                    } else if (finishedMode == AdultPinMode.CHANGE) {
+                        Toast.makeText(context, "Adult PIN Updated Successfully", Toast.LENGTH_SHORT).show()
+                    } else if (finishedMode == AdultPinMode.REMOVE) {
+                        Toast.makeText(context, "Adult PIN Removed", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
         }
     }
 }

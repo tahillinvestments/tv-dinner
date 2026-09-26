@@ -1,6 +1,7 @@
 package com.tvdinner.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tvdinner.MainActivity
@@ -33,10 +35,14 @@ fun UniversalIntegratedPreview(
     activeYouTubeVideoId: String? = null,
     activeYouTubeTitle: String? = null,
     onCloseYouTube: (() -> Unit)? = null,
+    onNextVideo: (() -> Unit)? = null,
+    onPreviousVideo: (() -> Unit)? = null,
     onMoveLeft: (() -> Unit)? = null,
     onMoveRight: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
-    onMoveUp: (() -> Unit)? = null
+    onMoveUp: (() -> Unit)? = null,
+    focusedTitle: String? = null,
+    focusedSubtitle: String? = null
 ) {
     val isPlaying by playerManager.isPlaying.collectAsState()
     val isBuffering by playerManager.isBuffering.collectAsState()
@@ -69,26 +75,32 @@ fun UniversalIntegratedPreview(
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     when (keyEvent.key) {
                         Key.DirectionDown -> {
-                            if (onMoveDown != null) {
-                                onMoveDown()
-                                true
-                            } else {
-                                try {
+                            try {
+                                if (onMoveDown != null) {
+                                    onMoveDown()
+                                } else {
                                     focusManager.moveFocus(FocusDirection.Down)
-                                    true
-                                } catch (_: Exception) { false }
+                                }
+                            } catch (_: Exception) {
+                                try { focusManager.moveFocus(FocusDirection.Down) } catch (_: Exception) {}
                             }
+                            true
                         }
                         Key.DirectionRight -> {
-                            if (onMoveRight != null) {
-                                onMoveRight()
-                                true
-                            } else {
+                            try {
+                                if (onMoveRight != null) {
+                                    onMoveRight()
+                                } else {
+                                    val moved = focusManager.moveFocus(FocusDirection.Right)
+                                    if (!moved) focusManager.moveFocus(FocusDirection.Down)
+                                }
+                            } catch (_: Exception) {
                                 try {
-                                    focusManager.moveFocus(FocusDirection.Right)
-                                    true
-                                } catch (_: Exception) { false }
+                                    val moved = focusManager.moveFocus(FocusDirection.Right)
+                                    if (!moved) focusManager.moveFocus(FocusDirection.Down)
+                                } catch (_: Exception) {}
                             }
+                            true
                         }
                         Key.DirectionLeft -> {
                             if (onMoveLeft != null) {
@@ -134,6 +146,7 @@ fun UniversalIntegratedPreview(
                         NativePlayerView(
                             playerManager = playerManager,
                             onBack = null,
+                            onExpandPreview = onExpand,
                             isPreview = true,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -144,6 +157,9 @@ fun UniversalIntegratedPreview(
                             videoId = effectiveYtId,
                             title = effectiveYtTitle ?: "YouTube Media",
                             onBack = null,
+                            onNextVideo = onNextVideo,
+                            onPreviousVideo = onPreviousVideo,
+                            onExpandPreview = onExpand,
                             isPreview = true,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -169,22 +185,53 @@ fun UniversalIntegratedPreview(
                                     modifier = Modifier.size(30.dp)
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "TV DINNER Preview",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Select any content to play",
-                                    fontSize = 10.sp,
-                                    color = TextMuted
-                                )
+                                if (!focusedTitle.isNullOrBlank()) {
+                                    Text(
+                                        text = focusedTitle,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = focusedSubtitle ?: "Press OK to play",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = CinemaAccent,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                } else {
+                                    Text(
+                                        text = "TV DINNER Preview",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Select any content to play",
+                                        fontSize = 10.sp,
+                                        color = TextMuted
+                                    )
+                                }
                             }
                         }
                     }
                 }
+
+                // Intercept touches: DO NOT ALLOW user to access youtube or podcast frame in preview mode, EXCEPT to resume full screen.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                            onClick = onExpand
+                        )
+                )
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(Color.Black))
             }

@@ -2900,6 +2900,30 @@ body {
   overflow-y: auto;
 }
 
+/* VOD Resume Playback Modal */
+#vod-resume-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+  background-color: rgba(2, 6, 23, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1rem !important;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important;
+}
+
+#vod-resume-modal.hidden {
+  display: none !important;
+}
+
+#vod-resume-modal > div {
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  margin: auto !important;
+}
+
 /* VOD Resume Playback Banner */
 .vod-resume-banner {
   margin-top: 1rem !important;
@@ -5745,6 +5769,117 @@ input:checked + .toggle-slider:before {
 .preview-dock-stage #tv-selectors {
   display: none !important;
 }
+
+/* Touch & Click Overlay on Preview Stage for Instant Fullscreen Expansion */
+.preview-touch-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 25;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+}
+
+.preview-paused-pill {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(8px);
+  color: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  z-index: 30;
+}
+
+/* Floating Fullscreen Exit Button for Pseudo-Fullscreen Embeds */
+.embed-exit-fs-btn {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 2147483647 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+  -webkit-tap-highlight-color: transparent;
+}
+.embed-exit-fs-btn:hover,
+.embed-exit-fs-btn:active {
+  background: rgba(239, 68, 68, 0.9);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: scale(1.05);
+}
+
+/* Loading Overlay Paused State - Eliminates Endless Spinning Spinner */
+.loading-overlay.is-paused {
+  background: rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(4px);
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.loading-overlay.is-paused .spinner-container {
+  display: none !important;
+}
+.loading-overlay.is-paused span {
+  font-weight: 800 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase !important;
+  color: #f8fafc !important;
+  background: rgba(15, 23, 42, 0.9) !important;
+  padding: 8px 20px !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.loading-overlay.is-paused span::before {
+  content: "⏸";
+  font-size: 14px;
+}
+
+/* End of Episodes / Results Banners */
+.podcast-end-of-episodes,
+.podcast-end-of-results {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 0.75rem;
+  border: 1px dashed rgba(148, 163, 184, 0.2);
+  margin-top: 1rem;
+}
+
 
 /* Empty State Styling */
 .preview-empty-state {

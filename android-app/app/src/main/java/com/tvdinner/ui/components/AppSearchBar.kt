@@ -158,7 +158,8 @@ fun AppSearchBar(
                 val code = keyEvent.nativeKeyEvent.keyCode
                 val isSelectKey = code == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
                                   code == android.view.KeyEvent.KEYCODE_ENTER ||
-                                  code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+                                  code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                                  code == android.view.KeyEvent.KEYCODE_SEARCH
                 if (!isEditing && isSelectKey) {
                     if (keyEvent.type == KeyEventType.KeyDown) {
                         if (keyEvent.nativeKeyEvent.repeatCount >= 1 || keyEvent.nativeKeyEvent.isLongPress) {
@@ -179,13 +180,21 @@ fun AppSearchBar(
                         }
                         if (isKeyDownOnSearch) {
                             isKeyDownOnSearch = false
-                            isEditing = true
-                            coroutineScope.launch {
-                                delay(50)
-                                try {
-                                    textFieldFocusRequester.requestFocus()
-                                    keyboardController?.show()
-                                } catch (_: Exception) {}
+                            if (value.isNotBlank()) {
+                                onSearch?.invoke()
+                                coroutineScope.launch {
+                                    delay(50)
+                                    onMoveDown?.invoke()
+                                }
+                            } else {
+                                isEditing = true
+                                coroutineScope.launch {
+                                    delay(50)
+                                    try {
+                                        textFieldFocusRequester.requestFocus()
+                                        keyboardController?.show()
+                                    } catch (_: Exception) {}
+                                }
                             }
                             return@onKeyEvent true
                         }
@@ -263,8 +272,11 @@ fun AppSearchBar(
                     onSearch = {
                         isEditing = false
                         keyboardController?.hide()
-                        focusManager.clearFocus()
                         onSearch?.invoke()
+                        coroutineScope.launch {
+                            delay(50)
+                            onMoveDown?.invoke()
+                        }
                     }
                 ),
                 modifier = Modifier
@@ -279,20 +291,74 @@ fun AppSearchBar(
                         }
                     }
                     .onKeyEvent { keyEvent ->
+                        val code = keyEvent.nativeKeyEvent.keyCode
+                        val isSelectKey = code == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                                          code == android.view.KeyEvent.KEYCODE_ENTER ||
+                                          code == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER ||
+                                          code == android.view.KeyEvent.KEYCODE_SEARCH
+
+                        if (isSelectKey) {
+                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                return@onKeyEvent true
+                            } else if (keyEvent.type == KeyEventType.KeyUp) {
+                                isEditing = false
+                                keyboardController?.hide()
+                                onSearch?.invoke()
+                                coroutineScope.launch {
+                                    delay(50)
+                                    onMoveDown?.invoke()
+                                }
+                                return@onKeyEvent true
+                            }
+                        }
+
+                        if (code == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                return@onKeyEvent true
+                            } else if (keyEvent.type == KeyEventType.KeyUp) {
+                                isEditing = false
+                                keyboardController?.hide()
+                                onSearch?.invoke()
+                                coroutineScope.launch {
+                                    delay(50)
+                                    onMoveDown?.invoke()
+                                }
+                                return@onKeyEvent true
+                            }
+                        }
+
                         if (keyEvent.type == KeyEventType.KeyUp) {
-                            val code = keyEvent.nativeKeyEvent.keyCode
-                            if (code == android.view.KeyEvent.KEYCODE_DPAD_DOWN ||
-                                code == android.view.KeyEvent.KEYCODE_ESCAPE ||
+                            if (code == android.view.KeyEvent.KEYCODE_ESCAPE ||
                                 code == android.view.KeyEvent.KEYCODE_BACK) {
                                 isEditing = false
                                 keyboardController?.hide()
-                                focusManager.clearFocus()
                                 return@onKeyEvent true
                             }
                         }
                         false
                     }
             )
+            if (!isEditing) {
+                // Invisible touch shield that intercepts taps anywhere on the search bar
+                // on mobile/touch screens to reliably pop open the keyboard and enter edit mode
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            isEditing = true
+                            coroutineScope.launch {
+                                delay(50)
+                                try {
+                                    textFieldFocusRequester.requestFocus()
+                                    keyboardController?.show()
+                                } catch (_: Exception) {}
+                            }
+                        }
+                )
+            }
         }
         if (value.isNotEmpty()) {
             IconButton(
@@ -300,7 +366,7 @@ fun AppSearchBar(
                     onValueChange("")
                     isEditing = false
                     keyboardController?.hide()
-                    focusManager.clearFocus()
+                    onSearch?.invoke()
                 },
                 modifier = Modifier.size(24.dp)
             ) {

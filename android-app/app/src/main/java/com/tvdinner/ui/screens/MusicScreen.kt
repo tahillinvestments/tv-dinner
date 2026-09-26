@@ -2,6 +2,7 @@ package com.tvdinner.ui.screens
 
 import android.app.UiModeManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -34,6 +35,7 @@ import coil.compose.AsyncImage
 import com.tvdinner.data.model.MusicVideo
 import com.tvdinner.data.repository.AuthRepository
 import com.tvdinner.data.repository.CatalogManager
+import com.tvdinner.data.repository.YouTubeQueueItem
 import com.tvdinner.ui.components.AccessRestrictedView
 import com.tvdinner.ui.components.AppSearchBar
 import com.tvdinner.ui.components.TvFocusableCard
@@ -42,11 +44,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalFocusManager
 import com.tvdinner.player.ExoPlayerManager
@@ -70,11 +72,12 @@ fun MusicScreen(
     val activePassword by authRepo.activePasswordState.collectAsState()
     val isAccessAllowed = activeUsername.isNotBlank() && activePassword.isNotBlank() && isCredentialsVerified
 
-    var searchQuery by rememberSaveable { mutableStateOf("") }
-    var debouncedQuery by remember { mutableStateOf("") }
-    var selectedGenreId by rememberSaveable { mutableStateOf("trending") }
+    var searchQuery by remember { mutableStateOf(catalogManager.musicSearchQuery) }
+    var debouncedQuery by remember { mutableStateOf(catalogManager.musicSearchQuery) }
+    var selectedGenreId by remember { mutableStateOf(catalogManager.musicSelectedGenreId) }
+    var isInitialMount by remember { mutableStateOf(true) }
 
-    var videos by remember { mutableStateOf<List<MusicVideo>>(emptyList()) }
+    var videos by remember { mutableStateOf<List<MusicVideo>>(catalogManager.musicCurrentVideos) }
     var currentPage by remember { mutableIntStateOf(1) }
     var isLoading by remember { mutableStateOf(false) }
     var isLoadingMore by remember { mutableStateOf(false) }
@@ -86,6 +89,7 @@ fun MusicScreen(
 
     val musicPreviewFocus = previewFocusRequester ?: remember { FocusRequester() }
     val selectedGenreFocusRequester = remember { FocusRequester() }
+    val firstGenreFocusRequester = remember { FocusRequester() }
     val searchBarFocusRequester = remember { FocusRequester() }
     val firstVideoFocusRequester = remember { FocusRequester() }
     val visibleVideoFocusRequester = remember { FocusRequester() }
@@ -97,8 +101,8 @@ fun MusicScreen(
         var freshVideos = emptyList<MusicVideo>()
         val existingIds = videos.map { it.videoId }.toSet()
 
-        // Try up to 3 consecutive pages to find fresh, non-duplicate videos
-        for (attempt in 0..2) {
+        // Try up to 4 consecutive pages to find fresh, non-duplicate videos
+        for (attempt in 0..3) {
             val nextResults = if (debouncedQuery.isNotBlank()) {
                 catalogManager.searchMusicVideos(debouncedQuery, page = targetPage)
             } else {
@@ -113,11 +117,13 @@ fun MusicScreen(
         }
 
         if (freshVideos.isNotEmpty()) {
-            videos = videos + freshVideos
+            val updated = videos + freshVideos
+            videos = updated
+            catalogManager.musicCurrentVideos = updated
             currentPage = targetPage
         } else {
             currentPage = targetPage
-            if (currentPage > 60) {
+            if (currentPage > 80) {
                 hasMore = false
             }
         }
@@ -127,7 +133,25 @@ fun MusicScreen(
     fun playVideoAtIndex(index: Int) {
         if (!isAccessAllowed || index !in videos.indices) return
         val current = videos[index]
+
+        // Already playing in preview -> expand directly to fullscreen!
+        if (playerManager.activeYouTubeVideoId.value == current.videoId) {
+            onExpandPreview()
+            return
+        }
+
         authRepo.addMusicToHistory(current)
+
+        val queueItems = videos.map {
+            YouTubeQueueItem(
+                videoId = it.videoId,
+                title = "${it.artistName} - ${it.title}",
+                subtitle = it.artistName,
+                artworkUrl = it.thumbnailUrl
+            )
+        }
+        catalogManager.setYouTubeQueue(queueItems, index)
+
         if (index >= videos.size - 4 && hasMore && !isLoadingMore && selectedGenreId != "history") {
             coroutineScope.launch {
                 fetchMoreVideosInternal()
@@ -163,7 +187,13 @@ fun MusicScreen(
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val uiModeManager = remember { context.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager }
-    val isTv = remember { uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION }
+    val hasTouchScreen = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN) }
+    val isTv = remember {
+        uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION) ||
+        !hasTouchScreen
+    }
     val isCompact = configuration.screenWidthDp < 600
     val isMobile = !isTv && (configuration.orientation == Configuration.ORIENTATION_PORTRAIT || isCompact)
 
@@ -180,6 +210,15 @@ fun MusicScreen(
             isLoading = false
             return@LaunchedEffect
         }
+        if (isInitialMount) {
+            isInitialMount = false
+            if (videos.isNotEmpty() && debouncedQuery == catalogManager.musicSearchQuery && selectedGenreId == catalogManager.musicSelectedGenreId) {
+                // Reusing preserved state from previous screen visit
+                return@LaunchedEffect
+            }
+        }
+        catalogManager.musicSearchQuery = debouncedQuery
+        catalogManager.musicSelectedGenreId = selectedGenreId
         isLoading = true
         currentPage = 1
         hasMore = (selectedGenreId != "history")
@@ -193,6 +232,7 @@ fun MusicScreen(
         }
 
         videos = initialResults
+        catalogManager.musicCurrentVideos = initialResults
         isLoading = false
         if (gridState.firstVisibleItemIndex > 0) {
             gridState.scrollToItem(0)
@@ -207,7 +247,7 @@ fun MusicScreen(
             val last = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             Pair(total, last)
         }.collect { (total, last) ->
-            if (total > 0 && last >= total - 8 && !isLoading && !isLoadingMore && hasMore) {
+            if (total > 0 && last >= total - 12 && !isLoading && !isLoadingMore && hasMore) {
                 fetchMoreVideosInternal()
             }
         }
@@ -227,88 +267,125 @@ fun MusicScreen(
             }
 
             if (isMobile) {
-                // Mobile Portrait Layout: Top Bar + LazyRow Categories + Grid
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                // Mobile Portrait Layout: Top 16:9 Integrated Preview + Content Column
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .background(Color.Black)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MusicNote,
-                                contentDescription = null,
-                                tint = CinemaPrimary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Text(
-                                text = "MUSIC",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Black,
-                                color = TextPrimary
-                            )
-                        }
-
-                        AppSearchBar(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = "Search songs, artists, videos...",
-                            modifier = Modifier.weight(1f)
+                        UniversalIntegratedPreview(
+                            playerManager = playerManager,
+                            onExpand = onExpandPreview,
+                            onClose = {
+                                playerManager.stop()
+                                playerManager.clearYouTubeMedia()
+                                catalogManager.clearYouTubeQueue()
+                            },
+                            isPlayingFullscreen = isPlayingFullscreen,
+                            onNextVideo = {
+                                val next = catalogManager.advanceYouTubeQueue()
+                                if (next != null) {
+                                    playerManager.setYouTubeMedia(next.videoId, next.title)
+                                }
+                            },
+                            onPreviousVideo = {
+                                val prev = catalogManager.retreatYouTubeQueue()
+                                if (prev != null) {
+                                    playerManager.setYouTubeMedia(prev.videoId, prev.title)
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
 
-                    androidx.compose.foundation.lazy.LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(allGenres) { genre ->
-                            val isSelected = (debouncedQuery.isBlank() && selectedGenreId == genre.id)
-                            TvFocusableCard(
-                                onClick = {
-                                    searchQuery = ""
-                                    debouncedQuery = ""
-                                    selectedGenreId = genre.id
-                                },
-                                shape = RoundedCornerShape(20.dp),
-                                backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
-                                focusedBorderColor = CinemaFocus,
-                                modifier = Modifier.height(36.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .padding(horizontal = 14.dp),
-                                    contentAlignment = Alignment.Center
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = CinemaPrimary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Text(
+                                    text = "MUSIC",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = TextPrimary
+                                )
+                            }
+
+                            AppSearchBar(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = "Search songs, artists, videos...",
+                                onSearch = { debouncedQuery = searchQuery.trim() },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(allGenres) { genre ->
+                                val isSelected = (debouncedQuery.isBlank() && selectedGenreId == genre.id)
+                                TvFocusableCard(
+                                    onClick = {
+                                        searchQuery = ""
+                                        debouncedQuery = ""
+                                        selectedGenreId = genre.id
+                                    },
+                                    shape = RoundedCornerShape(20.dp),
+                                    backgroundColor = if (isSelected) CinemaPrimary else CinemaSurfaceVariant,
+                                    focusedBorderColor = CinemaFocus,
+                                    modifier = Modifier.height(36.dp)
                                 ) {
-                                    Text(
-                                        text = genre.name,
-                                        color = if (isSelected) Color.White else TextSecondary,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .padding(horizontal = 14.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = genre.name,
+                                            color = if (isSelected) Color.White else TextSecondary,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // Content Grid
-                    MusicContentGrid(
-                        isLoading = isLoading,
-                        isLoadingMore = isLoadingMore,
-                        selectedGenreId = selectedGenreId,
-                        videos = videos,
-                        gridState = gridState,
-                        isMobile = true,
-                        onPlayVideo = { playVideoAtIndex(it) }
-                    )
+                        // Content Grid
+                        MusicContentGrid(
+                            isLoading = isLoading,
+                            isLoadingMore = isLoadingMore,
+                            selectedGenreId = selectedGenreId,
+                            videos = videos,
+                            gridState = gridState,
+                            isMobile = true,
+                            onFetchMore = {
+                                coroutineScope.launch { fetchMoreVideosInternal() }
+                            },
+                            onPlayVideo = { playVideoAtIndex(it) }
+                        )
+                    }
                 }
             } else {
                 // TV / Desktop Layout: Dedicated Left Vertical Category Sidebar (280dp) + Right Content Grid
@@ -331,18 +408,50 @@ fun MusicScreen(
                             UniversalIntegratedPreview(
                                 playerManager = playerManager,
                                 onExpand = onExpandPreview,
-                                onClose = { playerManager.stop() },
+                                onClose = {
+                                    playerManager.stop()
+                                    playerManager.clearYouTubeMedia()
+                                    catalogManager.clearYouTubeQueue()
+                                },
                                 isPlayingFullscreen = isPlayingFullscreen,
+                                onNextVideo = {
+                                    val next = catalogManager.advanceYouTubeQueue()
+                                    if (next != null) {
+                                        playerManager.setYouTubeMedia(next.videoId, next.title)
+                                    }
+                                },
+                                onPreviousVideo = {
+                                    val prev = catalogManager.retreatYouTubeQueue()
+                                    if (prev != null) {
+                                        playerManager.setYouTubeMedia(prev.videoId, prev.title)
+                                    }
+                                },
                                 onMoveLeft = { onRequestFocusSidebar?.invoke() },
                                 onMoveRight = {
                                     try {
-                                        selectedGenreFocusRequester.requestFocus()
-                                    } catch (_: Exception) {}
+                                        searchBarFocusRequester.requestFocus()
+                                    } catch (_: Exception) {
+                                        try {
+                                            visibleVideoFocusRequester.requestFocus()
+                                        } catch (_: Exception) {
+                                            try {
+                                                firstVideoFocusRequester.requestFocus()
+                                            } catch (_: Exception) {
+                                                try { focusManager.moveFocus(FocusDirection.Right) } catch (_: Exception) {}
+                                            }
+                                        }
+                                    }
                                 },
                                 onMoveDown = {
                                     try {
                                         selectedGenreFocusRequester.requestFocus()
-                                    } catch (_: Exception) {}
+                                    } catch (_: Exception) {
+                                        try {
+                                            firstGenreFocusRequester.requestFocus()
+                                        } catch (_: Exception) {
+                                            try { focusManager.moveFocus(FocusDirection.Down) } catch (_: Exception) {}
+                                        }
+                                    }
                                 },
                                 modifier = Modifier
                                     .padding(bottom = 4.dp)
@@ -367,7 +476,8 @@ fun MusicScreen(
                                     }
                             ) {
                                 itemsIndexed(allGenres) { genreIndex, genre ->
-                                    val isSelected = (debouncedQuery.isBlank() && selectedGenreId == genre.id)
+                                    val isCurrentGenre = (selectedGenreId == genre.id)
+                                    val isSelected = (debouncedQuery.isBlank() && isCurrentGenre)
                                     val isFirstGenre = genreIndex == 0
                                     TvFocusableCard(
                                         onClick = {
@@ -386,7 +496,8 @@ fun MusicScreen(
                                                     up = FocusRequester.Cancel
                                                 }
                                             }
-                                            .then(if (isSelected || (debouncedQuery.isBlank() && isFirstGenre)) Modifier.focusRequester(selectedGenreFocusRequester) else Modifier)
+                                            .then(if (isFirstGenre) Modifier.focusRequester(firstGenreFocusRequester) else Modifier)
+                                            .then(if (isCurrentGenre || isFirstGenre) Modifier.focusRequester(selectedGenreFocusRequester) else Modifier)
                                             .onPreviewKeyEvent { keyEvent ->
                                                 if (keyEvent.key == Key.DirectionUp && (isFirstGenre || genreIndex == 0)) {
                                                     true
@@ -452,6 +563,7 @@ fun MusicScreen(
                                 value = searchQuery,
                                 onValueChange = { searchQuery = it },
                                 placeholder = "Search songs, artists, albums, or music videos...",
+                                onSearch = { debouncedQuery = searchQuery.trim() },
                                 onMoveLeft = {
                                     try {
                                         selectedGenreFocusRequester.requestFocus()
@@ -517,6 +629,9 @@ fun MusicScreen(
                             visibleVideoFocusRequester = visibleVideoFocusRequester,
                             searchBarFocusRequester = searchBarFocusRequester,
                             isMobile = false,
+                            onFetchMore = {
+                                coroutineScope.launch { fetchMoreVideosInternal() }
+                            },
                             onPlayVideo = { playVideoAtIndex(it) }
                         )
                     }
@@ -526,6 +641,7 @@ fun MusicScreen(
     }
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun MusicContentGrid(
     isLoading: Boolean,
@@ -537,6 +653,7 @@ private fun MusicContentGrid(
     visibleVideoFocusRequester: FocusRequester? = null,
     searchBarFocusRequester: FocusRequester? = null,
     isMobile: Boolean,
+    onFetchMore: (() -> Unit)? = null,
     onPlayVideo: (Int) -> Unit
 ) {
     val focusManager = LocalFocusManager.current
@@ -564,15 +681,23 @@ private fun MusicContentGrid(
             }
         }
     } else {
+        val numCols = if (isMobile) 2 else 3
         LazyVerticalGrid(
-            columns = GridCells.Fixed(if (isMobile) 2 else 4),
+            columns = GridCells.Fixed(numCols),
             state = gridState,
             horizontalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 14.dp),
             verticalArrangement = Arrangement.spacedBy(if (isMobile) 10.dp else 14.dp),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .focusProperties {
+                    exit = { direction ->
+                        if (direction == FocusDirection.Down) FocusRequester.Cancel else FocusRequester.Default
+                    }
+                }
         ) {
             gridItems(videos, key = { it.id }) { video ->
                 val idx = videos.indexOfFirst { it.id == video.id }
+                val isBottomRow = idx >= (videos.size - numCols)
                 TvFocusableCard(
                     onClick = {
                         onPlayVideo(if (idx >= 0) idx else 0)
@@ -583,11 +708,22 @@ private fun MusicContentGrid(
                     focusedScale = 1.04f,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .focusProperties {
+                            if (isBottomRow) {
+                                down = FocusRequester.Cancel
+                            }
+                        }
                         .then(if (idx == 0 && firstVideoFocusRequester != null) Modifier.focusRequester(firstVideoFocusRequester) else Modifier)
                         .then(if (idx == gridState.firstVisibleItemIndex && visibleVideoFocusRequester != null) Modifier.focusRequester(visibleVideoFocusRequester) else Modifier)
                         .onPreviewKeyEvent { keyEvent ->
                             if (keyEvent.type == KeyEventType.KeyDown) {
                                 when (keyEvent.key) {
+                                    Key.DirectionDown -> {
+                                        if (isBottomRow) {
+                                            onFetchMore?.invoke()
+                                            true
+                                        } else false
+                                    }
                                     Key.DirectionLeft -> {
                                         try {
                                             val moved = focusManager.moveFocus(FocusDirection.Left)

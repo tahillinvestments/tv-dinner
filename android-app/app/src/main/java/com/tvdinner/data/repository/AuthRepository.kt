@@ -568,6 +568,29 @@ class AuthRepository(context: Context) {
         prefs.edit().putBoolean("show_adult_content", enabled).apply()
     }
 
+    // Adult Content (18+) PIN Security
+    fun getAdultPin(): String? {
+        return prefs.getString("adult_content_pin", null)
+    }
+
+    fun setAdultPin(pin: String?) {
+        val clean = pin?.trim()
+        if (clean.isNullOrBlank()) {
+            prefs.edit().remove("adult_content_pin").apply()
+        } else {
+            prefs.edit().putString("adult_content_pin", clean).apply()
+        }
+    }
+
+    fun hasAdultPin(): Boolean {
+        return !getAdultPin().isNullOrBlank()
+    }
+
+    fun verifyAdultPin(inputPin: String): Boolean {
+        val saved = getAdultPin() ?: return false
+        return saved == inputPin.trim()
+    }
+
     // US Channels & Categories Filter Toggle (Default: OFF)
     fun isUsOnly(): Boolean {
         return prefs.getBoolean("is_us_only", false)

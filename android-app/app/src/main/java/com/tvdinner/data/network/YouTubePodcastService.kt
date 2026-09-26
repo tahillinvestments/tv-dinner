@@ -45,6 +45,8 @@ class YouTubePodcastService(
                     cleanChan.contains("culture") || cleanChan.contains("talk") || cleanChan.contains("comedy")
                 cleanTarget.contains("news") || cleanTarget.contains("politics") ->
                     cleanChan.contains("news") || cleanChan.contains("politics")
+                cleanTarget.contains("crime") || cleanTarget.contains("mystery") ->
+                    cleanChan.contains("crime") || cleanChan.contains("mystery")
                 else -> false
             }
         }
@@ -66,14 +68,20 @@ class YouTubePodcastService(
             "science", "science & health" -> "science health video podcast channel"
             "culture", "culture & talk", "comedy" -> "comedy interview video podcast channel"
             "news", "news & politics" -> "news politics video podcast channel"
+            "crime", "true crime", "true crime & mystery" -> "true crime investigative documentary podcast channel"
             else -> "$category video podcast channel"
         }
 
         val combined = mutableListOf<PodcastChannel>()
         val seenNames = mutableSetOf<String>()
 
-        // Curated video podcast channels first
-        for (ch in curated) {
+        // Curated video podcast channels first, with gentle rotation so lineup stays fresh and dynamic
+        val dynamicCurated = if (curated.size > 4) {
+            val rot = ((System.currentTimeMillis() / (1000L * 3600L * 3L)) % curated.size).toInt()
+            curated.drop(rot) + curated.take(rot)
+        } else curated
+
+        for (ch in dynamicCurated) {
             val key = ch.channelName.lowercase().trim()
             if (seenNames.add(key)) {
                 combined.add(ch)
@@ -270,6 +278,13 @@ class YouTubePodcastService(
                 4 -> listOf("daily political commentary podcast", "investigative reporting podcast full")
                 else -> listOf("news politics podcast episode $page", "politics talk podcast $page")
             }
+            "crime", "true crime", "true crime & mystery" -> when (page) {
+                1 -> listOf("true crime mystery podcast full episode", "mrballen rotten mango casefile podcast", "unsolved mysteries crime podcast 2026")
+                2 -> listOf("serial killer documentary podcast full", "investigative true crime podcast full episode", "generation why court junkie podcast")
+                3 -> listOf("minds of madness dark poutine crime podcast", "true crime garage podcast full", "cold case files investigative podcast")
+                4 -> listOf("true crime investigative journalism podcast", "vanished unsolved crime podcast full")
+                else -> listOf("true crime podcast episode $page", "mystery podcast full $page")
+            }
             else -> when (page) {
                 1 -> listOf(
                     if (categoryOrQuery.contains("podcast", ignoreCase = true)) categoryOrQuery else "$categoryOrQuery podcast full episode",
@@ -293,22 +308,37 @@ class YouTubePodcastService(
         val allEpisodes = mutableListOf<PodcastEpisode>()
         val seenVideoIds = mutableSetOf<String>()
 
-        for (q in queries) {
+        val curatedChannels = com.tvdinner.data.podcasts.PodcastsData.CHANNELS.filter {
+            matchesPodcastCategory(it.category, categoryOrQuery)
+        }
+        val poolChannels = if (curatedChannels.isNotEmpty()) curatedChannels else com.tvdinner.data.podcasts.PodcastsData.CHANNELS
+
+        val pageChannels = if (poolChannels.isNotEmpty()) {
+            val idx1 = ((page - 1) * 2) % poolChannels.size
+            val idx2 = ((page - 1) * 2 + 1) % poolChannels.size
+            listOfNotNull(poolChannels.getOrNull(idx1), poolChannels.getOrNull(idx2))
+        } else emptyList()
+
+        val dynamicQueries = mutableListOf<String>()
+        dynamicQueries.addAll(queries)
+        for (ch in pageChannels) {
+            dynamicQueries.add("${ch.channelName} podcast full episode")
+        }
+
+        for (q in dynamicQueries) {
             val results = queryYouTubeEpisodes(q)
             for (ep in results) {
                 if (seenVideoIds.add(ep.videoId)) {
                     allEpisodes.add(ep)
                 }
             }
-            if (allEpisodes.size >= 15) break
+            if (allEpisodes.size >= 24) break
         }
 
         // Guaranteed fallback: If live search returned few results, fetch from curated channel RSS feeds
-        if (allEpisodes.size < 12) {
-            val curatedChannels = com.tvdinner.data.podcasts.PodcastsData.CHANNELS.filter {
-                matchesPodcastCategory(it.category, categoryOrQuery)
-            }
-            for (ch in curatedChannels) {
+        if (allEpisodes.size < 15) {
+            val candidateChannels = if (pageChannels.isNotEmpty()) pageChannels else poolChannels.take(2)
+            for (ch in candidateChannels) {
                 if (ch.ytChannelId.isNotBlank()) {
                     val rssList = fetchEpisodesViaRss(ch.ytChannelId, ch.channelName, ch.id)
                     for (ep in rssList) {

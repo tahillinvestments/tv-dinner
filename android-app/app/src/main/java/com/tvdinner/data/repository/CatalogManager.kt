@@ -1,6 +1,10 @@
 package com.tvdinner.data.repository
 
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.tvdinner.data.model.*
 import com.tvdinner.data.network.XtreamApiClient
 import com.tvdinner.data.network.YouTubeMusicService
@@ -10,6 +14,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+
+data class YouTubeQueueItem(
+    val videoId: String,
+    val title: String,
+    val subtitle: String = "",
+    val artworkUrl: String? = null
+)
 
 class CatalogManager(
     private val authRepo: AuthRepository,
@@ -24,6 +35,75 @@ class CatalogManager(
     private val podcastMutex = Mutex()
     private val musicMutex = Mutex()
 
+    // Active YouTube Queue for Continuous Sequential Playback
+    var activeYouTubeQueue by mutableStateOf<List<YouTubeQueueItem>>(emptyList())
+    var activeYouTubeQueueIndex by mutableIntStateOf(-1)
+
+    fun setYouTubeQueue(items: List<YouTubeQueueItem>, startIndex: Int = 0) {
+        activeYouTubeQueue = items
+        activeYouTubeQueueIndex = if (items.isNotEmpty()) startIndex.coerceIn(0, items.size - 1) else -1
+    }
+
+    fun getCurrentQueueItem(): YouTubeQueueItem? {
+        return activeYouTubeQueue.getOrNull(activeYouTubeQueueIndex)
+    }
+
+    fun getNextQueueItem(): YouTubeQueueItem? {
+        if (activeYouTubeQueueIndex + 1 in activeYouTubeQueue.indices) {
+            return activeYouTubeQueue[activeYouTubeQueueIndex + 1]
+        }
+        return null
+    }
+
+    fun getPreviousQueueItem(): YouTubeQueueItem? {
+        if (activeYouTubeQueueIndex - 1 in activeYouTubeQueue.indices) {
+            return activeYouTubeQueue[activeYouTubeQueueIndex - 1]
+        }
+        return null
+    }
+
+    fun advanceYouTubeQueue(): YouTubeQueueItem? {
+        if (activeYouTubeQueueIndex + 1 in activeYouTubeQueue.indices) {
+            activeYouTubeQueueIndex++
+            return activeYouTubeQueue[activeYouTubeQueueIndex]
+        }
+        return null
+    }
+
+    fun retreatYouTubeQueue(): YouTubeQueueItem? {
+        if (activeYouTubeQueueIndex - 1 in activeYouTubeQueue.indices) {
+            activeYouTubeQueueIndex--
+            return activeYouTubeQueue[activeYouTubeQueueIndex]
+        }
+        return null
+    }
+
+    fun clearYouTubeQueue() {
+        activeYouTubeQueue = emptyList()
+        activeYouTubeQueueIndex = -1
+    }
+
+    // Persistent Search Results across Screen/Module Navigation
+    var musicSearchQuery by mutableStateOf("")
+    var musicSearchResults by mutableStateOf<List<MusicVideo>>(emptyList())
+    var musicSelectedGenreId by mutableStateOf("trending")
+    var musicCurrentVideos by mutableStateOf<List<MusicVideo>>(emptyList())
+
+    var podcastSearchQuery by mutableStateOf("")
+    var podcastSearchChannels by mutableStateOf<List<PodcastChannel>>(emptyList())
+    var podcastSearchEpisodes by mutableStateOf<List<PodcastEpisode>>(emptyList())
+    var podcastSelectedCategory by mutableStateOf("🔥 Trending")
+    var podcastSelectedChannel by mutableStateOf<PodcastChannel?>(null)
+    var podcastMainEpisodes by mutableStateOf<List<PodcastEpisode>>(emptyList())
+    var podcastLiveEpisodes by mutableStateOf<List<PodcastEpisode>>(emptyList())
+    var podcastLiveChannels by mutableStateOf<List<PodcastChannel>>(emptyList())
+
+    var moviesSearchQuery by mutableStateOf("")
+    var moviesSearchResults by mutableStateOf<List<Movie>>(emptyList())
+
+    var seriesSearchQuery by mutableStateOf("")
+    var seriesSearchResults by mutableStateOf<List<Series>>(emptyList())
+
     // In-Memory Music Cache
     private val cachedMusicArtistsByGenre = mutableMapOf<String, List<MusicArtist>>()
     private val cachedMusicVideosByArtist = mutableMapOf<String, List<MusicVideo>>()
@@ -37,6 +117,14 @@ class CatalogManager(
     private val cachedLiveChannelsByCat = mutableMapOf<String, List<Channel>>()
     private val cachedEpgByStreamId = java.util.concurrent.ConcurrentHashMap<Int, String>()
     private val cachedFullEpgByStreamId = java.util.concurrent.ConcurrentHashMap<Int, ShortEpgResponse>()
+    private val realCachedStreamIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+    private val xmltvEpgTable = java.util.concurrent.ConcurrentHashMap<String, MutableList<EpgProgram>>()
+    private val channelNameToXmltvId = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private var isXmltvLoaded = false
+    private var isXmltvLoading = false
+    private val catalogScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    fun hasRealCachedEpg(streamId: Int): Boolean = realCachedStreamIds.contains(streamId)
 
 
     fun parseEpgEpoch(rawTimestamp: String?, rawDateStr: String?): Long? {
@@ -153,34 +241,217 @@ class CatalogManager(
         return ShortEpgResponse(epgListings = programs)
     }
 
-    suspend fun getFullEpgForChannel(streamId: Int): ShortEpgResponse? = withContext(Dispatchers.IO) {
-        if (streamId <= 0) return@withContext null
-        cachedFullEpgByStreamId[streamId]?.let { return@withContext it }
-        val ch = cachedLiveChannels?.firstOrNull { it.streamId == streamId }
-            ?: cachedLiveChannelsByCat.values.flatten().firstOrNull { it.streamId == streamId }
+    fun initXmltvFeedIfNeeded() {
+        if (isXmltvLoaded || isXmltvLoading) return
         val credentials = authRepo.getActiveLiveCredentials()
-        val user = ch?.streamUser ?: credentials.user
-        val pswd = ch?.streamPassword ?: credentials.pswd
-        if (user.isBlank() || pswd.isBlank()) return@withContext null
-        val portals = if (!ch?.portalUrl.isNullOrBlank()) listOf(ch.portalUrl!!) else authRepo.getOrderedServerPortals()
-        for (portal in portals) {
+        if (credentials.user.isBlank() || credentials.pswd.isBlank()) return
+        val portal = authRepo.getLivePortalUrl()
+        if (portal.isBlank()) return
+
+        isXmltvLoading = true
+        catalogScope.launch(Dispatchers.IO) {
             try {
-                val shortEpg = apiClient.getShortEpg(portal, user, pswd, streamId, limit = 8)
-                if (shortEpg != null && !shortEpg.epgListings.isNullOrEmpty()) {
-                    cachedFullEpgByStreamId[streamId] = shortEpg
-                    val currentProg = resolveCurrentProgram(shortEpg.epgListings)
-                    val title = currentProg?.decodedTitle
-                    if (!title.isNullOrBlank()) {
-                        cachedEpgByStreamId[streamId] = title
-                    }
-                    return@withContext shortEpg
+                val stream = apiClient.fetchXmltvStream(portal, credentials.user, credentials.pswd)
+                if (stream != null) {
+                    parseXmltvStream(stream)
+                    isXmltvLoaded = true
+                    Log.i(tag, "Loaded XMLTV: ${xmltvEpgTable.size} channels indexed, ${channelNameToXmltvId.size} display names mapped")
                 }
             } catch (e: Exception) {
-                Log.e(tag, "Failed to fetch full EPG for streamId $streamId on $portal: ${e.message}")
+                Log.w(tag, "Failed to load XMLTV feed: ${e.message}")
+            } finally {
+                isXmltvLoading = false
+            }
+        }
+    }
+
+    private fun parseXmltvStream(inputStream: java.io.InputStream) {
+        try {
+            val factory = org.xmlpull.v1.XmlPullParserFactory.newInstance()
+            factory.isNamespaceAware = false
+            val parser = factory.newPullParser()
+            parser.setInput(inputStream, "UTF-8")
+
+            var eventType = parser.eventType
+            var currentChannelId: String? = null
+            var currentProgChannel: String? = null
+            var currentProgStart: String? = null
+            var currentProgStop: String? = null
+            var currentTag: String? = null
+            var titleBuilder: StringBuilder? = null
+            var descBuilder: StringBuilder? = null
+
+            val currentEpoch = System.currentTimeMillis() / 1000L
+            val windowStart = currentEpoch - 7200L
+            val windowEnd = currentEpoch + 86400L
+
+            while (eventType != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                when (eventType) {
+                    org.xmlpull.v1.XmlPullParser.START_TAG -> {
+                        currentTag = parser.name
+                        when (currentTag) {
+                            "channel" -> {
+                                currentChannelId = parser.getAttributeValue(null, "id")
+                            }
+                            "display-name" -> {}
+                            "programme" -> {
+                                currentProgChannel = parser.getAttributeValue(null, "channel")
+                                currentProgStart = parser.getAttributeValue(null, "start")
+                                currentProgStop = parser.getAttributeValue(null, "stop")
+                                titleBuilder = StringBuilder()
+                                descBuilder = StringBuilder()
+                            }
+                            "title" -> {
+                                titleBuilder = StringBuilder()
+                            }
+                            "desc" -> {
+                                descBuilder = StringBuilder()
+                            }
+                        }
+                    }
+                    org.xmlpull.v1.XmlPullParser.TEXT -> {
+                        val text = parser.text
+                        if (!text.isNullOrBlank()) {
+                            when (currentTag) {
+                                "display-name" -> {
+                                    if (!currentChannelId.isNullOrBlank()) {
+                                        val norm = cleanChannelDisplayName(text).lowercase().replace(Regex("[^a-z0-9]"), "")
+                                        if (norm.isNotBlank()) {
+                                            channelNameToXmltvId[norm] = currentChannelId
+                                        }
+                                    }
+                                }
+                                "title" -> {
+                                    titleBuilder?.append(text)
+                                }
+                                "desc" -> {
+                                    descBuilder?.append(text)
+                                }
+                            }
+                        }
+                    }
+                    org.xmlpull.v1.XmlPullParser.END_TAG -> {
+                        val endTag = parser.name
+                        when (endTag) {
+                            "channel" -> {
+                                currentChannelId = null
+                            }
+                            "programme" -> {
+                                if (!currentProgChannel.isNullOrBlank()) {
+                                    val startEpoch = parseEpgEpoch(null, currentProgStart)
+                                    val stopEpoch = parseEpgEpoch(null, currentProgStop)
+                                    val isRelevant = if (stopEpoch != null && startEpoch != null) {
+                                        stopEpoch >= windowStart && startEpoch <= windowEnd
+                                    } else true
+
+                                    if (isRelevant) {
+                                        val title = titleBuilder?.toString()?.trim() ?: ""
+                                        val desc = descBuilder?.toString()?.trim() ?: ""
+                                        if (title.isNotBlank()) {
+                                            val prog = EpgProgram(
+                                                title = title,
+                                                description = desc.ifBlank { null },
+                                                start = currentProgStart,
+                                                end = currentProgStop,
+                                                startTimestamp = startEpoch?.toString(),
+                                                stopTimestamp = stopEpoch?.toString(),
+                                                channelId = currentProgChannel
+                                            )
+                                            val list = xmltvEpgTable.computeIfAbsent(currentProgChannel) { java.util.concurrent.CopyOnWriteArrayList() }
+                                            if (list.size < 20) {
+                                                list.add(prog)
+                                            }
+                                        }
+                                    }
+                                }
+                                currentProgChannel = null
+                                currentProgStart = null
+                                currentProgStop = null
+                                titleBuilder = null
+                                descBuilder = null
+                            }
+                        }
+                        currentTag = null
+                    }
+                }
+                eventType = parser.next()
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "parseXmltvStream error: ${e.message}")
+        } finally {
+            try { inputStream.close() } catch (_: Exception) {}
+        }
+    }
+
+    fun getXmltvEpgForChannel(ch: Channel): ShortEpgResponse? {
+        if (!isXmltvLoaded || xmltvEpgTable.isEmpty()) return null
+        val candidates = mutableListOf<String>()
+        if (!ch.epgChannelId.isNullOrBlank()) {
+            candidates.add(ch.epgChannelId!!)
+        }
+        val norm = cleanChannelDisplayName(ch.name).lowercase().replace(Regex("[^a-z0-9]"), "")
+        if (norm.isNotBlank()) {
+            channelNameToXmltvId[norm]?.let { candidates.add(it) }
+            candidates.add(norm)
+        }
+        for (cand in candidates) {
+            val list = xmltvEpgTable[cand]
+            if (!list.isNullOrEmpty()) {
+                return ShortEpgResponse(epgListings = list)
+            }
+        }
+        return null
+    }
+
+    suspend fun getFullEpgForChannel(streamId: Int): ShortEpgResponse? = withContext(Dispatchers.IO) {
+        if (streamId <= 0) return@withContext null
+        if (realCachedStreamIds.contains(streamId)) {
+            cachedFullEpgByStreamId[streamId]?.let { return@withContext it }
+        }
+        val ch = cachedLiveChannels?.firstOrNull { it.streamId == streamId }
+            ?: cachedLiveChannelsByCat.values.flatten().firstOrNull { it.streamId == streamId }
+
+        // 1. Check XMLTV cache first
+        if (ch != null) {
+            val xmltvRes = getXmltvEpgForChannel(ch)
+            if (xmltvRes != null && !xmltvRes.epgListings.isNullOrEmpty()) {
+                cachedFullEpgByStreamId[streamId] = xmltvRes
+                realCachedStreamIds.add(streamId)
+                val currentProg = resolveCurrentProgram(xmltvRes.epgListings)
+                val title = currentProg?.decodedTitle
+                if (!title.isNullOrBlank()) {
+                    cachedEpgByStreamId[streamId] = title
+                }
+                return@withContext xmltvRes
             }
         }
 
-        // Tier 3 Synthesis Fallback: Always provide continuous time-accurate schedule
+        // 2. Query network API (trying get_short_epg and get_simple_data_table)
+        val credentials = authRepo.getActiveLiveCredentials()
+        val user = ch?.streamUser ?: credentials.user
+        val pswd = ch?.streamPassword ?: credentials.pswd
+        if (user.isNotBlank() && pswd.isNotBlank()) {
+            val portals = if (!ch?.portalUrl.isNullOrBlank()) listOf(ch.portalUrl!!) else authRepo.getOrderedServerPortals()
+            for (portal in portals) {
+                try {
+                    val shortEpg = apiClient.getShortEpg(portal, user, pswd, streamId, limit = 8)
+                    if (shortEpg != null && !shortEpg.epgListings.isNullOrEmpty()) {
+                        cachedFullEpgByStreamId[streamId] = shortEpg
+                        realCachedStreamIds.add(streamId)
+                        val currentProg = resolveCurrentProgram(shortEpg.epgListings)
+                        val title = currentProg?.decodedTitle
+                        if (!title.isNullOrBlank()) {
+                            cachedEpgByStreamId[streamId] = title
+                        }
+                        return@withContext shortEpg
+                    }
+                } catch (e: Exception) {
+                    Log.e(tag, "Failed to fetch full EPG for streamId $streamId on $portal: ${e.message}")
+                }
+            }
+        }
+
+        // Tier 3 Synthesis Fallback: Provide schedule until real guide data arrives
         val fallback = generateFallbackEpg(ch?.name ?: "Live Channel", ch?.categoryId)
         cachedFullEpgByStreamId[streamId] = fallback
         val currentProg = resolveCurrentProgram(fallback.epgListings)
@@ -195,18 +466,21 @@ class CatalogManager(
 
     suspend fun getEpgTitleForChannel(streamId: Int): String? = withContext(Dispatchers.IO) {
         if (streamId <= 0) return@withContext null
-        cachedEpgByStreamId[streamId]?.let { return@withContext it }
+        if (realCachedStreamIds.contains(streamId)) {
+            cachedEpgByStreamId[streamId]?.let { return@withContext it }
+        }
         val full = getFullEpgForChannel(streamId)
         return@withContext resolveCurrentProgram(full?.epgListings)?.decodedTitle
     }
 
     private val activePrefetchJobs = java.util.concurrent.ConcurrentHashMap<Int, Boolean>()
 
-    suspend fun prefetchEpgForChannels(channels: List<Channel>, limit: Int = 50) = withContext(Dispatchers.IO) {
-        val targetChannels = channels.take(limit).filter { it.streamId > 0 && !cachedEpgByStreamId.containsKey(it.streamId) }
+    suspend fun prefetchEpgForChannels(channels: List<Channel>, limit: Int = 60) = withContext(Dispatchers.IO) {
+        initXmltvFeedIfNeeded()
+        val targetChannels = channels.take(limit).filter { it.streamId > 0 && !realCachedStreamIds.contains(it.streamId) }
         if (targetChannels.isEmpty()) return@withContext
 
-        // Proactively provide synthesized schedule so UI shows immediate now-playing metadata
+        // Proactively provide synthesized schedule placeholder so UI shows immediate now-playing metadata
         for (ch in targetChannels) {
             if (!cachedFullEpgByStreamId.containsKey(ch.streamId)) {
                 val fallback = generateFallbackEpg(ch.name, ch.categoryId)
@@ -219,23 +493,39 @@ class CatalogManager(
         }
 
         val credentials = authRepo.getActiveLiveCredentials()
-        val semaphore = Semaphore(8)
+        val semaphore = Semaphore(6)
         coroutineScope {
             for (ch in targetChannels) {
                 if (activePrefetchJobs.putIfAbsent(ch.streamId, true) == null) {
                     launch {
                         semaphore.withPermit {
-                            val portal = ch.portalUrl ?: authRepo.getLivePortalUrl()
-                            val user = ch.streamUser ?: credentials.user
-                            val pswd = ch.streamPassword ?: credentials.pswd
                             try {
-                                val shortEpg = apiClient.getShortEpg(portal, user, pswd, ch.streamId, limit = 8)
-                                if (shortEpg != null && !shortEpg.epgListings.isNullOrEmpty()) {
-                                    cachedFullEpgByStreamId[ch.streamId] = shortEpg
-                                    val currentProg = resolveCurrentProgram(shortEpg.epgListings)
-                                    val title = currentProg?.decodedTitle
-                                    if (!title.isNullOrBlank()) {
-                                        cachedEpgByStreamId[ch.streamId] = title
+                                // 1. Check XMLTV first
+                                val xmltv = getXmltvEpgForChannel(ch)
+                                if (xmltv != null && !xmltv.epgListings.isNullOrEmpty()) {
+                                    cachedFullEpgByStreamId[ch.streamId] = xmltv
+                                    realCachedStreamIds.add(ch.streamId)
+                                    val prog = resolveCurrentProgram(xmltv.epgListings)?.decodedTitle
+                                    if (!prog.isNullOrBlank()) {
+                                        cachedEpgByStreamId[ch.streamId] = prog
+                                    }
+                                    return@withPermit
+                                }
+
+                                // 2. Query network API
+                                val portal = ch.portalUrl ?: authRepo.getLivePortalUrl()
+                                val user = ch.streamUser ?: credentials.user
+                                val pswd = ch.streamPassword ?: credentials.pswd
+                                if (user.isNotBlank() && pswd.isNotBlank()) {
+                                    val shortEpg = apiClient.getShortEpg(portal, user, pswd, ch.streamId, limit = 8)
+                                    if (shortEpg != null && !shortEpg.epgListings.isNullOrEmpty()) {
+                                        cachedFullEpgByStreamId[ch.streamId] = shortEpg
+                                        realCachedStreamIds.add(ch.streamId)
+                                        val currentProg = resolveCurrentProgram(shortEpg.epgListings)
+                                        val title = currentProg?.decodedTitle
+                                        if (!title.isNullOrBlank()) {
+                                            cachedEpgByStreamId[ch.streamId] = title
+                                        }
                                     }
                                 }
                             } catch (_: Exception) {
@@ -857,6 +1147,7 @@ class CatalogManager(
             if (user.isBlank() || pswd.isBlank()) {
                 return@withLock emptyList()
             }
+            initXmltvFeedIfNeeded()
             var fetched = emptyList<LiveCategory>()
             val portals = authRepo.getOrderedServerPortals()
             for (p in portals) {
@@ -904,6 +1195,7 @@ class CatalogManager(
             if (user.isBlank() || pswd.isBlank()) {
                 return@withLock emptyList()
             }
+            initXmltvFeedIfNeeded()
             var fetched = emptyList<Channel>()
             var activePortal = authRepo.getLivePortalUrl()
             val portals = authRepo.getOrderedServerPortals()
@@ -1560,5 +1852,16 @@ class CatalogManager(
         cachedPodcastEpisodesByCat.clear()
         cachedMusicArtistsByGenre.clear()
         cachedMusicVideosByArtist.clear()
+        activeYouTubeQueue = emptyList()
+        activeYouTubeQueueIndex = -1
+        musicSearchQuery = ""
+        musicSearchResults = emptyList()
+        podcastSearchQuery = ""
+        podcastSearchChannels = emptyList()
+        podcastSearchEpisodes = emptyList()
+        moviesSearchQuery = ""
+        moviesSearchResults = emptyList()
+        seriesSearchQuery = ""
+        seriesSearchResults = emptyList()
     }
 }

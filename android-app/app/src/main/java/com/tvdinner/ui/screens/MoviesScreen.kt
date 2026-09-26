@@ -93,10 +93,10 @@ fun MoviesScreen(
     var categories by remember { mutableStateOf<List<MovieCategory>>(emptyList()) }
     var selectedCategoryId by rememberSaveable { mutableStateOf<String?>(authRepo.getLastMovieCategoryId()) }
     var movies by remember { mutableStateOf<List<Movie>>(emptyList()) }
-    var searchResults by remember { mutableStateOf<List<Movie>>(emptyList()) }
+    var searchResults by remember { mutableStateOf<List<Movie>>(catalogManager.moviesSearchResults) }
     var lastPlayedMovieId by rememberSaveable { mutableIntStateOf(authRepo.getLastMovieStreamId()) }
     var isLoading by remember { mutableStateOf(false) }
-    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf(catalogManager.moviesSearchQuery) }
     var resumePromptMovie by remember { mutableStateOf<Movie?>(null) }
     var sortedAndFilteredMovies by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var isSorting by remember { mutableStateOf(false) }
@@ -226,13 +226,20 @@ fun MoviesScreen(
 
     // High-performance search across entire VOD movie catalog with debounce (Adult excluded unless Adult tab selected)
     LaunchedEffect(searchQuery, selectedCategoryId) {
+        val queryChanged = searchQuery != catalogManager.moviesSearchQuery
+        catalogManager.moviesSearchQuery = searchQuery
         if (searchQuery.isNotBlank()) {
-            delay(300) // Debounce rapid keystrokes to prevent OOM / network spikes
-            isLoading = true
-            searchResults = catalogManager.searchMovies(searchQuery, selectedCategoryId)
-            isLoading = false
+            if (queryChanged || searchResults.isEmpty()) {
+                delay(300) // Debounce rapid keystrokes to prevent OOM / network spikes
+                isLoading = true
+                val results = catalogManager.searchMovies(searchQuery, selectedCategoryId)
+                searchResults = results
+                catalogManager.moviesSearchResults = results
+                isLoading = false
+            }
         } else {
             searchResults = emptyList()
+            catalogManager.moviesSearchResults = emptyList()
         }
     }
 
@@ -293,19 +300,39 @@ fun MoviesScreen(
                 onOpenSettings = onOpenSettings
             )
         } else if (isMobile) {
-            // Mobile Portrait / Compact View: Single Column with horizontal categories
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Header, Search & Title
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // Mobile Portrait / Compact View: Top 16:9 Integrated Preview + Content Column
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .background(Color.Black)
                 ) {
+                    UniversalIntegratedPreview(
+                        playerManager = playerManager,
+                        onExpand = onExpandPreview,
+                        onClose = {
+                            playerManager.stop()
+                            playerManager.clearYouTubeMedia()
+                            catalogManager.clearYouTubeQueue()
+                        },
+                        isPlayingFullscreen = isPlayingFullscreen,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Header, Search & Title
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                     Text(
                         text = "MOVIES VOD",
                         fontSize = 18.sp,
@@ -317,6 +344,17 @@ fun MoviesScreen(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         placeholder = "Search movies...",
+                        onSearch = {
+                            if (searchQuery.isNotBlank()) {
+                                coroutineScope.launch {
+                                    isLoading = true
+                                    val results = catalogManager.searchMovies(searchQuery, selectedCategoryId)
+                                    searchResults = results
+                                    catalogManager.moviesSearchResults = results
+                                    isLoading = false
+                                }
+                            }
+                        },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -395,6 +433,15 @@ fun MoviesScreen(
                                     val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
                                     val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
                                     val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
+
+                                    // Already playing in preview -> expand directly to fullscreen!
+                                    val isCurrentPlaying = playerManager.currentStreamUrl.value == streamUrl ||
+                                        (lastPlayedMovieId == movie.streamId && playerManager.isPlaying.value && !playerManager.isLiveStream.value)
+                                    if (isCurrentPlaying) {
+                                        onExpandPreview()
+                                        return@TvFocusableCard
+                                    }
+
                                     lastPlayedMovieId = movie.streamId
                                     authRepo.setLastMovieStreamId(movie.streamId)
                                     authRepo.addMovieToHistory(movie.streamId)
@@ -563,6 +610,7 @@ fun MoviesScreen(
                     }
                 }
             }
+        }
         } else {
             // TV / Desktop Layout: Dedicated Left Vertical Category Sidebar + Right Content Grid
             Row(modifier = Modifier.fillMaxSize()) {
@@ -584,8 +632,24 @@ fun MoviesScreen(
                         UniversalIntegratedPreview(
                             playerManager = playerManager,
                             onExpand = onExpandPreview,
-                            onClose = { playerManager.stop() },
+                            onClose = {
+                                playerManager.stop()
+                                playerManager.clearYouTubeMedia()
+                                catalogManager.clearYouTubeQueue()
+                            },
                             isPlayingFullscreen = isPlayingFullscreen,
+                            onNextVideo = {
+                                val nextItem = catalogManager.advanceYouTubeQueue()
+                                if (nextItem != null) {
+                                    playerManager.setYouTubeMedia(nextItem.videoId, nextItem.title)
+                                }
+                            },
+                            onPreviousVideo = {
+                                val prevItem = catalogManager.retreatYouTubeQueue()
+                                if (prevItem != null) {
+                                    playerManager.setYouTubeMedia(prevItem.videoId, prevItem.title)
+                                }
+                            },
                             onMoveLeft = { onRequestFocusSidebar?.invoke() },
                             onMoveRight = {
                                 try {
@@ -702,6 +766,17 @@ fun MoviesScreen(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             placeholder = "Search movies catalog...",
+                            onSearch = {
+                                if (searchQuery.isNotBlank()) {
+                                    coroutineScope.launch {
+                                        isLoading = true
+                                        val results = catalogManager.searchMovies(searchQuery, selectedCategoryId)
+                                        searchResults = results
+                                        catalogManager.moviesSearchResults = results
+                                        isLoading = false
+                                    }
+                                }
+                            },
                             onMoveLeft = {
                                 try {
                                     selectedCategoryFocusRequester.requestFocus()
@@ -788,6 +863,15 @@ fun MoviesScreen(
                                 val currentSavedDur = authRepo.getPlaybackDuration(streamKey)
                                 val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
                                 val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
+
+                                // Already playing in preview -> expand directly to fullscreen!
+                                val isCurrentPlaying = playerManager.currentStreamUrl.value == streamUrl ||
+                                    (lastPlayedMovieId == movie.streamId && playerManager.isPlaying.value && !playerManager.isLiveStream.value)
+                                if (isCurrentPlaying) {
+                                    onExpandPreview()
+                                    return@TvFocusableCard
+                                }
+
                                 lastPlayedMovieId = movie.streamId
                                 authRepo.setLastMovieStreamId(movie.streamId)
                                 authRepo.addMovieToHistory(movie.streamId)
@@ -995,42 +1079,109 @@ fun MoviesScreen(
             }
         }
     }
+    }
 
-    // Resume or Play from Beginning Dialog
+    // Resume or Play from Beginning Dialog (Rendered at root Box level so it is always visible in portrait and landscape)
     if (resumePromptMovie != null) {
-            val movie = resumePromptMovie!!
-            val streamKey = "movie_${movie.streamId}"
-            val savedPos = authRepo.getPlaybackPosition(streamKey)
-            val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
-            val currentPortal = authRepo.getVodPortalUrl()
-            val currentUser = authRepo.getVodUsername()
-            val currentPswd = authRepo.getVodPassword()
-            val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
+        val movie = resumePromptMovie!!
+        val streamKey = "movie_${movie.streamId}"
+        val savedPos = authRepo.getPlaybackPosition(streamKey)
+        val ext = movie.containerExtension?.ifBlank { "mp4" } ?: "mp4"
+        val currentPortal = authRepo.getVodPortalUrl()
+        val currentUser = authRepo.getVodUsername()
+        val currentPswd = authRepo.getVodPassword()
+        val streamUrl = apiClient.buildMovieStreamUrl(currentPortal, currentUser, currentPswd, movie.streamId, ext)
 
-            Dialog(onDismissRequest = { resumePromptMovie = null }) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = CinemaSurface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
-                    modifier = Modifier.fillMaxWidth(0.9f).wrapContentHeight()
+        Dialog(
+            onDismissRequest = { resumePromptMovie = null },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = CinemaSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, CinemaSurfaceLight),
+                modifier = Modifier
+                    .fillMaxWidth(if (isMobile) 0.92f else 0.55f)
+                    .wrapContentHeight()
+                    .padding(horizontal = 16.dp, vertical = 20.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text(
-                            text = movie.displayTitle,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
+                    Text(
+                        text = movie.displayTitle,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
-                        Text(
-                            text = "You previously watched this movie up to ${formatTimeMs(savedPos)}. Would you like to resume or start over?",
-                            fontSize = 13.sp,
-                            color = TextSecondary
-                        )
+                    Text(
+                        text = "You previously watched this movie up to ${formatTimeMs(savedPos)}. Would you like to resume or start over?",
+                        fontSize = 13.sp,
+                        color = TextSecondary,
+                        lineHeight = 18.sp
+                    )
 
+                    if (isMobile) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Resume Button
+                            TvFocusableCard(
+                                onClick = {
+                                    lastPlayedMovieId = movie.streamId
+                                    authRepo.addMovieToHistory(movie.streamId)
+                                    resumePromptMovie = null
+                                    onPlayMovie(streamUrl, movie.displayTitle, savedPos, streamKey)
+                                },
+                                backgroundColor = CinemaPrimary,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().height(46.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = "Resume", tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Resume at ${formatTimeMs(savedPos)}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                            }
+
+                            // Play from Beginning Button
+                            TvFocusableCard(
+                                onClick = {
+                                    lastPlayedMovieId = movie.streamId
+                                    authRepo.addMovieToHistory(movie.streamId)
+                                    authRepo.clearPlaybackPosition(streamKey)
+                                    resumePromptMovie = null
+                                    onPlayMovie(streamUrl, movie.displayTitle, 0L, streamKey)
+                                },
+                                backgroundColor = CinemaSurfaceVariant,
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().height(46.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(imageVector = Icons.Default.Replay, contentDescription = "Restart", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Start Over from Beginning", color = TextSecondary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    } else {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1046,7 +1197,7 @@ fun MoviesScreen(
                                 },
                                 backgroundColor = CinemaPrimary,
                                 shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f).height(44.dp)
+                                modifier = Modifier.weight(1f).height(46.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxSize(),
@@ -1070,7 +1221,7 @@ fun MoviesScreen(
                                 },
                                 backgroundColor = CinemaSurfaceVariant,
                                 shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f).height(44.dp)
+                                modifier = Modifier.weight(1f).height(46.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxSize(),

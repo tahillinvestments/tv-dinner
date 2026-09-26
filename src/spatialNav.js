@@ -518,7 +518,18 @@ class SpatialNavigationEngine {
       }
     }
 
-    // 2. Check open Fullscreen
+    // 2. Check open Fullscreen or Pseudo-Fullscreen
+    const pseudoFs = document.querySelector('.player-wrapper.is-pseudo-fullscreen') || document.querySelector('#player-section.is-pseudo-fullscreen');
+    if (pseudoFs) {
+      if (typeof window.exitActiveMediaFullscreen === 'function') {
+        window.exitActiveMediaFullscreen();
+      } else {
+        pseudoFs.classList.remove('is-pseudo-fullscreen');
+        document.body.classList.remove('body-pseudo-fullscreen');
+      }
+      return true;
+    }
+
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       if (document.exitFullscreen) {
         document.exitFullscreen();
@@ -660,6 +671,7 @@ class SpatialNavigationEngine {
             document.webkitFullscreenElement ||
             document.querySelector('.video-container.is-pseudo-fullscreen') ||
             document.querySelector('#player-section.is-pseudo-fullscreen') ||
+            document.querySelector('.player-wrapper.is-pseudo-fullscreen') ||
             document.body.classList.contains('is-fullscreen')
           );
           if (isFullscreen) {

@@ -95,12 +95,30 @@ export class IPTVPlayer {
   }
 
   initEventListeners() {
-    // Play/Pause toggling
+    // Play/Pause toggling & Preview Fullscreen handling
     if (this.playPauseBtn) {
       this.playPauseBtn.addEventListener('click', () => this.togglePlay());
     }
     if (this.video) {
-      this.video.addEventListener('click', () => this.togglePlay());
+      this.video.addEventListener('click', (e) => {
+        // In touch mode or when player is docked in preview, touching the video goes to fullscreen
+        const inPreviewDock = document.getElementById('preview-dock-stage')?.contains(this.video);
+        const isFS = !!(document.fullscreenElement || document.querySelector('.player-wrapper.is-pseudo-fullscreen'));
+        if (inPreviewDock || (!isFS && ('ontouchstart' in window || navigator.maxTouchPoints > 0))) {
+          e.stopPropagation();
+          this.toggleFullscreen();
+          return;
+        }
+        this.togglePlay();
+      });
+    }
+
+    const embedExitBtn = document.getElementById('embed-exit-fs-btn');
+    if (embedExitBtn) {
+      embedExitBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleFullscreen();
+      });
     }
 
     // VOD Seek Buttons (-30s, -10s, +10s, +30s)
@@ -265,30 +283,44 @@ export class IPTVPlayer {
 
     // Video native events
     this.video.addEventListener('pause', () => {
+      this.isUserPaused = true;
       if (container) {
         container.classList.remove('user-idle');
         container.classList.add('controls-active');
       }
+      this.showLoading(true, true);
     });
     this.video.addEventListener('play', () => {
+      this.isUserPaused = false;
+      this.showLoading(false);
       showControls(2500);
     });
     this.video.addEventListener('waiting', () => {
-      if (this.currentUrl) this.showLoading(true);
+      if (this.currentUrl) {
+        const isPaused = Boolean(this.isUserPaused || (this.video && this.video.paused));
+        this.showLoading(true, isPaused);
+      }
     });
     this.video.addEventListener('playing', () => {
+      this.isUserPaused = false;
       this.showLoading(false);
       this.showError(false);
     });
     this.video.addEventListener('canplay', () => {
-      this.showLoading(false);
-      this.showError(false);
+      if (!this.video.paused) {
+        this.showLoading(false);
+        this.showError(false);
+      }
     });
     this.video.addEventListener('canplaythrough', () => {
-      this.showLoading(false);
+      if (!this.video.paused) {
+        this.showLoading(false);
+      }
     });
     this.video.addEventListener('loadstart', () => {
-      if (this.currentUrl) this.showLoading(true);
+      if (this.currentUrl && !this.isUserPaused && (!this.video || !this.video.paused)) {
+        this.showLoading(true, false);
+      }
     });
     this.video.addEventListener('error', (e) => this.handleNativeError(e));
 
@@ -436,12 +468,27 @@ export class IPTVPlayer {
     }, duration);
   }
 
-  showLoading(isLoading) {
+  showLoading(isLoading, forcePauseState = null) {
     if (!this.loading) return;
+    const isPaused = forcePauseState !== null 
+      ? forcePauseState 
+      : Boolean(this.isUserPaused || (this.video && this.video.paused && (this.video.currentTime > 0 || this.video.readyState >= 2)));
+    
+    const loadingText = document.getElementById('player-loading-text') || this.loading.querySelector('span');
+
     if (isLoading) {
       this.loading.classList.remove('hidden');
+      if (isPaused) {
+        this.loading.classList.add('is-paused');
+        if (loadingText) loadingText.textContent = 'Paused';
+      } else {
+        this.loading.classList.remove('is-paused');
+        if (loadingText) loadingText.textContent = 'Buffering Stream...';
+      }
     } else {
       this.loading.classList.add('hidden');
+      this.loading.classList.remove('is-paused');
+      if (loadingText) loadingText.textContent = 'Buffering Stream...';
     }
   }
 
@@ -1189,6 +1236,11 @@ export class IPTVPlayer {
       }
       this.fullscreenBtn.setAttribute('title', isFS ? 'Exit Fullscreen' : 'Fullscreen');
       if (window.lucide) window.lucide.createIcons();
+    }
+    const embedExitBtn = document.getElementById('embed-exit-fs-btn');
+    if (embedExitBtn) {
+      if (isFS) embedExitBtn.classList.remove('hidden');
+      else embedExitBtn.classList.add('hidden');
     }
   }
 

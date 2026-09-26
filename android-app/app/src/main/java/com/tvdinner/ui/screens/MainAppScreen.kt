@@ -152,10 +152,56 @@ fun MainAppScreen(
         }
     }
 
+    var playNextYouTubeFromQueue: (() -> Unit)? = null
+    var playPrevYouTubeFromQueue: (() -> Unit)? = null
+
+    playNextYouTubeFromQueue = {
+        val nextItem = catalogManager.advanceYouTubeQueue()
+        if (nextItem != null) {
+            playerManager.setYouTubeMedia(nextItem.videoId, nextItem.title)
+            val queueHasNext = catalogManager.activeYouTubeQueueIndex < catalogManager.activeYouTubeQueue.size - 1
+            val nextTitle = if (queueHasNext) catalogManager.activeYouTubeQueue.getOrNull(catalogManager.activeYouTubeQueueIndex + 1)?.title else null
+            lastYouTubeNextTitle = nextTitle
+            if (fullscreenYouTube != null) {
+                fullscreenYouTube = FullscreenYouTubeState(
+                    videoId = nextItem.videoId,
+                    title = nextItem.title,
+                    onNextVideo = playNextYouTubeFromQueue,
+                    nextVideoTitle = nextTitle,
+                    onPreviousVideo = playPrevYouTubeFromQueue
+                )
+            }
+        } else {
+            lastYouTubeOnNext?.invoke()
+        }
+    }
+
+    playPrevYouTubeFromQueue = {
+        val prevItem = catalogManager.retreatYouTubeQueue()
+        if (prevItem != null) {
+            playerManager.setYouTubeMedia(prevItem.videoId, prevItem.title)
+            val queueHasNext = catalogManager.activeYouTubeQueueIndex < catalogManager.activeYouTubeQueue.size - 1
+            val nextTitle = if (queueHasNext) catalogManager.activeYouTubeQueue.getOrNull(catalogManager.activeYouTubeQueueIndex + 1)?.title else null
+            lastYouTubeNextTitle = nextTitle
+            if (fullscreenYouTube != null) {
+                fullscreenYouTube = FullscreenYouTubeState(
+                    videoId = prevItem.videoId,
+                    title = prevItem.title,
+                    onNextVideo = playNextYouTubeFromQueue,
+                    nextVideoTitle = nextTitle,
+                    onPreviousVideo = playPrevYouTubeFromQueue
+                )
+            }
+        } else {
+            lastYouTubeOnPrev?.invoke()
+        }
+    }
+
     fun switchTab(newTab: AppTab) {
         if (activeTab != newTab) {
             val isPersistent = authRepo.isPersistentPreviewEnabled()
-            if (!isPersistent) {
+            val hasActiveYouTube = catalogManager.activeYouTubeQueue.isNotEmpty() || playerManager.activeYouTubeVideoId.value != null
+            if (!isPersistent && !hasActiveYouTube) {
                 playerManager.stop()
                 playerManager.clearYouTubeMedia()
             }
@@ -169,12 +215,17 @@ fun MainAppScreen(
 
     val expandCurrentMedia: () -> Unit = {
         if (playerManager.activeYouTubeVideoId.value != null) {
+            val hasQueue = catalogManager.activeYouTubeQueue.isNotEmpty()
+            val queueNext = if (hasQueue) {
+                catalogManager.activeYouTubeQueue.getOrNull(catalogManager.activeYouTubeQueueIndex + 1)
+            } else null
+
             fullscreenYouTube = FullscreenYouTubeState(
                 videoId = playerManager.activeYouTubeVideoId.value!!,
                 title = playerManager.activeYouTubeTitle.value ?: "YouTube Media",
-                onNextVideo = lastYouTubeOnNext ?: MainActivity.onNextYouTubeCallback,
-                nextVideoTitle = lastYouTubeNextTitle,
-                onPreviousVideo = lastYouTubeOnPrev ?: MainActivity.onPreviousYouTubeCallback
+                onNextVideo = if (hasQueue) playNextYouTubeFromQueue else (lastYouTubeOnNext ?: MainActivity.onNextYouTubeCallback),
+                nextVideoTitle = queueNext?.title ?: lastYouTubeNextTitle,
+                onPreviousVideo = if (hasQueue) playPrevYouTubeFromQueue else (lastYouTubeOnPrev ?: MainActivity.onPreviousYouTubeCallback)
             )
         } else if (playerManager.currentStreamUrl.value.isNotBlank()) {
             if (playerManager.isLiveStream.value) {
@@ -448,7 +499,19 @@ fun MainAppScreen(
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
                                             playerManager.setYouTubeMedia(videoId, title)
-                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                            val hasQueue = catalogManager.activeYouTubeQueue.isNotEmpty()
+                                            val queueNext = if (hasQueue) {
+                                                catalogManager.activeYouTubeQueue.getOrNull(catalogManager.activeYouTubeQueueIndex + 1)
+                                            } else null
+                                            if (fullscreenYouTube != null) {
+                                                fullscreenYouTube = FullscreenYouTubeState(
+                                                    videoId = videoId,
+                                                    title = title,
+                                                    onNextVideo = if (hasQueue) playNextYouTubeFromQueue else onNext,
+                                                    nextVideoTitle = queueNext?.title ?: nextTitle,
+                                                    onPreviousVideo = if (hasQueue) playPrevYouTubeFromQueue else onPrev
+                                                )
+                                            }
                                         },
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) }
                                     )
@@ -471,7 +534,19 @@ fun MainAppScreen(
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
                                             playerManager.setYouTubeMedia(videoId, title)
-                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                            val hasQueue = catalogManager.activeYouTubeQueue.isNotEmpty()
+                                            val queueNext = if (hasQueue) {
+                                                catalogManager.activeYouTubeQueue.getOrNull(catalogManager.activeYouTubeQueueIndex + 1)
+                                            } else null
+                                            if (fullscreenYouTube != null) {
+                                                fullscreenYouTube = FullscreenYouTubeState(
+                                                    videoId = videoId,
+                                                    title = title,
+                                                    onNextVideo = if (hasQueue) playNextYouTubeFromQueue else onNext,
+                                                    nextVideoTitle = queueNext?.title ?: nextTitle,
+                                                    onPreviousVideo = if (hasQueue) playPrevYouTubeFromQueue else onPrev
+                                                )
+                                            }
                                         },
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) },
                                         targetEpisode = targetPodcastEpisode,
@@ -617,7 +692,19 @@ fun MainAppScreen(
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
                                             playerManager.setYouTubeMedia(videoId, title)
-                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                            val hasQueue = catalogManager.activeYouTubeQueue.isNotEmpty()
+                                            val queueNext = if (hasQueue) {
+                                                catalogManager.activeYouTubeQueue.getOrNull(catalogManager.activeYouTubeQueueIndex + 1)
+                                            } else null
+                                            if (fullscreenYouTube != null) {
+                                                fullscreenYouTube = FullscreenYouTubeState(
+                                                    videoId = videoId,
+                                                    title = title,
+                                                    onNextVideo = if (hasQueue) playNextYouTubeFromQueue else onNext,
+                                                    nextVideoTitle = queueNext?.title ?: nextTitle,
+                                                    onPreviousVideo = if (hasQueue) playPrevYouTubeFromQueue else onPrev
+                                                )
+                                            }
                                         },
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) }
                                     )
@@ -634,7 +721,19 @@ fun MainAppScreen(
                                             fullscreenMedia = null
                                             isLiveTvFullscreen = false
                                             playerManager.setYouTubeMedia(videoId, title)
-                                            fullscreenYouTube = FullscreenYouTubeState(videoId, title, onNext, nextTitle, onPrev)
+                                            val hasQueue = catalogManager.activeYouTubeQueue.isNotEmpty()
+                                            val queueNext = if (hasQueue) {
+                                                catalogManager.activeYouTubeQueue.getOrNull(catalogManager.activeYouTubeQueueIndex + 1)
+                                            } else null
+                                            if (fullscreenYouTube != null) {
+                                                fullscreenYouTube = FullscreenYouTubeState(
+                                                    videoId = videoId,
+                                                    title = title,
+                                                    onNextVideo = if (hasQueue) playNextYouTubeFromQueue else onNext,
+                                                    nextVideoTitle = queueNext?.title ?: nextTitle,
+                                                    onPreviousVideo = if (hasQueue) playPrevYouTubeFromQueue else onPrev
+                                                )
+                                            }
                                         },
                                         onOpenSettings = { switchTab(AppTab.SETTINGS) },
                                         targetEpisode = targetPodcastEpisode,

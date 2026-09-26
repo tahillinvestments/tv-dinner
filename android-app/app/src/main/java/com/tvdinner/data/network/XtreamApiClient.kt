@@ -295,12 +295,51 @@ class XtreamApiClient {
         limit: Int = 10
     ): ShortEpgResponse? = withContext(Dispatchers.IO) {
         if (user.isBlank() || pswd.isBlank()) return@withContext null
+
+        // 1. Try action=get_short_epg
         try {
             val url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_short_epg&stream_id=$streamId&limit=$limit"
-            val json = fetchJsonFast(url) ?: return@withContext null
-            gson.fromJson(json, ShortEpgResponse::class.java)
+            val json = fetchJsonFast(url)
+            if (!json.isNullOrBlank()) {
+                val parsed = gson.fromJson(json, ShortEpgResponse::class.java)
+                if (parsed != null && !parsed.epgListings.isNullOrEmpty()) {
+                    return@withContext parsed
+                }
+            }
         } catch (e: Exception) {
             Log.e(tag, "getShortEpg error: ${e.message}")
+        }
+
+        // 2. Fallback to action=get_simple_data_table (standard Xtream Codes endpoint)
+        try {
+            val tableUrl = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_simple_data_table&stream_id=$streamId"
+            val json = fetchJsonFast(tableUrl)
+            if (!json.isNullOrBlank()) {
+                val parsed = gson.fromJson(json, ShortEpgResponse::class.java)
+                if (parsed != null && !parsed.epgListings.isNullOrEmpty()) {
+                    return@withContext parsed
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "getSimpleDataTable error: ${e.message}")
+        }
+        null
+    }
+
+    suspend fun fetchXmltvStream(portalUrl: String, user: String, pswd: String): java.io.InputStream? = withContext(Dispatchers.IO) {
+        if (user.isBlank() || pswd.isBlank()) return@withContext null
+        try {
+            val cleanPortal = portalUrl.trim().removeSuffix("/")
+            val url = "$cleanPortal/xmltv.php?username=$user&password=$pswd"
+            val req = Request.Builder().url(url).build()
+            val resp = okHttpClient.newCall(req).execute()
+            if (resp.isSuccessful) {
+                return@withContext resp.body?.byteStream()
+            }
+            resp.close()
+            null
+        } catch (e: Exception) {
+            Log.w(tag, "fetchXmltvStream error: ${e.message}")
             null
         }
     }
