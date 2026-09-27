@@ -1845,8 +1845,8 @@ class CatalogManager(
         }
     }
 
-    suspend fun getLivePodcastEpisodes(categoryOrQuery: String, forceRefresh: Boolean = false): List<PodcastEpisode> = withContext(Dispatchers.IO) {
-        val key = categoryOrQuery.lowercase().trim()
+    suspend fun getLivePodcastEpisodes(category: String, forceRefresh: Boolean = false): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        val key = category.lowercase().trim()
         if (!forceRefresh && cachedPodcastEpisodesByCat.containsKey(key)) {
             val cached = cachedPodcastEpisodesByCat[key]!!
             if (cached.isNotEmpty()) return@withContext cached
@@ -1856,19 +1856,25 @@ class CatalogManager(
                 val cached = cachedPodcastEpisodesByCat[key]!!
                 if (cached.isNotEmpty()) return@withLock cached
             }
-            var episodes = podcastService.searchLiveEpisodes(categoryOrQuery, page = 1)
+            var episodes = podcastService.fetchLivePodcastEpisodes(category, page = 1)
             if (episodes.isEmpty()) {
-                episodes = com.tvdinner.data.podcasts.PodcastsData.getCuratedEpisodesForCategory(categoryOrQuery)
+                episodes = com.tvdinner.data.podcasts.PodcastsData.getCuratedEpisodesForCategory(category)
             }
-            val interleaved = com.tvdinner.data.podcasts.PodcastsData.interleaveEpisodes(episodes, maxConsecutive = 1)
-            cachedPodcastEpisodesByCat[key] = interleaved
-            interleaved
+            cachedPodcastEpisodesByCat[key] = episodes
+            episodes
         }
     }
 
-    suspend fun getLivePodcastEpisodesNextPage(categoryOrQuery: String, page: Int): List<PodcastEpisode> = withContext(Dispatchers.IO) {
-        val raw = podcastService.searchLiveEpisodes(categoryOrQuery, page = page)
-        com.tvdinner.data.podcasts.PodcastsData.interleaveEpisodes(raw, maxConsecutive = 1)
+    suspend fun getLivePodcastEpisodesNextPage(category: String, page: Int): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        podcastService.fetchLivePodcastEpisodes(category, page = page)
+    }
+
+    suspend fun searchPodcastEpisodes(query: String, page: Int = 1): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        podcastService.searchLivePodcastEpisodes(query, page = page)
+    }
+
+    suspend fun searchPodcastEpisodesNextPage(query: String, page: Int): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        podcastService.searchLivePodcastEpisodes(query, page = page)
     }
 
     suspend fun getPodcastEpisodesForChannel(channel: PodcastChannel, forceRefresh: Boolean = false): List<PodcastEpisode> = withContext(Dispatchers.IO) {

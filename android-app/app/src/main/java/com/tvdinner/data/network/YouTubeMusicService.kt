@@ -251,11 +251,13 @@ class YouTubeMusicService(
         }
         val poolArtists = if (genreArtists.isNotEmpty()) genreArtists else MusicData.ARTISTS
 
-        // Select rotating curated artists for this specific page to guarantee non-duplicate fresh videos
+        // Select rotating curated artists for this specific page across a wider pool to guarantee fresh variety
         val pageArtists = if (poolArtists.isNotEmpty()) {
-            val idx1 = ((page - 1) * 2) % poolArtists.size
-            val idx2 = ((page - 1) * 2 + 1) % poolArtists.size
-            listOfNotNull(poolArtists.getOrNull(idx1), poolArtists.getOrNull(idx2))
+            val count = minOf(4, poolArtists.size)
+            (0 until count).mapNotNull { offset ->
+                val idx = ((page - 1) * count + offset) % poolArtists.size
+                poolArtists.getOrNull(idx)
+            }
         } else emptyList()
 
         val dynamicQueries = mutableListOf<String>()
@@ -272,12 +274,17 @@ class YouTubeMusicService(
 
         val allVideos = mutableListOf<MusicVideo>()
         val seenIds = mutableSetOf<String>()
+        val artistCounts = mutableMapOf<String, Int>()
 
         for (targetQuery in dynamicQueries) {
             val queryResults = queryYouTubeMusicVideos(targetQuery)
             for (v in queryResults) {
-                if (seenIds.add(v.videoId)) {
+                val artKey = v.artistName.trim().lowercase()
+                val count = artistCounts[artKey] ?: 0
+                // Cap at max 3 songs per artist per page to eliminate overconcentration in category feeds
+                if (count < 3 && seenIds.add(v.videoId)) {
                     allVideos.add(v)
+                    artistCounts[artKey] = count + 1
                 }
             }
             if (allVideos.size >= 24) break
@@ -286,62 +293,69 @@ class YouTubeMusicService(
         // Guaranteed RSS fallback / enrichment: If queries yielded fewer than 15 videos,
         // fetch directly from matching curated channel RSS feeds. Official YouTube RSS feeds NEVER get blocked!
         if (allVideos.size < 15) {
-            val candidateArtists = if (pageArtists.isNotEmpty()) pageArtists else poolArtists.take(2)
+            val candidateArtists = if (pageArtists.isNotEmpty()) pageArtists else poolArtists.take(4)
             for (art in candidateArtists) {
                 if (art.ytChannelId.isNotBlank()) {
                     val rssVideos = fetchVideosViaRss(art.ytChannelId, art.artistName)
+                    var addedForArt = 0
                     for (av in rssVideos) {
-                        if (seenIds.add(av.videoId)) {
+                        val artKey = av.artistName.trim().lowercase()
+                        val count = artistCounts[artKey] ?: 0
+                        if (count < 3 && addedForArt < 3 && seenIds.add(av.videoId)) {
                             allVideos.add(av)
+                            artistCounts[artKey] = count + 1
+                            addedForArt++
                         }
                     }
                 }
             }
         }
 
-        // Give stronger weight to latest titles
-        allVideos.sortedByDescending { it.publishedTimestamp }
+        // Interleave category/genre results so consecutive videos are from different artists!
+        val sorted = allVideos.sortedByDescending { it.publishedTimestamp }
+        MusicData.interleaveMusicVideos(sorted, maxConsecutive = 1)
     }
 
     /**
      * Searches YouTube for music videos with fast parallel queries, prioritizing official videos and latest releases.
+     * Note: Search results strictly preserve artist relevance and NEVER force category-style interleaving.
      */
     suspend fun searchLiveMusicVideos(query: String, page: Int = 1): List<MusicVideo> = withContext(Dispatchers.IO) {
         val q = query.trim()
         val queries = when (page) {
             1 -> {
                 if (q.contains("video", ignoreCase = true) || q.contains("official", ignoreCase = true)) {
-                    listOf(q, "$q 2026", "$q song", "$q audio")
+                    listOf(q, "$q song", "$q live")
                 } else {
-                    listOf("$q official music video", "$q official music video 2026", "$q song", "$q official audio")
+                    listOf("$q official music video", "$q song", "$q official audio")
                 }
             }
-            2 -> listOf("$q official video hits", "$q full song 2026", "$q music video hd", "$q live official")
-            3 -> listOf("$q album tracks", "$q live music video", "$q official audio release", "$q top track video")
-            4 -> listOf("$q songs playlist", "$q essential music video", "$q music hd", "$q vevo official")
-            5 -> listOf("$q greatest hits video", "$q live acoustic official", "$q music collection", "$q singles video")
-            6 -> listOf("$q live performance 2026", "$q audio tracks official", "$q best songs video", "$q concert live")
+            2 -> listOf("$q official video hits", "$q full song", "$q music video hd")
+            3 -> listOf("$q album tracks", "$q live music video", "$q official audio release")
+            4 -> listOf("$q songs playlist", "$q essential music video", "$q music hd")
+            5 -> listOf("$q greatest hits video", "$q live acoustic official", "$q singles video")
+            6 -> listOf("$q live performance", "$q audio tracks official", "$q best songs video")
             else -> {
                 val seeds = listOf(
                     "official music video", "live concert video", "acoustic version",
-                    "remix official video", "greatest hits video", "album track video",
-                    "studio performance", "vevo official video"
+                    "remix official video", "greatest hits video", "album track video"
                 )
                 val s = seeds[page % seeds.size]
                 listOf("$q $s", "$q song $page", "$q video hd $page")
             }
         }
 
-        val targetQuery = queries.firstOrNull() ?: "$q official music video"
-        val queryResults = queryYouTubeMusicVideos(targetQuery)
-
         val allVideos = mutableListOf<MusicVideo>()
         val seenIds = mutableSetOf<String>()
 
-        for (v in queryResults) {
-            if (seenIds.add(v.videoId)) {
-                allVideos.add(v)
+        for (targetQuery in queries.take(2)) {
+            val queryResults = queryYouTubeMusicVideos(targetQuery)
+            for (v in queryResults) {
+                if (seenIds.add(v.videoId)) {
+                    allVideos.add(v)
+                }
             }
+            if (allVideos.size >= 20) break
         }
 
         // Fallback: If search was rate-limited or empty, check if query matches a curated artist and fetch their official RSS
@@ -359,8 +373,21 @@ class YouTubeMusicService(
             }
         }
 
-        // Rank latest titles first
-        allVideos.sortedByDescending { it.publishedTimestamp }
+        // Search ranking: Keep query relevance intact without interleaving!
+        // Rank exact artist matches / title matches first, preserving YouTube's natural relevance ranking.
+        val qLower = q.lowercase()
+        allVideos.sortedWith(
+            compareByDescending<MusicVideo> {
+                val artMatch = it.artistName.lowercase().contains(qLower)
+                val titleMatch = it.title.lowercase().contains(qLower)
+                when {
+                    artMatch && titleMatch -> 3
+                    artMatch -> 2
+                    titleMatch -> 1
+                    else -> 0
+                }
+            }
+        )
     }
 
     /**

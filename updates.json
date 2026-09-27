@@ -10,6 +10,19 @@
   },
   "releases": [
     {
+      "id": "rel-259",
+      "versionCode": 259,
+      "versionName": "2.5.9",
+      "title": "Continuous YouTube Feed Auto-Advance & Watchdog, Smart Music Artist Curation & Decoupled Search Relevance",
+      "status": "STAGED",
+      "releaseNotes": "• Continuous YouTube Feed Auto-Advance & Watchdog: Added an intelligent stream watchdog timer and near-end detection in the YouTube iframe bridge to automatically advance playback to the next item in the queue when reaching within 0.85s of stream end or when paused near completion, eliminating instances where video feeds halt silently. Injected error auto-skip recovery to seamlessly bypass blocked or unplayable videos without stopping playback\n• Smarter Music Curation & Artist Interleaving: Enhanced music category browsing by broadening the pool of rotating curated artists, enforcing a maximum threshold per artist per page, and applying intelligent artist-level interleaving (interleaveMusicVideos) across genre feeds so no single artist monopolizes category results\n• Pure Relevance Search for Music & Podcasts: Completely decoupled search queries from category fallback injection and forced interleaving. Searching for specific artists or podcasts now strictly ranks by relevance to the entered query without scattering or polluting results with unrelated category items\n• Uninterrupted Queue Sequencing & Looping: Upgraded playback queue handling across mobile touch previews and TV fullscreen modes with automatic prefetching near the end of loaded lists and seamless looping to ensure continuous, non-stop entertainment without premature stopping",
+      "stagedApk": "staging-apks/tv-dinner-v2.5.9-b259.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.5.9/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-27T23:55:35.342Z",
+      "publishedAt": null
+    },
+    {
       "id": "rel-258",
       "versionCode": 258,
       "versionName": "2.5.8",

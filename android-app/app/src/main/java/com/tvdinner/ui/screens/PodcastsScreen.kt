@@ -148,46 +148,138 @@ fun PodcastsScreen(
     var canLoadMore by remember { mutableStateOf(true) }
     var subscribedIds by remember { mutableStateOf(authRepo.getSubscribedPodcastIds()) }
 
-    fun playEpisodeAtIndex(index: Int) {
-        if (!isAccessAllowed || index !in liveEpisodes.indices) return
-        val current = liveEpisodes[index]
+    suspend fun fetchMoreEpisodesInternal() {
+        if (!isAccessAllowed || isLoading || isFetchingMore || !canLoadMore) return
+        isFetchingMore = true
+        var targetPage = currentPage + 1
+        var freshBatch = emptyList<PodcastEpisode>()
+        val currentIds = liveEpisodes.map { it.id }.toSet()
 
-        // Already playing in preview -> expand directly to fullscreen!
-        if (playerManager?.activeYouTubeVideoId?.value == current.videoId) {
-            onExpandPreview()
-            return
+        // Try up to 4 consecutive pages to find fresh, non-duplicate episodes
+        for (attempt in 0..3) {
+            val nextBatch = if (selectedChannel != null) {
+                catalogManager.getPodcastEpisodesForChannelNextPage(selectedChannel!!, page = targetPage)
+            } else if (debouncedQuery.isNotBlank()) {
+                catalogManager.searchPodcastEpisodesNextPage(debouncedQuery, page = targetPage)
+            } else {
+                val catClean = selectedCategory.replace(Regex("[^a-zA-Z &]"), "").trim()
+                catalogManager.getLivePodcastEpisodesNextPage(catClean, page = targetPage)
+            }
+            val unique = nextBatch.filter { !currentIds.contains(it.id) }
+            if (unique.isNotEmpty()) {
+                freshBatch = unique
+                break
+            }
+            targetPage++
         }
 
-        authRepo.addPodcastToHistory(current)
-
-        val queueItems = liveEpisodes.map {
-            YouTubeQueueItem(
-                videoId = it.videoId,
-                title = "${it.channelName} - ${it.title}",
-                subtitle = it.channelName,
-                artworkUrl = it.thumbnailUrl
-            )
-        }
-        catalogManager.setYouTubeQueue(queueItems, index)
-
-        val next = liveEpisodes.getOrNull(index + 1)
-        val onNext: (() -> Unit)? = if (index + 1 < liveEpisodes.size) {
-            { playEpisodeAtIndex(index + 1) }
+        if (freshBatch.isNotEmpty()) {
+            val updated = liveEpisodes + freshBatch
+            liveEpisodes = updated
+            currentPage = targetPage
+            val additionalQueueItems = freshBatch.map {
+                YouTubeQueueItem(
+                    videoId = it.videoId,
+                    title = "${it.channelName} - ${it.title}",
+                    subtitle = it.channelName,
+                    artworkUrl = it.thumbnailUrl
+                )
+            }
+            catalogManager.activeYouTubeQueue = catalogManager.activeYouTubeQueue + additionalQueueItems
         } else {
-            null
+            currentPage = targetPage
+            if (currentPage > 80) {
+                canLoadMore = false
+            }
         }
-        val onPrevious: (() -> Unit)? = if (index > 0) {
-            { playEpisodeAtIndex(index - 1) }
+        isFetchingMore = false
+    }
+
+    var playEpisodeAtIndex: (Int) -> Unit = {}
+
+    val playNextPodcastEpisode: () -> Unit = {
+        val nextItem = catalogManager.advanceYouTubeQueue()
+        if (nextItem != null) {
+            playerManager?.setYouTubeMedia(nextItem.videoId, nextItem.title)
+            val curIdx = catalogManager.activeYouTubeQueueIndex
+            if (curIdx in liveEpisodes.indices) {
+                authRepo.addPodcastToHistory(liveEpisodes[curIdx])
+            }
+            if (curIdx >= liveEpisodes.size - 4 && canLoadMore && !isFetchingMore) {
+                coroutineScope.launch {
+                    fetchMoreEpisodesInternal()
+                }
+            }
         } else {
-            null
+            if (canLoadMore && !isFetchingMore) {
+                coroutineScope.launch {
+                    fetchMoreEpisodesInternal()
+                    val retryNext = catalogManager.advanceYouTubeQueue()
+                    if (retryNext != null) {
+                        playerManager?.setYouTubeMedia(retryNext.videoId, retryNext.title)
+                        val curIdx = catalogManager.activeYouTubeQueueIndex
+                        if (curIdx in liveEpisodes.indices) {
+                            authRepo.addPodcastToHistory(liveEpisodes[curIdx])
+                        }
+                    } else if (liveEpisodes.isNotEmpty()) {
+                        playEpisodeAtIndex(0)
+                    }
+                }
+            } else if (liveEpisodes.isNotEmpty()) {
+                playEpisodeAtIndex(0)
+            }
         }
-        onPlayYouTubeVideo(
-            current.videoId,
-            "${current.channelName} - ${current.title}",
-            onNext,
-            next?.let { "${it.channelName} - ${it.title}" },
-            onPrevious
-        )
+    }
+
+    val playPrevPodcastEpisode: () -> Unit = {
+        val prevItem = catalogManager.retreatYouTubeQueue()
+        if (prevItem != null) {
+            playerManager?.setYouTubeMedia(prevItem.videoId, prevItem.title)
+            val curIdx = catalogManager.activeYouTubeQueueIndex
+            if (curIdx in liveEpisodes.indices) {
+                authRepo.addPodcastToHistory(liveEpisodes[curIdx])
+            }
+        } else if (liveEpisodes.isNotEmpty()) {
+            playEpisodeAtIndex(liveEpisodes.size - 1)
+        }
+    }
+
+    playEpisodeAtIndex = { index ->
+        if (isAccessAllowed && index in liveEpisodes.indices) {
+            val current = liveEpisodes[index]
+
+            // Already playing in preview -> expand directly to fullscreen!
+            if (playerManager?.activeYouTubeVideoId?.value == current.videoId) {
+                onExpandPreview()
+            } else {
+                authRepo.addPodcastToHistory(current)
+
+                val queueItems = liveEpisodes.map {
+                    YouTubeQueueItem(
+                        videoId = it.videoId,
+                        title = "${it.channelName} - ${it.title}",
+                        subtitle = it.channelName,
+                        artworkUrl = it.thumbnailUrl
+                    )
+                }
+                catalogManager.setYouTubeQueue(queueItems, index)
+
+                if (index >= liveEpisodes.size - 4 && canLoadMore && !isFetchingMore) {
+                    coroutineScope.launch {
+                        fetchMoreEpisodesInternal()
+                    }
+                }
+
+                val next = liveEpisodes.getOrNull(index + 1)
+                onPlayYouTubeVideo(
+                    current.videoId,
+                    "${current.channelName} - ${current.title}",
+                    playNextPodcastEpisode,
+                    next?.let { "${it.channelName} - ${it.title}" },
+                    playPrevPodcastEpisode
+                )
+            }
+        }
     }
 
     val context = LocalContext.current
@@ -265,12 +357,11 @@ fun PodcastsScreen(
                     catalogManager.podcastLiveChannels = channels
                 } catch (_: Exception) {}
             }
-            val eps = catalogManager.getLivePodcastEpisodes(debouncedQuery)
-            val mixed = com.tvdinner.data.podcasts.PodcastsData.interleaveEpisodes(eps, maxConsecutive = 1)
-            mainFeedEpisodes = mixed
-            liveEpisodes = mixed
-            catalogManager.podcastMainEpisodes = mixed
-            catalogManager.podcastLiveEpisodes = mixed
+            val eps = catalogManager.searchPodcastEpisodes(debouncedQuery, page = 1)
+            mainFeedEpisodes = eps
+            liveEpisodes = eps
+            catalogManager.podcastMainEpisodes = eps
+            catalogManager.podcastLiveEpisodes = eps
         } else if (selectedCategory == "🕒 History") {
             liveChannels = emptyList()
             catalogManager.podcastLiveChannels = emptyList()
@@ -377,40 +468,6 @@ fun PodcastsScreen(
         }
     }
 
-    suspend fun fetchMoreEpisodesInternal() {
-        if (!isAccessAllowed || isLoading || isFetchingMore || !canLoadMore) return
-        isFetchingMore = true
-        var targetPage = currentPage + 1
-        var freshBatch = emptyList<PodcastEpisode>()
-        val currentIds = liveEpisodes.map { it.id }.toSet()
-
-        // Try up to 4 consecutive pages to find fresh, non-duplicate episodes
-        for (attempt in 0..3) {
-            val nextBatch = if (selectedChannel != null) {
-                catalogManager.getPodcastEpisodesForChannelNextPage(selectedChannel!!, page = targetPage)
-            } else {
-                val queryParam = if (debouncedQuery.isNotBlank()) debouncedQuery else selectedCategory.replace(Regex("[^a-zA-Z &]"), "").trim()
-                catalogManager.getLivePodcastEpisodesNextPage(queryParam, page = targetPage)
-            }
-            val unique = nextBatch.filter { !currentIds.contains(it.id) }
-            if (unique.isNotEmpty()) {
-                freshBatch = unique
-                break
-            }
-            targetPage++
-        }
-
-        if (freshBatch.isNotEmpty()) {
-            liveEpisodes = liveEpisodes + freshBatch
-            currentPage = targetPage
-        } else {
-            currentPage = targetPage
-            if (currentPage > 80) {
-                canLoadMore = false
-            }
-        }
-        isFetchingMore = false
-    }
 
     // Continuous Endless Scrolling via snapshotFlow
     LaunchedEffect(gridState, selectedCategory, debouncedQuery, selectedChannel, isAccessAllowed) {
@@ -452,18 +509,8 @@ fun PodcastsScreen(
                                     catalogManager.clearYouTubeQueue()
                                 },
                                 isPlayingFullscreen = isPlayingFullscreen,
-                                onNextVideo = {
-                                    val next = catalogManager.advanceYouTubeQueue()
-                                    if (next != null) {
-                                        playerManager.setYouTubeMedia(next.videoId, next.title)
-                                    }
-                                },
-                                onPreviousVideo = {
-                                    val prev = catalogManager.retreatYouTubeQueue()
-                                    if (prev != null) {
-                                        playerManager.setYouTubeMedia(prev.videoId, prev.title)
-                                    }
-                                },
+                                onNextVideo = playNextPodcastEpisode,
+                                onPreviousVideo = playPrevPodcastEpisode,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -595,18 +642,8 @@ fun PodcastsScreen(
                                         catalogManager.clearYouTubeQueue()
                                     },
                                     isPlayingFullscreen = isPlayingFullscreen,
-                                    onNextVideo = {
-                                        val next = catalogManager.advanceYouTubeQueue()
-                                        if (next != null) {
-                                            playerManager.setYouTubeMedia(next.videoId, next.title)
-                                        }
-                                    },
-                                    onPreviousVideo = {
-                                        val prev = catalogManager.retreatYouTubeQueue()
-                                        if (prev != null) {
-                                            playerManager.setYouTubeMedia(prev.videoId, prev.title)
-                                        }
-                                    },
+                                    onNextVideo = playNextPodcastEpisode,
+                                    onPreviousVideo = playPrevPodcastEpisode,
                                     onMoveLeft = { onRequestFocusSidebar?.invoke() },
                                     onMoveRight = {
                                         try {

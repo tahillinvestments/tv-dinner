@@ -2,6 +2,7 @@ package com.tvdinner.data.music
 
 import com.tvdinner.data.model.MusicArtist
 import com.tvdinner.data.model.MusicGenre
+import com.tvdinner.data.model.MusicVideo
 
 object MusicData {
     val GENRES = listOf(
@@ -569,4 +570,35 @@ object MusicData {
             ytChannelId = "UCf8tD1g0V5LhZ1z_08G4Lsw"
         )
     )
+
+    /**
+     * Interleaves music videos by artist so no single artist monopolizes the feed.
+     * Guaranteed variety across curated and live genre results.
+     */
+    fun interleaveMusicVideos(videos: List<MusicVideo>, maxConsecutive: Int = 1): List<MusicVideo> {
+        if (videos.size <= 2) return videos
+        val result = mutableListOf<MusicVideo>()
+        val remaining = videos.toMutableList()
+        var lastArtist = ""
+        var consecutiveCount = 0
+
+        while (remaining.isNotEmpty()) {
+            val nextIdx = remaining.indexOfFirst { v ->
+                val art = v.artistName.trim().lowercase()
+                art != lastArtist || consecutiveCount < maxConsecutive
+            }
+            val chosenIdx = if (nextIdx >= 0) nextIdx else 0
+            val chosen = remaining.removeAt(chosenIdx)
+            val chosenArtist = chosen.artistName.trim().lowercase()
+
+            if (chosenArtist == lastArtist) {
+                consecutiveCount++
+            } else {
+                lastArtist = chosenArtist
+                consecutiveCount = 1
+            }
+            result.add(chosen)
+        }
+        return result
+    }
 }

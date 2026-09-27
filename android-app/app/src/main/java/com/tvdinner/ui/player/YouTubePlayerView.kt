@@ -220,11 +220,18 @@ object YouTubeRemoteBridge {
 }
 
 class YouTubeBridgeInterface(private val onEndedProvider: () -> (() -> Unit)?) {
+    private var lastEndedTimestamp = 0L
+
     @android.webkit.JavascriptInterface
     fun onVideoEnded() {
+        val now = System.currentTimeMillis()
+        if (now - lastEndedTimestamp < 1200L) {
+            return
+        }
+        lastEndedTimestamp = now
         YouTubeRemoteBridge.isActuallyPlaying = false
         android.os.Handler(android.os.Looper.getMainLooper()).post {
-            val cb = onEndedProvider() ?: YouTubeRemoteBridge.onNextVideoCallback
+            val cb = YouTubeRemoteBridge.onNextVideoCallback ?: onEndedProvider()
             cb?.invoke()
         }
     }
@@ -272,6 +279,8 @@ private fun buildYouTubeHtml(videoId: String, isPreview: Boolean, captionsEnable
             <script src="https://www.youtube.com/iframe_api"></script>
             <script>
                 var ytPlayer;
+                var hasEndedTriggered = false;
+                window.hasEndedTriggered = false;
                 function onYouTubeIframeAPIReady() {
                     var vId = window.pendingVideoId || '$videoId';
                     function applyCaptions(player, enable) {
@@ -317,6 +326,8 @@ private fun buildYouTubeHtml(videoId: String, isPreview: Boolean, captionsEnable
                                 window.ytPlayer = e.target;
                                 applyCaptions(e.target, ${if (!isPreview && captionsEnabled) "true" else "false"});
                                 if (window.pendingVideoId) {
+                                    hasEndedTriggered = false;
+                                    window.hasEndedTriggered = false;
                                     e.target.loadVideoById(window.pendingVideoId);
                                     window.pendingVideoId = null;
                                 } else {
@@ -331,22 +342,48 @@ private fun buildYouTubeHtml(videoId: String, isPreview: Boolean, captionsEnable
                                         if (window.AndroidBridge && window.AndroidBridge.onTimeChange) {
                                             window.AndroidBridge.onTimeChange(t, d);
                                         }
+                                        // Auto-advance stream watchdog: if video is at or near end, trigger transition
+                                        if (d > 3 && (t >= d - 0.85 || (d - t <= 1.5 && (window.ytPlayer.getPlayerState() === 2 || window.ytPlayer.getPlayerState() === 0)))) {
+                                            if (!hasEndedTriggered && !window.hasEndedTriggered) {
+                                                hasEndedTriggered = true;
+                                                window.hasEndedTriggered = true;
+                                                if (window.AndroidBridge && window.AndroidBridge.onVideoEnded) {
+                                                    window.AndroidBridge.onVideoEnded();
+                                                }
+                                            }
+                                        }
                                     }
-                                }, 500);
+                                }, 350);
                             },
                             'onError': function(e) {
                                 console.log('YT Error:', e.data);
+                                // Skip broken / unplayable / restricted videos so playback never hangs
+                                if (!hasEndedTriggered && !window.hasEndedTriggered) {
+                                    hasEndedTriggered = true;
+                                    window.hasEndedTriggered = true;
+                                    setTimeout(function() {
+                                        if (window.AndroidBridge && window.AndroidBridge.onVideoEnded) {
+                                            window.AndroidBridge.onVideoEnded();
+                                        }
+                                    }, 800);
+                                }
                             },
                             'onStateChange': function(e) {
                                 if (window.AndroidBridge && window.AndroidBridge.onPlayerStateChange) {
                                     window.AndroidBridge.onPlayerStateChange(e.data);
                                 }
                                 if (e.data === 1) {
+                                    hasEndedTriggered = false;
+                                    window.hasEndedTriggered = false;
                                     applyCaptions(e.target, ${if (captionsEnabled) "true" else "false"});
                                 }
                                 if (e.data === 0) {
-                                    if (window.AndroidBridge && window.AndroidBridge.onVideoEnded) {
-                                        window.AndroidBridge.onVideoEnded();
+                                    if (!hasEndedTriggered && !window.hasEndedTriggered) {
+                                        hasEndedTriggered = true;
+                                        window.hasEndedTriggered = true;
+                                        if (window.AndroidBridge && window.AndroidBridge.onVideoEnded) {
+                                            window.AndroidBridge.onVideoEnded();
+                                        }
                                     }
                                 }
                             }
@@ -510,9 +547,11 @@ fun YouTubePlayerView(
             webViewInstance?.evaluateJavascript(
                 """
                 if (window.ytPlayer && typeof window.ytPlayer.loadVideoById === 'function') {
+                    window.hasEndedTriggered = false;
                     window.ytPlayer.loadVideoById('$videoId');
                     try { window.ytPlayer.playVideo(); } catch(_) {}
                 } else {
+                    window.hasEndedTriggered = false;
                     window.pendingVideoId = '$videoId';
                 }
                 """.trimIndent(),
@@ -615,6 +654,8 @@ fun YouTubePlayerView(
                         resumeTimers()
                         setupTouchListener(this)
                         YouTubeRemoteBridge.activeIsPreview = isPreview
+                        YouTubeRemoteBridge.onNextVideoCallback = currentOnNextVideo
+                        YouTubeRemoteBridge.onPreviousVideoCallback = currentOnPreviousVideo
                         if (videoId.isNotBlank()) {
                             if (YouTubeRemoteBridge.activeVideoId != videoId) {
                                 YouTubeRemoteBridge.activeVideoId = videoId
@@ -622,7 +663,7 @@ fun YouTubePlayerView(
                                 YouTubeRemoteBridge.isActuallyPlaying = true
                                 post {
                                     evaluateJavascript(
-                                        "if (window.ytPlayer && typeof window.ytPlayer.loadVideoById === 'function') { window.ytPlayer.loadVideoById('$videoId'); try { window.ytPlayer.playVideo(); } catch(_) {} } else { window.pendingVideoId = '$videoId'; }",
+                                        "window.hasEndedTriggered = false; if (window.ytPlayer && typeof window.ytPlayer.loadVideoById === 'function') { window.ytPlayer.loadVideoById('$videoId'); try { window.ytPlayer.playVideo(); } catch(_) {} } else { window.hasEndedTriggered = false; window.pendingVideoId = '$videoId'; }",
                                         null
                                     )
                                 }

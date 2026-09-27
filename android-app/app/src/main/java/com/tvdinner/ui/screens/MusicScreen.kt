@@ -121,6 +121,15 @@ fun MusicScreen(
             videos = updated
             catalogManager.musicCurrentVideos = updated
             currentPage = targetPage
+            val additionalQueueItems = freshVideos.map {
+                YouTubeQueueItem(
+                    videoId = it.videoId,
+                    title = "${it.artistName} - ${it.title}",
+                    subtitle = it.artistName,
+                    artworkUrl = it.thumbnailUrl
+                )
+            }
+            catalogManager.activeYouTubeQueue = catalogManager.activeYouTubeQueue + additionalQueueItems
         } else {
             currentPage = targetPage
             if (currentPage > 80) {
@@ -130,58 +139,91 @@ fun MusicScreen(
         isLoadingMore = false
     }
 
-    fun playVideoAtIndex(index: Int) {
-        if (!isAccessAllowed || index !in videos.indices) return
-        val current = videos[index]
+    var playVideoAtIndex: (Int) -> Unit = {}
 
-        // Already playing in preview -> expand directly to fullscreen!
-        if (playerManager.activeYouTubeVideoId.value == current.videoId) {
-            onExpandPreview()
-            return
-        }
-
-        authRepo.addMusicToHistory(current)
-
-        val queueItems = videos.map {
-            YouTubeQueueItem(
-                videoId = it.videoId,
-                title = "${it.artistName} - ${it.title}",
-                subtitle = it.artistName,
-                artworkUrl = it.thumbnailUrl
-            )
-        }
-        catalogManager.setYouTubeQueue(queueItems, index)
-
-        if (index >= videos.size - 4 && hasMore && !isLoadingMore && selectedGenreId != "history") {
-            coroutineScope.launch {
-                fetchMoreVideosInternal()
+    val playNextMusicVideo: () -> Unit = {
+        val nextItem = catalogManager.advanceYouTubeQueue()
+        if (nextItem != null) {
+            playerManager.setYouTubeMedia(nextItem.videoId, nextItem.title)
+            val curIdx = catalogManager.activeYouTubeQueueIndex
+            if (curIdx in videos.indices) {
+                authRepo.addMusicToHistory(videos[curIdx])
             }
-        }
-        val next = videos.getOrNull(index + 1)
-        val onNext: (() -> Unit) = {
-            if (index + 1 < videos.size) {
-                playVideoAtIndex(index + 1)
-            } else if (selectedGenreId != "history") {
+            if (curIdx >= videos.size - 4 && hasMore && !isLoadingMore && selectedGenreId != "history") {
                 coroutineScope.launch {
                     fetchMoreVideosInternal()
-                    if (index + 1 < videos.size) {
-                        playVideoAtIndex(index + 1)
-                    }
                 }
             }
-        }
-        val onPrevious: (() -> Unit) = {
-            if (index > 0) {
-                playVideoAtIndex(index - 1)
+        } else {
+            // Queue exhausted: fetch more if available, otherwise wrap around to top of feed
+            if (hasMore && !isLoadingMore && selectedGenreId != "history") {
+                coroutineScope.launch {
+                    fetchMoreVideosInternal()
+                    val retryNext = catalogManager.advanceYouTubeQueue()
+                    if (retryNext != null) {
+                        playerManager.setYouTubeMedia(retryNext.videoId, retryNext.title)
+                        val curIdx = catalogManager.activeYouTubeQueueIndex
+                        if (curIdx in videos.indices) {
+                            authRepo.addMusicToHistory(videos[curIdx])
+                        }
+                    } else if (videos.isNotEmpty()) {
+                        playVideoAtIndex(0)
+                    }
+                }
+            } else if (videos.isNotEmpty()) {
+                playVideoAtIndex(0)
             }
         }
-        onPlayYouTubeVideo(
-            current.videoId,
-            "${current.artistName} - ${current.title}",
-            onNext,
-            next?.let { "${it.artistName} - ${it.title}" },
-            onPrevious
-        )
+    }
+
+    val playPrevMusicVideo: () -> Unit = {
+        val prevItem = catalogManager.retreatYouTubeQueue()
+        if (prevItem != null) {
+            playerManager.setYouTubeMedia(prevItem.videoId, prevItem.title)
+            val curIdx = catalogManager.activeYouTubeQueueIndex
+            if (curIdx in videos.indices) {
+                authRepo.addMusicToHistory(videos[curIdx])
+            }
+        } else if (videos.isNotEmpty()) {
+            playVideoAtIndex(videos.size - 1)
+        }
+    }
+
+    playVideoAtIndex = { index ->
+        if (isAccessAllowed && index in videos.indices) {
+            val current = videos[index]
+
+            // Already playing in preview -> expand directly to fullscreen!
+            if (playerManager.activeYouTubeVideoId.value == current.videoId) {
+                onExpandPreview()
+            } else {
+                authRepo.addMusicToHistory(current)
+
+                val queueItems = videos.map {
+                    YouTubeQueueItem(
+                        videoId = it.videoId,
+                        title = "${it.artistName} - ${it.title}",
+                        subtitle = it.artistName,
+                        artworkUrl = it.thumbnailUrl
+                    )
+                }
+                catalogManager.setYouTubeQueue(queueItems, index)
+
+                if (index >= videos.size - 4 && hasMore && !isLoadingMore && selectedGenreId != "history") {
+                    coroutineScope.launch {
+                        fetchMoreVideosInternal()
+                    }
+                }
+                val next = videos.getOrNull(index + 1)
+                onPlayYouTubeVideo(
+                    current.videoId,
+                    "${current.artistName} - ${current.title}",
+                    playNextMusicVideo,
+                    next?.let { "${it.artistName} - ${it.title}" },
+                    playPrevMusicVideo
+                )
+            }
+        }
     }
 
     val context = LocalContext.current
@@ -284,18 +326,8 @@ fun MusicScreen(
                                 catalogManager.clearYouTubeQueue()
                             },
                             isPlayingFullscreen = isPlayingFullscreen,
-                            onNextVideo = {
-                                val next = catalogManager.advanceYouTubeQueue()
-                                if (next != null) {
-                                    playerManager.setYouTubeMedia(next.videoId, next.title)
-                                }
-                            },
-                            onPreviousVideo = {
-                                val prev = catalogManager.retreatYouTubeQueue()
-                                if (prev != null) {
-                                    playerManager.setYouTubeMedia(prev.videoId, prev.title)
-                                }
-                            },
+                            onNextVideo = playNextMusicVideo,
+                            onPreviousVideo = playPrevMusicVideo,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -414,18 +446,8 @@ fun MusicScreen(
                                     catalogManager.clearYouTubeQueue()
                                 },
                                 isPlayingFullscreen = isPlayingFullscreen,
-                                onNextVideo = {
-                                    val next = catalogManager.advanceYouTubeQueue()
-                                    if (next != null) {
-                                        playerManager.setYouTubeMedia(next.videoId, next.title)
-                                    }
-                                },
-                                onPreviousVideo = {
-                                    val prev = catalogManager.retreatYouTubeQueue()
-                                    if (prev != null) {
-                                        playerManager.setYouTubeMedia(prev.videoId, prev.title)
-                                    }
-                                },
+                                onNextVideo = playNextMusicVideo,
+                                onPreviousVideo = playPrevMusicVideo,
                                 onMoveLeft = { onRequestFocusSidebar?.invoke() },
                                 onMoveRight = {
                                     try {

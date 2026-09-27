@@ -233,9 +233,10 @@ class YouTubePodcastService(
 
     /**
      * Pings real live YouTube search for trending / category video podcast episodes with pagination.
+     * Interleaves across channels for variety and richness.
      */
-    suspend fun searchLiveEpisodes(categoryOrQuery: String, page: Int = 1): List<PodcastEpisode> = withContext(Dispatchers.IO) {
-        val catClean = categoryOrQuery.replace(Regex("[^a-zA-Z &]"), "").trim().lowercase()
+    suspend fun fetchLivePodcastEpisodes(category: String, page: Int = 1): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        val catClean = category.replace(Regex("[^a-zA-Z &]"), "").trim().lowercase()
 
         // Curate rich queries based on category and page (generating at least 15-25 episodes per page)
         val queries = when (catClean) {
@@ -290,19 +291,18 @@ class YouTubePodcastService(
             }
             else -> when (page) {
                 1 -> listOf(
-                    if (categoryOrQuery.contains("podcast", ignoreCase = true)) categoryOrQuery else "$categoryOrQuery podcast full episode",
-                    "$categoryOrQuery podcast interview"
+                    if (category.contains("podcast", ignoreCase = true)) category else "$category podcast full episode",
+                    "$category podcast interview"
                 )
-                2 -> listOf("$categoryOrQuery full episode video", "$categoryOrQuery show podcast")
-                3 -> listOf("$categoryOrQuery latest podcast", "$categoryOrQuery video episodes")
+                2 -> listOf("$category full episode video", "$category show podcast")
+                3 -> listOf("$category latest podcast", "$category video episodes")
                 else -> {
                     val seeds = listOf(
                         "full episode interview podcast", "deep dive discussion podcast", "guest interview podcast",
-                        "weekly analysis podcast full", "special edition podcast episode", "conversations podcast episode",
-                        "roundtable podcast full episode", "keynote talk podcast full"
+                        "weekly analysis podcast full", "special edition podcast episode", "conversations podcast episode"
                     )
                     val s = seeds[page % seeds.size]
-                    val cleanQ = if (categoryOrQuery.contains("podcast", ignoreCase = true)) categoryOrQuery else "$categoryOrQuery podcast"
+                    val cleanQ = if (category.contains("podcast", ignoreCase = true)) category else "$category podcast"
                     listOf("$cleanQ $s", "$cleanQ full episode $page")
                 }
             }
@@ -310,16 +310,19 @@ class YouTubePodcastService(
 
         val allEpisodes = mutableListOf<PodcastEpisode>()
         val seenVideoIds = mutableSetOf<String>()
+        val channelCounts = mutableMapOf<String, Int>()
 
         val curatedChannels = com.tvdinner.data.podcasts.PodcastsData.CHANNELS.filter {
-            matchesPodcastCategory(it.category, categoryOrQuery)
+            matchesPodcastCategory(it.category, category)
         }
         val poolChannels = if (curatedChannels.isNotEmpty()) curatedChannels else com.tvdinner.data.podcasts.PodcastsData.CHANNELS
 
         val pageChannels = if (poolChannels.isNotEmpty()) {
-            val idx1 = ((page - 1) * 2) % poolChannels.size
-            val idx2 = ((page - 1) * 2 + 1) % poolChannels.size
-            listOfNotNull(poolChannels.getOrNull(idx1), poolChannels.getOrNull(idx2))
+            val count = minOf(4, poolChannels.size)
+            (0 until count).mapNotNull { offset ->
+                val idx = ((page - 1) * count + offset) % poolChannels.size
+                poolChannels.getOrNull(idx)
+            }
         } else emptyList()
 
         val dynamicQueries = mutableListOf<String>()
@@ -336,8 +339,11 @@ class YouTubePodcastService(
             val resultsList = jobs.awaitAll()
             for (results in resultsList) {
                 for (ep in results) {
-                    if (seenVideoIds.add(ep.videoId)) {
+                    val chKey = ep.channelName.trim().lowercase()
+                    val count = channelCounts[chKey] ?: 0
+                    if (count < 3 && seenVideoIds.add(ep.videoId)) {
                         allEpisodes.add(ep)
+                        channelCounts[chKey] = count + 1
                     }
                 }
             }
@@ -345,13 +351,18 @@ class YouTubePodcastService(
 
         // Guaranteed fallback: If live search returned few results, fetch from curated channel RSS feeds
         if (allEpisodes.size < 15) {
-            val candidateChannels = if (pageChannels.isNotEmpty()) pageChannels else poolChannels.take(2)
+            val candidateChannels = if (pageChannels.isNotEmpty()) pageChannels else poolChannels.take(4)
             for (ch in candidateChannels) {
                 if (ch.ytChannelId.isNotBlank()) {
                     val rssList = fetchEpisodesViaRss(ch.ytChannelId, ch.channelName, ch.id)
+                    var addedForCh = 0
                     for (ep in rssList) {
-                        if (seenVideoIds.add(ep.videoId)) {
+                        val chKey = ep.channelName.trim().lowercase()
+                        val count = channelCounts[chKey] ?: 0
+                        if (count < 3 && addedForCh < 3 && seenVideoIds.add(ep.videoId)) {
                             allEpisodes.add(ep)
+                            channelCounts[chKey] = count + 1
+                            addedForCh++
                         }
                     }
                 }
@@ -360,7 +371,7 @@ class YouTubePodcastService(
 
         // Rock-solid curated episode fallback: guarantees episodes ALWAYS load immediately and reliably
         if (allEpisodes.size < 8) {
-            val curated = com.tvdinner.data.podcasts.PodcastsData.getCuratedEpisodesForCategory(categoryOrQuery)
+            val curated = com.tvdinner.data.podcasts.PodcastsData.getCuratedEpisodesForCategory(category)
             for (ep in curated) {
                 if (seenVideoIds.add(ep.videoId)) {
                     allEpisodes.add(ep)
@@ -374,6 +385,95 @@ class YouTubePodcastService(
 
         val sorted = allEpisodes.sortedByDescending { it.publishedTimestamp }
         com.tvdinner.data.podcasts.PodcastsData.interleaveEpisodes(sorted, maxConsecutive = 1)
+    }
+
+    /**
+     * Searches YouTube for podcast episodes with pure search relevance.
+     * Does NOT inject random category channels, unrelated fallbacks, or forced interleaving.
+     */
+    suspend fun searchLivePodcastEpisodes(query: String, page: Int = 1): List<PodcastEpisode> = withContext(Dispatchers.IO) {
+        val q = query.trim()
+        if (q.isBlank()) return@withContext emptyList()
+
+        val queries = when (page) {
+            1 -> {
+                if (q.contains("podcast", ignoreCase = true) || q.contains("episode", ignoreCase = true)) {
+                    listOf(q, "$q full episode", "$q latest")
+                } else {
+                    listOf("$q podcast", "$q podcast full episode", "$q podcast interview")
+                }
+            }
+            2 -> listOf("$q podcast full", "$q video podcast", "$q show episode")
+            3 -> listOf("$q full interview podcast", "$q podcast discussion", "$q podcast latest")
+            else -> listOf("$q podcast episode $page", "$q full podcast $page")
+        }
+
+        val allEpisodes = mutableListOf<PodcastEpisode>()
+        val seenVideoIds = mutableSetOf<String>()
+
+        coroutineScope {
+            val jobs = queries.take(2).map { sq ->
+                async { queryYouTubeEpisodes(sq) }
+            }
+            val resultsList = jobs.awaitAll()
+            for (results in resultsList) {
+                for (ep in results) {
+                    if (seenVideoIds.add(ep.videoId)) {
+                        allEpisodes.add(ep)
+                    }
+                }
+            }
+        }
+
+        // Targeted fallback ONLY if search returned 0 results:
+        // Check if query directly matches a known channel name
+        if (allEpisodes.isEmpty()) {
+            val matchedChannel = com.tvdinner.data.podcasts.PodcastsData.CHANNELS.find {
+                it.channelName.contains(q, ignoreCase = true) || q.contains(it.channelName, ignoreCase = true)
+            }
+            if (matchedChannel != null && matchedChannel.ytChannelId.isNotBlank()) {
+                val rssList = fetchEpisodesViaRss(matchedChannel.ytChannelId, matchedChannel.channelName, matchedChannel.id)
+                for (ep in rssList) {
+                    if (seenVideoIds.add(ep.videoId)) {
+                        allEpisodes.add(ep)
+                    }
+                }
+            }
+        }
+
+        // Search Ranking: Preserve relevance to the search query without interleaving!
+        val qLower = q.lowercase()
+        allEpisodes.sortedWith(
+            compareByDescending<PodcastEpisode> {
+                val chanMatch = it.channelName.lowercase().contains(qLower)
+                val titleMatch = it.title.lowercase().contains(qLower)
+                when {
+                    chanMatch && titleMatch -> 3
+                    chanMatch -> 2
+                    titleMatch -> 1
+                    else -> 0
+                }
+            }
+        )
+    }
+
+    /**
+     * Unified router for category browsing vs search query fetching.
+     */
+    suspend fun searchLiveEpisodes(categoryOrQuery: String, page: Int = 1): List<PodcastEpisode> {
+        val catClean = categoryOrQuery.replace(Regex("[^a-zA-Z &]"), "").trim().lowercase()
+        val isCategory = when (catClean) {
+            "all", "trending", "tech", "ai & tech", "tech & ai",
+            "business", "business & ideas", "science", "science & health",
+            "culture", "culture & talk", "comedy", "news", "news & politics",
+            "crime", "true crime", "true crime & mystery" -> true
+            else -> false
+        }
+        return if (isCategory) {
+            fetchLivePodcastEpisodes(categoryOrQuery, page)
+        } else {
+            searchLivePodcastEpisodes(categoryOrQuery, page)
+        }
     }
 
     private fun queryYouTubeEpisodes(query: String): List<PodcastEpisode> {
