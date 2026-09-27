@@ -7181,6 +7181,10 @@ function createPlaceholderLogo(name) {
 
 // Play Live Channel HLS
 function playChannel(channel) {
+  if (channel && state.currentPlayingChannel && (state.currentPlayingChannel.id === channel.id || state.currentPlayingUrl === channel.url)) {
+    expandActiveMediaToFullscreen();
+    return;
+  }
   closeActiveSse();
 
   state.currentPlayingUrl = channel.url;

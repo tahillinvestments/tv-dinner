@@ -1,6 +1,8 @@
 package com.tvdinner.data.model
 
+import com.google.gson.*
 import com.google.gson.annotations.SerializedName
+import java.lang.reflect.Type
 
 data class CredentialEntry(
     val user: String,
@@ -180,4 +182,111 @@ data class EpgProgram(
 data class ShortEpgResponse(
     @SerializedName("epg_listings") val epgListings: List<EpgProgram>? = null
 )
+
+class EpgProgramDeserializer : JsonDeserializer<EpgProgram> {
+    override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): EpgProgram {
+        if (json == null || !json.isJsonObject) return EpgProgram()
+        val obj = json.asJsonObject
+
+        fun getStringVal(vararg keys: String): String? {
+            for (key in keys) {
+                val elem = obj.get(key)
+                if (elem != null && !elem.isJsonNull) {
+                    val s = if (elem.isJsonPrimitive) elem.asString else elem.toString()
+                    val trimmed = s.trim()
+                    if (trimmed.isNotEmpty() && trimmed != "null") return trimmed
+                }
+            }
+            return null
+        }
+
+        val id = getStringVal("id")
+        val epgId = getStringVal("epg_id")
+        val title = getStringVal("title", "name", "event_name", "program_name", "title_base64")
+        val lang = getStringVal("lang", "language")
+        val start = getStringVal("start", "start_time")
+        val end = getStringVal("end", "stop", "stop_time", "end_time")
+        val description = getStringVal("description", "descr", "plot", "short_desc", "summary")
+        val channelId = getStringVal("channel_id", "stream_id")
+        val startTimestamp = getStringVal("start_timestamp", "start_time", "start_epoch", "time_from")
+        val stopTimestamp = getStringVal("stop_timestamp", "end_timestamp", "stop_time", "stop_epoch", "time_to")
+
+        val nowPlayingElem = obj.get("now_playing") ?: obj.get("nowplaying") ?: obj.get("has_now_playing")
+        val nowPlaying = when {
+            nowPlayingElem == null || nowPlayingElem.isJsonNull -> 0
+            nowPlayingElem.isJsonPrimitive && nowPlayingElem.asJsonPrimitive.isBoolean -> if (nowPlayingElem.asBoolean) 1 else 0
+            nowPlayingElem.isJsonPrimitive && nowPlayingElem.asJsonPrimitive.isNumber -> nowPlayingElem.asInt
+            nowPlayingElem.isJsonPrimitive && nowPlayingElem.asJsonPrimitive.isString -> {
+                val s = nowPlayingElem.asString.trim()
+                if (s == "1" || s.equals("true", ignoreCase = true)) 1 else 0
+            }
+            else -> 0
+        }
+
+        return EpgProgram(
+            id = id,
+            epgId = epgId,
+            title = title,
+            lang = lang,
+            start = start,
+            end = end,
+            description = description,
+            channelId = channelId,
+            startTimestamp = startTimestamp,
+            stopTimestamp = stopTimestamp,
+            nowPlaying = nowPlaying
+        )
+    }
+}
+
+class ShortEpgResponseDeserializer : JsonDeserializer<ShortEpgResponse> {
+    override fun deserialize(json: JsonElement?, typeOfT: Type?, context: JsonDeserializationContext?): ShortEpgResponse {
+        if (json == null || json.isJsonNull) return ShortEpgResponse(emptyList())
+        val programs = mutableListOf<EpgProgram>()
+
+        if (json.isJsonArray) {
+            for (elem in json.asJsonArray) {
+                if (elem.isJsonObject) {
+                    val prog = context?.deserialize<EpgProgram>(elem, EpgProgram::class.java)
+                    if (prog != null && (!prog.title.isNullOrBlank() || !prog.start.isNullOrBlank())) {
+                        programs.add(prog)
+                    }
+                }
+            }
+        } else if (json.isJsonObject) {
+            val obj = json.asJsonObject
+            val listingsElem = obj.get("epg_listings") ?: obj.get("listings") ?: obj.get("epg")
+            if (listingsElem != null && listingsElem.isJsonArray) {
+                for (elem in listingsElem.asJsonArray) {
+                    if (elem.isJsonObject) {
+                        val prog = context?.deserialize<EpgProgram>(elem, EpgProgram::class.java)
+                        if (prog != null && (!prog.title.isNullOrBlank() || !prog.start.isNullOrBlank())) {
+                            programs.add(prog)
+                        }
+                    }
+                }
+            } else if (listingsElem != null && listingsElem.isJsonObject) {
+                for ((_, value) in listingsElem.asJsonObject.entrySet()) {
+                    if (value.isJsonObject) {
+                        val prog = context?.deserialize<EpgProgram>(value, EpgProgram::class.java)
+                        if (prog != null && (!prog.title.isNullOrBlank() || !prog.start.isNullOrBlank())) {
+                            programs.add(prog)
+                        }
+                    }
+                }
+            } else {
+                for ((_, value) in obj.entrySet()) {
+                    if (value.isJsonObject) {
+                        val prog = context?.deserialize<EpgProgram>(value, EpgProgram::class.java)
+                        if (prog != null && (!prog.title.isNullOrBlank() || !prog.start.isNullOrBlank())) {
+                            programs.add(prog)
+                        }
+                    }
+                }
+            }
+        }
+        return ShortEpgResponse(programs)
+    }
+}
+
 

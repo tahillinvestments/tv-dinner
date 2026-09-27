@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.tvdinner.data.model.CredentialEntry
 import com.tvdinner.data.model.MusicVideo
+import com.tvdinner.data.model.PodcastChannel
 import com.tvdinner.data.model.PodcastEpisode
 
 class AuthRepository(context: Context) {
@@ -108,7 +109,7 @@ class AuthRepository(context: Context) {
 
     fun getOrderedServerPortals(): List<String> {
         val saved = prefs.getString(KEY_IPTV_PORTAL, null)?.trim()?.removeSuffix("/")
-        if (!saved.isNullOrBlank() && SERVER_PORTALS.contains(saved)) {
+        if (!saved.isNullOrBlank()) {
             return listOf(saved) + SERVER_PORTALS.filter { it != saved }
         }
         return SERVER_PORTALS
@@ -116,7 +117,7 @@ class AuthRepository(context: Context) {
 
     fun getLivePortalUrl(): String {
         val saved = prefs.getString(KEY_IPTV_PORTAL, null)?.trim()?.removeSuffix("/")
-        return if (!saved.isNullOrBlank() && SERVER_PORTALS.contains(saved)) {
+        return if (!saved.isNullOrBlank()) {
             saved
         } else {
             DEFAULT_SERVER_URL
@@ -125,14 +126,14 @@ class AuthRepository(context: Context) {
 
     fun setLivePortalUrl(url: String) {
         val clean = url.trim().removeSuffix("/")
-        if (SERVER_PORTALS.contains(clean)) {
+        if (clean.isNotBlank()) {
             prefs.edit().putString(KEY_IPTV_PORTAL, clean).apply()
         }
     }
 
     fun getBackupPortalUrl(): String {
         val saved = prefs.getString(KEY_BACKUP_IPTV_PORTAL, null)?.trim()?.removeSuffix("/")
-        return if (!saved.isNullOrBlank() && SERVER_PORTALS.contains(saved)) {
+        return if (!saved.isNullOrBlank()) {
             saved
         } else {
             BACKUP_SERVER_URL
@@ -141,7 +142,7 @@ class AuthRepository(context: Context) {
 
     fun setBackupPortalUrl(url: String) {
         val clean = url.trim().removeSuffix("/")
-        if (SERVER_PORTALS.contains(clean)) {
+        if (clean.isNotBlank()) {
             prefs.edit().putString(KEY_BACKUP_IPTV_PORTAL, clean).apply()
         }
     }
@@ -223,8 +224,46 @@ class AuthRepository(context: Context) {
             current.add(channelId)
         } else {
             current.remove(channelId)
+            removeSubscribedPodcastChannel(channelId)
         }
         prefs.edit().putStringSet("subscribed_podcasts", current).apply()
+        return willSubscribe
+    }
+
+    fun getSubscribedPodcastChannels(): List<PodcastChannel> {
+        val json = prefs.getString("subscribed_podcast_channels_json", null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<PodcastChannel>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveSubscribedPodcastChannel(channel: PodcastChannel) {
+        val current = getSubscribedPodcastChannels().toMutableList()
+        val idx = current.indexOfFirst { it.id == channel.id }
+        if (idx >= 0) {
+            current[idx] = channel
+        } else {
+            current.add(channel)
+        }
+        prefs.edit().putString("subscribed_podcast_channels_json", gson.toJson(current)).apply()
+    }
+
+    fun removeSubscribedPodcastChannel(channelId: String) {
+        val current = getSubscribedPodcastChannels().toMutableList()
+        current.removeAll { it.id == channelId }
+        prefs.edit().putString("subscribed_podcast_channels_json", gson.toJson(current)).apply()
+    }
+
+    fun togglePodcastSubscription(channel: PodcastChannel): Boolean {
+        val willSubscribe = togglePodcastSubscription(channel.id)
+        if (willSubscribe) {
+            saveSubscribedPodcastChannel(channel)
+        } else {
+            removeSubscribedPodcastChannel(channel.id)
+        }
         return willSubscribe
     }
 

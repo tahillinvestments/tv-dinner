@@ -1,6 +1,7 @@
 package com.tvdinner.data.podcasts
 
 import com.tvdinner.data.model.PodcastChannel
+import com.tvdinner.data.model.PodcastEpisode
 
 object PodcastsData {
     val CHANNELS: List<PodcastChannel> = listOf(
@@ -368,4 +369,545 @@ object PodcastsData {
             ytChannelId = "UCqnbDFdCpuN8CMEg0VuEBqA"
         )
     )
+
+    val CURATED_EPISODES: List<PodcastEpisode> = listOf(
+        // ─── Trending ───
+        PodcastEpisode(
+            id = "ep_kt_ZHLhms7ceMs",
+            title = "Kill Tony #778 - JIMMY CARR",
+            description = "The top live comedy podcast in the world. Tony Hinchcliffe, Brian Redban, and special guest Jimmy Carr.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/ZHLhms7ceMs/hqdefault.jpg",
+            videoId = "ZHLhms7ceMs",
+            channelName = "Kill Tony",
+            channelId = "chan_kill_tony",
+            publishedTimestamp = 1754000000000L
+        ),
+        PodcastEpisode(
+            id = "ep_kt_Ugcao1Otpjk",
+            title = "Kill Tony #775 - JOE ROGAN + THAT MEXICAN OT",
+            description = "Live from the Comedy Mothership in Austin, Texas with Joe Rogan and That Mexican OT.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/Ugcao1Otpjk/hqdefault.jpg",
+            videoId = "Ugcao1Otpjk",
+            channelName = "Kill Tony",
+            channelId = "chan_kill_tony",
+            publishedTimestamp = 1753500000000L
+        ),
+        PodcastEpisode(
+            id = "ep_jre_ZACmIrFbfPU",
+            title = "Joe Rogan Experience #2534 - Annie Jacobsen",
+            description = "Annie Jacobsen is an investigative journalist and author of Nuclear War: A Scenario.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/ZACmIrFbfPU/hqdefault.jpg",
+            videoId = "ZACmIrFbfPU",
+            channelName = "The Joe Rogan Experience",
+            channelId = "chan_jre",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_jre_EvnLN8WETlM",
+            title = "Joe Rogan Experience #2531 - Forrest Galante",
+            description = "Forrest Galante is a wildlife biologist, conservationist, and television host.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/EvnLN8WETlM/hqdefault.jpg",
+            videoId = "EvnLN8WETlM",
+            channelName = "The Joe Rogan Experience",
+            channelId = "chan_jre",
+            publishedTimestamp = 1753000000000L
+        ),
+        PodcastEpisode(
+            id = "ep_tv_cFpQV49JqWI",
+            title = "This Past Weekend w/ Theo Von #512: Summer Road Trips",
+            description = "Heartfelt, hilarious, and bizarre stories with Louisiana comedian Theo Von.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/cFpQV49JqWI/hqdefault.jpg",
+            videoId = "cFpQV49JqWI",
+            channelName = "This Past Weekend w/ Theo Von",
+            channelId = "chan_theo_von",
+            publishedTimestamp = 1753800000000L
+        ),
+        PodcastEpisode(
+            id = "ep_bf_2yuvDzOzqLM",
+            title = "Trash Rummaging with Rudy | Ep 339 | Bad Friends",
+            description = "Bobby Lee and Andrew Santino team up for hilarious improvisational comedy and banter.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/2yuvDzOzqLM/hqdefault.jpg",
+            videoId = "2yuvDzOzqLM",
+            channelName = "Bad Friends",
+            channelId = "chan_bad_friends",
+            publishedTimestamp = 1753700000000L
+        ),
+        PodcastEpisode(
+            id = "ep_fl_YzQ9DlVXoXg",
+            title = "Sky Diving is Wild: Andrew Schulz & Flagrant Crew",
+            description = "Unfiltered comedy, hot takes, pop culture roasts, and wild studio banter.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/YzQ9DlVXoXg/hqdefault.jpg",
+            videoId = "YzQ9DlVXoXg",
+            channelName = "Flagrant",
+            channelId = "chan_flagrant",
+            publishedTimestamp = 1753600000000L
+        ),
+        PodcastEpisode(
+            id = "ep_nh_silQLgVCZVw",
+            title = "Jason & Travis Kelce React to Jalen Hurts' Game-Winning Drive",
+            description = "Super Bowl champions Jason & Travis Kelce discuss NFL life, locker room dynamics, and pop culture.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/silQLgVCZVw/hqdefault.jpg",
+            videoId = "silQLgVCZVw",
+            channelName = "New Heights",
+            channelId = "chan_new_heights",
+            publishedTimestamp = 1753500000000L
+        ),
+
+        // ─── AI & Tech ───
+        PodcastEpisode(
+            id = "ep_lf_vif8NQcjVf0",
+            title = "Jensen Huang: NVIDIA – The $4 Trillion Company & the AI Revolution",
+            description = "Jensen Huang, CEO of NVIDIA, joins Lex Fridman to discuss GPUs, deep learning, and the path to AGI.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/vif8NQcjVf0/hqdefault.jpg",
+            videoId = "vif8NQcjVf0",
+            channelName = "Lex Fridman Podcast",
+            channelId = "chan_lex_fridman",
+            publishedTimestamp = 1754000000000L
+        ),
+        PodcastEpisode(
+            id = "ep_lf_nepKKz_MzFM",
+            title = "FFmpeg: The Incredible Technology Behind Video on the Internet",
+            description = "Deep dive into FFmpeg, video codecs, compression algorithms, and open source engineering.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/nepKKz-MzFM/hqdefault.jpg",
+            videoId = "nepKKz-MzFM",
+            channelName = "Lex Fridman Podcast",
+            channelId = "chan_lex_fridman",
+            publishedTimestamp = 1753200000000L
+        ),
+        PodcastEpisode(
+            id = "ep_wf_PtCMsXYAPyc",
+            title = "Framework Laptops and a Robot Cleaner? | Waveform",
+            description = "Marques Brownlee and Andrew Manganelli discuss modular laptops, smart cleaning robotics, and tech news.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/PtCMsXYAPyc/hqdefault.jpg",
+            videoId = "PtCMsXYAPyc",
+            channelName = "Waveform: The MKBHD Podcast",
+            channelId = "chan_mkbhd_waveform",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_wf_WVsG3daysEM",
+            title = "Samsung's Newest Foldable is Here! | Waveform",
+            description = "Hands on teardown and engineering breakdown of the newest foldable display technology.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/WVsG3daysEM/hqdefault.jpg",
+            videoId = "WVsG3daysEM",
+            channelName = "Waveform: The MKBHD Podcast",
+            channelId = "chan_mkbhd_waveform",
+            publishedTimestamp = 1753700000000L
+        ),
+        PodcastEpisode(
+            id = "ep_ai_ViqYWhLimGg",
+            title = "Chip Stocks Crash, $20B Fund Margin Called, Frontier Labs: SLOW DOWN AI",
+            description = "The All-In besties break down semiconductor valuation shocks, venture fund liquidity, and frontier AI safety.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/ViqYWhLimGg/hqdefault.jpg",
+            videoId = "ViqYWhLimGg",
+            channelName = "The All-In Podcast",
+            channelId = "chan_all_in",
+            publishedTimestamp = 1753800000000L
+        ),
+        PodcastEpisode(
+            id = "ep_ai_TqNiSTeNtb0",
+            title = "The $1/Hour Robot Is Coming: Four Industry Leaders Explain What's Next",
+            description = "Robotics automation, humanoid labor costs, and the economic inflection point of embodied AI.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/TqNiSTeNtb0/hqdefault.jpg",
+            videoId = "TqNiSTeNtb0",
+            channelName = "The All-In Podcast",
+            channelId = "chan_all_in",
+            publishedTimestamp = 1753300000000L
+        ),
+        PodcastEpisode(
+            id = "ep_yc_5d6y3poKwK4",
+            title = "Patrick Collison: Is AI Breaking the Lean Startup Playbook?",
+            description = "Stripe CEO Patrick Collison joins Y Combinator to analyze capital efficiency and product velocity.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/5d6y3poKwK4/hqdefault.jpg",
+            videoId = "5d6y3poKwK4",
+            channelName = "Y Combinator",
+            channelId = "chan_y_combinator",
+            publishedTimestamp = 1753800000000L
+        ),
+        PodcastEpisode(
+            id = "ep_yc_CxXgV54KzpQ",
+            title = "Jeff Dean: The 1% Rule for Building in AI",
+            description = "Google Chief Scientist Jeff Dean shares foundational wisdom on scale, architectures, and engineering persistence.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/CxXgV54KzpQ/hqdefault.jpg",
+            videoId = "CxXgV54KzpQ",
+            channelName = "Y Combinator",
+            channelId = "chan_y_combinator",
+            publishedTimestamp = 1753600000000L
+        ),
+
+        // ─── Business & Ideas ───
+        PodcastEpisode(
+            id = "ep_acq_hT32G6bZ_lM",
+            title = "Disney Built Disneyland in One Year for $17 Million",
+            description = "The inside story of how Walt Disney engineered Disneyland with unmatched ambition, speed, and creative obsession.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/hT32G6bZ_lM/hqdefault.jpg",
+            videoId = "hT32G6bZ_lM",
+            channelName = "Acquired Podcast",
+            channelId = "chan_acquired",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_acq_JjDdCToFpUM",
+            title = "Walt Disney's Unfinished Sci-Fi City: The REAL EPCOT",
+            description = "Ben Gilbert & David Rosenthal explore Walt Disney's original futuristic vision for EPCOT.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/JjDdCToFpUM/hqdefault.jpg",
+            videoId = "JjDdCToFpUM",
+            channelName = "Acquired Podcast",
+            channelId = "chan_acquired",
+            publishedTimestamp = 1753500000000L
+        ),
+        PodcastEpisode(
+            id = "ep_mfm_PcTU0yaDfd4",
+            title = "The $3 Billion Business Built on Nursery Rhymes",
+            description = "Shaan Puri & Sam Parr dissect how digital media brands turned simple concepts into billion-dollar juggernauts.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/PcTU0yaDfd4/hqdefault.jpg",
+            videoId = "PcTU0yaDfd4",
+            channelName = "My First Million",
+            channelId = "chan_mfm",
+            publishedTimestamp = 1754000000000L
+        ),
+        PodcastEpisode(
+            id = "ep_doac_8DsalSn5tUk",
+            title = "Would You Press the AI Button? Future of Society & Work",
+            description = "Steven Bartlett explores the transformative impact of artificial intelligence on careers, creativity, and human relationships.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/8DsalSn5tUk/hqdefault.jpg",
+            videoId = "8DsalSn5tUk",
+            channelName = "The Diary Of A CEO",
+            channelId = "chan_diary_ceo",
+            publishedTimestamp = 1753800000000L
+        ),
+        PodcastEpisode(
+            id = "ep_doac_aSch4W4_aLM",
+            title = "Druski: A Gun to My Head Changed My Life Forever",
+            description = "Intimate and raw conversation with comedy superstar Druski about fear, resilience, and building a cultural empire.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/aSch4W4-aLM/hqdefault.jpg",
+            videoId = "aSch4W4-aLM",
+            channelName = "The Diary Of A CEO",
+            channelId = "chan_diary_ceo",
+            publishedTimestamp = 1753600000000L
+        ),
+
+        // ─── Science & Health ───
+        PodcastEpisode(
+            id = "ep_st_E8cXOJlyMZY",
+            title = "Your Brain Wasn't Built to Find the Truth | StarTalk",
+            description = "Astrophysicist Neil deGrasse Tyson investigates cognitive biases, perception illusions, and the nature of objective reality.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/E8cXOJlyMZY/hqdefault.jpg",
+            videoId = "E8cXOJlyMZY",
+            channelName = "StarTalk",
+            channelId = "chan_startalk",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_st_3yrcD4Ob3qw",
+            title = "Finally, The Truth with Michael Shermer | StarTalk",
+            description = "Scientific skepticism, belief formation, and understanding how pseudoscience tricks the modern mind.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/3yrcD4Ob3qw/hqdefault.jpg",
+            videoId = "3yrcD4Ob3qw",
+            channelName = "StarTalk",
+            channelId = "chan_startalk",
+            publishedTimestamp = 1753400000000L
+        ),
+        PodcastEpisode(
+            id = "ep_hl_vmRWUqkTtKA",
+            title = "My Book Protocols: Science-Backed Daily Health Tools",
+            description = "Dr. Andrew Huberman summarizes the core protocols for sleep, exercise, nutrition, and cognitive performance.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/vmRWUqkTtKA/hqdefault.jpg",
+            videoId = "vmRWUqkTtKA",
+            channelName = "Huberman Lab",
+            channelId = "chan_huberman_lab",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_hl_lxDf8uEypJU",
+            title = "Essentials: How to Become Resilient & Lead Others | Jocko Willink",
+            description = "Neurobiology of stress resilience, disciplined mental protocols, and leadership principles under extreme pressure.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/lxDf8uEypJU/hqdefault.jpg",
+            videoId = "lxDf8uEypJU",
+            channelName = "Huberman Lab",
+            channelId = "chan_huberman_lab",
+            publishedTimestamp = 1753600000000L
+        ),
+        PodcastEpisode(
+            id = "ep_ver_VKlulHwMxgU",
+            title = "What Happens When You Open the Valve? | Veritasium",
+            description = "Derek Muller explores counterintuitive fluid dynamics, vacuum physics, and mind-bending thermodynamic experiments.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/VKlulHwMxgU/hqdefault.jpg",
+            videoId = "VKlulHwMxgU",
+            channelName = "Veritasium",
+            channelId = "chan_veritasium",
+            publishedTimestamp = 1753800000000L
+        ),
+        PodcastEpisode(
+            id = "ep_ver_JsBZOcqZerk",
+            title = "The Insane Real Engineering of the Nazi Enigma Machine",
+            description = "Complete mechanical and cryptographic breakdown of the German WWII rotor cipher device.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/JsBZOcqZerk/hqdefault.jpg",
+            videoId = "JsBZOcqZerk",
+            channelName = "Veritasium",
+            channelId = "chan_veritasium",
+            publishedTimestamp = 1753300000000L
+        ),
+        PodcastEpisode(
+            id = "ep_mw_k1iQI4GKfyo",
+            title = "How Do You Pace a Full Habit Reset? Protocols for Focus",
+            description = "Chris Williamson shares evolutionary psychology tools to overcome distraction and rebuild deep focus habits.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/k1iQI4GKfyo/hqdefault.jpg",
+            videoId = "k1iQI4GKfyo",
+            channelName = "Modern Wisdom",
+            channelId = "chan_modern_wisdom",
+            publishedTimestamp = 1753900000000L
+        ),
+
+        // ─── Culture & Talk ───
+        PodcastEpisode(
+            id = "ep_css_zdnn8QM__nU",
+            title = "Mike Bibby says Kings Were Robbed Against Kobe x Shaq Lakers | Nightcap",
+            description = "Shannon Sharpe and Chad Ochocinco interview Mike Bibby about the controversial 2002 Western Conference Finals.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/zdnn8QM_-nU/hqdefault.jpg",
+            videoId = "zdnn8QM_-nU",
+            channelName = "Club Shay Shay",
+            channelId = "chan_club_shay_shay",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_ho_tzyK0R1h9Jw",
+            title = "Sean Evans Takes On Nuclear Hot Wings & Celebrity Hot Takes",
+            description = "The show with hot questions and even hotter wings! Host Sean Evans breaks down the art of the interview.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/tzyK0R1h9Jw/hqdefault.jpg",
+            videoId = "tzyK0R1h9Jw",
+            channelName = "Hot Ones (First We Feast)",
+            channelId = "chan_hot_ones",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_co_7p4E_vP4Hi0",
+            title = "Jimmy Fallon Fills In for Conan on 'Late Night' Nostalgia",
+            description = "Conan O'Brien and Jimmy Fallon reflect on the wild history of Late Night television and comedic memories.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/7p4E_vP4Hi0/hqdefault.jpg",
+            videoId = "7p4E_vP4Hi0",
+            channelName = "Conan O'Brien Needs A Friend",
+            channelId = "chan_conan",
+            publishedTimestamp = 1753800000000L
+        ),
+        PodcastEpisode(
+            id = "ep_pm_YvKgqFdwV6w",
+            title = "Are The Saints A Sneaky Contender After Extending Chris Olave?",
+            description = "Pat McAfee and the boys break down NFL contracts, locker room culture, and NFC playoff races.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/YvKgqFdwV6w/hqdefault.jpg",
+            videoId = "YvKgqFdwV6w",
+            channelName = "The Pat McAfee Show",
+            channelId = "chan_pat_mcafee",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_dc_yir4GNA52xE",
+            title = "50 Cent: From Queens to Kingpin | Full Episode | Drink Champs",
+            description = "N.O.R.E. and DJ EFN sit down with 50 Cent for a legendary, hilarious, and historic hip-hop conversation.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/yir4GNA52xE/hqdefault.jpg",
+            videoId = "yir4GNA52xE",
+            channelName = "Drink Champs",
+            channelId = "chan_drink_champs",
+            publishedTimestamp = 1753500000000L
+        ),
+        PodcastEpisode(
+            id = "ep_td_IN5lC_T7yOA",
+            title = "Tori Kelly: NPR Music Tiny Desk Concert (Acoustic Set)",
+            description = "Grammy-winning vocalist Tori Kelly delivers an extraordinary, intimate acoustic vocal performance.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/IN5lC_T7yOA/hqdefault.jpg",
+            videoId = "IN5lC_T7yOA",
+            channelName = "NPR Music Tiny Desk Concerts",
+            channelId = "chan_tinydesk_pod",
+            publishedTimestamp = 1753900000000L
+        ),
+
+        // ─── True Crime & Mystery ───
+        PodcastEpisode(
+            id = "ep_rm_S3IIGkHMcv0",
+            title = "Lindsay Clancy & the 13 Medications Prescribed: 48 Hours of No Sleep",
+            description = "Stephanie Soo presents an in-depth investigative breakdown of the tragic Clancy case and psychiatric medications.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/S3IIGkHMcv0/hqdefault.jpg",
+            videoId = "S3IIGkHMcv0",
+            channelName = "Rotten Mango (Stephanie Soo)",
+            channelId = "chan_rotten_mango",
+            publishedTimestamp = 1754000000000L
+        ),
+        PodcastEpisode(
+            id = "ep_rm_CYJ7dk5_EIg",
+            title = "Lindsay Clancy Trial Breakdown: Psychological Mysteries Unraveled",
+            description = "Comprehensive analysis of medical witness testimonies, court arguments, and forensic details.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/CYJ7dk5_EIg/hqdefault.jpg",
+            videoId = "CYJ7dk5_EIg",
+            channelName = "Rotten Mango (Stephanie Soo)",
+            channelId = "chan_rotten_mango",
+            publishedTimestamp = 1753800000000L
+        ),
+        PodcastEpisode(
+            id = "ep_dc_Gu4syP_IzQs",
+            title = "Show 74 - Mania for Subjugation IV (Full Sagas)",
+            description = "Dan Carlin masterfully chronicles the brutal geopolitical games, ancient conflicts, and human extremes.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/Gu4syP_IzQs/hqdefault.jpg",
+            videoId = "Gu4syP_IzQs",
+            channelName = "Dan Carlin's Hardcore History",
+            channelId = "chan_dan_carlin",
+            publishedTimestamp = 1753700000000L
+        ),
+        PodcastEpisode(
+            id = "ep_dc_fI2xUkLdoGo",
+            title = "Show 73 - Mania for Subjugation III: Empires and Conflicts",
+            description = "A deep dive into historical empire-building, military logistics, and the costs of total war.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/fI2xUkLdoGo/hqdefault.jpg",
+            videoId = "fI2xUkLdoGo",
+            channelName = "Dan Carlin's Hardcore History",
+            channelId = "chan_dan_carlin",
+            publishedTimestamp = 1752500000000L
+        ),
+
+        // ─── News & Politics ───
+        PodcastEpisode(
+            id = "ep_pbd_QjZ5e8u_pRw",
+            title = "PBD Podcast: Economic Realities, Election Predictions & World Affairs",
+            description = "Patrick Bet-David and the panel discuss macroeconomics, federal debt, and geopolitical power struggles.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/QjZ5e8u_pRw/hqdefault.jpg",
+            videoId = "QjZ5e8u_pRw",
+            channelName = "PBD Podcast",
+            channelId = "chan_pbd_podcast",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_sr_mE8Q1_X1jZg",
+            title = "Shawn Ryan Show: Special Forces Operations & Intelligence Truths",
+            description = "Former Navy SEAL Shawn Ryan interviews veteran operators on covert operations and national security.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/mE8Q1_X1jZg/hqdefault.jpg",
+            videoId = "mE8Q1_X1jZg",
+            channelName = "The Shawn Ryan Show",
+            channelId = "chan_shawn_ryan",
+            publishedTimestamp = 1753800000000L
+        ),
+        PodcastEpisode(
+            id = "ep_td_jNQXAC9IVRw",
+            title = "The Daily: Inside the Battle for the Middle East | NY Times",
+            description = "Michael Barbaro and New York Times foreign correspondents investigate diplomatic negotiations.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/jNQXAC9IVRw/hqdefault.jpg",
+            videoId = "jNQXAC9IVRw",
+            channelName = "The Daily (NY Times)",
+            channelId = "chan_the_daily",
+            publishedTimestamp = 1753900000000L
+        ),
+        PodcastEpisode(
+            id = "ep_td_sK6bO_wL9pU",
+            title = "The Daily: What Silicon Valley's Political Shift Means for America",
+            description = "An exploration of venture capitalists, tech founders, and the changing political dynamics of modern technology.",
+            published = "Recent",
+            thumbnailUrl = "https://img.youtube.com/vi/sK6bO_wL9pU/hqdefault.jpg",
+            videoId = "sK6bO_wL9pU",
+            channelName = "The Daily (NY Times)",
+            channelId = "chan_the_daily",
+            publishedTimestamp = 1753700000000L
+        )
+    )
+
+    fun interleaveEpisodes(episodes: List<PodcastEpisode>, maxConsecutive: Int = 1): List<PodcastEpisode> {
+        if (episodes.size <= 2) return episodes
+        val result = mutableListOf<PodcastEpisode>()
+        val remaining = episodes.toMutableList()
+        var lastChannel = ""
+        var consecutiveCount = 0
+
+        while (remaining.isNotEmpty()) {
+            val nextIdx = remaining.indexOfFirst { ep ->
+                val ch = ep.channelName.trim().lowercase()
+                ch != lastChannel || consecutiveCount < maxConsecutive
+            }
+            val chosenIdx = if (nextIdx >= 0) nextIdx else 0
+            val chosen = remaining.removeAt(chosenIdx)
+            val chosenChannel = chosen.channelName.trim().lowercase()
+
+            if (chosenChannel == lastChannel) {
+                consecutiveCount++
+            } else {
+                lastChannel = chosenChannel
+                consecutiveCount = 1
+            }
+            result.add(chosen)
+        }
+        return result
+    }
+
+    fun getCuratedEpisodesForCategory(category: String): List<PodcastEpisode> {
+        val clean = category.lowercase().replace(Regex("[^a-z0-9]"), "").trim()
+        val rawList = if (clean.contains("trending") || clean == "all" || clean.isBlank()) {
+            CURATED_EPISODES
+        } else {
+            CURATED_EPISODES.filter { ep ->
+                val ch = CHANNELS.find { it.channelName.equals(ep.channelName, ignoreCase = true) }
+                val cat = ch?.category?.lowercase() ?: ""
+                when {
+                    clean.contains("tech") || clean.contains("ai") -> cat.contains("tech") || cat.contains("ai") || ep.channelName.contains("Lex", true) || ep.channelName.contains("MKBHD", true) || ep.channelName.contains("Combinator", true) || ep.channelName.contains("All-In", true)
+                    clean.contains("business") || clean.contains("idea") -> cat.contains("business") || cat.contains("idea") || ep.channelName.contains("Acquired", true) || ep.channelName.contains("Million", true) || ep.channelName.contains("CEO", true)
+                    clean.contains("science") || clean.contains("health") -> cat.contains("science") || cat.contains("health") || ep.channelName.contains("StarTalk", true) || ep.channelName.contains("Huberman", true) || ep.channelName.contains("Veritasium", true) || ep.channelName.contains("Wisdom", true)
+                    clean.contains("culture") || clean.contains("talk") || clean.contains("comedy") -> cat.contains("culture") || cat.contains("talk") || cat.contains("comedy") || ep.channelName.contains("Shay", true) || ep.channelName.contains("Hot Ones", true) || ep.channelName.contains("Conan", true) || ep.channelName.contains("McAfee", true) || ep.channelName.contains("Drink", true) || ep.channelName.contains("Tiny", true)
+                    clean.contains("crime") || clean.contains("mystery") -> cat.contains("crime") || cat.contains("mystery") || ep.channelName.contains("Rotten", true) || ep.channelName.contains("Carlin", true) || ep.channelName.contains("MrBallen", true)
+                    clean.contains("news") || clean.contains("politics") -> cat.contains("news") || cat.contains("politics") || ep.channelName.contains("PBD", true) || ep.channelName.contains("Shawn", true) || ep.channelName.contains("Daily", true)
+                    else -> true
+                }
+            }.ifEmpty { CURATED_EPISODES }
+        }
+        return interleaveEpisodes(rawList, maxConsecutive = 1)
+    }
+
+    fun getCuratedEpisodesForChannel(channelName: String): List<PodcastEpisode> {
+        val clean = channelName.lowercase().trim()
+        val direct = CURATED_EPISODES.filter {
+            it.channelName.lowercase().contains(clean) || clean.contains(it.channelName.lowercase())
+        }
+        if (direct.isNotEmpty()) return direct
+        return CURATED_EPISODES.take(8)
+    }
+
+    fun getCuratedEpisodesForChannel(channel: PodcastChannel): List<PodcastEpisode> {
+        return getCuratedEpisodesForChannel(channel.channelName)
+    }
 }
+

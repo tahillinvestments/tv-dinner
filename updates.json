@@ -10,6 +10,45 @@
   },
   "releases": [
     {
+      "id": "rel-257",
+      "versionCode": 257,
+      "versionName": "2.5.7",
+      "title": "YouTube Feed Scrub Bar & Seek HUD, Unblocked Custom Portal EPG & Resilient Multi-Endpoint Guide Parser",
+      "status": "STAGED",
+      "releaseNotes": "• YouTube Feed Scrub Bar & Seek HUD: Added a sleek, responsive bottom scrub bar and time HUD overlay across YouTube Music and Podcasts. Visible during remote fast-forward, rewind (D-pad Left/Right), pause, or controls toggle, displaying real-time video progress, formatted current/total time (mm:ss / hh:mm:ss), and seek delta badges (+15s / -30s) while preserving uninterrupted, zero-rebuffer playback\n• Unblocked Custom Portal EPG: Resolved server portal filtering in AuthRepository to permit active user-configured and custom Xtream server URLs to fetch live guide data, eliminating the restriction that silently ignored servers outside the hardcoded portal list\n• Resilient EPG Fetching & Fallback Pipeline: Upgraded XtreamApiClient with URL-encoded credentials and multi-action endpoint fallbacks (get_short_epg, get_simple_data_table, get_simple_data, and get_epg). Expanded XMLTV channel matching to evaluate stream IDs, custom SIDs, and prefix matches\n• Fallback EPG Cache Poisoning Eliminated: Stopped CatalogManager from storing synthetic 'Live Broadcast' placeholder titles into liveEpgTitles and cachedFullEpgByStreamId, ensuring actual program guide data is always requested and seamlessly populates channel cards, previews, and bottom info bars once loaded\n• Robust XMLTV Timezone Parsing: Upgraded EPG timestamp parsing in CatalogManager to handle all XMLTV timezone offset formats (+00:00, +0000, -0500) and ISO/epoch variants without throwing DateTimeParseException",
+      "stagedApk": "staging-apks/tv-dinner-v2.5.7-b257.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.5.7/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-27T21:25:48.054Z",
+      "publishedAt": null
+    },
+    {
+      "id": "rel-256",
+      "versionCode": 256,
+      "versionName": "2.5.6",
+      "title": "Live TV EPG Parser & XMLTV GZIP Fix, Reactive Guide Updates, YouTube Preview-to-Fullscreen Zero Reload & Interleaved Podcasts",
+      "status": "STAGED",
+      "releaseNotes": "• Live TV EPG Engine & Resilient Deserialization: Overhauled Xtream Codes EPG parsing with custom Gson deserializers supporting both direct JSON arrays and object wrappers, flexible integer/string timestamps, boolean/string now_playing values, and multi-endpoint fallback (get_short_epg, get_simple_data_table, and get_epg). Resolved XMLTV GZIP stream decoding (magic bytes 0x1f, 0x8b) and corrected 14-digit YYYYMMDDHHMMSS epoch timestamp parsing. Eliminated synthetic procedural placeholders ('Afternoon Segment', 'Night Edition') in favor of real guide information with clean fallbacks\n• Reactive Live TV Guide Updates: Integrated Compose SnapshotStateMaps (liveEpgTitles and liveEpgResponses) in CatalogManager so channel list cards, preview overlays, and the bottom program information bar instantly recompose with real program guide metadata as soon as it arrives\n• YouTube Preview-to-Fullscreen Zero-Reload: Eliminated unnecessary WebView iframe reloads when expanding YouTube feeds from preview to fullscreen and vice versa; standardized player parameters ('controls: 0', 'fs: 0') and preserved existing WebView instance for uninterrupted continuous playback\n• Instant Podcast Categories & Interleaved Variety: Switched podcast category selection to immediately render cached and curated episodes (0ms transition) while fetching fresh channel catalogs asynchronously; added intelligent episode interleaving across all podcast category and search feeds to prevent repetitive consecutive episodes from the same channel",
+      "stagedApk": "staging-apks/tv-dinner-v2.5.6-b256.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.5.6/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-27T01:47:46.681Z",
+      "publishedAt": null
+    },
+    {
+      "id": "rel-255",
+      "versionCode": 255,
+      "versionName": "2.5.5",
+      "title": "Curated Podcast Episodes Focus, Long-Press Channel View & Subscribe, Instant Episode Feeds & Live TV Preview Touch-to-Fullscreen",
+      "status": "STAGED",
+      "releaseNotes": "• Curated Podcast Episodes Focus: Streamlined the podcast interface by removing the channel carousel row under categories, placing immediate browsing focus directly on curated episodes\n• Instant Podcast Episode Loading: Resolved episode loading bug by rectifying empty-state layout hierarchy and implementing an extensive curated dataset of verified live and recent episodes across all categories with seamless channel and category fallbacks\n• Long-Press Channel View & Subscribe: Long-pressing any podcast episode card (or tapping its channel badge) opens that channel's complete catalog with 'All Shows' back navigation and persistent channel subscription capability\n• Live TV Preview Touch-to-Fullscreen: Selecting any Live TV channel by touch while it is already playing in the integrated preview immediately expands it to full-screen without rebuffering or restarting the stream, both via channel card selection and preview touch",
+      "stagedApk": "staging-apks/tv-dinner-v2.5.5-b255.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.5.5/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-27T00:38:04.003Z",
+      "publishedAt": null
+    },
+    {
       "id": "rel-254",
       "versionCode": 254,
       "versionName": "2.5.4",

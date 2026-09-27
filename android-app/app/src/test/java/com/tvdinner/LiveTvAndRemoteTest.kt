@@ -458,5 +458,161 @@ class LiveTvAndRemoteTest {
         assertEquals("Channel stream ID must be set", 5555, activeStreamId)
         assertEquals("Category must remain unchanged after selecting a channel", "sports_101", selectedCategoryId)
     }
+
+    @Test
+    fun testShortEpgDeserializer_handlesBothObjectAndArrayFormats() {
+        val gson = com.google.gson.GsonBuilder()
+            .registerTypeAdapter(com.tvdinner.data.model.EpgProgram::class.java, com.tvdinner.data.model.EpgProgramDeserializer())
+            .registerTypeAdapter(com.tvdinner.data.model.ShortEpgResponse::class.java, com.tvdinner.data.model.ShortEpgResponseDeserializer())
+            .create()
+
+        // 1. Array format with numeric ID, numeric timestamps, and integer now_playing
+        val jsonArray = """[{"id": 101, "title": "Live Championship Match", "start": "2026-09-26 20:00:00", "end": "2026-09-26 22:00:00", "start_timestamp": 1727395200, "now_playing": 1}]"""
+        val respArray = gson.fromJson(jsonArray, com.tvdinner.data.model.ShortEpgResponse::class.java)
+        assertEquals(1, respArray.epgListings?.size)
+        val p1 = respArray.epgListings!!.first()
+        assertEquals("Live Championship Match", p1.decodedTitle)
+        assertEquals("101", p1.id)
+        assertEquals("1727395200", p1.startTimestamp)
+        assertEquals(1, p1.nowPlaying)
+
+        // 2. Object format with epg_listings, 'name' instead of 'title', 'stop' instead of 'end', boolean now_playing
+        val jsonObject = """{"epg_listings": [{"id": "202", "name": "Sports Tonight", "start": "2026-09-26 22:00:00", "stop": "2026-09-26 23:00:00", "now_playing": true}]}"""
+        val respObj = gson.fromJson(jsonObject, com.tvdinner.data.model.ShortEpgResponse::class.java)
+        assertEquals(1, respObj.epgListings?.size)
+        val p2 = respObj.epgListings!!.first()
+        assertEquals("Sports Tonight", p2.decodedTitle)
+        assertEquals("2026-09-26 23:00:00", p2.end)
+        assertEquals(1, p2.nowPlaying)
+
+        // 3. String now_playing "1" and numeric stop_timestamp
+        val jsonStrNow = """{"epg_listings": [{"id": 303, "title": "Breaking News", "stop_timestamp": 1727398800, "now_playing": "1"}]}"""
+        val respStrNow = gson.fromJson(jsonStrNow, com.tvdinner.data.model.ShortEpgResponse::class.java)
+        assertEquals(1, respStrNow.epgListings?.size)
+        val p3 = respStrNow.epgListings!!.first()
+        assertEquals("Breaking News", p3.decodedTitle)
+        assertEquals(1, p3.nowPlaying)
+        assertEquals("1727398800", p3.stopTimestamp)
+    }
+
+    @Test
+    fun testPodcastEpisodeInterleaving_preventsConsecutiveEpisodes() {
+        val episodes = listOf(
+            com.tvdinner.data.model.PodcastEpisode(
+                id = "1", title = "Huberman 1", description = "", published = "2026-09-20",
+                thumbnailUrl = "", videoId = "v1", channelName = "Huberman Lab", channelId = "c_huberman"
+            ),
+            com.tvdinner.data.model.PodcastEpisode(
+                id = "2", title = "Huberman 2", description = "", published = "2026-09-19",
+                thumbnailUrl = "", videoId = "v2", channelName = "Huberman Lab", channelId = "c_huberman"
+            ),
+            com.tvdinner.data.model.PodcastEpisode(
+                id = "3", title = "Huberman 3", description = "", published = "2026-09-18",
+                thumbnailUrl = "", videoId = "v3", channelName = "Huberman Lab", channelId = "c_huberman"
+            ),
+            com.tvdinner.data.model.PodcastEpisode(
+                id = "4", title = "Lex 1", description = "", published = "2026-09-20",
+                thumbnailUrl = "", videoId = "v4", channelName = "Lex Fridman", channelId = "c_lex"
+            ),
+            com.tvdinner.data.model.PodcastEpisode(
+                id = "5", title = "Lex 2", description = "", published = "2026-09-19",
+                thumbnailUrl = "", videoId = "v5", channelName = "Lex Fridman", channelId = "c_lex"
+            ),
+            com.tvdinner.data.model.PodcastEpisode(
+                id = "6", title = "Hardcore History 1", description = "", published = "2026-09-15",
+                thumbnailUrl = "", videoId = "v6", channelName = "Dan Carlin", channelId = "c_carlin"
+            )
+        )
+
+        val interleaved = com.tvdinner.data.podcasts.PodcastsData.interleaveEpisodes(episodes, maxConsecutive = 1)
+        assertEquals(episodes.size, interleaved.size)
+
+        // Verify no two adjacent episodes have the same channel
+        for (i in 0 until interleaved.size - 1) {
+            val current = interleaved[i]
+            val next = interleaved[i + 1]
+            // Channel should alternate between Huberman, Lex, Carlin
+            assertFalse(
+                "Adjacent episodes should not be from the same channel: at index $i (${current.channelName}) and ${i + 1} (${next.channelName})",
+                current.channelName == next.channelName
+            )
+        }
+    }
+
+    @Test
+    fun testYouTubeRemoteBridge_PositionDurationAndSeek() {
+        com.tvdinner.ui.player.YouTubeRemoteBridge.updateTime(120f, 600f)
+        assertEquals(120f, com.tvdinner.ui.player.YouTubeRemoteBridge.currentPositionSec.value, 0.01f)
+        assertEquals(600f, com.tvdinner.ui.player.YouTubeRemoteBridge.durationSec.value, 0.01f)
+
+        // Test seek rewind and forward
+        com.tvdinner.ui.player.YouTubeRemoteBridge.seekRewind()
+        assertTrue(com.tvdinner.ui.player.YouTubeRemoteBridge.currentPositionSec.value < 120f)
+        assertTrue(com.tvdinner.ui.player.YouTubeRemoteBridge.scrubBadge.value?.startsWith("-") == true)
+        assertTrue(com.tvdinner.ui.player.YouTubeRemoteBridge.seekActionTimestamp.value > 0L)
+
+        val beforeFwd = com.tvdinner.ui.player.YouTubeRemoteBridge.currentPositionSec.value
+        com.tvdinner.ui.player.YouTubeRemoteBridge.seekForward()
+        assertTrue(com.tvdinner.ui.player.YouTubeRemoteBridge.currentPositionSec.value > beforeFwd)
+        assertTrue(com.tvdinner.ui.player.YouTubeRemoteBridge.scrubBadge.value?.startsWith("+") == true)
+    }
+
+    @Test
+    fun testCatalogManager_parseEpgEpochStatic() {
+        // Unix 10-digit
+        assertEquals(1700000000L, com.tvdinner.data.repository.CatalogManager.parseEpgEpochStatic("1700000000", null))
+        // Unix 13-digit ms
+        assertEquals(1700000000L, com.tvdinner.data.repository.CatalogManager.parseEpgEpochStatic("1700000000000", null))
+
+        // XMLTV 14-digit format: yyyyMMddHHmmss
+        val epochNoTz = com.tvdinner.data.repository.CatalogManager.parseEpgEpochStatic(null, "20260927180000")
+        assertTrue("Epoch must be valid and non-null", epochNoTz != null && epochNoTz > 0L)
+
+        // XMLTV with timezone: yyyyMMddHHmmss +0000
+        val epochUtc = com.tvdinner.data.repository.CatalogManager.parseEpgEpochStatic(null, "20260927180000 +0000")
+        assertEquals(epochNoTz, epochUtc)
+
+        // XMLTV with colon timezone: yyyyMMddHHmmss +00:00
+        val epochUtcColon = com.tvdinner.data.repository.CatalogManager.parseEpgEpochStatic(null, "20260927180000 +00:00")
+        assertEquals(epochNoTz, epochUtcColon)
+
+        // ISO-8601 format: yyyy-MM-dd HH:mm:ss
+        val isoEpoch = com.tvdinner.data.repository.CatalogManager.parseEpgEpochStatic(null, "2026-09-27 18:00:00")
+        assertEquals(epochNoTz, isoEpoch)
+    }
+
+    @Test
+    fun testShortEpgResponseDeserializer_handlesObjectAndArray() {
+        val gson = com.google.gson.GsonBuilder()
+            .registerTypeAdapter(com.tvdinner.data.model.EpgProgram::class.java, com.tvdinner.data.model.EpgProgramDeserializer())
+            .registerTypeAdapter(com.tvdinner.data.model.ShortEpgResponse::class.java, com.tvdinner.data.model.ShortEpgResponseDeserializer())
+            .create()
+
+        // 1. JSON Array format
+        val jsonArray = """[{"id":"1","title":"Program 1","start":"2026-09-27 12:00:00","end":"2026-09-27 13:00:00"}]"""
+        val resArray = gson.fromJson(jsonArray, com.tvdinner.data.model.ShortEpgResponse::class.java)
+        assertEquals(1, resArray.epgListings?.size)
+        assertEquals("Program 1", resArray.epgListings?.get(0)?.decodedTitle)
+
+        // 2. JSON Object with epg_listings array
+        val jsonObjArray = """{"epg_listings":[{"id":"2","title":"Program 2","start":"2026-09-27 13:00:00"}]}"""
+        val resObjArray = gson.fromJson(jsonObjArray, com.tvdinner.data.model.ShortEpgResponse::class.java)
+        assertEquals(1, resObjArray.epgListings?.size)
+        assertEquals("Program 2", resObjArray.epgListings?.get(0)?.decodedTitle)
+
+        // 3. JSON Object with epg_listings as a map of program objects (common in Xtream codes)
+        val jsonObjMap = """{"epg_listings":{"0":{"id":"3","title":"Program 3","start":"2026-09-27 14:00:00"},"1":{"id":"4","title":"Program 4","start":"2026-09-27 15:00:00"}}}"""
+        val resObjMap = gson.fromJson(jsonObjMap, com.tvdinner.data.model.ShortEpgResponse::class.java)
+        assertEquals(2, resObjMap.epgListings?.size)
+        assertEquals("Program 3", resObjMap.epgListings?.get(0)?.decodedTitle)
+        assertEquals("Program 4", resObjMap.epgListings?.get(1)?.decodedTitle)
+
+        // 4. Base64 encoded title support
+        val b64 = java.util.Base64.getEncoder().encodeToString("Breaking News".toByteArray())
+        val jsonB64 = """[{"id":"5","title":"$b64","start":"2026-09-27 16:00:00"}]"""
+        val resB64 = gson.fromJson(jsonB64, com.tvdinner.data.model.ShortEpgResponse::class.java)
+        assertEquals("Breaking News", resB64.epgListings?.get(0)?.decodedTitle)
+    }
 }
+
 

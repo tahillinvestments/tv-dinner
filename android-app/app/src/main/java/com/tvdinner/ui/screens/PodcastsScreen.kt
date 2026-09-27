@@ -258,14 +258,19 @@ fun PodcastsScreen(
         canLoadMore = true
 
         if (debouncedQuery.isNotBlank()) {
-            val channels = catalogManager.getLivePodcastChannels(debouncedQuery)
-            liveChannels = channels
-            catalogManager.podcastLiveChannels = channels
+            launch {
+                try {
+                    val channels = catalogManager.getLivePodcastChannels(debouncedQuery)
+                    liveChannels = channels
+                    catalogManager.podcastLiveChannels = channels
+                } catch (_: Exception) {}
+            }
             val eps = catalogManager.getLivePodcastEpisodes(debouncedQuery)
-            mainFeedEpisodes = eps
-            liveEpisodes = eps
-            catalogManager.podcastMainEpisodes = eps
-            catalogManager.podcastLiveEpisodes = eps
+            val mixed = com.tvdinner.data.podcasts.PodcastsData.interleaveEpisodes(eps, maxConsecutive = 1)
+            mainFeedEpisodes = mixed
+            liveEpisodes = mixed
+            catalogManager.podcastMainEpisodes = mixed
+            catalogManager.podcastLiveEpisodes = mixed
         } else if (selectedCategory == "🕒 History") {
             liveChannels = emptyList()
             catalogManager.podcastLiveChannels = emptyList()
@@ -277,10 +282,13 @@ fun PodcastsScreen(
             canLoadMore = false
         } else if (selectedCategory == "⭐ Subscribed") {
             val allChannels = mutableListOf<PodcastChannel>()
+            val savedCustomChannels = authRepo.getSubscribedPodcastChannels()
             for (id in subscribedIds) {
-                val curatedMatch = PodcastsData.CHANNELS.find { it.id == id }
-                if (curatedMatch != null) {
-                    allChannels.add(curatedMatch)
+                val match = PodcastsData.CHANNELS.find { it.id == id }
+                    ?: savedCustomChannels.find { it.id == id }
+                    ?: liveChannels.find { it.id == id }
+                if (match != null && !allChannels.any { it.id == match.id }) {
+                    allChannels.add(match)
                 }
             }
             liveChannels = allChannels
@@ -289,16 +297,17 @@ fun PodcastsScreen(
             catalogManager.podcastSelectedChannel = null
             if (allChannels.isNotEmpty()) {
                 val allEpisodes = mutableListOf<PodcastEpisode>()
-                for (ch in allChannels.take(5)) {
+                for (ch in allChannels) {
                     try {
                         val eps = catalogManager.getPodcastEpisodesForChannel(ch)
-                        allEpisodes.addAll(eps.take(6))
+                        allEpisodes.addAll(eps.take(8))
                     } catch (_: Exception) {}
                 }
-                mainFeedEpisodes = allEpisodes
-                liveEpisodes = allEpisodes
-                catalogManager.podcastMainEpisodes = allEpisodes
-                catalogManager.podcastLiveEpisodes = allEpisodes
+                val mixed = com.tvdinner.data.podcasts.PodcastsData.interleaveEpisodes(allEpisodes, maxConsecutive = 1)
+                mainFeedEpisodes = mixed
+                liveEpisodes = mixed
+                catalogManager.podcastMainEpisodes = mixed
+                catalogManager.podcastLiveEpisodes = mixed
             } else {
                 mainFeedEpisodes = emptyList()
                 liveEpisodes = emptyList()
@@ -307,14 +316,31 @@ fun PodcastsScreen(
             }
         } else {
             val catClean = selectedCategory.replace(Regex("[^a-zA-Z &]"), "").trim()
-            val channels = catalogManager.getLivePodcastChannels(catClean)
-            liveChannels = channels
-            catalogManager.podcastLiveChannels = channels
+            // 1. Immediately provide instant curated episodes for this category so UI responds without delay
+            val instantCurated = com.tvdinner.data.podcasts.PodcastsData.getCuratedEpisodesForCategory(catClean)
+            if (instantCurated.isNotEmpty()) {
+                mainFeedEpisodes = instantCurated
+                liveEpisodes = instantCurated
+                catalogManager.podcastMainEpisodes = instantCurated
+                catalogManager.podcastLiveEpisodes = instantCurated
+            }
+            // 2. Load channels in parallel non-blocking
+            launch {
+                try {
+                    val channels = catalogManager.getLivePodcastChannels(catClean)
+                    liveChannels = channels
+                    catalogManager.podcastLiveChannels = channels
+                } catch (_: Exception) {}
+            }
+            // 3. Fetch live episodes and interleave
             val eps = catalogManager.getLivePodcastEpisodes(catClean)
-            mainFeedEpisodes = eps
-            liveEpisodes = eps
-            catalogManager.podcastMainEpisodes = eps
-            catalogManager.podcastLiveEpisodes = eps
+            if (eps.isNotEmpty()) {
+                val mixed = com.tvdinner.data.podcasts.PodcastsData.interleaveEpisodes(eps, maxConsecutive = 1)
+                mainFeedEpisodes = mixed
+                liveEpisodes = mixed
+                catalogManager.podcastMainEpisodes = mixed
+                catalogManager.podcastLiveEpisodes = mixed
+            }
         }
         isLoading = false
     }
@@ -527,8 +553,8 @@ fun PodcastsScreen(
                         targetEpisode = targetEpisode,
                         targetPodcastFocusRequester = targetPodcastFocusRequester,
                         onBackToAllShows = { selectedChannel = null },
-                        onToggleSubscription = { id ->
-                            authRepo.togglePodcastSubscription(id)
+                        onToggleSubscription = { ch ->
+                            authRepo.togglePodcastSubscription(ch)
                             subscribedIds = authRepo.getSubscribedPodcastIds()
                         },
                         onSelectChannel = { selectedChannel = it },
@@ -818,8 +844,8 @@ fun PodcastsScreen(
                             visiblePodcastFocusRequester = visiblePodcastFocusRequester,
                             searchBarFocusRequester = searchBarFocusRequester,
                             onBackToAllShows = { selectedChannel = null },
-                            onToggleSubscription = { id ->
-                                authRepo.togglePodcastSubscription(id)
+                            onToggleSubscription = { ch ->
+                                authRepo.togglePodcastSubscription(ch)
                                 subscribedIds = authRepo.getSubscribedPodcastIds()
                             },
                             onSelectChannel = { selectedChannel = it },
@@ -858,7 +884,7 @@ private fun PodcastContentList(
     visiblePodcastFocusRequester: FocusRequester? = null,
     searchBarFocusRequester: FocusRequester? = null,
     onBackToAllShows: () -> Unit,
-    onToggleSubscription: (String) -> Unit,
+    onToggleSubscription: (PodcastChannel) -> Unit,
     onSelectChannel: (PodcastChannel) -> Unit,
     onNavigateToEpisodeChannel: (PodcastEpisode) -> Unit,
     onPlayEpisodeAtIndex: (Int) -> Unit,
@@ -883,7 +909,7 @@ private fun PodcastContentList(
     ) {
         if (searchQuery.isNotBlank()) {
             Text(
-                text = "Channels matching \"$searchQuery\"",
+                text = "Episodes matching \"$searchQuery\"",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary
@@ -954,7 +980,7 @@ private fun PodcastContentList(
                     }
 
                     TvFocusableCard(
-                        onClick = { onToggleSubscription(ch.id) },
+                        onClick = { onToggleSubscription(ch) },
                         shape = RoundedCornerShape(8.dp),
                         backgroundColor = if (isSubscribed) CinemaPrimary else CinemaSurfaceVariant,
                         focusedBorderColor = CinemaFocus
@@ -980,106 +1006,22 @@ private fun PodcastContentList(
                     }
                 }
             }
-        } else if (liveChannels.isNotEmpty()) {
-            // Channels Carousel (Browse channels in category or search)
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                itemsIndexed(liveChannels, key = { _, it -> it.id }) { chIdx, ch ->
-                    val isSelected = selectedChannel?.id == ch.id
-                    val isSubscribed = subscribedIds.contains(ch.id)
-                    TvFocusableCard(
-                        onClick = { onSelectChannel(ch) },
-                        shape = RoundedCornerShape(10.dp),
-                        backgroundColor = if (isSelected) CinemaSurfaceLight else CinemaSurface,
-                        focusedBorderColor = CinemaFocus,
-                        focusedScale = 1.04f,
-                        modifier = Modifier
-                            .width(240.dp)
-                            .height(68.dp)
-                            .then(if (chIdx == 0 && firstContentFocusRequester != null) Modifier.focusRequester(firstContentFocusRequester) else Modifier)
-                            .onPreviewKeyEvent { keyEvent ->
-                                if (keyEvent.type == KeyEventType.KeyDown) {
-                                    when (keyEvent.key) {
-                                        Key.DirectionUp -> {
-                                            searchBarFocusRequester?.requestFocus()
-                                            true
-                                        }
-                                        Key.DirectionLeft -> {
-                                            if (chIdx == 0) {
-                                                searchBarFocusRequester?.requestFocus()
-                                                true
-                                            } else false
-                                        }
-                                        else -> false
-                                    }
-                                } else false
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize().padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            if (ch.avatar.isNotBlank()) {
-                                AsyncImage(
-                                    model = ch.avatar,
-                                    contentDescription = ch.channelName,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape)
-                                )
-                            }
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = ch.channelName,
-                                    color = if (isSelected) CinemaAccent else TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = ch.host.ifBlank { ch.category },
-                                    color = TextMuted,
-                                    fontSize = 11.sp,
-                                    maxLines = 1
-                                )
-                            }
-
-                            IconButton(
-                                onClick = { onToggleSubscription(ch.id) },
-                                modifier = Modifier.size(30.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isSubscribed) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                    contentDescription = "Subscribe",
-                                    tint = if (isSubscribed) CinemaAccent else TextMuted,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         // Episode Grid
-        if (isLoading) {
+        if (isLoading && liveEpisodes.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = CinemaAccent)
             }
         } else if (liveEpisodes.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    text = if (selectedCategory == "⭐ Subscribed") "No subscribed podcasts yet. Click the bookmark icon on any channel to save it here!" else if (selectedCategory == "🕒 History") "No recently played podcast episodes in your history." else "No live podcast episodes found",
+                    text = if (selectedCategory == "⭐ Subscribed") "No subscribed podcasts yet. Long press on any episode to see its channel and subscribe!" else if (selectedCategory == "🕒 History") "No recently played podcast episodes in your history." else "No live podcast episodes found",
                     color = TextMuted,
                     fontSize = 14.sp
                 )
             }
+        } else {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = if (isMobile) 150.dp else 165.dp),
                 state = gridState,
@@ -1113,7 +1055,7 @@ private fun PodcastContentList(
                                     down = FocusRequester.Cancel
                                 }
                             }
-                            .then(if (index == 0 && liveChannels.isEmpty() && selectedChannel == null && firstContentFocusRequester != null) Modifier.focusRequester(firstContentFocusRequester) else Modifier)
+                            .then(if (index == 0 && selectedChannel == null && firstContentFocusRequester != null) Modifier.focusRequester(firstContentFocusRequester) else Modifier)
                             .then(if (index == gridState.firstVisibleItemIndex && visiblePodcastFocusRequester != null) Modifier.focusRequester(visiblePodcastFocusRequester) else Modifier)
                             .then(if (ep.videoId == targetEpisode?.videoId) Modifier.focusRequester(targetPodcastFocusRequester) else Modifier)
                             .onPreviewKeyEvent { keyEvent ->

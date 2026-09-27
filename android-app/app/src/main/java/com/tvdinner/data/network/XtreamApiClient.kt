@@ -4,14 +4,7 @@ import android.annotation.SuppressLint
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.tvdinner.data.model.Channel
-import com.tvdinner.data.model.LiveCategory
-import com.tvdinner.data.model.Movie
-import com.tvdinner.data.model.MovieCategory
-import com.tvdinner.data.model.Series
-import com.tvdinner.data.model.SeriesCategory
-import com.tvdinner.data.model.SeriesInfoResponse
-import com.tvdinner.data.model.ShortEpgResponse
+import com.tvdinner.data.model.*
 import kotlinx.coroutines.*
 import okhttp3.ConnectionPool
 import okhttp3.Dns
@@ -28,7 +21,10 @@ import javax.net.ssl.X509TrustManager
 
 class XtreamApiClient {
     private val tag = "XtreamApiClient"
-    private val gson = Gson()
+    private val gson: Gson = com.google.gson.GsonBuilder()
+        .registerTypeAdapter(EpgProgram::class.java, EpgProgramDeserializer())
+        .registerTypeAdapter(ShortEpgResponse::class.java, ShortEpgResponseDeserializer())
+        .create()
 
     val okHttpClient: OkHttpClient by lazy {
         createUnsafeOkHttpClient()
@@ -294,34 +290,31 @@ class XtreamApiClient {
         streamId: Int,
         limit: Int = 10
     ): ShortEpgResponse? = withContext(Dispatchers.IO) {
-        if (user.isBlank() || pswd.isBlank()) return@withContext null
+        if (user.isBlank() || pswd.isBlank() || streamId <= 0) return@withContext null
 
-        // 1. Try action=get_short_epg
-        try {
-            val url = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_short_epg&stream_id=$streamId&limit=$limit"
-            val json = fetchJsonFast(url)
-            if (!json.isNullOrBlank()) {
-                val parsed = gson.fromJson(json, ShortEpgResponse::class.java)
-                if (parsed != null && !parsed.epgListings.isNullOrEmpty()) {
-                    return@withContext parsed
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(tag, "getShortEpg error: ${e.message}")
-        }
+        val cleanPortal = portalUrl.trim().removeSuffix("/")
+        val encUser = java.net.URLEncoder.encode(user, "UTF-8")
+        val encPswd = java.net.URLEncoder.encode(pswd, "UTF-8")
 
-        // 2. Fallback to action=get_simple_data_table (standard Xtream Codes endpoint)
-        try {
-            val tableUrl = "$portalUrl/player_api.php?username=$user&password=$pswd&action=get_simple_data_table&stream_id=$streamId"
-            val json = fetchJsonFast(tableUrl)
-            if (!json.isNullOrBlank()) {
-                val parsed = gson.fromJson(json, ShortEpgResponse::class.java)
-                if (parsed != null && !parsed.epgListings.isNullOrEmpty()) {
-                    return@withContext parsed
+        val endpoints = listOf(
+            "$cleanPortal/player_api.php?username=$encUser&password=$encPswd&action=get_short_epg&stream_id=$streamId&limit=$limit",
+            "$cleanPortal/player_api.php?username=$encUser&password=$encPswd&action=get_simple_data_table&stream_id=$streamId",
+            "$cleanPortal/player_api.php?username=$encUser&password=$encPswd&action=get_simple_data&stream_id=$streamId",
+            "$cleanPortal/player_api.php?username=$encUser&password=$encPswd&action=get_epg&stream_id=$streamId&limit=$limit"
+        )
+
+        for (url in endpoints) {
+            try {
+                val json = fetchJsonFast(url)
+                if (!json.isNullOrBlank()) {
+                    val parsed = gson.fromJson(json, ShortEpgResponse::class.java)
+                    if (parsed != null && !parsed.epgListings.isNullOrEmpty()) {
+                        return@withContext parsed
+                    }
                 }
+            } catch (e: Exception) {
+                Log.w(tag, "getShortEpg error on $url: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e(tag, "getSimpleDataTable error: ${e.message}")
         }
         null
     }
@@ -330,11 +323,28 @@ class XtreamApiClient {
         if (user.isBlank() || pswd.isBlank()) return@withContext null
         try {
             val cleanPortal = portalUrl.trim().removeSuffix("/")
-            val url = "$cleanPortal/xmltv.php?username=$user&password=$pswd"
+            val encUser = java.net.URLEncoder.encode(user, "UTF-8")
+            val encPswd = java.net.URLEncoder.encode(pswd, "UTF-8")
+            val url = "$cleanPortal/xmltv.php?username=$encUser&password=$encPswd"
             val req = Request.Builder().url(url).build()
-            val resp = okHttpClient.newCall(req).execute()
+            val client = okHttpClient.newBuilder()
+                .readTimeout(60, TimeUnit.SECONDS)
+                .build()
+            val resp = client.newCall(req).execute()
             if (resp.isSuccessful) {
-                return@withContext resp.body?.byteStream()
+                val rawStream = resp.body?.byteStream() ?: return@withContext null
+                val pushback = java.io.PushbackInputStream(rawStream, 2)
+                val header = ByteArray(2)
+                val read = pushback.read(header)
+                if (read == 2 && (header[0].toInt() and 0xFF) == 0x1f && (header[1].toInt() and 0xFF) == 0x8b) {
+                    pushback.unread(header)
+                    return@withContext java.util.zip.GZIPInputStream(pushback)
+                } else {
+                    if (read > 0) {
+                        pushback.unread(header, 0, read)
+                    }
+                    return@withContext pushback
+                }
             }
             resp.close()
             null

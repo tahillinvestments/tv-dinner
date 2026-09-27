@@ -25,6 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -67,8 +70,34 @@ object YouTubeRemoteBridge {
     private val _scrubBadge = MutableStateFlow<String?>(null)
     val scrubBadge: StateFlow<String?> = _scrubBadge.asStateFlow()
 
+    private val _currentPositionSec = MutableStateFlow(0f)
+    val currentPositionSec: StateFlow<Float> = _currentPositionSec.asStateFlow()
+
+    private val _durationSec = MutableStateFlow(0f)
+    val durationSec: StateFlow<Float> = _durationSec.asStateFlow()
+
+    private val _seekActionTimestamp = MutableStateFlow(0L)
+    val seekActionTimestamp: StateFlow<Long> = _seekActionTimestamp.asStateFlow()
+
     private var lastSeekTime = 0L
     private var seekMagnitudeSec = 15
+
+    fun updateTime(currentTime: Float, duration: Float) {
+        _currentPositionSec.value = currentTime
+        if (duration > 0f) {
+            _durationSec.value = duration
+        }
+        lastPlaybackSeconds = currentTime.toInt()
+    }
+
+    fun seekTo(seconds: Float) {
+        _currentPositionSec.value = seconds
+        _seekActionTimestamp.value = System.currentTimeMillis()
+        activeWebView?.evaluateJavascript(
+            "if (window.ytPlayer && typeof window.ytPlayer.seekTo === 'function') { window.ytPlayer.seekTo($seconds, true); }",
+            null
+        )
+    }
 
     fun togglePlayPause() {
         isActuallyPlaying = !isActuallyPlaying
@@ -107,9 +136,11 @@ object YouTubeRemoteBridge {
         lastSeekTime = now
         val label = if (seekMagnitudeSec >= 60) "-${seekMagnitudeSec / 60}m" else "-${seekMagnitudeSec}s"
         _scrubBadge.value = label
+        _seekActionTimestamp.value = now
+        _currentPositionSec.value = (_currentPositionSec.value - seekMagnitudeSec).coerceAtLeast(0f)
 
         activeWebView?.evaluateJavascript(
-            "if (window.ytPlayer) { var t = Math.max(0, window.ytPlayer.getCurrentTime() - $seekMagnitudeSec); window.ytPlayer.seekTo(t, true); if (window.AndroidBridge && window.AndroidBridge.onTimeChange) window.AndroidBridge.onTimeChange(t); }",
+            "if (window.ytPlayer) { var d = (typeof window.ytPlayer.getDuration === 'function') ? (window.ytPlayer.getDuration() || 0) : 0; var cur = (typeof window.ytPlayer.getCurrentTime === 'function') ? (window.ytPlayer.getCurrentTime() || 0) : 0; var t = Math.max(0, cur - $seekMagnitudeSec); window.ytPlayer.seekTo(t, true); if (window.AndroidBridge && window.AndroidBridge.onTimeChange) window.AndroidBridge.onTimeChange(t, d); }",
             null
         )
     }
@@ -133,9 +164,13 @@ object YouTubeRemoteBridge {
         lastSeekTime = now
         val label = if (seekMagnitudeSec >= 60) "+${seekMagnitudeSec / 60}m" else "+${seekMagnitudeSec}s"
         _scrubBadge.value = label
+        _seekActionTimestamp.value = now
+        val d = _durationSec.value
+        val newPos = _currentPositionSec.value + seekMagnitudeSec
+        _currentPositionSec.value = if (d > 0f) newPos.coerceAtMost(d) else newPos
 
         activeWebView?.evaluateJavascript(
-            "if (window.ytPlayer) { var t = window.ytPlayer.getCurrentTime() + $seekMagnitudeSec; window.ytPlayer.seekTo(t, true); if (window.AndroidBridge && window.AndroidBridge.onTimeChange) window.AndroidBridge.onTimeChange(t); }",
+            "if (window.ytPlayer) { var d = (typeof window.ytPlayer.getDuration === 'function') ? (window.ytPlayer.getDuration() || 0) : 0; var cur = (typeof window.ytPlayer.getCurrentTime === 'function') ? (window.ytPlayer.getCurrentTime() || 0) : 0; var t = cur + $seekMagnitudeSec; if (d > 0 && t > d) t = d; window.ytPlayer.seekTo(t, true); if (window.AndroidBridge && window.AndroidBridge.onTimeChange) window.AndroidBridge.onTimeChange(t, d); }",
             null
         )
     }
@@ -190,7 +225,12 @@ class YouTubeBridgeInterface(private val onEndedProvider: () -> (() -> Unit)?) {
 
     @android.webkit.JavascriptInterface
     fun onTimeChange(seconds: Float) {
-        YouTubeRemoteBridge.lastPlaybackSeconds = seconds.toInt()
+        YouTubeRemoteBridge.updateTime(seconds, YouTubeRemoteBridge.durationSec.value)
+    }
+
+    @android.webkit.JavascriptInterface
+    fun onTimeChange(seconds: Float, duration: Float) {
+        YouTubeRemoteBridge.updateTime(seconds, duration)
     }
 
     @android.webkit.JavascriptInterface
@@ -253,14 +293,14 @@ private fun buildYouTubeHtml(videoId: String, isPreview: Boolean, captionsEnable
                         videoId: vId,
                         playerVars: {
                             'autoplay': 1,
-                            'controls': ${if (isPreview) 0 else 1},
+                            'controls': 0,
                             'modestbranding': 1,
                             'rel': 0,
-                            'fs': ${if (isPreview) 0 else 1},
+                            'fs': 0,
                             'playsinline': 1,
                             'enablejsapi': 1,
                             'origin': 'https://www.youtube-nocookie.com',
-                            $startParam
+                            ${startParam}
                             'iv_load_policy': 3,
                             'cc_load_policy': $ccPolicy,
                             'cc_lang_pref': 'en',
@@ -280,9 +320,10 @@ private fun buildYouTubeHtml(videoId: String, isPreview: Boolean, captionsEnable
                                 }
                                 setInterval(function() {
                                     if (window.ytPlayer && typeof window.ytPlayer.getCurrentTime === 'function') {
-                                        var t = window.ytPlayer.getCurrentTime();
+                                        var t = window.ytPlayer.getCurrentTime() || 0;
+                                        var d = (typeof window.ytPlayer.getDuration === 'function') ? (window.ytPlayer.getDuration() || 0) : 0;
                                         if (window.AndroidBridge && window.AndroidBridge.onTimeChange) {
-                                            window.AndroidBridge.onTimeChange(t);
+                                            window.AndroidBridge.onTimeChange(t, d);
                                         }
                                     }
                                 }, 500);
@@ -339,8 +380,23 @@ fun YouTubePlayerView(
     var isCcOn by remember(captionsEnabled, isPreview) { mutableStateOf(if (isPreview) false else captionsEnabled) }
     var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val scrubBadge by YouTubeRemoteBridge.scrubBadge.collectAsState()
+    val currentPositionSec by YouTubeRemoteBridge.currentPositionSec.collectAsState()
+    val durationSec by YouTubeRemoteBridge.durationSec.collectAsState()
+    val seekActionTimestamp by YouTubeRemoteBridge.seekActionTimestamp.collectAsState()
     val mountTimestamp = remember { System.currentTimeMillis() }
     var centerKeyDownReceived by remember { mutableStateOf(false) }
+
+    var showSeekHud by remember { mutableStateOf(false) }
+    var lastObservedSeekAction by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(seekActionTimestamp) {
+        if (seekActionTimestamp > 0L && seekActionTimestamp != lastObservedSeekAction) {
+            lastObservedSeekAction = seekActionTimestamp
+            showSeekHud = true
+            delay(3500)
+            showSeekHud = false
+        }
+    }
 
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
 
@@ -463,6 +519,20 @@ fun YouTubePlayerView(
                                     return@onKeyEvent true
                                 }
                                 when (keyCode) {
+                                    android.view.KeyEvent.KEYCODE_DPAD_LEFT,
+                                    android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                                        YouTubeRemoteBridge.seekRewind()
+                                        showControls = true
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        true
+                                    }
+                                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+                                    android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                                        YouTubeRemoteBridge.seekForward()
+                                        showControls = true
+                                        lastInteractionTime = System.currentTimeMillis()
+                                        true
+                                    }
                                     android.view.KeyEvent.KEYCODE_DPAD_UP,
                                     android.view.KeyEvent.KEYCODE_CHANNEL_UP,
                                     android.view.KeyEvent.KEYCODE_PAGE_UP -> {
@@ -508,13 +578,8 @@ fun YouTubePlayerView(
                         } else {
                             setOnTouchListener(null)
                         }
-                        val needsReloadForPreviewMode = YouTubeRemoteBridge.activeIsPreview != isPreview
-                        if (needsReloadForPreviewMode) {
-                            YouTubeRemoteBridge.activeIsPreview = isPreview
-                            YouTubeRemoteBridge.activeVideoId = videoId
-                            val html = buildYouTubeHtml(videoId, isPreview, captionsEnabled, YouTubeRemoteBridge.lastPlaybackSeconds)
-                            loadDataWithBaseURL("https://www.youtube-nocookie.com", html, "text/html", "UTF-8", null)
-                        } else if (videoId.isNotBlank()) {
+                        YouTubeRemoteBridge.activeIsPreview = isPreview
+                        if (videoId.isNotBlank()) {
                             if (YouTubeRemoteBridge.activeVideoId != videoId) {
                                 YouTubeRemoteBridge.activeVideoId = videoId
                                 YouTubeRemoteBridge.lastPlaybackSeconds = 0
@@ -531,13 +596,7 @@ fun YouTubePlayerView(
                                         "if (window.ytPlayer && typeof window.ytPlayer.playVideo === 'function') { try { window.ytPlayer.playVideo(); } catch(_) {} }",
                                         null
                                     )
-                                }, 100)
-                                postDelayed({
-                                    evaluateJavascript(
-                                        "if (window.ytPlayer && typeof window.ytPlayer.playVideo === 'function') { try { window.ytPlayer.playVideo(); } catch(_) {} }",
-                                        null
-                                    )
-                                }, 300)
+                                }, 50)
                             }
                         }
                     }
@@ -609,11 +668,8 @@ fun YouTubePlayerView(
             } else {
                 wv.setOnTouchListener(null)
             }
-            if (YouTubeRemoteBridge.activeIsPreview != isPreview) {
-                YouTubeRemoteBridge.activeIsPreview = isPreview
-                val html = buildYouTubeHtml(videoId, isPreview, captionsEnabled, YouTubeRemoteBridge.lastPlaybackSeconds)
-                wv.loadDataWithBaseURL("https://www.youtube-nocookie.com", html, "text/html", "UTF-8", null)
-            } else if (videoId.isNotBlank()) {
+            YouTubeRemoteBridge.activeIsPreview = isPreview
+            if (videoId.isNotBlank()) {
                 if (YouTubeRemoteBridge.activeVideoId != videoId) {
                     YouTubeRemoteBridge.activeVideoId = videoId
                     YouTubeRemoteBridge.lastPlaybackSeconds = 0
@@ -630,7 +686,7 @@ fun YouTubePlayerView(
                             "if (window.ytPlayer && typeof window.ytPlayer.playVideo === 'function') { try { window.ytPlayer.playVideo(); } catch(_) {} }",
                             null
                         )
-                    }, 100)
+                    }, 50)
                 }
             }
         },
@@ -705,35 +761,6 @@ fun YouTubePlayerView(
             }
         }
 
-        // Scrub Acceleration Badge
-        if (!isPreview && scrubBadge != null) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color.Black.copy(alpha = 0.85f),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, CinemaAccent),
-                modifier = Modifier.align(Alignment.Center)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = if (scrubBadge!!.startsWith("+")) Icons.Default.FastForward else Icons.Default.FastRewind,
-                        contentDescription = null,
-                        tint = CinemaAccent,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        text = "Seeking: $scrubBadge",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            }
-        }
-
         // Overlay Controls
         AnimatedVisibility(
             visible = !isPreview && showControls,
@@ -786,9 +813,155 @@ fun YouTubePlayerView(
                             )
                         }
                     }
+
+                    // Closed Captions Toggle
+                    TvFocusableCard(
+                        onClick = {
+                            isCcOn = !isCcOn
+                            lastInteractionTime = System.currentTimeMillis()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        backgroundColor = if (isCcOn) CinemaPrimary else CinemaSurfaceVariant.copy(alpha = 0.8f),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Box(modifier = Modifier.fillMaxHeight().padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = if (isCcOn) "CC: ON" else "CC: OFF",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Center Play/Pause Control
+                Box(
+                    modifier = Modifier.align(Alignment.Center),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TvFocusableCard(
+                        onClick = {
+                            YouTubeRemoteBridge.togglePlayPause()
+                            lastInteractionTime = System.currentTimeMillis()
+                        },
+                        modifier = Modifier.size(68.dp),
+                        shape = CircleShape,
+                        backgroundColor = CinemaPrimary
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (YouTubeRemoteBridge.isActuallyPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (YouTubeRemoteBridge.isActuallyPlaying) "Pause" else "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(38.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
+
+        // Bottom Progress Bar & Scrub HUD (Visible on remote seek, showControls, or paused)
+        AnimatedVisibility(
+            visible = !isPreview && (showControls || showSeekHud || !YouTubeRemoteBridge.isActuallyPlaying),
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 24.dp, vertical = 20.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (scrubBadge != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Black.copy(alpha = 0.85f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CinemaAccent),
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (scrubBadge!!.startsWith("+")) Icons.Default.FastForward else Icons.Default.FastRewind,
+                                contentDescription = null,
+                                tint = CinemaAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Seeking: $scrubBadge",
+                                color = CinemaAccent,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formatTimeSeconds(currentPositionSec.toLong()),
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (durationSec > 0f) formatTimeSeconds(durationSec.toLong()) else "--:--",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                if (durationSec > 0f) {
+                    Slider(
+                        value = currentPositionSec.coerceIn(0f, durationSec),
+                        onValueChange = { newSec ->
+                            YouTubeRemoteBridge.seekTo(newSec)
+                            lastInteractionTime = System.currentTimeMillis()
+                        },
+                        valueRange = 0f..durationSec,
+                        colors = SliderDefaults.colors(
+                            thumbColor = CinemaAccent,
+                            activeTrackColor = CinemaPrimary,
+                            inactiveTrackColor = Color.White.copy(alpha = 0.25f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        color = CinemaPrimary,
+                        trackColor = Color.White.copy(alpha = 0.2f),
+                        modifier = Modifier.fillMaxWidth().height(4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatTimeSeconds(totalSec: Long): String {
+    val totalSeconds = totalSec.coerceAtLeast(0)
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format("%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format("%02d:%02d", minutes, seconds)
     }
 }
 

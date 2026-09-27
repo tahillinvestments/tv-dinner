@@ -6,6 +6,9 @@ import com.google.gson.JsonObject
 import com.tvdinner.data.model.PodcastChannel
 import com.tvdinner.data.model.PodcastEpisode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -17,8 +20,8 @@ import java.util.concurrent.TimeUnit
 
 class YouTubePodcastService(
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
         .build()
 ) {
     private val tag = "YouTubePodcastService"
@@ -325,14 +328,19 @@ class YouTubePodcastService(
             dynamicQueries.add("${ch.channelName} podcast full episode")
         }
 
-        for (q in dynamicQueries) {
-            val results = queryYouTubeEpisodes(q)
-            for (ep in results) {
-                if (seenVideoIds.add(ep.videoId)) {
-                    allEpisodes.add(ep)
+        // Query YouTube search concurrently for blazing fast response
+        coroutineScope {
+            val jobs = dynamicQueries.take(3).map { q ->
+                async { queryYouTubeEpisodes(q) }
+            }
+            val resultsList = jobs.awaitAll()
+            for (results in resultsList) {
+                for (ep in results) {
+                    if (seenVideoIds.add(ep.videoId)) {
+                        allEpisodes.add(ep)
+                    }
                 }
             }
-            if (allEpisodes.size >= 24) break
         }
 
         // Guaranteed fallback: If live search returned few results, fetch from curated channel RSS feeds
@@ -350,7 +358,22 @@ class YouTubePodcastService(
             }
         }
 
-        allEpisodes.sortedByDescending { it.publishedTimestamp }
+        // Rock-solid curated episode fallback: guarantees episodes ALWAYS load immediately and reliably
+        if (allEpisodes.size < 8) {
+            val curated = com.tvdinner.data.podcasts.PodcastsData.getCuratedEpisodesForCategory(categoryOrQuery)
+            for (ep in curated) {
+                if (seenVideoIds.add(ep.videoId)) {
+                    allEpisodes.add(ep)
+                }
+            }
+        }
+
+        if (allEpisodes.isEmpty()) {
+            allEpisodes.addAll(com.tvdinner.data.podcasts.PodcastsData.CURATED_EPISODES)
+        }
+
+        val sorted = allEpisodes.sortedByDescending { it.publishedTimestamp }
+        com.tvdinner.data.podcasts.PodcastsData.interleaveEpisodes(sorted, maxConsecutive = 1)
     }
 
     private fun queryYouTubeEpisodes(query: String): List<PodcastEpisode> {
@@ -467,11 +490,17 @@ class YouTubePodcastService(
 
         // Search live YouTube episodes for channel name, sorted descending
         val results = searchLiveEpisodes("${channel.channelName} podcast")
-        results.filter {
+        val filtered = results.filter {
             it.channelName.contains(channel.channelName, ignoreCase = true) ||
             channel.channelName.contains(it.channelName, ignoreCase = true) ||
             it.title.contains(channel.channelName, ignoreCase = true)
         }.ifEmpty { results }
+
+        if (filtered.isNotEmpty()) {
+            filtered
+        } else {
+            com.tvdinner.data.podcasts.PodcastsData.getCuratedEpisodesForChannel(channel)
+        }
     }
 
     private fun fetchEpisodesViaRss(channelId: String, channelName: String, localId: String): List<PodcastEpisode> {

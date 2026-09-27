@@ -277,7 +277,11 @@ fun LiveTvScreen(
     LaunchedEffect(activeChannel) {
         activeChannel?.let { ch ->
             if (ch.streamId > 0) {
-                activeFullEpg = catalogManager.getFullEpgForChannel(ch.streamId)
+                activeFullEpg = catalogManager.liveEpgResponses[ch.streamId] ?: catalogManager.getCachedFullEpg(ch.streamId)
+                val full = catalogManager.getFullEpgForChannel(ch.streamId)
+                if (full != null) {
+                    activeFullEpg = full
+                }
             } else {
                 activeFullEpg = null
             }
@@ -288,7 +292,11 @@ fun LiveTvScreen(
     LaunchedEffect(focusedChannel) {
         focusedChannel?.let { ch ->
             if (ch.streamId > 0) {
-                focusedFullEpg = catalogManager.getFullEpgForChannel(ch.streamId)
+                focusedFullEpg = catalogManager.liveEpgResponses[ch.streamId] ?: catalogManager.getCachedFullEpg(ch.streamId)
+                val full = catalogManager.getFullEpgForChannel(ch.streamId)
+                if (full != null) {
+                    focusedFullEpg = full
+                }
             } else {
                 focusedFullEpg = null
             }
@@ -475,7 +483,8 @@ fun LiveTvScreen(
         playerManager.playStream(streamUrl, target.name, isLive = true)
         channelBannerChannel = target
 
-        if (catalogManager.getCachedEpg(target.streamId) == null && target.streamId > 0) {
+        val cachedTitle = catalogManager.liveEpgTitles[target.streamId] ?: catalogManager.getCachedEpg(target.streamId)
+        if ((cachedTitle.isNullOrBlank() || cachedTitle == "Live Broadcast") && target.streamId > 0) {
             coroutineScope.launch {
                 catalogManager.getFullEpgForChannel(target.streamId)
                 if (channelBannerChannel?.streamId == target.streamId) {
@@ -558,6 +567,14 @@ fun LiveTvScreen(
             keyboardController?.hide()
         } catch (_: Exception) {}
         try {
+            val isChannelActivePlaying = (activeChannel?.streamId == channel.streamId || currentTitle == channel.name) &&
+                                        (isPlaying || isBuffering) &&
+                                        currentStreamUrl.isNotBlank() &&
+                                        isLiveStream
+            if (isChannelActivePlaying) {
+                onToggleFullscreen(true)
+                return
+            }
             val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
             val user = channel.streamUser ?: authRepo.getActiveUsername()
             val pswd = channel.streamPassword ?: authRepo.getActivePassword()
@@ -623,7 +640,7 @@ fun LiveTvScreen(
                 // Channel Banner Overlay during Fullscreen Surfing
                 if (channelBannerChannel != null) {
                     val ch = channelBannerChannel!!
-                    val epgTitle = catalogManager.getCachedEpg(ch.streamId)
+                    val epgTitle = catalogManager.liveEpgTitles[ch.streamId] ?: catalogManager.getCachedEpg(ch.streamId)
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = Color.Black.copy(alpha = 0.85f),
@@ -757,13 +774,20 @@ fun LiveTvScreen(
                         .background(Color.Black)
                 ) {
                     val mobileTargetChannel = focusedChannel ?: activeChannel
-                    val mobileTargetEpg = if (focusedChannel != null) focusedFullEpg else activeFullEpg
+                    val mobileTargetEpg = (if (focusedChannel != null) focusedFullEpg else activeFullEpg)
+                        ?: mobileTargetChannel?.let { catalogManager.liveEpgResponses[it.streamId] }
                     val mobileNowProgram = remember(mobileTargetEpg) {
                         catalogManager.resolveCurrentProgram(mobileTargetEpg?.epgListings)?.decodedTitle
                     }
                     UniversalIntegratedPreview(
                         playerManager = playerManager,
-                        onExpand = { onExpandPreview?.invoke() ?: onToggleFullscreen(true) },
+                        onExpand = {
+                            if (currentStreamUrl.isNotBlank() && isLiveStream) {
+                                onToggleFullscreen(true)
+                            } else {
+                                onExpandPreview?.invoke() ?: onToggleFullscreen(true)
+                            }
+                        },
                         onClose = {
                             playerManager.stop()
                             playerManager.clearYouTubeMedia()
@@ -780,7 +804,13 @@ fun LiveTvScreen(
                 if (activeChannel != null) {
                     Surface(
                         color = CinemaSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (currentStreamUrl.isNotBlank() && isLiveStream) {
+                                    onToggleFullscreen(true)
+                                }
+                            }
                     ) {
                         Row(
                             modifier = Modifier
@@ -928,12 +958,10 @@ fun LiveTvScreen(
                     ) {
                         items(filteredChannels, key = { it.streamId }) { channel ->
                             val isActive = activeChannel?.streamId == channel.streamId && isLiveStream && (isPlaying || isBuffering)
-                            var channelEpg by remember(channel.streamId) {
-                                mutableStateOf(catalogManager.getCachedEpg(channel.streamId))
-                            }
+                            val channelEpg = catalogManager.liveEpgTitles[channel.streamId] ?: catalogManager.getCachedEpg(channel.streamId)
                             LaunchedEffect(channel.streamId) {
-                                if (channelEpg == null && channel.streamId > 0) {
-                                    channelEpg = catalogManager.getEpgTitleForChannel(channel.streamId)
+                                if ((channelEpg.isNullOrBlank() || channelEpg == "Live Broadcast") && channel.streamId > 0 && !catalogManager.hasRealCachedEpg(channel.streamId)) {
+                                    catalogManager.getEpgTitleForChannel(channel.streamId)
                                 }
                             }
 
@@ -944,20 +972,7 @@ fun LiveTvScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        try {
-                                            keyboardController?.hide()
-                                        } catch (_: Exception) {}
-                                        val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
-                                        val user = channel.streamUser ?: authRepo.getActiveUsername()
-                                        val pswd = channel.streamPassword ?: authRepo.getActivePassword()
-                                        val streamUrl = if (!channel.directStreamUrl.isNullOrBlank()) {
-                                            channel.directStreamUrl
-                                        } else {
-                                            apiClient.buildLiveStreamUrl(portal, user, pswd, channel.streamId)
-                                        }
-                                        activeChannel = channel
-                                        authRepo.setLastLiveStreamId(channel.streamId)
-                                        playerManager.playStream(streamUrl, channel.name, isLive = true)
+                                        playChannel(channel)
                                     }
                             ) {
                                 Row(
@@ -996,7 +1011,8 @@ fun LiveTvScreen(
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
                                         }
-                                        if (!channelEpg.isNullOrBlank()) {
+                                        val hasRealTitle = !channelEpg.isNullOrBlank() && channelEpg != "Live Broadcast"
+                                        if (hasRealTitle) {
                                             Text(
                                                 text = "▶ $channelEpg",
                                                 color = if (isActive) CinemaAccent else CinemaAccent.copy(alpha = 0.85f),
@@ -1055,13 +1071,20 @@ fun LiveTvScreen(
                     ) {
                         val effectivePreviewFocus = previewFocusRequester ?: livePreviewFocusRequester
                         val previewTargetChannel = focusedChannel ?: activeChannel
-                        val previewTargetEpg = if (focusedChannel != null) focusedFullEpg else activeFullEpg
+                        val previewTargetEpg = (if (focusedChannel != null) focusedFullEpg else activeFullEpg)
+                            ?: previewTargetChannel?.let { catalogManager.liveEpgResponses[it.streamId] }
                         val previewNowProgram = remember(previewTargetEpg) {
                             catalogManager.resolveCurrentProgram(previewTargetEpg?.epgListings)?.decodedTitle
                         }
                         UniversalIntegratedPreview(
                             playerManager = playerManager,
-                            onExpand = { onExpandPreview?.invoke() ?: onToggleFullscreen(true) },
+                            onExpand = {
+                                if (currentStreamUrl.isNotBlank() && isLiveStream) {
+                                    onToggleFullscreen(true)
+                                } else {
+                                    onExpandPreview?.invoke() ?: onToggleFullscreen(true)
+                                }
+                            },
                             onClose = {
                                 playerManager.stop()
                                 playerManager.clearYouTubeMedia()
@@ -1290,10 +1313,6 @@ fun LiveTvScreen(
                                     modifier = Modifier.fillMaxSize()
                                 ) {
                                     itemsIndexed(filteredChannels, key = { _, channel -> channel.streamId }) { index, channel ->
-                                        val isChannelActivePlaying = activeChannel?.streamId == channel.streamId &&
-                                                                    isPlaying &&
-                                                                    currentStreamUrl.isNotBlank() &&
-                                                                    isLiveStream
                                         val isActive = activeChannel?.streamId == channel.streamId && isLiveStream && (isPlaying || isBuffering)
                                         val isFirstVisible = index == channelListState.firstVisibleItemIndex
                                         val isFirstChannel = index == 0
@@ -1302,42 +1321,17 @@ fun LiveTvScreen(
                                         }
                                         val isTargetFocus = if (hasActiveInList) (channel.streamId == activeChannel?.streamId) else (index == lastFocusedChannelIndex.coerceIn(0, (filteredChannels.size - 1).coerceAtLeast(0)))
 
-                                        var channelEpg by remember(channel.streamId) {
-                                            mutableStateOf(catalogManager.getCachedEpg(channel.streamId))
-                                        }
+                                        val channelEpg = catalogManager.liveEpgTitles[channel.streamId] ?: catalogManager.getCachedEpg(channel.streamId)
 
                                         LaunchedEffect(channel.streamId) {
-                                            if (channelEpg == null && channel.streamId > 0) {
-                                                channelEpg = catalogManager.getEpgTitleForChannel(channel.streamId)
+                                            if ((channelEpg.isNullOrBlank() || channelEpg == "Live Broadcast") && channel.streamId > 0 && !catalogManager.hasRealCachedEpg(channel.streamId)) {
+                                                catalogManager.getEpgTitleForChannel(channel.streamId)
                                             }
                                         }
 
                                         TvFocusableCard(
                                             onClick = {
-                                                try {
-                                                    keyboardController?.hide()
-                                                } catch (_: Exception) {}
-                                                try {
-                                                    val portal = channel.portalUrl ?: authRepo.getLivePortalUrl()
-                                                    val user = channel.streamUser ?: authRepo.getActiveUsername()
-                                                    val pswd = channel.streamPassword ?: authRepo.getActivePassword()
-                                                    val streamUrl = if (!channel.directStreamUrl.isNullOrBlank()) {
-                                                        channel.directStreamUrl
-                                                    } else {
-                                                        apiClient.buildLiveStreamUrl(portal, user, pswd, channel.streamId)
-                                                    }
-
-                                                    if (isChannelActivePlaying) {
-                                                        onToggleFullscreen(true)
-                                                    } else {
-                                                        activeChannel = channel
-                                                        authRepo.setLastLiveStreamId(channel.streamId)
-                                                        authRepo.addChannelToHistory(channel.streamId)
-                                                        playerManager.playStream(streamUrl, channel.name, isLive = true)
-                                                    }
-                                                } catch (e: Exception) {
-                                                    android.util.Log.e("LiveTvScreen", "Error launching channel: ${e.message}", e)
-                                                }
+                                                playChannel(channel)
                                             },
                                             shape = RoundedCornerShape(10.dp),
                                             backgroundColor = if (isActive) CinemaSurfaceLight else CinemaSurface,
@@ -1462,7 +1456,8 @@ fun LiveTvScreen(
                                                     )
                                                 }
 
-                                                if (!channelEpg.isNullOrBlank()) {
+                                                val hasRealEpg = !channelEpg.isNullOrBlank() && channelEpg != "Live Broadcast"
+                                                if (hasRealEpg) {
                                                     Text(
                                                         text = "▶ $channelEpg",
                                                         color = if (isActive) CinemaAccent else CinemaAccent.copy(alpha = 0.85f),
@@ -1545,7 +1540,8 @@ fun LiveTvScreen(
 
                     // Bottom 1/3: Stream Info & Controls Bar
                     val displayChannel = focusedChannel ?: activeChannel
-                    val effectiveFullEpg = if (focusedChannel != null) focusedFullEpg else activeFullEpg
+                    val effectiveFullEpg = (if (focusedChannel != null) focusedFullEpg else activeFullEpg)
+                        ?: displayChannel?.let { catalogManager.liveEpgResponses[it.streamId] }
                     val epgList = effectiveFullEpg?.epgListings ?: emptyList()
                     val currentEpoch = System.currentTimeMillis() / 1000L
 
@@ -2081,7 +2077,8 @@ fun LiveTvScreen(
                             HorizontalDivider(color = CinemaSurfaceLight, thickness = 1.dp)
 
                             // NOW PLAYING Live Program Details in Local Time
-                            if (currentProgram != null) {
+                            val isRealProgram = currentProgram != null && currentProgram.decodedTitle.isNotBlank() && currentProgram.decodedTitle != "Live Broadcast"
+                            if (isRealProgram) {
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -2102,7 +2099,7 @@ fun LiveTvScreen(
                                         }
 
                                         Text(
-                                            text = currentProgram.decodedTitle,
+                                            text = currentProgram!!.decodedTitle,
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = CinemaAccent,
@@ -2125,7 +2122,7 @@ fun LiveTvScreen(
 
                                     // Program Plot Summary
                                     val desc = currentProgram.decodedDescription
-                                    if (!desc.isNullOrBlank()) {
+                                    if (!desc.isNullOrBlank() && !desc.contains("No electronic program guide data")) {
                                         Text(
                                             text = desc,
                                             fontSize = 12.sp,
@@ -2136,14 +2133,15 @@ fun LiveTvScreen(
                                 }
                             } else {
                                 Text(
-                                    text = if (activeChannel != null && isLiveStream) "Live Broadcast • HD High Quality Stream" else "Select a channel on the left to view programming details",
+                                    text = if (activeChannel != null && isLiveStream) "Live Stream • High Quality Broadcast" else "Select a channel on the left to view programming details",
                                     fontSize = 13.sp,
                                     color = TextSecondary
                                 )
                             }
 
                             // UP NEXT Scheduled Program Box in Local Time (Focusable for D-Pad Remote Scrolling)
-                            if (nextProgram != null) {
+                            val isRealNextProgram = nextProgram != null && nextProgram.decodedTitle.isNotBlank() && nextProgram.decodedTitle != "Live Broadcast"
+                            if (isRealNextProgram) {
                                 TvFocusableCard(
                                     onClick = { /* Informational focus */ },
                                     shape = RoundedCornerShape(8.dp),
@@ -2222,6 +2220,7 @@ private val liveEpgInFormats = ThreadLocal.withInitial {
         "yyyy-MM-dd'T'HH:mm:ss",
         "yyyy-MM-dd HH:mm:ss Z",
         "yyyy-MM-dd HH:mm:ss",
+        "yyyyMMddHHmmss Z",
         "yyyyMMddHHmmss"
     )
     patterns.map { p ->
@@ -2232,27 +2231,11 @@ private val liveEpgInFormats = ThreadLocal.withInitial {
 }
 
 fun formatEpgTimeLocal(rawTimestamp: String?, rawDateStr: String?): String {
-    val epoch = rawTimestamp?.toLongOrNull() ?: rawDateStr?.toLongOrNull()
-    if (epoch != null) {
-        val ms = if (epoch > 100000000000L) epoch else epoch * 1000L
-        return liveEpgOutFormat.get()?.format(Date(ms)) ?: ""
+    val epochSec = CatalogManager.parseEpgEpochStatic(rawTimestamp, rawDateStr)
+    if (epochSec != null && epochSec > 0L) {
+        return liveEpgOutFormat.get()?.format(Date(epochSec * 1000L)) ?: ""
     }
-
-    val str = rawDateStr?.trim() ?: rawTimestamp?.trim() ?: return ""
-    if (str.isBlank()) return ""
-
-    val parsers = liveEpgInFormats.get() ?: return str
-    val outFormat = liveEpgOutFormat.get() ?: return str
-    for (sdf in parsers) {
-        try {
-            val parsed = sdf.parse(str)
-            if (parsed != null) {
-                return outFormat.format(parsed)
-            }
-        } catch (_: Exception) {}
-    }
-
-    return str
+    return ""
 }
 
 @Composable
