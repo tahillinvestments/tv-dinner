@@ -613,6 +613,21 @@ class LiveTvAndRemoteTest {
         val resB64 = gson.fromJson(jsonB64, com.tvdinner.data.model.ShortEpgResponse::class.java)
         assertEquals("Breaking News", resB64.epgListings?.get(0)?.decodedTitle)
     }
+
+    @Test
+    fun testYouTubeRemoteBridge_PlaybackStateFlow() {
+        com.tvdinner.ui.player.YouTubeRemoteBridge.play()
+        assertTrue(com.tvdinner.ui.player.YouTubeRemoteBridge.isPlaying.value)
+        assertTrue(com.tvdinner.ui.player.YouTubeRemoteBridge.isActuallyPlaying)
+
+        com.tvdinner.ui.player.YouTubeRemoteBridge.pause()
+        assertFalse(com.tvdinner.ui.player.YouTubeRemoteBridge.isPlaying.value)
+        assertFalse(com.tvdinner.ui.player.YouTubeRemoteBridge.isActuallyPlaying)
+
+        com.tvdinner.ui.player.YouTubeRemoteBridge.togglePlayPause()
+        assertTrue(com.tvdinner.ui.player.YouTubeRemoteBridge.isPlaying.value)
+        assertTrue(com.tvdinner.ui.player.YouTubeRemoteBridge.isActuallyPlaying)
+    }
 }
 
 

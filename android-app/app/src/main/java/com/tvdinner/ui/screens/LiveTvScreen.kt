@@ -469,6 +469,11 @@ fun LiveTvScreen(
         }
         val target = filteredChannels[newIdx]
         activeChannel = target
+        focusedChannel = target
+        lastFocusedChannelIndex = newIdx
+        val immediateEpg = catalogManager.liveEpgResponses[target.streamId] ?: catalogManager.getCachedFullEpg(target.streamId)
+        activeFullEpg = immediateEpg
+        focusedFullEpg = immediateEpg
         authRepo.setLastLiveStreamId(target.streamId)
         authRepo.addChannelToHistory(target.streamId)
 
@@ -483,13 +488,15 @@ fun LiveTvScreen(
         playerManager.playStream(streamUrl, target.name, isLive = true)
         channelBannerChannel = target
 
-        val cachedTitle = catalogManager.liveEpgTitles[target.streamId] ?: catalogManager.getCachedEpg(target.streamId)
-        if ((cachedTitle.isNullOrBlank() || cachedTitle == "Live Broadcast") && target.streamId > 0) {
-            coroutineScope.launch {
-                catalogManager.getFullEpgForChannel(target.streamId)
-                if (channelBannerChannel?.streamId == target.streamId) {
-                    channelBannerChannel = target
-                }
+        coroutineScope.launch {
+            catalogManager.getEpgTitleForChannel(target.streamId)
+            val full = catalogManager.getFullEpgForChannel(target.streamId)
+            if (full != null) {
+                activeFullEpg = full
+                focusedFullEpg = full
+            }
+            if (channelBannerChannel?.streamId == target.streamId) {
+                channelBannerChannel = target
             }
         }
     }
@@ -584,9 +591,28 @@ fun LiveTvScreen(
                 apiClient.buildLiveStreamUrl(portal, user, pswd, channel.streamId)
             }
             activeChannel = channel
+            focusedChannel = channel
+            channelBannerChannel = channel
+            val currentIdx = filteredChannels.indexOfFirst { it.streamId == channel.streamId }
+            if (currentIdx >= 0) {
+                lastFocusedChannelIndex = currentIdx
+            }
+            val immediateEpg = catalogManager.liveEpgResponses[channel.streamId] ?: catalogManager.getCachedFullEpg(channel.streamId)
+            activeFullEpg = immediateEpg
+            focusedFullEpg = immediateEpg
+
             authRepo.setLastLiveStreamId(channel.streamId)
             authRepo.addChannelToHistory(channel.streamId)
             playerManager.playStream(streamUrl, channel.name, isLive = true)
+
+            coroutineScope.launch {
+                catalogManager.getEpgTitleForChannel(channel.streamId)
+                val full = catalogManager.getFullEpgForChannel(channel.streamId)
+                if (full != null) {
+                    activeFullEpg = full
+                    focusedFullEpg = full
+                }
+            }
         } catch (e: Exception) {
             android.util.Log.e("LiveTvScreen", "Error launching channel: ${e.message}", e)
         }
@@ -773,12 +799,18 @@ fun LiveTvScreen(
                         .aspectRatio(16f / 9f)
                         .background(Color.Black)
                 ) {
-                    val mobileTargetChannel = focusedChannel ?: activeChannel
-                    val mobileTargetEpg = (if (focusedChannel != null) focusedFullEpg else activeFullEpg)
+                    val mobileTargetChannel = activeChannel ?: focusedChannel
+                    val mobileTargetEpg = activeFullEpg ?: focusedFullEpg
                         ?: mobileTargetChannel?.let { catalogManager.liveEpgResponses[it.streamId] }
                     val mobileNowProgram = remember(mobileTargetEpg) {
                         catalogManager.resolveCurrentProgram(mobileTargetEpg?.epgListings)?.decodedTitle
                     }
+                    val mobileCachedTitle = mobileTargetChannel?.let { ch ->
+                        catalogManager.liveEpgTitles[ch.streamId] ?: catalogManager.getCachedEpg(ch.streamId)
+                    }?.takeIf { it.isNotBlank() && it != "Live Broadcast" }
+                    val effectiveMobileSubtitle = mobileNowProgram?.let { "▶ $it" }
+                        ?: mobileCachedTitle?.let { "▶ $it" }
+                        ?: mobileTargetChannel?.let { "CH ${it.num} • Live" }
                     UniversalIntegratedPreview(
                         playerManager = playerManager,
                         onExpand = {
@@ -795,7 +827,7 @@ fun LiveTvScreen(
                         },
                         isPlayingFullscreen = isFullscreen,
                         focusedTitle = mobileTargetChannel?.let { CatalogManager.cleanChannelDisplayName(it.name) },
-                        focusedSubtitle = mobileNowProgram?.let { "▶ $it" } ?: mobileTargetChannel?.let { "CH ${it.num} • Live" },
+                        focusedSubtitle = effectiveMobileSubtitle,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -868,7 +900,9 @@ fun LiveTvScreen(
                                         }
                                     }
                                 }
+                                val cachedTitle = catalogManager.liveEpgTitles[activeChannel!!.streamId] ?: catalogManager.getCachedEpg(activeChannel!!.streamId)
                                 val nowTitle = catalogManager.resolveCurrentProgram(activeFullEpg?.epgListings)?.decodedTitle
+                                    ?: if (!cachedTitle.isNullOrBlank() && cachedTitle != "Live Broadcast") cachedTitle else null
                                 if (!nowTitle.isNullOrBlank()) {
                                     Text(
                                         text = "▶ $nowTitle",
@@ -1076,6 +1110,12 @@ fun LiveTvScreen(
                         val previewNowProgram = remember(previewTargetEpg) {
                             catalogManager.resolveCurrentProgram(previewTargetEpg?.epgListings)?.decodedTitle
                         }
+                        val previewCachedTitle = previewTargetChannel?.let { ch ->
+                            catalogManager.liveEpgTitles[ch.streamId] ?: catalogManager.getCachedEpg(ch.streamId)
+                        }?.takeIf { it.isNotBlank() && it != "Live Broadcast" }
+                        val effectivePreviewSubtitle = previewNowProgram?.let { "▶ $it" }
+                            ?: previewCachedTitle?.let { "▶ $it" }
+                            ?: previewTargetChannel?.let { "CH ${it.num} • Live" }
                         UniversalIntegratedPreview(
                             playerManager = playerManager,
                             onExpand = {
@@ -1092,7 +1132,7 @@ fun LiveTvScreen(
                             },
                             isPlayingFullscreen = isFullscreen || MainActivity.isVODFullscreenActive || MainActivity.isYouTubeFullscreenActive,
                             focusedTitle = previewTargetChannel?.let { CatalogManager.cleanChannelDisplayName(it.name) },
-                            focusedSubtitle = previewNowProgram?.let { "▶ $it" } ?: previewTargetChannel?.let { "CH ${it.num} • Live" },
+                            focusedSubtitle = effectivePreviewSubtitle,
                             onNextVideo = {
                                 val nextItem = catalogManager.advanceYouTubeQueue()
                                 if (nextItem != null) {
@@ -2078,7 +2118,12 @@ fun LiveTvScreen(
 
                             // NOW PLAYING Live Program Details in Local Time
                             val isRealProgram = currentProgram != null && currentProgram.decodedTitle.isNotBlank() && currentProgram.decodedTitle != "Live Broadcast"
-                            if (isRealProgram) {
+                            val quickEpgTitle = displayChannel?.let { ch ->
+                                catalogManager.liveEpgTitles[ch.streamId] ?: catalogManager.getCachedEpg(ch.streamId)
+                            }?.takeIf { it.isNotBlank() && it != "Live Broadcast" }
+
+                            if (isRealProgram || quickEpgTitle != null) {
+                                val progTitle = if (isRealProgram) currentProgram!!.decodedTitle else quickEpgTitle!!
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -2099,7 +2144,7 @@ fun LiveTvScreen(
                                         }
 
                                         Text(
-                                            text = currentProgram!!.decodedTitle,
+                                            text = progTitle,
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = CinemaAccent,
@@ -2109,26 +2154,28 @@ fun LiveTvScreen(
                                         )
                                     }
 
-                                    val startFormatted = formatEpgTimeLocal(currentProgram.startTimestamp, currentProgram.start)
-                                    val endFormatted = formatEpgTimeLocal(currentProgram.stopTimestamp, currentProgram.end)
-                                    if (startFormatted.isNotBlank() && endFormatted.isNotBlank()) {
-                                        Text(
-                                            text = "Time: $startFormatted - $endFormatted",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = TextSecondary
-                                        )
-                                    }
+                                    if (isRealProgram) {
+                                        val startFormatted = formatEpgTimeLocal(currentProgram.startTimestamp, currentProgram.start)
+                                        val endFormatted = formatEpgTimeLocal(currentProgram.stopTimestamp, currentProgram.end)
+                                        if (startFormatted.isNotBlank() && endFormatted.isNotBlank()) {
+                                            Text(
+                                                text = "Time: $startFormatted - $endFormatted",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = TextSecondary
+                                            )
+                                        }
 
-                                    // Program Plot Summary
-                                    val desc = currentProgram.decodedDescription
-                                    if (!desc.isNullOrBlank() && !desc.contains("No electronic program guide data")) {
-                                        Text(
-                                            text = desc,
-                                            fontSize = 12.sp,
-                                            color = TextPrimary,
-                                            lineHeight = 16.sp
-                                        )
+                                        // Program Plot Summary
+                                        val desc = currentProgram.decodedDescription
+                                        if (!desc.isNullOrBlank() && !desc.contains("No electronic program guide data")) {
+                                            Text(
+                                                text = desc,
+                                                fontSize = 12.sp,
+                                                color = TextPrimary,
+                                                lineHeight = 16.sp
+                                            )
+                                        }
                                     }
                                 }
                             } else {

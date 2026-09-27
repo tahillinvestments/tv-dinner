@@ -57,7 +57,13 @@ object YouTubeRemoteBridge {
     var onPreviousVideoCallback: (() -> Unit)? = null
 
     // Track user playback intent across view transitions (fullscreen <-> preview)
-    var isActuallyPlaying = true
+    private val _isPlaying = MutableStateFlow(true)
+    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+
+    var isActuallyPlaying: Boolean
+        get() = _isPlaying.value
+        set(value) { _isPlaying.value = value }
+
     var isTransitioning = false
 
     fun notifyTransition() {
@@ -383,11 +389,50 @@ fun YouTubePlayerView(
     val currentPositionSec by YouTubeRemoteBridge.currentPositionSec.collectAsState()
     val durationSec by YouTubeRemoteBridge.durationSec.collectAsState()
     val seekActionTimestamp by YouTubeRemoteBridge.seekActionTimestamp.collectAsState()
+    val isActuallyPlaying by YouTubeRemoteBridge.isPlaying.collectAsState()
     val mountTimestamp = remember { System.currentTimeMillis() }
     var centerKeyDownReceived by remember { mutableStateOf(false) }
 
     var showSeekHud by remember { mutableStateOf(false) }
     var lastObservedSeekAction by remember { mutableLongStateOf(0L) }
+
+    val setupTouchListener: (WebView) -> Unit = { wv ->
+        if (isPreview) {
+            wv.setOnTouchListener { _, event ->
+                if (event.action == android.view.MotionEvent.ACTION_UP) {
+                    onExpandPreview?.invoke()
+                }
+                true
+            }
+        } else {
+            val gestureDetector = android.view.GestureDetector(wv.context, object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onSingleTapConfirmed(e: android.view.MotionEvent): Boolean {
+                    showControls = !showControls
+                    lastInteractionTime = System.currentTimeMillis()
+                    return true
+                }
+                override fun onDoubleTap(e: android.view.MotionEvent): Boolean {
+                    val w = wv.width
+                    if (w > 0) {
+                        if (e.x < w * 0.4f) {
+                            YouTubeRemoteBridge.seekRewind()
+                        } else if (e.x > w * 0.6f) {
+                            YouTubeRemoteBridge.seekForward()
+                        } else {
+                            showControls = !showControls
+                        }
+                        lastInteractionTime = System.currentTimeMillis()
+                        return true
+                    }
+                    return false
+                }
+            })
+            wv.setOnTouchListener { _, event ->
+                gestureDetector.onTouchEvent(event)
+                true
+            }
+        }
+    }
 
     LaunchedEffect(seekActionTimestamp) {
         if (seekActionTimestamp > 0L && seekActionTimestamp != lastObservedSeekAction) {
@@ -568,16 +613,7 @@ fun YouTubePlayerView(
                         isFocusable = false
                         isFocusableInTouchMode = false
                         resumeTimers()
-                        if (isPreview) {
-                            setOnTouchListener { _, event ->
-                                if (event.action == android.view.MotionEvent.ACTION_UP) {
-                                    onExpandPreview?.invoke()
-                                }
-                                true
-                            }
-                        } else {
-                            setOnTouchListener(null)
-                        }
+                        setupTouchListener(this)
                         YouTubeRemoteBridge.activeIsPreview = isPreview
                         if (videoId.isNotBlank()) {
                             if (YouTubeRemoteBridge.activeVideoId != videoId) {
@@ -610,16 +646,7 @@ fun YouTubePlayerView(
                         isFocusable = false
                         isFocusableInTouchMode = false
                         resumeTimers()
-                        if (isPreview) {
-                            setOnTouchListener { _, event ->
-                                if (event.action == android.view.MotionEvent.ACTION_UP) {
-                                    onExpandPreview?.invoke()
-                                }
-                                true
-                            }
-                        } else {
-                            setOnTouchListener(null)
-                        }
+                        setupTouchListener(this)
                         layoutParams = FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
@@ -658,16 +685,7 @@ fun YouTubePlayerView(
             update = { wv ->
             wv.resumeTimers()
             YouTubeRemoteBridge.activeWebView = wv
-            if (isPreview) {
-                wv.setOnTouchListener { _, event ->
-                    if (event.action == android.view.MotionEvent.ACTION_UP) {
-                        onExpandPreview?.invoke()
-                    }
-                    true
-                }
-            } else {
-                wv.setOnTouchListener(null)
-            }
+            setupTouchListener(wv)
             YouTubeRemoteBridge.activeIsPreview = isPreview
             if (videoId.isNotBlank()) {
                 if (YouTubeRemoteBridge.activeVideoId != videoId) {
@@ -835,11 +853,33 @@ fun YouTubePlayerView(
                     }
                 }
 
-                // Center Play/Pause Control
-                Box(
+                // Center Play/Pause & Seeking Controls Row (Touch & TV Remote Friendly)
+                Row(
                     modifier = Modifier.align(Alignment.Center),
-                    contentAlignment = Alignment.Center
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
+                    // Rewind 15s
+                    TvFocusableCard(
+                        onClick = {
+                            YouTubeRemoteBridge.seekRewind()
+                            lastInteractionTime = System.currentTimeMillis()
+                        },
+                        modifier = Modifier.size(52.dp),
+                        shape = CircleShape,
+                        backgroundColor = CinemaSurfaceVariant.copy(alpha = 0.85f)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.FastRewind,
+                                contentDescription = "Rewind 15s",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
+
+                    // Play / Pause
                     TvFocusableCard(
                         onClick = {
                             YouTubeRemoteBridge.togglePlayPause()
@@ -851,10 +891,30 @@ fun YouTubePlayerView(
                     ) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = if (YouTubeRemoteBridge.isActuallyPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (YouTubeRemoteBridge.isActuallyPlaying) "Pause" else "Play",
+                                imageVector = if (isActuallyPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (isActuallyPlaying) "Pause" else "Play",
                                 tint = Color.White,
                                 modifier = Modifier.size(38.dp)
+                            )
+                        }
+                    }
+
+                    // Fast-Forward 15s
+                    TvFocusableCard(
+                        onClick = {
+                            YouTubeRemoteBridge.seekForward()
+                            lastInteractionTime = System.currentTimeMillis()
+                        },
+                        modifier = Modifier.size(52.dp),
+                        shape = CircleShape,
+                        backgroundColor = CinemaSurfaceVariant.copy(alpha = 0.85f)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.FastForward,
+                                contentDescription = "Fast-Forward 15s",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }
@@ -864,7 +924,7 @@ fun YouTubePlayerView(
 
         // Bottom Progress Bar & Scrub HUD (Visible on remote seek, showControls, or paused)
         AnimatedVisibility(
-            visible = !isPreview && (showControls || showSeekHud || !YouTubeRemoteBridge.isActuallyPlaying),
+            visible = !isPreview && (showControls || showSeekHud || !isActuallyPlaying),
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
@@ -939,7 +999,7 @@ fun YouTubePlayerView(
                             activeTrackColor = CinemaPrimary,
                             inactiveTrackColor = Color.White.copy(alpha = 0.25f)
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
                     )
                 } else {
                     LinearProgressIndicator(
@@ -949,6 +1009,19 @@ fun YouTubePlayerView(
                     )
                 }
             }
+        }
+
+        // Preview Mode Bottom Progress Indicator
+        if (isPreview && durationSec > 0f) {
+            LinearProgressIndicator(
+                progress = { (currentPositionSec / durationSec).coerceIn(0f, 1f) },
+                color = CinemaAccent,
+                trackColor = Color.White.copy(alpha = 0.2f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .align(Alignment.BottomCenter)
+            )
         }
     }
 }

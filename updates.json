@@ -10,6 +10,19 @@
   },
   "releases": [
     {
+      "id": "rel-258",
+      "versionCode": 258,
+      "versionName": "2.5.8",
+      "title": "Mobile Touch YouTube Scrub Bar & Gestures, Instant Touch Channel EPG & Preview Progress HUD",
+      "status": "STAGED",
+      "releaseNotes": "• Mobile Touch YouTube Scrub Bar & Gestures: Added tap-to-toggle overlay controls and double-tap seeking (-15s left / +15s right) on touchscreens, converting YouTube playback state into a reactive StateFlow (isPlaying) so the scrub bar and time stamps stay visible whenever video is paused or scrubbed on mobile. Added dedicated center 15s Rewind / Fast-Forward touch buttons alongside Play/Pause, enlarged the slider touch target height (48dp), and added a 3dp bottom progress indicator in preview mode\n• Instant Live TV EPG Updates on Touch: Fixed channel switching in preview mode on mobile touchscreens by ensuring playChannel immediately synchronizes focusedChannel and activeChannel along with cached/live EPG states, instantly updating the mobile info strip and bottom preview box without needing to toggle fullscreen\n• Quick EPG Title Fallbacks: Enhanced NOW PLAYING and preview subtitles across mobile portrait and landscape layouts to immediately render titles from liveEpgTitles and short EPG cache while full XMLTV schedules load asynchronously",
+      "stagedApk": "staging-apks/tv-dinner-v2.5.8-b258.apk",
+      "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.5.8/app-release.apk",
+      "mandatory": false,
+      "createdAt": "2026-09-27T23:12:23.400Z",
+      "publishedAt": null
+    },
+    {
       "id": "rel-257",
       "versionCode": 257,
       "versionName": "2.5.7",
