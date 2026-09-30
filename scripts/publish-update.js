@@ -177,7 +177,7 @@ if (fs.existsSync(path.dirname(androidVersionJson))) {
 try {
   console.log('\n📦 Committing and pushing to GitHub...');
   execSync(
-    'git add updates.json public/version.json android-app/ update-dashboard.html version-notes.json scripts/ package.json src/',
+    'git add updates.json public/version.json android-app/app/build.gradle.kts android-app/app/src/main/assets/version.json update-dashboard.html version-notes.json scripts/ package.json src/',
     { cwd: projectRoot, stdio: 'inherit' }
   );
   const commitMsg = `Publish v${newVersionName} (Build ${newVersionCode}): ${publishedEntry.title}`;

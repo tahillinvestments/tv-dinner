@@ -1,9 +1,9 @@
 {
-  "versionCode": 248,
-  "versionName": "2.4.8",
-  "title": "Stream Recovery & Buffer Optimization, Fullscreen TV Surfing Arrows Removal & Live TV Scroll Ceiling",
-  "releaseNotes": "• Streaming Engine & Recovery Optimization: Tuned DefaultLoadControl buffer parameters (8s min buffer, 500ms initial playback buffer, 1000ms rebuffer) to prevent chunk starvation, added a 15-second HTTP socket read timeout to detect and reconnect dead/hung streams, tightened the live stream watchdog to 4s, and configured live target offset (4s target, 2s min, 10s max) to eliminate live-edge chasing\n• Fullscreen Live TV Arrows Removal: Automatically hid on-screen channel surfing up/down buttons during fullscreen Live TV on Google TV, Firestick, and non-touch displays while retaining them on touchscreen devices\n• Live TV Category Scroll Ceiling: Permanently fixed focus escaping from Live TV categories into the preview screen when holding D-pad UP, matching Movies and Series behavior; guarded asynchronous scroll updates and debounced category selection",
-  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.4.8/app-release.apk",
+  "versionCode": 259,
+  "versionName": "2.5.9",
+  "title": "Continuous YouTube Feed Auto-Advance & Watchdog, Smart Music Artist Curation & Decoupled Search Relevance",
+  "releaseNotes": "• Continuous YouTube Feed Auto-Advance & Watchdog: Added an intelligent stream watchdog timer and near-end detection in the YouTube iframe bridge to automatically advance playback to the next item in the queue when reaching within 0.85s of stream end or when paused near completion, eliminating instances where video feeds halt silently. Injected error auto-skip recovery to seamlessly bypass blocked or unplayable videos without stopping playback\n• Smarter Music Curation & Artist Interleaving: Enhanced music category browsing by broadening the pool of rotating curated artists, enforcing a maximum threshold per artist per page, and applying intelligent artist-level interleaving (interleaveMusicVideos) across genre feeds so no single artist monopolizes category results\n• Pure Relevance Search for Music & Podcasts: Completely decoupled search queries from category fallback injection and forced interleaving. Searching for specific artists or podcasts now strictly ranks by relevance to the entered query without scattering or polluting results with unrelated category items\n• Uninterrupted Queue Sequencing & Looping: Upgraded playback queue handling across mobile touch previews and TV fullscreen modes with automatic prefetching near the end of loaded lists and seamless looping to ensure continuous, non-stop entertainment without premature stopping",
+  "apkUrl": "https://github.com/tahillinvestments/tv-dinner/releases/download/v2.5.9/app-release.apk",
   "mandatory": false,
-  "publishedAt": "2026-09-20T16:11:44.969Z"
+  "publishedAt": "2026-09-30T22:52:43.228Z"
 }
