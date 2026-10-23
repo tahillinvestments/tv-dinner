@@ -17829,6 +17829,9 @@
 	<programme channel="咪咕综合体育" start="20261023203500 +0800" stop="20261023221500 +0800">
 		<title lang="zh">英超赛场-26/27赛季 英超 第7轮 曼城-伊普斯维奇</title>
 	</programme>
+	<programme channel="咪咕综合体育" start="20261023222000 +0800" stop="20261023000000 +0800">
+		<title lang="zh">网球世界-2026美国网球公开赛 男单决赛 兹维列夫-谢尔顿</title>
+	</programme>
 	<channel id="咪咕足球">
 		<display-name lang="zh">咪咕足球</display-name>
 	</channel>
@@ -58736,6 +58739,9 @@
 	</programme>
 	<programme channel="newtv超级电影" start="20261023195400 +0800" stop="20261023220900 +0800">
 		<title lang="zh">法式火锅</title>
+	</programme>
+	<programme channel="newtv超级电影" start="20261023220900 +0800" stop="20261023233400 +0800">
+		<title lang="zh">极地大冒险3（普通话版）</title>
 	</programme>
 	<channel id="newtv超级电视剧">
 		<display-name lang="zh">NEWTV超级电视剧</display-name>
