@@ -1,4 +1,4 @@
-# List for **iptv.org stream China**(Rollback)
+# List for **iptv.org stream China**
 
 > M3U: [o_s_cn.m3u](/o_s_cn.m3u), TXT: [o_s_cn.txt](/txt/o_s_cn.txt)
 
@@ -355,4 +355,4 @@
 | 349 | 黑龙江 (1080p) | 中国移动江苏 | <http://223.110.245.161/ott.js.chinamobile.com/PLTV/3/224/3221227492/index.m3u8> |
 | 350 | 黑龙江卫 (1080p) | IPv4 直链 | <http://183.207.248.71/cntv/live1/HD-2500k-1080P-heilongjiangstv/HD-2500k-1080P-heilongjiangstv> |
 
-Updated at **Mon Nov 23 2026 16:32:22 GMT+0000 (Coordinated Universal Time)**
+Updated at **Tue Nov 24 2026 03:29:10 GMT+0000 (Coordinated Universal Time)**
